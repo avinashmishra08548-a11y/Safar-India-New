@@ -268,7 +268,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             )}
 
             <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="flex justify-center">
+              <div className="flex flex-col items-center gap-2">
                 <input
                   type="text"
                   maxLength={4}
@@ -278,6 +278,13 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   placeholder="••••"
                   className="w-36 text-center tracking-[0.5em] text-xl font-black bg-slate-950 border border-slate-800 rounded-2xl py-3 text-amber-400 focus:outline-none focus:border-amber-400 font-mono"
                 />
+                <button
+                  type="button"
+                  onClick={() => setOtp(generatedOtp)}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20"
+                >
+                  ⚡ Auto-fill Code ({generatedOtp})
+                </button>
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-400">

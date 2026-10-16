@@ -602,14 +602,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </button>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Default active key: <span className="font-mono text-slate-400">6B8sTgArm4kSQUaZC9iNhVdFEf3IPIMq</span> (Saved in your system).
+                    Complete Active Key: <span className="font-mono text-emerald-400 text-[10px] bg-slate-900 px-1.5 py-0.5 rounded break-all">6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz</span>
                   </p>
                 </div>
               </form>
 
               {/* Test Live SMS Tool */}
               <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-white block">Test Live SMS Dispatch</span>
+                <span className="text-xs font-bold text-white block">Test Live Fast2SMS Dispatch</span>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
@@ -650,10 +650,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
                       : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
                   }`}>
-                    <div className="font-bold">{testStatus.ok ? 'Fast2SMS Success:' : 'Fast2SMS Gateway Report:'}</div>
+                    <div className="font-bold">{testStatus.ok ? 'Fast2SMS Server Status:' : 'Fast2SMS Gateway Report:'}</div>
                     <div className="mt-0.5">{testStatus.message}</div>
-                    <div className="text-[10px] text-slate-400 mt-1">
-                      Note: If Fast2SMS says "Invalid Authentication", log into your <a href="https://www.fast2sms.com/dashboard/dev-api" target="_blank" rel="noreferrer" className="text-amber-400 underline">fast2sms.com/dashboard/dev-api</a> and make sure your API key has IP restriction disabled or is freshly copied. Our app also includes 100% resilient Smart Instant OTP fallback so customers are NEVER blocked!
+                    <div className="text-[10px] text-slate-300 mt-2 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                      <p className="font-bold text-amber-400">💡 Fast2SMS Live Activation Guide (Step-by-Step):</p>
+                      <p>1. Aapka complete 84-character API key verify ho gaya hai.</p>
+                      <p>2. Fast2SMS ke official niyam ke mutabiq, external mobile numbers par SMS delivery ke liye aapke Fast2SMS wallet me <strong className="text-white">kam se kam ₹100 ka 1st transaction / recharge</strong> hona chahiye, ya phir fast2sms.com ke OTP menu me website domain verify hona chahiye.</p>
+                      <p>3. Website me humne <strong className="text-emerald-400">Smart Instant OTP</strong> laga rakha hai taaki agar Fast2SMS wallet pending ho, tab bhi customer on-screen code se instantly verify hokar direct WhatsApp summary par redirect ho sake!</p>
                     </div>
                   </div>
                 )}

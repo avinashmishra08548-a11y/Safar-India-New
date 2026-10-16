@@ -85,6 +85,17 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
             <p className="text-[11px] text-slate-400 mt-1">
               Your ride is locked with verified chauffeur dispatch guarantee.
             </p>
+
+            {/* Quick Auto-filled WhatsApp Button right at top */}
+            <div className="no-print pt-3">
+              <button
+                onClick={handleWhatsAppShare}
+                className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-green-500 hover:from-emerald-400 hover:to-green-400 text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/25 active:scale-[0.99] border border-emerald-300/40"
+              >
+                <Share2 className="w-4 h-4 text-slate-950" />
+                <span>Open WhatsApp with Auto-filled Booking Summary</span>
+              </button>
+            </div>
           </div>
 
           {/* Trip Details Card */}
