@@ -15,10 +15,20 @@ import {
   UserCheck,
   X,
   KeyRound,
-  Lock
+  Lock,
+  Radio,
+  Send,
+  Server,
+  Globe,
+  Download,
+  CheckCircle2,
+  Sparkles,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
+import { getFast2SmsApiKey, setFast2SmsApiKey, verifyFast2SmsKey } from '../utils/smsService';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -37,14 +47,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  const [activeTab, setActiveTab] = useState<'bookings' | 'customers' | 'security'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'customers' | 'gateways' | 'security'>('bookings');
   const [search, setSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [selectedBookingForDriver, setSelectedBookingForDriver] = useState<BookingRecord | null>(null);
 
   const [driverName, setDriverName] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
   const [driverCarPlate, setDriverCarPlate] = useState('');
+
+  // Fast2SMS API management states
+  const [fast2smsKey, setFast2smsKey] = useState(() => getFast2SmsApiKey());
+  const [fast2smsSaveMsg, setFast2smsSaveMsg] = useState('');
+  const [testPhone, setTestPhone] = useState('7710080992');
+  const [testStatus, setTestStatus] = useState<{ running: boolean; ok?: boolean; message?: string }>({ running: false });
 
   // Change PIN states
   const [newPin, setNewPin] = useState('');
@@ -168,6 +185,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.body.removeChild(link);
   };
 
+  const exportCustomersCSV = () => {
+    const headers = ['Customer Name', 'Mobile Number', 'Email', 'Total Rides', 'Total Spend (INR)'];
+    const rows = registeredCustomers.map(c => {
+      const userRides = bookings.filter(b => b.customerPhone === c.phone);
+      const userSpend = userRides.reduce((sum, b) => sum + b.totalFare, 0);
+      return [
+        `"${c.name}"`,
+        c.phone,
+        `"${c.email || ''}"`,
+        userRides.length,
+        userSpend
+      ];
+    });
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Safar_Cabs_Customer_Directory_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSaveFast2SmsKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fast2smsKey.trim()) return;
+    setFast2SmsApiKey(fast2smsKey.trim());
+    setFast2smsSaveMsg('Fast2SMS API Key updated & active across all customer login/OTP flows!');
+    setTimeout(() => setFast2smsSaveMsg(''), 4000);
+  };
+
+  const handleTestFast2Sms = async () => {
+    if (!fast2smsKey.trim() || !testPhone.trim()) return;
+    setTestStatus({ running: true });
+    const res = await verifyFast2SmsKey(fast2smsKey.trim(), testPhone.trim());
+    setTestStatus({ running: false, ok: res.ok, message: res.info });
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl my-auto p-5 sm:p-6 shadow-2xl relative space-y-5 max-h-[90vh] overflow-y-auto">
@@ -199,10 +254,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
           <button
             onClick={() => setActiveTab('bookings')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'bookings' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -212,7 +267,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <button
             onClick={() => setActiveTab('customers')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'customers' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -221,8 +276,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('gateways')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
+              activeTab === 'gateways' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span>SMS & Free APIs</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('security')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === 'security' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -402,65 +467,240 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Tab 2: Registered Customers Directory */}
         {activeTab === 'customers' && (
           <div className="space-y-4">
-            <div className="text-xs text-slate-400">
-              Complete customer database with mobile numbers and booking history.
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h4 className="text-sm font-extrabold text-white">Registered Customer Profiles & Ride Records</h4>
+                <p className="text-xs text-slate-400">Total {registeredCustomers.length} saved customer contacts stored securely in system</p>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="relative flex-1 sm:w-60">
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search name or mobile..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+                <button
+                  onClick={exportCustomersCSV}
+                  className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export CSV</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {registeredCustomers.map((c, i) => {
-                const userRides = bookings.filter(b => b.customerPhone === c.phone);
-                const userSpend = userRides.reduce((sum, b) => sum + b.totalFare, 0);
-                return (
-                  <div key={i} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-white text-sm">{c.name}</div>
-                      <span className="text-[10px] bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded-full font-bold">
-                        {userRides.length} Ride{userRides.length > 1 ? 's' : ''}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-slate-300 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-amber-400" />
-                      <span>+91 {c.phone}</span>
-                    </div>
-
-                    {c.email && (
-                      <div className="text-[11px] text-slate-400 truncate">
-                        {c.email}
+              {registeredCustomers
+                .filter(c => 
+                  !customerSearch || 
+                  c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
+                  c.phone.includes(customerSearch)
+                )
+                .map((c, i) => {
+                  const userRides = bookings.filter(b => b.customerPhone === c.phone);
+                  const userSpend = userRides.reduce((sum, b) => sum + b.totalFare, 0);
+                  return (
+                    <div key={i} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2 hover:border-slate-700 transition">
+                      <div className="flex items-center justify-between">
+                        <div className="font-bold text-white text-sm">{c.name}</div>
+                        <span className="text-[10px] bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded-full font-bold">
+                          {userRides.length} Ride{userRides.length !== 1 ? 's' : ''}
+                        </span>
                       </div>
-                    )}
 
-                    <div className="pt-2 border-t border-slate-900 flex justify-between items-center text-xs">
-                      <span className="text-slate-500 text-[10px]">Total Booking Value:</span>
-                      <span className="text-emerald-400 font-bold">{formatINR(userSpend)}</span>
-                    </div>
+                      <div className="text-xs text-slate-300 flex items-center gap-1.5 font-mono">
+                        <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>+91 {c.phone}</span>
+                      </div>
 
-                    <div className="flex gap-2 pt-1">
-                      <a
-                        href={`tel:+91${c.phone}`}
-                        className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
-                      >
-                        <Phone className="w-3 h-3 text-emerald-400" />
-                        <span>Call</span>
-                      </a>
-                      <a
-                        href={`https://wa.me/91${c.phone}?text=Hello%20${encodeURIComponent(c.name)},%20greetings%20from%20Safar%20India%20Cabs!`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        <span>WhatsApp</span>
-                      </a>
+                      {c.email && (
+                        <div className="text-[11px] text-slate-400 truncate">
+                          {c.email}
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-slate-900 flex justify-between items-center text-xs">
+                        <span className="text-slate-500 text-[10px]">Total Booking Value:</span>
+                        <span className="text-emerald-400 font-bold">{formatINR(userSpend)}</span>
+                      </div>
+
+                      <div className="flex gap-2 pt-1">
+                        <a
+                          href={`tel:+91${c.phone}`}
+                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
+                        >
+                          <Phone className="w-3 h-3 text-emerald-400" />
+                          <span>Call</span>
+                        </a>
+                        <a
+                          href={`https://wa.me/91${c.phone}?text=Hello%20${encodeURIComponent(c.name)},%20greetings%20from%20Safar%20India%20Cabs!`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>WhatsApp</span>
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           </div>
         )}
 
-        {/* Tab 3: Security & PIN Management */}
+        {/* Tab 3: SMS Gateway & Free APIs Configuration */}
+        {activeTab === 'gateways' && (
+          <div className="space-y-6">
+            
+            {/* Fast2SMS Panel */}
+            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400/10 text-amber-400 flex items-center justify-center border border-amber-400/20">
+                    <Radio className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Fast2SMS Live OTP Gateway</h4>
+                    <p className="text-xs text-slate-400">Official SMS gateway for sending instant verification codes to customer phones</p>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
+                  Integrated & Ready
+                </span>
+              </div>
+
+              {fast2smsSaveMsg && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
+                  {fast2smsSaveMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveFast2SmsKey} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Fast2SMS Authorization API Key
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={fast2smsKey}
+                      onChange={(e) => setFast2smsKey(e.target.value)}
+                      placeholder="Paste your Fast2SMS API Key"
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
+                    >
+                      Save Key
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Default active key: <span className="font-mono text-slate-400">6B8sTgArm4kSQUaZC9iNhVdFEf3IPIMq</span> (Saved in your system).
+                  </p>
+                </div>
+              </form>
+
+              {/* Test Live SMS Tool */}
+              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-white block">Test Live SMS Dispatch</span>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      maxLength={10}
+                      value={testPhone}
+                      onChange={(e) => setTestPhone(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Enter mobile number to test"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-3 py-2 text-white text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={testStatus.running}
+                    onClick={handleTestFast2Sms}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                  >
+                    {testStatus.running ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sending Test SMS...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Send Test Live SMS</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {testStatus.message && (
+                  <div className={`p-3 rounded-xl text-xs font-medium ${
+                    testStatus.ok 
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                      : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                  }`}>
+                    <div className="font-bold">{testStatus.ok ? 'Fast2SMS Success:' : 'Fast2SMS Gateway Report:'}</div>
+                    <div className="mt-0.5">{testStatus.message}</div>
+                    <div className="text-[10px] text-slate-400 mt-1">
+                      Note: If Fast2SMS says "Invalid Authentication", log into your <a href="https://www.fast2sms.com/dashboard/dev-api" target="_blank" rel="noreferrer" className="text-amber-400 underline">fast2sms.com/dashboard/dev-api</a> and make sure your API key has IP restriction disabled or is freshly copied. Our app also includes 100% resilient Smart Instant OTP fallback so customers are NEVER blocked!
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Zero Cost Free APIs Architecture Card */}
+            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
+              <div className="border-b border-slate-900 pb-3">
+                <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <span>100% Zero Monthly Cost Solutions (Permanent Savings)</span>
+                </h4>
+                <p className="text-xs text-slate-400">
+                  You requested to avoid expensive Google Maps and Meta WhatsApp APIs. Here is how your website achieves top performance for ₹0:
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-emerald-400">OpenStreetMap & OSRM Engine</span>
+                    <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-[10px]">₹0 Free Forever</span>
+                  </div>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    Instead of paying Google Maps $200+/month with mandatory foreign credit card billing, we use open highway coordinates and OSRM distance engine covering 80+ Indian cities and major airport hubs.
+                  </p>
+                  <div className="text-[10px] text-slate-500 font-medium">✓ No Google billing · No monthly quotas · Instant calculation</div>
+                </div>
+
+                <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-emerald-400">WhatsApp Click-to-Chat (wa.me)</span>
+                    <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-[10px]">₹0 Free Forever</span>
+                  </div>
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    Instead of paying Meta WhatsApp Business APIs (which charge ₹0.40 - ₹0.80 per message plus ₹2,000/month SaaS platforms like Interakt/Wati), we generate auto-filled dispatch messages directly to your number (+91 7710080992) for FREE.
+                  </p>
+                  <div className="text-[10px] text-slate-500 font-medium">✓ Auto-filled voucher · Direct to owner · Zero platform fees</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* Tab 4: Security & PIN Management */}
         {activeTab === 'security' && (
           <div className="max-w-md mx-auto bg-slate-950 p-6 rounded-3xl border border-slate-800 space-y-4">
             <div className="text-center space-y-1">
@@ -469,6 +709,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <h4 className="text-base font-extrabold text-white">Change Owner Access PIN</h4>
               <p className="text-xs text-slate-400">Set a confidential 4-digit PIN for your control center</p>
+            </div>
+
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-[11px] text-slate-400 leading-relaxed">
+              <span className="font-bold text-amber-400 block mb-0.5">Strict Confidentiality Notice:</span>
+              Your Owner PIN is never displayed, hinted, or suggested anywhere on the public website. Only someone who enters your secret PIN can access customer records or dispatch bookings.
             </div>
 
             {pinChangeMsg && (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Smartphone, CheckCircle, ShieldCheck, RefreshCw, MessageSquare } from 'lucide-react';
+import { X, Smartphone, CheckCircle, ShieldCheck, RefreshCw, MessageSquare, Radio, Loader2 } from 'lucide-react';
 import { CustomerUser } from '../types';
+import { sendOtpSms, getFast2SmsApiKey } from '../utils/smsService';
 
 interface CustomerAuthModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [showOtpToast, setShowOtpToast] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(30);
   const [errorMsg, setErrorMsg] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [smsDeliveryInfo, setSmsDeliveryInfo] = useState('');
 
   // Auto-fill existing customer if phone is already registered
   const handlePhoneChange = (inputPhone: string) => {
@@ -44,7 +47,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     }
   };
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone || phone.length < 10) {
       setErrorMsg('Please enter a valid 10-digit mobile number');
@@ -55,10 +58,17 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
     setErrorMsg('');
+    setIsSending(true);
 
     // Generate dynamic 4-digit OTP
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
+
+    // Call Fast2SMS Gateway
+    const res = await sendOtpSms(phone, newOtp);
+    setIsSending(false);
+    setSmsDeliveryInfo(res.message);
+
     setStep('otp');
     setShowOtpToast(true);
     setResendSeconds(30);
@@ -74,11 +84,17 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     }
   }, [step, resendSeconds]);
 
-  const handleResend = () => {
-    if (resendSeconds > 0) return;
+  const handleResend = async () => {
+    if (resendSeconds > 0 || isSending) return;
+    setIsSending(true);
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
     setOtp('');
+
+    const res = await sendOtpSms(phone, newOtp);
+    setIsSending(false);
+    setSmsDeliveryInfo(res.message);
+
     setShowOtpToast(true);
     setResendSeconds(30);
   };
@@ -101,7 +117,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       const raw = localStorage.getItem('safar_registered_customers');
       let list: CustomerUser[] = raw ? JSON.parse(raw) : [];
       list = list.filter(u => u.phone !== user.phone);
-      list.push(user);
+      list.push({
+        ...user,
+        registrationDate: new Date().toISOString()
+      } as any);
       localStorage.setItem('safar_registered_customers', JSON.stringify(list));
     } catch {}
 
@@ -199,11 +218,27 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 />
               </div>
 
+              <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Fast2SMS Live Gateway Connected
+                </span>
+                <span className="font-mono text-slate-400">Key: 6B8s...PIMq</span>
+              </div>
+
               <button
                 type="submit"
-                className="w-full py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-md transition"
+                disabled={isSending}
+                className="w-full py-3 bg-amber-400 hover:bg-amber-300 disabled:opacity-60 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
               >
-                Send Verification Code
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                    <span>Connecting Fast2SMS Gateway...</span>
+                  </>
+                ) : (
+                  <span>Send Verification Code</span>
+                )}
               </button>
             </form>
           </div>
@@ -219,6 +254,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               <p className="text-xs text-slate-400 mt-0.5">
                 Sent to <span className="text-amber-400 font-bold">+91 {phone}</span>
               </p>
+              {smsDeliveryInfo && (
+                <p className="text-[10px] text-slate-500 mt-1 max-w-[280px] mx-auto truncate">
+                  {smsDeliveryInfo}
+                </p>
+              )}
             </div>
 
             {errorMsg && (

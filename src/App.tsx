@@ -202,7 +202,7 @@ export default function App() {
 
   const handleVerifyAdminPin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPinInput === ownerPin || adminPinInput === '0992') {
+    if (adminPinInput === ownerPin) {
       setIsAdminPinModalOpen(false);
       setIsAdminDashboardOpen(true);
       setAdminPinInput('');

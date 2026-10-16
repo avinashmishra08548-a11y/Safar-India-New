@@ -161,34 +161,50 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
         </div>
 
         {/* Action Buttons (Excluded from print) */}
-        <div className="no-print pt-2 space-y-2">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              onClick={handleWhatsAppShare}
-              className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
-            >
-              <Share2 className="w-4 h-4 text-slate-950" />
-              <span>Send to WhatsApp (+91 7710080992)</span>
-            </button>
+        <div className="no-print pt-2 space-y-3">
+          
+          {/* Prominent Auto-filled WhatsApp Redirect Card */}
+          <div className="bg-gradient-to-r from-emerald-950/80 to-slate-900 border border-emerald-500/40 p-4 rounded-2xl space-y-2.5 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-400 font-extrabold text-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <span>Instant WhatsApp Dispatch Confirmation</span>
+              </div>
+              <span className="text-[10px] text-emerald-300 font-mono bg-emerald-500/20 px-2 py-0.5 rounded-md">FREE Auto-fill</span>
+            </div>
+            
+            <p className="text-[11px] text-slate-300 leading-snug">
+              Click below to send this complete booking voucher automatically to our 24/7 WhatsApp dispatch desk (+91 7710080992).
+            </p>
 
             <button
-              onClick={handlePrint}
-              className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5"
+              onClick={handleWhatsAppShare}
+              className="w-full py-3.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/25 active:scale-[0.99]"
             >
-              <Printer className="w-4 h-4" />
-              <span>Print / Save PDF</span>
+              <Share2 className="w-5 h-5 text-slate-950" />
+              <span>Send Booking to WhatsApp (+91 77100 80992)</span>
             </button>
           </div>
 
-          <button
-            onClick={() => {
-              onClose();
-              onViewMyRides();
-            }}
-            className="w-full py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-medium text-xs transition"
-          >
-            View in My Rides & Bills
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={handlePrint}
+              className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print / Download Tax Invoice</span>
+            </button>
+
+            <button
+              onClick={() => {
+                onClose();
+                onViewMyRides();
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white font-medium text-xs transition text-center"
+            >
+              View in My Rides & Bills
+            </button>
+          </div>
         </div>
 
       </div>
