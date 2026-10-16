@@ -14,7 +14,8 @@ import {
   MessageSquare, 
   CheckCircle2, 
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Shield
 } from 'lucide-react';
 import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
@@ -243,6 +244,7 @@ export default function App() {
           }
         }}
         activeNavTab={activeTab}
+        onOpenAdmin={() => setIsAdminPinModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -434,11 +436,11 @@ export default function App() {
       </a>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 z-40 px-4 py-2">
-        <div className="grid grid-cols-3 text-center">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 z-40 px-3 py-2">
+        <div className="grid grid-cols-4 text-center">
           <button
             onClick={() => setActiveTab('booking')}
-            className={`flex flex-col items-center py-1 text-[11px] font-bold ${
+            className={`flex flex-col items-center py-1 text-[10px] font-bold ${
               activeTab === 'booking' ? 'text-amber-400' : 'text-slate-400'
             }`}
           >
@@ -452,7 +454,7 @@ export default function App() {
                 document.getElementById('popular-routes-section')?.scrollIntoView({ behavior: 'smooth' });
               }, 100);
             }}
-            className={`flex flex-col items-center py-1 text-[11px] font-bold ${
+            className={`flex flex-col items-center py-1 text-[10px] font-bold ${
               activeTab === 'routes' ? 'text-amber-400' : 'text-slate-400'
             }`}
           >
@@ -461,12 +463,19 @@ export default function App() {
           </button>
           <button
             onClick={() => setActiveTab('rides')}
-            className={`flex flex-col items-center py-1 text-[11px] font-bold ${
+            className={`flex flex-col items-center py-1 text-[10px] font-bold ${
               activeTab === 'rides' ? 'text-amber-400' : 'text-slate-400'
             }`}
           >
             <Clock className="w-4 h-4 mb-0.5" />
-            <span>My Bookings</span>
+            <span>Rides</span>
+          </button>
+          <button
+            onClick={() => setIsAdminPinModalOpen(true)}
+            className="flex flex-col items-center py-1 text-[10px] font-bold text-amber-400"
+          >
+            <Shield className="w-4 h-4 mb-0.5" />
+            <span>Owner</span>
           </button>
         </div>
       </nav>

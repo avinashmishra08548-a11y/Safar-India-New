@@ -1,5 +1,5 @@
 import React from 'react';
-import { Car, User, Phone, BookOpen, Clock } from 'lucide-react';
+import { Car, User, Phone, BookOpen, Clock, Shield } from 'lucide-react';
 import { CustomerUser } from '../types';
 
 interface HeaderProps {
@@ -8,6 +8,7 @@ interface HeaderProps {
   onLogout: () => void;
   onNavigateTab: (tab: 'booking' | 'rides' | 'routes' | 'faq') => void;
   activeNavTab: string;
+  onOpenAdmin?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,7 +16,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLogin,
   onLogout,
   onNavigateTab,
-  activeNavTab
+  activeNavTab,
+  onOpenAdmin
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800">
@@ -75,6 +77,18 @@ export const Header: React.FC<HeaderProps> = ({
               <Phone className="w-3.5 h-3.5 text-amber-400" />
               <span className="font-medium">+91 77100 80992</span>
             </a>
+
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-amber-400 bg-slate-900 hover:bg-slate-800 border border-amber-400/30 rounded-xl transition-colors shadow-sm whitespace-nowrap shrink-0"
+                title="Owner & Dispatch Dashboard"
+              >
+                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Owner Portal</span>
+                <span className="sm:hidden">Admin</span>
+              </button>
+            )}
 
             {currentUser ? (
               <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl">
