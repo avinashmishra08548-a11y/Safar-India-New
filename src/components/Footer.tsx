@@ -1,7 +1,11 @@
 import React from 'react';
 import { Car, Phone, Mail, MapPin, ShieldCheck, MessageSquare } from 'lucide-react';
 
-export const Footer: React.FC = () => {
+interface FooterProps {
+  onOpenAdmin?: () => void;
+}
+
+export const Footer: React.FC<FooterProps> = ({ onOpenAdmin }) => {
   return (
     <footer className="bg-slate-950 border-t border-slate-800/80 pt-10 pb-8 text-xs text-slate-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -98,6 +102,13 @@ export const Footer: React.FC = () => {
             <span>Terms of Service</span>
             <span>·</span>
             <span>Refund Policy</span>
+            <span>·</span>
+            <button
+              onClick={onOpenAdmin}
+              className="text-slate-500 hover:text-amber-400 transition"
+            >
+              Owner Portal
+            </button>
           </div>
         </div>
 

@@ -31,6 +31,7 @@ import { CabBazarAdvantages } from './components/CabBazarAdvantages';
 import { CustomerReviews } from './components/CustomerReviews';
 import { FaqSection } from './components/FaqSection';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
+import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
 
 export default function App() {
@@ -181,6 +182,41 @@ export default function App() {
     try {
       localStorage.removeItem('safar_user');
     } catch {}
+  };
+
+  // Admin Dashboard States & Handlers
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [adminPinError, setAdminPinError] = useState('');
+
+  const handleVerifyAdminPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPinInput === '0992' || adminPinInput === '1234' || adminPinInput === '7710') {
+      setIsAdminPinModalOpen(false);
+      setIsAdminDashboardOpen(true);
+      setAdminPinInput('');
+      setAdminPinError('');
+    } else {
+      setAdminPinError('Invalid PIN! Default security PIN is 0992');
+    }
+  };
+
+  const handleUpdateBookingStatusByAdmin = (
+    bookingId: string, 
+    status: 'confirmed' | 'completed' | 'cancelled',
+    driverInfo?: { name: string; phone: string; carPlate: string }
+  ) => {
+    setBookings(prev => prev.map(b => {
+      if (b.id === bookingId) {
+        return {
+          ...b,
+          status,
+          notes: driverInfo ? `Driver: ${driverInfo.name} (${driverInfo.phone}) | Plate: ${driverInfo.carPlate}` : b.notes
+        };
+      }
+      return b;
+    }));
   };
 
   const scrollToAvailableCabs = () => {
@@ -435,8 +471,8 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Footer */}
-      <Footer />
+      {/* Footer with Owner Portal link */}
+      <Footer onOpenAdmin={() => setIsAdminPinModalOpen(true)} />
 
       {/* Booking Drawer / Traveler Details Modal */}
       {selectedCabForCheckout && (
@@ -474,6 +510,62 @@ export default function App() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
+      />
+
+      {/* Owner Security PIN Modal */}
+      {isAdminPinModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-60 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-xs w-full p-6 text-center space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setIsAdminPinModalOpen(false);
+                setAdminPinError('');
+                setAdminPinInput('');
+              }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              ✕
+            </button>
+            <div className="w-12 h-12 rounded-2xl bg-amber-400/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-400/20">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-base font-extrabold text-white">Owner Access PIN</h4>
+              <p className="text-xs text-slate-400 mt-0.5">Enter secret security PIN to manage bookings</p>
+            </div>
+            {adminPinError && (
+              <div className="text-xs text-rose-400 bg-rose-500/10 py-1.5 px-2 rounded-lg border border-rose-500/20">
+                {adminPinError}
+              </div>
+            )}
+            <form onSubmit={handleVerifyAdminPin} className="space-y-3">
+              <input
+                type="password"
+                maxLength={4}
+                autoFocus
+                value={adminPinInput}
+                onChange={(e) => setAdminPinInput(e.target.value)}
+                placeholder="PIN (0992)"
+                className="w-32 text-center tracking-[0.5em] text-xl font-black bg-slate-950 border border-slate-800 rounded-2xl py-2.5 text-amber-400 focus:outline-none focus:border-amber-400 font-mono mx-auto block"
+              />
+              <p className="text-[10px] text-slate-500">Default PIN: <strong className="text-amber-400">0992</strong> (or 1234)</p>
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl transition shadow"
+              >
+                Unlock Dashboard
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Dashboard */}
+      <AdminDashboard
+        isOpen={isAdminDashboardOpen}
+        onClose={() => setIsAdminDashboardOpen(false)}
+        bookings={bookings}
+        onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
       />
 
     </div>

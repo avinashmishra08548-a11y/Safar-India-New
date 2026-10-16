@@ -139,7 +139,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     if (method === 'razorpay' && typeof win.Razorpay === 'function') {
       try {
         const options = {
-          key: "rzp_live_ToQgKFOZs6vE16",
+          key: "rzp_live_Toeop58v6czvrR",
           amount: payableNowAmount * 100, // in paise
           currency: "INR",
           name: "Safar India Cabs",
