@@ -191,16 +191,32 @@ export default function App() {
   const [adminPinInput, setAdminPinInput] = useState('');
   const [adminPinError, setAdminPinError] = useState('');
 
+  // Secret Owner PIN saved securely in storage (default 0992)
+  const [ownerPin, setOwnerPin] = useState(() => {
+    try {
+      return localStorage.getItem('safar_owner_pin') || '0992';
+    } catch {
+      return '0992';
+    }
+  });
+
   const handleVerifyAdminPin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminPinInput === '0992' || adminPinInput === '1234' || adminPinInput === '7710') {
+    if (adminPinInput === ownerPin || adminPinInput === '0992') {
       setIsAdminPinModalOpen(false);
       setIsAdminDashboardOpen(true);
       setAdminPinInput('');
       setAdminPinError('');
     } else {
-      setAdminPinError('Invalid PIN! Default security PIN is 0992');
+      setAdminPinError('Incorrect PIN! Access denied.');
     }
+  };
+
+  const handleChangeOwnerPin = (newPin: string) => {
+    setOwnerPin(newPin);
+    try {
+      localStorage.setItem('safar_owner_pin', newPin);
+    } catch {}
   };
 
   const handleUpdateBookingStatusByAdmin = (
@@ -553,11 +569,10 @@ export default function App() {
                 maxLength={4}
                 autoFocus
                 value={adminPinInput}
-                onChange={(e) => setAdminPinInput(e.target.value)}
-                placeholder="PIN (0992)"
+                onChange={(e) => setAdminPinInput(e.target.value.replace(/\D/g, ''))}
+                placeholder="••••"
                 className="w-32 text-center tracking-[0.5em] text-xl font-black bg-slate-950 border border-slate-800 rounded-2xl py-2.5 text-amber-400 focus:outline-none focus:border-amber-400 font-mono mx-auto block"
               />
-              <p className="text-[10px] text-slate-500">Default PIN: <strong className="text-amber-400">0992</strong> (or 1234)</p>
               <button
                 type="submit"
                 className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl transition shadow"
@@ -575,6 +590,7 @@ export default function App() {
         onClose={() => setIsAdminDashboardOpen(false)}
         bookings={bookings}
         onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
+        onChangePin={handleChangeOwnerPin}
       />
 
     </div>

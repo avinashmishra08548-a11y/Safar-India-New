@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Shield, 
   Car, 
@@ -14,9 +14,10 @@ import {
   Filter,
   UserCheck,
   X,
-  AlertCircle
+  KeyRound,
+  Lock
 } from 'lucide-react';
-import { BookingRecord } from '../types';
+import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 
 interface AdminDashboardProps {
@@ -24,16 +25,19 @@ interface AdminDashboardProps {
   onClose: () => void;
   bookings: BookingRecord[];
   onUpdateBookingStatus: (bookingId: string, status: 'confirmed' | 'completed' | 'cancelled', driverInfo?: { name: string; phone: string; carPlate: string }) => void;
+  onChangePin: (newPin: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   isOpen,
   onClose,
   bookings,
-  onUpdateBookingStatus
+  onUpdateBookingStatus,
+  onChangePin
 }) => {
   if (!isOpen) return null;
 
+  const [activeTab, setActiveTab] = useState<'bookings' | 'customers' | 'security'>('bookings');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [selectedBookingForDriver, setSelectedBookingForDriver] = useState<BookingRecord | null>(null);
@@ -41,6 +45,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [driverName, setDriverName] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
   const [driverCarPlate, setDriverCarPlate] = useState('');
+
+  // Change PIN states
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [pinChangeMsg, setPinChangeMsg] = useState('');
+  const [pinErrorMsg, setPinErrorMsg] = useState('');
+
+  // Registered customers loaded from storage
+  const [registeredCustomers, setRegisteredCustomers] = useState<CustomerUser[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('safar_registered_customers');
+      if (raw) {
+        setRegisteredCustomers(JSON.parse(raw));
+      } else {
+        // Collect unique customers from bookings
+        const map = new Map<string, CustomerUser>();
+        bookings.forEach(b => {
+          if (!map.has(b.customerPhone)) {
+            map.set(b.customerPhone, {
+              name: b.customerName,
+              phone: b.customerPhone,
+              email: b.customerEmail
+            });
+          }
+        });
+        setRegisteredCustomers(Array.from(map.values()));
+      }
+    } catch {}
+  }, [bookings]);
 
   // Metrics
   const totalBookings = bookings.length;
@@ -91,6 +126,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setDriverCarPlate('');
   };
 
+  const handleUpdatePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPin.length !== 4) {
+      setPinErrorMsg('PIN must be exactly 4 digits');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setPinErrorMsg('New PIN and Confirm PIN do not match');
+      return;
+    }
+    onChangePin(newPin);
+    setPinErrorMsg('');
+    setPinChangeMsg('Owner Security PIN updated successfully!');
+    setNewPin('');
+    setConfirmPin('');
+  };
+
   const exportCSV = () => {
     const headers = ['Booking ID', 'Date', 'Customer Name', 'Phone', 'From', 'To', 'Vehicle', 'Total Fare', 'Advance Paid', 'Balance Due', 'Status'];
     const rows = bookings.map(b => [
@@ -130,11 +182,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <h3 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
                 <span>Owner & Dispatch Control Center</span>
                 <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                  Live Online
+                  Confidential
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Safar India Cabs · Real-time customer bookings, advance revenue & chauffeur assignment
+                Safar India Cabs · Real-time bookings, advance revenue, customers & chauffeur management
               </p>
             </div>
           </div>
@@ -146,169 +198,327 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </button>
         </div>
 
-        {/* KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Rides</span>
-            <div className="text-xl sm:text-2xl font-black text-white mt-1">{totalBookings}</div>
-            <span className="text-[10px] text-emerald-400 font-medium">{activeBookings} Active Scheduled</span>
-          </div>
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+          <button
+            onClick={() => setActiveTab('bookings')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'bookings' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Car className="w-3.5 h-3.5" />
+            <span>All Bookings ({totalBookings})</span>
+          </button>
 
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">20% Advance Collected</span>
-            <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{formatINR(totalRevenueAdvance)}</div>
-            <span className="text-[10px] text-slate-500">Credited to Razorpay</span>
-          </div>
+          <button
+            onClick={() => setActiveTab('customers')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'customers' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Customer Directory ({registeredCustomers.length})</span>
+          </button>
 
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Balance Payable at Drop</span>
-            <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{formatINR(totalBalancePending)}</div>
-            <span className="text-[10px] text-slate-500">Collected by Chauffeurs</span>
-          </div>
-
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Quick Action</span>
-            <button
-              onClick={exportCSV}
-              className="mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Export Bookings CSV</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setActiveTab('security')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              activeTab === 'security' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Security PIN</span>
+          </button>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl text-xs">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'all' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-            >
-              All ({totalBookings})
-            </button>
-            <button
-              onClick={() => setStatusFilter('confirmed')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'confirmed' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-            >
-              Active ({activeBookings})
-            </button>
-            <button
-              onClick={() => setStatusFilter('completed')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'completed' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-            >
-              Completed
-            </button>
-          </div>
-
-          <div className="relative flex-1 max-w-xs">
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by Customer, City or ID..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-            />
-          </div>
-        </div>
-
-        {/* Bookings Table / Cards */}
-        <div className="space-y-3">
-          {filteredBookings.length === 0 ? (
-            <div className="p-8 text-center text-slate-500 text-xs bg-slate-950 rounded-2xl border border-slate-800">
-              No bookings found matching your criteria.
-            </div>
-          ) : (
-            filteredBookings.map((b) => (
-              <div
-                key={b.id}
-                className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 hover:border-slate-700 transition"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-amber-400 text-xs">{b.id}</span>
-                    <span className="text-slate-500 text-[10px]">·</span>
-                    <span className="text-white text-xs font-bold">{b.customerName}</span>
-                    <span className="text-slate-400 text-xs">(+91 {b.customerPhone})</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={`tel:+91${b.customerPhone}`}
-                      className="p-1.5 bg-slate-900 text-slate-300 hover:text-white rounded-lg border border-slate-800"
-                      title="Call Customer"
-                    >
-                      <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                    </a>
-                    <a
-                      href={`https://wa.me/91${b.customerPhone}?text=Hello%20${encodeURIComponent(b.customerName)},%20this%20is%20Safar%20India%20Cabs%20regarding%20your%20booking%20${b.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-1.5 bg-slate-900 text-slate-300 hover:text-emerald-400 rounded-lg border border-slate-800"
-                      title="WhatsApp Customer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                    </a>
-                    {b.status === 'confirmed' ? (
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
-                        ACTIVE
-                      </span>
-                    ) : (
-                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2.5 py-0.5 rounded-full font-bold">
-                        {b.status.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase block">Journey Route</span>
-                    <div className="font-semibold text-white">{b.pickupCity} → {b.dropCity}</div>
-                    <div className="text-[10px] text-slate-400 truncate">{b.pickupAddress}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase block">Date & Cab Class</span>
-                    <div className="font-semibold text-slate-200">{b.pickupDate} at {b.pickupTime}</div>
-                    <div className="text-[10px] text-amber-400 font-medium">{b.cabName}</div>
-                  </div>
-
-                  <div>
-                    <span className="text-[10px] text-slate-500 uppercase block">Fares & Payments</span>
-                    <div className="text-white font-bold">Total: {formatINR(b.totalFare)}</div>
-                    <div className="text-[10px] text-emerald-400">Advance Paid: {formatINR(b.advancePaid)}</div>
-                    <div className="text-[10px] text-amber-400">Driver Balance: {formatINR(b.balanceDue)}</div>
-                  </div>
-
-                  <div className="flex sm:flex-col justify-end items-end gap-1.5">
-                    {b.status === 'confirmed' && (
-                      <>
-                        <button
-                          onClick={() => setSelectedBookingForDriver(b)}
-                          className="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1"
-                        >
-                          <UserCheck className="w-3.5 h-3.5" />
-                          <span>Assign Chauffeur</span>
-                        </button>
-
-                        <button
-                          onClick={() => onUpdateBookingStatus(b.id, 'completed')}
-                          className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl transition"
-                        >
-                          Mark Completed
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
+        {activeTab === 'bookings' && (
+          <div className="space-y-4">
+            {/* KPI Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Rides</span>
+                <div className="text-xl sm:text-2xl font-black text-white mt-1">{totalBookings}</div>
+                <span className="text-[10px] text-emerald-400 font-medium">{activeBookings} Active Scheduled</span>
               </div>
-            ))
-          )}
-        </div>
+
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">20% Advance Collected</span>
+                <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{formatINR(totalRevenueAdvance)}</div>
+                <span className="text-[10px] text-slate-500">Credited via Razorpay</span>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Balance Payable at Drop</span>
+                <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{formatINR(totalBalancePending)}</div>
+                <span className="text-[10px] text-slate-500">To be collected by Drivers</span>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Quick Action</span>
+                <button
+                  onClick={exportCSV}
+                  className="mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Export Bookings CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl text-xs">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'all' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
+                >
+                  All ({totalBookings})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('confirmed')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'confirmed' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
+                >
+                  Active ({activeBookings})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('completed')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'completed' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
+                >
+                  Completed
+                </button>
+              </div>
+
+              <div className="relative flex-1 max-w-xs">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by Customer, City or ID..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            {/* Bookings List */}
+            <div className="space-y-3">
+              {filteredBookings.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-xs bg-slate-950 rounded-2xl border border-slate-800">
+                  No bookings found matching your criteria.
+                </div>
+              ) : (
+                filteredBookings.map((b) => (
+                  <div
+                    key={b.id}
+                    className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 hover:border-slate-700 transition"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-amber-400 text-xs">{b.id}</span>
+                        <span className="text-slate-500 text-[10px]">·</span>
+                        <span className="text-white text-xs font-bold">{b.customerName}</span>
+                        <span className="text-slate-400 text-xs">(+91 {b.customerPhone})</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`tel:+91${b.customerPhone}`}
+                          className="p-1.5 bg-slate-900 text-slate-300 hover:text-white rounded-lg border border-slate-800"
+                          title="Call Customer"
+                        >
+                          <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                        </a>
+                        <a
+                          href={`https://wa.me/91${b.customerPhone}?text=Hello%20${encodeURIComponent(b.customerName)},%20this%20is%20Safar%20India%20Cabs%20regarding%20your%20booking%20${b.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 bg-slate-900 text-slate-300 hover:text-emerald-400 rounded-lg border border-slate-800"
+                          title="WhatsApp Customer"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                        </a>
+                        {b.status === 'confirmed' ? (
+                          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
+                            ACTIVE
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2.5 py-0.5 rounded-full font-bold">
+                            {b.status.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block">Journey Route</span>
+                        <div className="font-semibold text-white">{b.pickupCity} → {b.dropCity}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{b.pickupAddress}</div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block">Date & Cab Class</span>
+                        <div className="font-semibold text-slate-200">{b.pickupDate} at {b.pickupTime}</div>
+                        <div className="text-[10px] text-amber-400 font-medium">{b.cabName}</div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase block">Fares & Payments</span>
+                        <div className="text-white font-bold">Total: {formatINR(b.totalFare)}</div>
+                        <div className="text-[10px] text-emerald-400">Advance Paid: {formatINR(b.advancePaid)}</div>
+                        <div className="text-[10px] text-amber-400">Driver Balance: {formatINR(b.balanceDue)}</div>
+                      </div>
+
+                      <div className="flex sm:flex-col justify-end items-end gap-1.5">
+                        {b.status === 'confirmed' && (
+                          <>
+                            <button
+                              onClick={() => setSelectedBookingForDriver(b)}
+                              className="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              <span>Assign Chauffeur</span>
+                            </button>
+
+                            <button
+                              onClick={() => onUpdateBookingStatus(b.id, 'completed')}
+                              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl transition"
+                            >
+                              Mark Completed
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Registered Customers Directory */}
+        {activeTab === 'customers' && (
+          <div className="space-y-4">
+            <div className="text-xs text-slate-400">
+              Complete customer database with mobile numbers and booking history.
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {registeredCustomers.map((c, i) => {
+                const userRides = bookings.filter(b => b.customerPhone === c.phone);
+                const userSpend = userRides.reduce((sum, b) => sum + b.totalFare, 0);
+                return (
+                  <div key={i} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-white text-sm">{c.name}</div>
+                      <span className="text-[10px] bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded-full font-bold">
+                        {userRides.length} Ride{userRides.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-slate-300 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-amber-400" />
+                      <span>+91 {c.phone}</span>
+                    </div>
+
+                    {c.email && (
+                      <div className="text-[11px] text-slate-400 truncate">
+                        {c.email}
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-900 flex justify-between items-center text-xs">
+                      <span className="text-slate-500 text-[10px]">Total Booking Value:</span>
+                      <span className="text-emerald-400 font-bold">{formatINR(userSpend)}</span>
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <a
+                        href={`tel:+91${c.phone}`}
+                        className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
+                      >
+                        <Phone className="w-3 h-3 text-emerald-400" />
+                        <span>Call</span>
+                      </a>
+                      <a
+                        href={`https://wa.me/91${c.phone}?text=Hello%20${encodeURIComponent(c.name)},%20greetings%20from%20Safar%20India%20Cabs!`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Security & PIN Management */}
+        {activeTab === 'security' && (
+          <div className="max-w-md mx-auto bg-slate-950 p-6 rounded-3xl border border-slate-800 space-y-4">
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-400/20">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <h4 className="text-base font-extrabold text-white">Change Owner Access PIN</h4>
+              <p className="text-xs text-slate-400">Set a confidential 4-digit PIN for your control center</p>
+            </div>
+
+            {pinChangeMsg && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs text-center font-bold">
+                {pinChangeMsg}
+              </div>
+            )}
+
+            {pinErrorMsg && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs text-center font-bold">
+                {pinErrorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleUpdatePin} className="space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">New 4-Digit PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  required
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="••••"
+                  className="w-full text-center tracking-[0.5em] text-xl font-black bg-slate-900 border border-slate-800 rounded-xl py-2.5 text-amber-400 font-mono focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Confirm 4-Digit PIN</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  required
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="••••"
+                  className="w-full text-center tracking-[0.5em] text-xl font-black bg-slate-900 border border-slate-800 rounded-xl py-2.5 text-amber-400 font-mono focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
+              >
+                Save New PIN
+              </button>
+            </form>
+          </div>
+        )}
 
       </div>
 
