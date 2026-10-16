@@ -1,0 +1,6 @@
+{
+  "name": "Safar India Cabs - Outstation & Intercity Taxi Service",
+  "description": "CabBazar-style India intercity outstation, one-way, round-trip, local rental and airport cab booking platform with instant fare calculation, transparent billing, and digital invoices.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
