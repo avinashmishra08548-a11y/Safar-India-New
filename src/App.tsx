@@ -218,10 +218,12 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setCustomerMobile('');
+    setPendingCabSelection(null);
+    setActiveVoucherBooking(null);
     setIsCustomerProfileOpen(false);
     try {
       localStorage.removeItem('safar_user');
-      // Invalidate any session or transient storage
       sessionStorage.clear();
     } catch {}
     setAuthNotice('You have been logged out securely.');
