@@ -7,6 +7,7 @@ import {
   MessageSquare, 
   ChevronRight
 } from 'lucide-react';
+import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 
 interface FooterProps {
   onOpenAdmin?: () => void;
@@ -81,16 +82,9 @@ export const Footer: React.FC<FooterProps> = ({
                 
                 {/* WhatsApp */}
                 <a
-                  href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    if (/; wv\)|AppsGeyser|WebView/i.test(navigator.userAgent)) {
-                      e.preventDefault();
-                      window.location.href = 'https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance';
-                    }
-                  }}
-                  className="w-9 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 flex items-center justify-center transition-all shadow-xs"
+                  href={buildWhatsAppSchemeUrl()}
+                  onClick={(e) => triggerWhatsAppDeepLink(e)}
+                  className="w-9 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 flex items-center justify-center transition-all shadow-xs cursor-pointer"
                   title="WhatsApp: +91 77100 80992"
                 >
                   <MessageSquare className="w-4 h-4 fill-current" />
@@ -170,16 +164,9 @@ export const Footer: React.FC<FooterProps> = ({
               </a>
 
               <a
-                href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  if (/; wv\)|AppsGeyser|WebView/i.test(navigator.userAgent)) {
-                    e.preventDefault();
-                    window.location.href = 'https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance';
-                  }
-                }}
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 transition text-emerald-700 shadow-xs"
+                href={buildWhatsAppSchemeUrl()}
+                onClick={(e) => triggerWhatsAppDeepLink(e)}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 transition text-emerald-700 shadow-xs cursor-pointer"
               >
                 <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <MessageSquare className="w-4 h-4 fill-current text-emerald-600" />

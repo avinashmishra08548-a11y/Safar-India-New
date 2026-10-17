@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
+import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
 
 interface MyBookingsViewProps {
   currentUser: CustomerUser | null;
@@ -59,7 +60,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
       `Advance Paid: ${formatINR(b.advancePaid)}\n` +
       `Balance Due to Driver: ${formatINR(b.balanceDue)}\n` +
       `Status: ${b.status.toUpperCase()}`;
-    window.location.href = `https://wa.me/917710080992?text=${encodeURIComponent(text)}`;
+    triggerWhatsAppDeepLink(undefined, text);
   };
 
   // PRIVACY GATE: If not logged in, enforce authentication

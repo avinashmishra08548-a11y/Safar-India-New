@@ -28,23 +28,33 @@ header.safar-dark-header {
   margin-top: 0 !important;
 }
 
-/* 2. Bottom Spacing so page & footer content isn't covered by the fixed bottom bar + ad banner */
-main, #app-content, body {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 125px) !important;
+/* 2. Bottom Navigation & Ads Margin Padding so no footer text, form fields, or buttons hide behind nav bar */
+body,
+main,
+#app-content {
+  padding-bottom: 140px !important;
 }
 
 footer {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 130px) !important;
+  padding-bottom: 140px !important;
 }
 
-/* 3. Bottom Nav & Ad Banner Space Overlay Fix */
+/* 3. Floating WhatsApp Chat Button Position (Well above Bottom Nav & Ads) */
+.whatsapp-float,
+div[class*="whatsapp"] {
+  position: fixed !important;
+  bottom: 120px !important; /* Bottom Navigation Bar aur Ads se kafi upar */
+  right: 20px !important;
+  z-index: 9999 !important;
+}
+
+/* 4. Bottom Navigation Bar Fixed Position above Ads */
 nav.fixed-bottom, 
 .bottom-nav, 
 footer nav,
 div[class*="bottom-nav"] {
   position: fixed !important;
   bottom: 50px !important;
-  bottom: calc(env(safe-area-inset-bottom) + 50px) !important;
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;

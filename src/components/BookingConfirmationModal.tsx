@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { BookingRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
+import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
 
 interface BookingConfirmationModalProps {
   booking: BookingRecord | null;
@@ -54,8 +55,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
       `*24/7 Helpline:* +91 77100 80992\n` +
       `_Driver & Cab details will be sent 2 hours before pickup._`;
 
-    const encoded = encodeURIComponent(text);
-    window.location.href = `https://wa.me/917710080992?text=${encoded}`;
+    triggerWhatsAppDeepLink(undefined, text);
   };
 
   return (

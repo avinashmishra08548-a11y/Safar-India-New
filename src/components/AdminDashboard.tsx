@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
+import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 import { 
   getTraccarLocalEndpoint,
   getTraccarLocalToken,
@@ -640,10 +641,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <Phone className="w-3.5 h-3.5 text-emerald-400" />
                         </a>
                         <a
-                          href={`https://wa.me/91${b.customerPhone}?text=Hello%20${encodeURIComponent(b.customerName)},%20this%20is%20Safar%20India%20Cabs%20regarding%20your%20booking%20${b.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 bg-slate-900 text-slate-300 hover:text-emerald-400 rounded-lg border border-slate-800"
+                          href={buildWhatsAppSchemeUrl(`Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`, b.customerPhone)}
+                          onClick={(e) => triggerWhatsAppDeepLink(e, `Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`, b.customerPhone)}
+                          className="p-1.5 bg-slate-900 text-slate-300 hover:text-emerald-400 rounded-lg border border-slate-800 cursor-pointer"
                           title="WhatsApp Customer"
                         >
                           <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
@@ -803,10 +803,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <span>Call</span>
                         </a>
                         <a
-                          href={`https://wa.me/91${c.phone}?text=Hello%20${encodeURIComponent(c.name)},%20greetings%20from%20Safar%20India%20Cabs!`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
+                          href={buildWhatsAppSchemeUrl(`Hello ${c.name}, greetings from Safar India Cabs!`, c.phone)}
+                          onClick={(e) => triggerWhatsAppDeepLink(e, `Hello ${c.name}, greetings from Safar India Cabs!`, c.phone)}
+                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
                         >
                           <MessageSquare className="w-3 h-3" />
                           <span>WhatsApp</span>

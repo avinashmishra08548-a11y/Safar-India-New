@@ -1,5 +1,6 @@
 import React from 'react';
 import { Car, DollarSign, ShieldCheck, Phone, CheckCircle2, ArrowRight, Award, Users } from 'lucide-react';
+import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 
 interface DriverPartnerSectionProps {
   onOpenPartnerModal: () => void;
@@ -78,16 +79,9 @@ export const DriverPartnerSection: React.FC<DriverPartnerSectionProps> = ({ onOp
               </button>
 
               <a
-                href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  if (/; wv\)|AppsGeyser|WebView/i.test(navigator.userAgent)) {
-                    e.preventDefault();
-                    window.location.href = 'https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance';
-                  }
-                }}
-                className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl border border-slate-300 transition flex items-center gap-2"
+                href={buildWhatsAppSchemeUrl()}
+                onClick={(e) => triggerWhatsAppDeepLink(e)}
+                className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl border border-slate-300 transition flex items-center gap-2 cursor-pointer"
               >
                 <Phone className="w-4 h-4 text-emerald-600" />
                 <span>WhatsApp Helpdesk (+91 77100 80992)</span>

@@ -3,6 +3,7 @@ import { Car, Phone, MessageSquare, Clock, Shield, Menu, X, User } from 'lucide-
 import { CustomerUser } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { checkIsStandaloneOrApp } from '../hooks/usePWAInstall';
+import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 
 interface HeaderProps {
   currentUser: CustomerUser | null;
@@ -69,33 +70,48 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  const whatsappHref = buildWhatsAppSchemeUrl();
+
   return (
     <header className="safar-dark-header sticky top-0 z-[1000] bg-[#0B0B0E] text-white border-b border-slate-800/80 shadow-md">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-2 sm:gap-4 min-h-[54px] sm:min-h-[62px]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-4 min-h-[56px] sm:min-h-[64px]">
           
-          {/* BRAND LOGO: SafarIndiaCabs - A1 Cab Services N.India */}
-          <button 
-            type="button"
-            onClick={() => handleNavClick('booking')}
-            className="flex items-center gap-2.5 sm:gap-3 text-left transition-transform active:scale-98 whitespace-nowrap shrink-0 group py-1"
-          >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#FFCC00] text-slate-950 flex flex-col items-center justify-center shadow-md shrink-0">
-              <div className="w-2.5 h-1 bg-slate-950 rounded-t-xs -mb-0.5" />
-              <Car className="w-5 h-5 sm:w-6 sm:h-6 text-slate-950 stroke-[2.4]" />
-            </div>
-            <div className="leading-tight">
-              <div className="font-black tracking-tight text-[17px] sm:text-xl font-sans flex items-center">
-                <span className="text-white">SafarIndia</span>
-                <span className="text-[#FFCC00]">Cabs</span>
+          {/* LEFT SIDE: Logo (SafarIndiaCabs) + Three Line (Hamburger Menu) Button cleanly spaced */}
+          <div className="flex items-center gap-3.5 sm:gap-4 shrink-0">
+            {/* 1. Brand Logo */}
+            <button 
+              type="button"
+              onClick={() => handleNavClick('booking')}
+              className="flex items-center gap-2.5 sm:gap-3 text-left transition-transform active:scale-98 whitespace-nowrap shrink-0 group py-1"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#FFCC00] text-slate-950 flex flex-col items-center justify-center shadow-md shrink-0">
+                <div className="w-2.5 h-1 bg-slate-950 rounded-t-xs -mb-0.5" />
+                <Car className="w-5 h-5 sm:w-6 sm:h-6 text-slate-950 stroke-[2.4]" />
               </div>
-              <div className="text-[10px] sm:text-xs font-medium text-slate-200 tracking-normal">
-                A1 Cab Services N.India
+              <div className="leading-tight">
+                <div className="font-black tracking-tight text-[17px] sm:text-xl font-sans flex items-center">
+                  <span className="text-white">SafarIndia</span>
+                  <span className="text-[#FFCC00]">Cabs</span>
+                </div>
+                <div className="text-[10px] sm:text-xs font-medium text-slate-200 tracking-normal">
+                  A1 Cab Services N.India
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
 
-          {/* DESKTOP NAVIGATION LINKS */}
+            {/* 2. Three Line (Hamburger Menu) Button on Left Side */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:bg-slate-100 text-slate-950 flex items-center justify-center shadow-md transition active:scale-95 shrink-0 ml-1"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5 stroke-[2.5]" /> : <Menu className="w-5 h-5 stroke-[2.5]" />}
+            </button>
+          </div>
+
+          {/* CENTER DESKTOP NAVIGATION LINKS */}
           <nav className="hidden lg:flex items-center gap-7 text-sm font-bold text-slate-200">
             <button
               type="button"
@@ -145,17 +161,21 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </nav>
 
-          {/* RIGHT ACTIONS: Install App Pill + Login Pill + White Circle Hamburger Menu */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* RIGHT SIDE: Login Button cleanly placed with proper margin/padding */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 ml-auto pr-0.5 sm:pr-0">
             
-            {/* 1. Yellow Pill: Install App (Hidden in Standalone PWA / Android WebView) */}
-            {!isStandaloneApp && <PWAInstallButton />}
+            {/* Desktop-only Install App Pill when not in Standalone/WebView */}
+            {!isStandaloneApp && (
+              <div className="hidden md:block">
+                <PWAInstallButton />
+              </div>
+            )}
 
-            {/* 2. Yellow Pill: Login or Active Customer */}
+            {/* Login Button or Active Customer Pill on the Right Side */}
             {currentUser ? (
-              <div className="flex items-center gap-1.5 bg-[#FFCC00] text-slate-950 px-3 py-1.5 sm:py-2 rounded-full shadow-sm">
+              <div className="flex items-center gap-1.5 bg-[#FFCC00] text-slate-950 px-3.5 py-2 rounded-full shadow-sm">
                 <User className="w-3.5 h-3.5 text-slate-950 stroke-[2.5] shrink-0" />
-                <span className="text-[11px] sm:text-xs font-extrabold max-w-[64px] sm:max-w-[110px] truncate">
+                <span className="text-xs font-extrabold max-w-[76px] sm:max-w-[110px] truncate">
                   {currentUser.name.split(' ')[0]}
                 </span>
                 <button
@@ -171,9 +191,9 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenLogin}
-                className="inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold text-slate-950 bg-[#FFCC00] hover:bg-[#f5c400] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full transition shadow-sm active:scale-95 whitespace-nowrap shrink-0"
+                className="inline-flex items-center justify-center gap-1.5 text-xs sm:text-sm font-extrabold text-slate-950 bg-[#FFCC00] hover:bg-[#f5c400] px-4 sm:px-5 py-2 sm:py-2.5 rounded-full transition shadow-sm active:scale-95 whitespace-nowrap shrink-0"
               >
-                <User className="w-3.5 h-3.5 text-slate-950 stroke-[2.5] shrink-0" />
+                <User className="w-4 h-4 text-slate-950 stroke-[2.5] shrink-0" />
                 <span>Login</span>
               </button>
             )}
@@ -183,23 +203,13 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenAdmin}
-                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#FFCC00] bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-full transition-colors"
+                className="hidden xl:flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[#FFCC00] bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-full transition-colors"
                 title="Owner & Dispatch Dashboard"
               >
                 <Shield className="w-3.5 h-3.5 text-[#FFCC00]" />
                 <span>Owner</span>
               </button>
             )}
-
-            {/* 3. White Circular Hamburger Menu Button */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:bg-slate-100 text-slate-950 flex items-center justify-center shadow-md transition active:scale-95 shrink-0"
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5 stroke-[2.5]" /> : <Menu className="w-5 h-5 stroke-[2.5]" />}
-            </button>
 
           </div>
 
@@ -299,16 +309,9 @@ export const Header: React.FC<HeaderProps> = ({
               </a>
 
               <a
-                href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  if (/; wv\)|AppsGeyser|WebView/i.test(navigator.userAgent)) {
-                    e.preventDefault();
-                    window.location.href = 'https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance';
-                  }
-                }}
-                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm"
+                href={whatsappHref}
+                onClick={(e) => triggerWhatsAppDeepLink(e)}
+                className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4 fill-current" />
                 <span>WhatsApp Support</span>
