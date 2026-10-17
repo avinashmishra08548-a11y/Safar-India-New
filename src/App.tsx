@@ -423,27 +423,204 @@ export default function App() {
         ) : (
           <div className="space-y-10">
             
-            {/* HERO SECTION */}
-            <div className="relative overflow-hidden bg-gradient-to-b from-amber-500/5 via-slate-50 to-[#F8FAFC] pt-6 pb-12 sm:pb-16 border-b border-slate-200">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            {/* HERO SECTION MATCHING REFERENCE DESIGN */}
+            <div className="relative overflow-hidden bg-gradient-to-b from-[#FAF8F5] via-[#F8FAFC] to-[#F8FAFC] pt-4 sm:pt-7 pb-10 sm:pb-14 border-b border-slate-200/80">
+              <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10">
                 
-                {/* Hero Header Typography */}
-                <div className="text-center max-w-3xl mx-auto mb-8 space-y-3">
-                  <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-full">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                    <span>India's Most Trusted Outstation Taxi Service</span>
+                {/* 1. Centered Cream/Gold Trust Pill */}
+                <div className="flex justify-center mb-4 sm:mb-6">
+                  <div className="inline-flex items-center gap-2 text-xs sm:text-sm text-[#78350F] bg-[#FFF8DB] border border-[#F2D675] px-4 sm:px-6 py-2 rounded-full shadow-2xs">
+                    <Sparkles className="w-4 h-4 text-[#D97706] shrink-0" />
+                    <span>
+                      India&apos;s Most Trusted <strong className="font-extrabold text-[#5C2808]">Outstation Taxi Service</strong>
+                    </span>
                   </div>
-
-                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-950 tracking-tight leading-tight">
-                    Intercity Outstation & Local Cabs with <span className="text-amber-600">Guaranteed Low Fares</span>
-                  </h1>
-
-                  <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                    Zero return fare on one-way trips · Verified AC commercial cabs · 20% advance booking deposit · Free cancellation up to 6 hours.
-                  </p>
                 </div>
 
-                {/* Hero Grid: Left Booking Engine + Right Visual Image & Trust Strip */}
+                {/* 2. Split Headline (Left) + White Sedan Taxi with India Gate & Plane Illustration (Right) */}
+                <div className="relative flex items-center justify-between gap-2 sm:gap-6 mb-4 sm:mb-6 min-h-[145px] sm:min-h-[210px]">
+                  
+                  {/* Left Headline */}
+                  <div className="w-[58%] sm:w-[56%] z-10 pr-1">
+                    <h1 className="text-[25px] sm:text-4xl md:text-5xl font-black text-slate-950 tracking-tight leading-[1.14]">
+                      Intercity Outstation &amp;
+                      <br />
+                      Local Cabs with
+                      <br />
+                      <span className="text-[#D97706]">Guaranteed Low Fares</span>
+                    </h1>
+                  </div>
+
+                  {/* Right Visual Banner: India Gate Sunrise + Airplane + White Sedan Cab with SafarIndiaCabs Plate */}
+                  <div className="w-[46%] sm:w-[44%] -ml-4 sm:ml-0 relative flex items-center justify-end select-none">
+                    <div className="relative w-full max-w-[240px] sm:max-w-[380px] aspect-[16/11] rounded-2xl overflow-hidden bg-gradient-to-tr from-amber-100 via-orange-100/70 to-sky-100 shadow-xs border border-amber-200/50">
+                      {/* Sunrise Sky & India Gate Silhouette Backdrop */}
+                      <svg
+                        viewBox="0 0 400 260"
+                        className="w-full h-full object-cover"
+                        aria-label="SafarIndiaCabs White Sedan Taxi at India Gate"
+                      >
+                        <defs>
+                          <linearGradient id="skyGrad" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor="#FFFBEB" />
+                            <stop offset="45%" stopColor="#FDE68A" />
+                            <stop offset="75%" stopColor="#BAE6FD" />
+                            <stop offset="100%" stopColor="#E0F2FE" />
+                          </linearGradient>
+                          <linearGradient id="sunGlow" x1="0.5" y1="0" x2="0.5" y2="1">
+                            <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.45" />
+                            <stop offset="100%" stopColor="#FEF3C7" stopOpacity="0" />
+                          </linearGradient>
+                          <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#E2E8F0" />
+                            <stop offset="100%" stopColor="#94A3B8" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Sky */}
+                        <rect width="400" height="260" fill="url(#skyGrad)" />
+                        <circle cx="220" cy="115" r="75" fill="url(#sunGlow)" />
+
+                        {/* India Gate Monument Silhouette */}
+                        <g fill="#D97706" opacity="0.48" transform="translate(105, 52)">
+                          <rect x="18" y="0" width="54" height="8" rx="1" />
+                          <rect x="12" y="8" width="66" height="10" rx="1" />
+                          <rect x="6" y="18" width="78" height="95" rx="2" />
+                          <path d="M 29 113 L 29 58 A 16 16 0 0 1 61 58 L 61 113 Z" fill="#FEF3C7" />
+                        </g>
+
+                        {/* Lush Trees on Horizon */}
+                        <circle cx="80" cy="158" r="22" fill="#65A30D" opacity="0.45" />
+                        <circle cx="105" cy="162" r="18" fill="#4D7C0F" opacity="0.45" />
+                        <circle cx="345" cy="152" r="26" fill="#65A30D" opacity="0.5" />
+                        <circle cx="375" cy="156" r="22" fill="#4D7C0F" opacity="0.55" />
+
+                        {/* Airplane Flying in Sky */}
+                        <g transform="translate(275, 28) rotate(-14)" fill="#475569" opacity="0.75">
+                          <path d="M0 12 L26 8 L38 2 L42 3 L34 9 L48 7 L52 3 L55 4 L51 11 L35 13 L25 22 L20 21 L26 14 L8 15 Z" />
+                        </g>
+
+                        {/* Highway Road */}
+                        <polygon points="0,165 400,165 400,260 0,260" fill="url(#roadGrad)" />
+                        <line x1="20" y1="165" x2="395" y2="165" stroke="#CBD5E1" strokeWidth="2" />
+
+                        {/* Car Ground Shadow */}
+                        <ellipse cx="235" cy="226" rx="132" ry="14" fill="#0F172A" opacity="0.28" />
+
+                        {/* White Commercial Sedan Taxi (3/4 Front Left Angle) */}
+                        <g transform="translate(88, 96)">
+                          {/* Taxi Top Roof Sign */}
+                          <rect x="118" y="2" width="32" height="9" rx="3" fill="#0F172A" />
+                          <rect x="121" y="4" width="26" height="5" rx="1.5" fill="#FFCC00" />
+
+                          {/* Main Car Body */}
+                          <path
+                            d="M 18 76 L 45 48 C 68 22, 102 12, 158 12 L 222 14 C 254 16, 276 36, 288 62 L 292 98 C 292 108, 284 114, 270 115 L 22 115 C 10 114, 6 105, 8 92 Z"
+                            fill="#FFFFFF"
+                            stroke="#CBD5E1"
+                            strokeWidth="1.5"
+                          />
+
+                          {/* Windshield & Side Windows */}
+                          <path
+                            d="M 56 50 C 75 28, 102 20, 148 20 L 156 52 Z"
+                            fill="#1E293B"
+                          />
+                          <path
+                            d="M 164 20 L 218 21 C 238 22, 255 34, 264 50 L 164 52 Z"
+                            fill="#334155"
+                          />
+
+                          {/* Front Hood Lines & Grille */}
+                          <path d="M 14 76 Q 72 82 140 74" fill="none" stroke="#E2E8F0" strokeWidth="2" />
+                          <polygon points="18,80 98,82 92,96 22,95" fill="#0F172A" />
+                          {/* Headlights */}
+                          <polygon points="98,78 138,74 132,88 94,90" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="1.5" />
+                          <polygon points="10,77 22,79 20,90 10,88" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="1" />
+
+                          {/* Lower Bumper Grille */}
+                          <polygon points="18,100 104,101 100,110 20,109" fill="#1E293B" />
+
+                          {/* YELLOW LICENSE PLATE: SafarIndiaCabs */}
+                          <rect x="30" y="94" width="64" height="14" rx="2.5" fill="#FFCC00" stroke="#B45309" strokeWidth="1" />
+                          <text
+                            x="62"
+                            y="103.5"
+                            textAnchor="middle"
+                            fill="#0F172A"
+                            fontSize="7.5"
+                            fontWeight="900"
+                            fontFamily="Inter, sans-serif"
+                          >
+                            SafarIndiaCabs
+                          </text>
+
+                          {/* Front & Rear Alloy Wheels */}
+                          <g transform="translate(172, 112)">
+                            <circle cx="0" cy="0" r="22" fill="#0F172A" />
+                            <circle cx="0" cy="0" r="14" fill="#E2E8F0" />
+                            <circle cx="0" cy="0" r="5" fill="#475569" />
+                          </g>
+                          <g transform="translate(265, 108)">
+                            <circle cx="0" cy="0" r="19" fill="#0F172A" />
+                            <circle cx="0" cy="0" r="12" fill="#CBD5E1" />
+                            <circle cx="0" cy="0" r="4" fill="#475569" />
+                          </g>
+                        </g>
+                      </svg>
+                      {/* Smooth Left Gradient Fade */}
+                      <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#FAF8F5] to-transparent pointer-events-none" />
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 3. Four-Column Trust Feature Strip Card (Directly Below Headline & Cab Banner) */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-4 mb-5 sm:mb-7 shadow-xs grid grid-cols-4 divide-x divide-slate-200">
+                  
+                  {/* Feature 1 */}
+                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
+                      ₹
+                    </div>
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                      Zero return fare on one-way trips
+                    </div>
+                  </div>
+
+                  {/* Feature 2 */}
+                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
+                      <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-amber-500" />
+                    </div>
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                      Verified AC commercial cabs
+                    </div>
+                  </div>
+
+                  {/* Feature 3 */}
+                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
+                      <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-900" />
+                    </div>
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                      20% advance booking deposit
+                    </div>
+                  </div>
+
+                  {/* Feature 4 */}
+                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-900" />
+                    </div>
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                      Free cancellation up to 6 hours.
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* 4. Hero Grid: Booking Engine + Desktop Fleet Showcase */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   
                   {/* Left Column: Booking Engine */}
@@ -502,7 +679,7 @@ export default function App() {
                           Premium Chauffeur Fleet
                         </span>
                         <h4 className="text-sm font-extrabold text-white">
-                          Dzire, Ertiga, Innova Crysta & Urbania
+                          Dzire, Ertiga, Innova Crysta &amp; Urbania
                         </h4>
                         <p className="text-[11px] text-slate-300">
                           Professional uniformed drivers with 5+ years highway experience.
@@ -538,7 +715,7 @@ export default function App() {
                         </div>
                         <div>
                           <div className="text-xs font-bold text-slate-900">Chauffeur SMS 2 Hours Prior</div>
-                          <div className="text-[11px] text-slate-500">Complete vehicle plate & driver contact details delivered to WhatsApp.</div>
+                          <div className="text-[11px] text-slate-500">Complete vehicle plate &amp; driver contact details delivered to WhatsApp.</div>
                         </div>
                       </div>
                     </div>
@@ -581,34 +758,37 @@ export default function App() {
 
       </main>
 
-      {/* Floating 24/7 WhatsApp Quick Help Button */}
+      {/* Floating 24/7 WhatsApp Quick Help Button (Green Circle on Bottom Right) */}
       <a
         href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20want%20to%20book%20a%20cab%20urgently"
         target="_blank"
         rel="noreferrer"
-        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black p-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all group"
+        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 bg-[#10B981] hover:bg-emerald-500 text-white font-black w-13 h-13 sm:w-auto sm:h-auto sm:px-4 sm:py-3.5 rounded-full shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all group"
         title="Chat on WhatsApp (+91 7710080992)"
       >
-        <MessageSquare className="w-5 h-5 text-slate-950" />
+        <MessageSquare className="w-6 h-6 text-white stroke-[2.2]" />
         <span className="hidden sm:inline text-xs tracking-tight">Quick WhatsApp Booking</span>
       </a>
 
       {/* Mobile Bottom Navigation Bar: Fixed completely at the bottom of the viewport (bottom: 0) */}
-      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-        <div className="grid grid-cols-5 text-center items-center gap-0.5">
+      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+        <div className="grid grid-cols-5 text-center items-center gap-1">
           <button
+            type="button"
             onClick={() => {
               setActiveTab('booking');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold transition active:scale-95 whitespace-nowrap ${
-              activeTab === 'booking' ? 'text-amber-600 font-black' : 'text-slate-700 hover:text-slate-950'
+            className={`flex flex-col items-center justify-center py-1 text-[11px] leading-tight transition active:scale-95 whitespace-nowrap ${
+              activeTab === 'booking' ? 'text-[#B45309] font-extrabold' : 'text-slate-700 hover:text-slate-950 font-semibold'
             }`}
           >
-            <Car className="w-4 h-4 mb-0.5 shrink-0" />
+            <Car className={`w-5 h-5 mb-0.5 shrink-0 ${activeTab === 'booking' ? 'text-[#D97706]' : 'text-slate-800'}`} />
             <span>Book Cab</span>
           </button>
+
           <button
+            type="button"
             onClick={() => {
               setActiveTab('booking');
               setTimeout(() => {
@@ -616,52 +796,55 @@ export default function App() {
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }, 120);
             }}
-            className={`flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold transition active:scale-95 whitespace-nowrap ${
-              activeTab === 'routes' ? 'text-amber-600 font-black' : 'text-slate-700 hover:text-slate-950'
+            className={`flex flex-col items-center justify-center py-1 text-[11px] leading-tight transition active:scale-95 whitespace-nowrap ${
+              activeTab === 'routes' ? 'text-[#B45309] font-extrabold' : 'text-slate-700 hover:text-slate-950 font-semibold'
             }`}
           >
-            <MapPin className="w-4 h-4 mb-0.5 shrink-0" />
+            <MapPin className="w-5 h-5 mb-0.5 shrink-0 text-slate-800" />
             <span>Routes</span>
           </button>
+
           <button
+            type="button"
             onClick={() => setActiveTab('rides')}
-            className={`flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold transition active:scale-95 whitespace-nowrap ${
-              activeTab === 'rides' ? 'text-amber-600 font-black' : 'text-slate-700 hover:text-slate-950'
+            className={`flex flex-col items-center justify-center py-1 text-[11px] leading-tight transition active:scale-95 whitespace-nowrap ${
+              activeTab === 'rides' ? 'text-[#B45309] font-extrabold' : 'text-slate-700 hover:text-slate-950 font-semibold'
             }`}
           >
-            <Clock className="w-4 h-4 mb-0.5 shrink-0" />
+            <Clock className="w-5 h-5 mb-0.5 shrink-0 text-slate-800" />
             <span>Rides</span>
           </button>
 
-          {/* Customer Login / Profile Button */}
+          {/* Customer Login / Profile Button in Cream Rounded Box */}
           {currentUser ? (
             <button
+              type="button"
               onClick={() => setIsCustomerProfileOpen(true)}
-              className="flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold text-amber-700 transition active:scale-95 whitespace-nowrap"
+              className="flex flex-col items-center justify-center py-1.5 px-2 text-[11px] leading-tight font-extrabold text-slate-950 bg-[#FEF3C7] rounded-2xl transition active:scale-95 whitespace-nowrap"
             >
-              <div className="w-4 h-4 mb-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center shrink-0">
-                {currentUser.name.charAt(0).toUpperCase()}
-              </div>
+              <User className="w-5 h-5 mb-0.5 text-slate-950 shrink-0" />
               <span className="truncate max-w-[54px]">{currentUser.name.split(' ')[0]}</span>
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => {
                 setAuthPrompt('');
                 setIsAuthModalOpen(true);
               }}
-              className="flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-black text-slate-950 bg-amber-100/90 rounded-lg transition active:scale-95 whitespace-nowrap"
+              className="flex flex-col items-center justify-center py-1.5 px-2 text-[11px] leading-tight font-extrabold text-slate-950 bg-[#FEF3C7] rounded-2xl transition active:scale-95 whitespace-nowrap"
             >
-              <User className="w-4 h-4 mb-0.5 text-slate-950 shrink-0" />
+              <User className="w-5 h-5 mb-0.5 text-slate-950 shrink-0" />
               <span>Login</span>
             </button>
           )}
 
           <button
+            type="button"
             onClick={() => setIsAdminPinModalOpen(true)}
-            className="flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold text-slate-700 hover:text-amber-700 transition active:scale-95 whitespace-nowrap"
+            className="flex flex-col items-center justify-center py-1 text-[11px] leading-tight font-semibold text-slate-700 hover:text-slate-950 transition active:scale-95 whitespace-nowrap"
           >
-            <Shield className="w-4 h-4 mb-0.5 text-amber-600 shrink-0" />
+            <Shield className="w-5 h-5 mb-0.5 text-slate-800 shrink-0" />
             <span>Owner</span>
           </button>
         </div>

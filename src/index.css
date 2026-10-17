@@ -17,46 +17,18 @@ html, body {
   padding: 0 !important;
 }
 
-/* 1. Thicker, Prominent Top Black Status Bar - Pushed slightly down with generous height & padding */
-.top-black-status-bar {
-  width: 100% !important;
-  min-height: 42px !important;
-  background: #000000 !important;
-  background-color: #000000 !important;
-  color: #ffffff !important;
-  text-align: center !important;
-  font-size: 13px !important;
-  line-height: 1.4 !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.04em !important;
-  margin: 0 !important;
-  padding-top: max(14px, env(safe-area-inset-top, 14px)) !important;
-  padding-bottom: 10px !important;
-  padding-left: 12px !important;
-  padding-right: 12px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-}
-
-/* 2. Header & Top Breathing Space - Pushes main header slightly downwards below the black bar */
-header {
+/* 1. Dark Prominent Sticky Header with Safe-Area Top Breathing Space */
+header.safar-dark-header {
   position: sticky !important;
   top: 0 !important;
   z-index: 1000 !important;
-  padding-top: 0 !important;
+  background-color: #0b0b0e !important;
+  padding-top: max(10px, env(safe-area-inset-top, 10px)) !important;
+  padding-bottom: 10px !important;
   margin-top: 0 !important;
-  background-color: #ffffff !important;
 }
 
-.main-header-bar {
-  padding-top: 8px !important;
-  padding-bottom: 6px !important;
-}
-
-/* 3. Bottom Spacing so page & footer content isn't covered by the fixed bottom bar */
+/* 2. Bottom Spacing so page & footer content isn't covered by the fixed bottom bar */
 main, #app-content, body {
   padding-bottom: 85px !important;
 }
@@ -65,7 +37,7 @@ footer {
   padding-bottom: 95px !important;
 }
 
-/* 4. Bottom Navigation Bar (Book Cab, Routes, Rides, Login, Owner) Fixed Completely at Bottom (bottom: 0) */
+/* 3. Bottom Navigation Bar (Book Cab, Routes, Rides, Login, Owner) Fixed Completely at Bottom (bottom: 0) */
 nav.fixed-bottom, 
 .bottom-nav, 
 footer nav,
@@ -78,9 +50,9 @@ div[class*="bottom-nav"] {
   z-index: 99999 !important;
   background: #ffffff !important;
   border-top: 1px solid #e5e7eb !important;
-  padding-top: 8px !important;
-  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
+  padding-top: 6px !important;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06) !important;
 }
 
 /* Print styles for booking invoice / tax voucher */

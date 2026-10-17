@@ -45,197 +45,178 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-[1000] bg-white border-b border-slate-200 p-0 m-0">
-      {/* 1. Prominent Thicker Top Black Status Bar */}
-      <div className="top-black-status-bar">
-        SafarIndiaCabs
-      </div>
-
-      {/* 2. Main Header Pushed Slightly Downwards for Vertical Breathing Space */}
-      <div className="main-header-bar max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-2 sm:gap-4 h-14 sm:h-16">
+    <header className="safar-dark-header sticky top-0 z-[1000] bg-[#0B0B0E] text-white border-b border-slate-800/80 shadow-md">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 min-h-[54px] sm:min-h-[62px]">
           
-          {/* BRAND LOGO: SAFAR.INDIA.CABS - TRAVEL SMART */}
+          {/* BRAND LOGO: SafarIndiaCabs - A1 Cab Services N.India */}
           <button 
+            type="button"
             onClick={() => handleNavClick('booking')}
-            className="flex items-center gap-2 sm:gap-3 text-left transition-colors whitespace-nowrap shrink-0 group py-1"
+            className="flex items-center gap-2.5 sm:gap-3 text-left transition-transform active:scale-98 whitespace-nowrap shrink-0 group py-1"
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform shrink-0">
-              <Car className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950" />
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#FFCC00] text-slate-950 flex flex-col items-center justify-center shadow-md shrink-0">
+              <div className="w-2.5 h-1 bg-slate-950 rounded-t-xs -mb-0.5" />
+              <Car className="w-5 h-5 sm:w-6 sm:h-6 text-slate-950 stroke-[2.4]" />
             </div>
-            <div>
-              <div className="font-black tracking-tight text-xs sm:text-lg text-slate-950 font-sans flex items-center leading-tight">
-                <span>SAFAR</span>
-                <span className="text-amber-500 mx-0.5 font-mono font-bold">.</span>
-                <span>INDIA</span>
-                <span className="text-amber-500 mx-0.5 font-mono font-bold">.</span>
-                <span className="text-amber-500">CABS</span>
+            <div className="leading-tight">
+              <div className="font-black tracking-tight text-[17px] sm:text-xl font-sans flex items-center">
+                <span className="text-white">SafarIndia</span>
+                <span className="text-[#FFCC00]">Cabs</span>
               </div>
-              <div className="text-[8px] sm:text-[10px] tracking-[0.2em] sm:tracking-[0.25em] font-extrabold text-amber-600 uppercase">
-                Travel Smart
+              <div className="text-[10px] sm:text-xs font-medium text-slate-200 tracking-normal">
+                A1 Cab Services N.India
               </div>
             </div>
           </button>
 
-          {/* CLEAN & MINIMAL NAVIGATION */}
-          <nav className="hidden lg:flex items-center gap-7 text-sm font-bold text-slate-700">
+          {/* DESKTOP NAVIGATION LINKS */}
+          <nav className="hidden lg:flex items-center gap-7 text-sm font-bold text-slate-200">
             <button
+              type="button"
               onClick={() => handleNavClick('booking')}
-              className={`hover:text-amber-600 transition-colors whitespace-nowrap ${
-                activeNavTab === 'booking' ? 'text-amber-600 font-black' : ''
+              className={`hover:text-[#FFCC00] transition-colors whitespace-nowrap ${
+                activeNavTab === 'booking' ? 'text-[#FFCC00] font-black' : ''
               }`}
             >
               Book Cab
             </button>
 
             <button
+              type="button"
               onClick={() => handleNavClick('routes')}
-              className={`hover:text-amber-600 transition-colors whitespace-nowrap ${
-                activeNavTab === 'routes' ? 'text-amber-600 font-black' : ''
+              className={`hover:text-[#FFCC00] transition-colors whitespace-nowrap ${
+                activeNavTab === 'routes' ? 'text-[#FFCC00] font-black' : ''
               }`}
             >
               Popular Routes
             </button>
 
             <button
+              type="button"
               onClick={handlePartnerClick}
-              className="hover:text-amber-600 transition-colors whitespace-nowrap text-slate-700 hover:underline decoration-amber-500/40 underline-offset-4"
+              className="hover:text-[#FFCC00] transition-colors whitespace-nowrap text-slate-200"
             >
               Driver Partner
             </button>
 
             <button
+              type="button"
               onClick={() => handleNavClick('rides')}
-              className={`flex items-center gap-1.5 hover:text-amber-600 transition-colors whitespace-nowrap ${
-                activeNavTab === 'rides' ? 'text-amber-600 font-black' : ''
+              className={`flex items-center gap-1.5 hover:text-[#FFCC00] transition-colors whitespace-nowrap ${
+                activeNavTab === 'rides' ? 'text-[#FFCC00] font-black' : ''
               }`}
             >
-              <Clock className="w-4 h-4 text-slate-400" />
+              <Clock className="w-4 h-4 text-[#FFCC00]" />
               <span>My Rides</span>
             </button>
 
             <button
+              type="button"
               onClick={handleContactClick}
-              className="hover:text-amber-600 transition-colors whitespace-nowrap"
+              className="hover:text-[#FFCC00] transition-colors whitespace-nowrap"
             >
               Contact Us
             </button>
           </nav>
 
-          {/* TOP RIGHT ACTIONS: PWA INSTALL, WHATSAPP SUPPORT & DIRECT CALL */}
+          {/* RIGHT ACTIONS: Install App Pill + Login Pill + White Circle Hamburger Menu */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             
-            {/* PWA Install Button - Always clearly visible without clipping */}
+            {/* 1. Yellow Pill: Install App */}
             <PWAInstallButton />
 
-            {/* Quick WhatsApp Support Button */}
-            <a
-              href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20assistance%20with%20cab%20booking"
-              target="_blank"
-              rel="noreferrer"
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition-all shadow-sm active:scale-95"
-              title="Quick WhatsApp Booking & Support"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-white fill-current" />
-              <span>WhatsApp Support</span>
-            </a>
-
-            {/* Direct Call Button (+91 7710080992) */}
-            <a 
-              href="tel:+917710080992" 
-              className="hidden sm:flex items-center gap-1.5 text-xs text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl transition shadow-sm font-bold"
-              title="24/7 Cab Helpline"
-            >
-              <Phone className="w-3.5 h-3.5 text-amber-600" />
-              <span className="hidden md:inline">+91 77100 80992</span>
-              <span className="md:hidden">Call</span>
-            </a>
-
-            {/* User Profile or Login */}
+            {/* 2. Yellow Pill: Login or Active Customer */}
             {currentUser ? (
-              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 border border-slate-200 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl">
-                <div className="text-right">
-                  <div className="text-[11px] sm:text-xs font-bold text-slate-900 leading-tight max-w-[60px] sm:max-w-none truncate">{currentUser.name}</div>
-                  <div className="text-[10px] text-amber-700 leading-tight font-mono font-semibold hidden sm:block">+91 {currentUser.phone}</div>
-                </div>
+              <div className="flex items-center gap-1.5 bg-[#FFCC00] text-slate-950 px-3 py-1.5 sm:py-2 rounded-full shadow-sm">
+                <User className="w-3.5 h-3.5 text-slate-950 stroke-[2.5] shrink-0" />
+                <span className="text-[11px] sm:text-xs font-extrabold max-w-[64px] sm:max-w-[110px] truncate">
+                  {currentUser.name.split(' ')[0]}
+                </span>
                 <button
+                  type="button"
                   onClick={onLogout}
-                  className="text-[10px] text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 font-bold px-1.5 sm:px-2 py-1 rounded-lg transition"
+                  className="ml-0.5 text-[10px] bg-slate-950 text-white hover:bg-slate-800 font-bold px-2 py-0.5 rounded-full transition"
                   title="Logout"
                 >
-                  Logout
+                  Exit
                 </button>
               </div>
             ) : (
               <button
+                type="button"
                 onClick={onOpenLogin}
-                className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-500 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl transition shadow-sm active:scale-95 whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold text-slate-950 bg-[#FFCC00] hover:bg-[#f5c400] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full transition shadow-sm active:scale-95 whitespace-nowrap shrink-0"
               >
-                <User className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0" />
+                <User className="w-3.5 h-3.5 text-slate-950 stroke-[2.5] shrink-0" />
                 <span>Login</span>
               </button>
             )}
 
-            {/* Owner Portal / Admin */}
+            {/* Desktop Owner Portal Button */}
             {onOpenAdmin && (
               <button
+                type="button"
                 onClick={onOpenAdmin}
-                className="hidden xl:flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition-colors shadow-sm"
+                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#FFCC00] bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-full transition-colors"
                 title="Owner & Dispatch Dashboard"
               >
-                <Shield className="w-3.5 h-3.5 text-amber-600" />
-                <span>Admin</span>
+                <Shield className="w-3.5 h-3.5 text-[#FFCC00]" />
+                <span>Owner</span>
               </button>
             )}
 
-            {/* Mobile Hamburger Toggle */}
+            {/* 3. White Circular Hamburger Menu Button */}
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 sm:p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-950 shrink-0"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:bg-slate-100 text-slate-950 flex items-center justify-center shadow-md transition active:scale-95 shrink-0"
               aria-label="Toggle menu"
             >
-              {mobileMenuOpen ? <X className="w-4 h-4 sm:w-5 sm:h-5" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 stroke-[2.5]" /> : <Menu className="w-5 h-5 stroke-[2.5]" />}
             </button>
 
           </div>
 
         </div>
 
-        {/* Mobile Dropdown Menu */}
+        {/* Dropdown Navigation Drawer (Works on Mobile & Desktop when Hamburger is clicked) */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-slate-200 space-y-3 animate-in fade-in slide-in-from-top-2 bg-white">
+          <div className="py-4 border-t border-slate-800 space-y-3 animate-in fade-in slide-in-from-top-2 bg-[#0B0B0E] text-white">
             
-            {/* Customer Status in Mobile Menu */}
-            <div className="pb-2 border-b border-slate-100">
+            {/* Customer Status in Menu */}
+            <div className="pb-2 border-b border-slate-800">
               {currentUser ? (
-                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
+                <div className="p-3 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 font-black flex items-center justify-center text-sm shadow-sm">
+                    <div className="w-9 h-9 rounded-xl bg-[#FFCC00] text-slate-950 font-black flex items-center justify-center text-sm shadow-sm">
                       {currentUser.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div className="text-[10px] text-amber-800 font-bold uppercase tracking-wider">Logged In Customer</div>
-                      <div className="text-xs font-extrabold text-slate-900">{currentUser.name}</div>
-                      <div className="text-[11px] font-mono text-slate-600 font-semibold">+91 {currentUser.phone}</div>
+                      <div className="text-[10px] text-[#FFCC00] font-bold uppercase tracking-wider">Logged In Customer</div>
+                      <div className="text-xs font-extrabold text-white">{currentUser.name}</div>
+                      <div className="text-[11px] font-mono text-slate-300 font-semibold">+91 {currentUser.phone}</div>
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => {
                       setMobileMenuOpen(false);
                       onLogout();
                     }}
-                    className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 font-bold text-xs rounded-xl transition shadow-sm"
+                    className="px-3 py-1.5 bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 font-bold text-xs rounded-xl transition"
                   >
                     Logout
                   </button>
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
                     onOpenLogin();
                   }}
-                  className="w-full py-2.5 px-4 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm"
+                  className="w-full py-2.5 px-4 bg-[#FFCC00] hover:bg-[#f5c400] text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm"
                 >
                   <User className="w-4 h-4 text-slate-950" />
                   <span>Customer Login / Register with OTP</span>
@@ -243,41 +224,54 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            <nav className="flex flex-col space-y-1.5 text-sm font-bold text-slate-800">
+            <nav className="flex flex-col space-y-1 text-sm font-bold text-slate-100">
               <button
+                type="button"
                 onClick={() => handleNavClick('booking')}
-                className="px-3 py-2 rounded-xl text-left hover:bg-slate-100 hover:text-amber-600 transition"
+                className="px-3 py-2.5 rounded-xl text-left hover:bg-slate-900 hover:text-[#FFCC00] transition flex items-center justify-between"
               >
-                Book Cab
+                <span>Book Outstation / Local Cab</span>
+                <Car className="w-4 h-4 text-[#FFCC00]" />
               </button>
               <button
+                type="button"
                 onClick={() => handleNavClick('routes')}
-                className="px-3 py-2 rounded-xl text-left hover:bg-slate-100 hover:text-amber-600 transition"
+                className="px-3 py-2.5 rounded-xl text-left hover:bg-slate-900 hover:text-[#FFCC00] transition"
               >
-                Popular Routes
+                Popular Intercity Routes
               </button>
               <button
+                type="button"
                 onClick={handlePartnerClick}
-                className="px-3 py-2 rounded-xl text-left text-amber-700 hover:bg-slate-100 transition font-bold"
+                className="px-3 py-2.5 rounded-xl text-left text-[#FFCC00] hover:bg-slate-900 transition font-bold"
               >
                 Join as Driver / Vendor Partner
               </button>
               <button
+                type="button"
                 onClick={() => handleNavClick('rides')}
-                className="px-3 py-2 rounded-xl text-left hover:bg-slate-100 hover:text-amber-600 transition"
+                className="px-3 py-2.5 rounded-xl text-left hover:bg-slate-900 hover:text-[#FFCC00] transition flex items-center justify-between"
               >
-                My Rides & Invoices
+                <span>My Rides & Tax Invoices</span>
+                <Clock className="w-4 h-4 text-slate-400" />
               </button>
               <button
+                type="button"
                 onClick={handleContactClick}
-                className="px-3 py-2 rounded-xl text-left hover:bg-slate-100 hover:text-amber-600 transition"
+                className="px-3 py-2.5 rounded-xl text-left hover:bg-slate-900 hover:text-[#FFCC00] transition"
               >
                 Contact 24/7 Helpline
               </button>
             </nav>
 
-            <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
-              <PWAInstallButton className="w-full justify-center py-2.5" />
+            <div className="pt-2 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <a
+                href="tel:+917710080992"
+                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2"
+              >
+                <Phone className="w-4 h-4 text-[#FFCC00]" />
+                <span>Call +91 77100 80992</span>
+              </a>
 
               <a
                 href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20assistance"
@@ -286,18 +280,20 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm"
               >
                 <MessageSquare className="w-4 h-4 fill-current" />
-                <span>Chat on WhatsApp (+91 77100 80992)</span>
+                <span>WhatsApp Support</span>
               </a>
 
               {onOpenAdmin && (
                 <button
+                  type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
                     onOpenAdmin();
                   }}
-                  className="w-full py-2 px-3 text-xs text-amber-800 font-bold bg-amber-50 rounded-xl border border-amber-200"
+                  className="sm:col-span-2 w-full py-2.5 px-3 text-xs text-[#FFCC00] font-bold bg-slate-900 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-center gap-1.5"
                 >
-                  Open Owner Dashboard
+                  <Shield className="w-4 h-4 text-[#FFCC00]" />
+                  <span>Open Owner Control Dashboard</span>
                 </button>
               )}
             </div>

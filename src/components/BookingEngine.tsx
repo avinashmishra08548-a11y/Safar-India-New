@@ -337,80 +337,91 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const todayStr = new Date().toISOString().split('T')[0];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-lg shadow-slate-200/50 relative">
+    <div className="bg-white border border-slate-200/90 rounded-3xl p-4 sm:p-6 shadow-xl shadow-slate-200/60 relative">
       
-      {/* 1. TOP TABS: Outstation | Local Rental | Airport Transfer */}
-      <div className="flex items-center justify-between gap-1 p-1 bg-slate-100 rounded-2xl mb-5 border border-slate-200">
+      {/* 1. TOP TABS: Outstation Cabs | Local Rental | Airport Transfer */}
+      <div className="grid grid-cols-3 items-center gap-1 p-1.5 bg-[#F1F5F9] rounded-2xl mb-3 border border-slate-200/80">
         <button
           type="button"
           onClick={() => handleSelectCategory('outstation')}
-          className={`flex-1 py-3 px-3 text-xs sm:text-sm font-bold rounded-xl transition-all text-center ${
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 text-xs sm:text-sm rounded-xl transition-all text-left leading-tight ${
             activeMainCategory === 'outstation'
-              ? 'bg-amber-400 text-slate-950 shadow-sm font-black'
-              : 'text-slate-600 hover:text-slate-900 font-semibold'
+              ? 'bg-[#FFCC00] text-slate-950 shadow-xs font-extrabold'
+              : 'text-slate-700 hover:text-slate-950 font-semibold'
           }`}
         >
-          Outstation Cabs
+          <Car className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-slate-950 fill-current" />
+          <span>Outstation<br className="sm:hidden" /> Cabs</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectCategory('local')}
-          className={`flex-1 py-3 px-3 text-xs sm:text-sm font-bold rounded-xl transition-all text-center ${
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 text-xs sm:text-sm rounded-xl transition-all text-left leading-tight border-l border-r border-slate-200/70 ${
             activeMainCategory === 'local'
-              ? 'bg-amber-400 text-slate-950 shadow-sm font-black'
-              : 'text-slate-600 hover:text-slate-900 font-semibold'
+              ? 'bg-[#FFCC00] text-slate-950 shadow-xs font-extrabold border-transparent'
+              : 'text-slate-700 hover:text-slate-950 font-semibold'
           }`}
         >
-          Local Rental
+          <MapPin className="w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 text-slate-800" />
+          <span>Local Rental</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectCategory('airport')}
-          className={`flex-1 py-3 px-3 text-xs sm:text-sm font-bold rounded-xl transition-all text-center ${
+          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 text-xs sm:text-sm rounded-xl transition-all text-left leading-tight ${
             activeMainCategory === 'airport'
-              ? 'bg-amber-400 text-slate-950 shadow-sm font-black'
-              : 'text-slate-600 hover:text-slate-900 font-semibold'
+              ? 'bg-[#FFCC00] text-slate-950 shadow-xs font-extrabold'
+              : 'text-slate-700 hover:text-slate-950 font-semibold'
           }`}
         >
-          Airport Transfer
+          <Plane className="w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 text-slate-800" />
+          <span>Airport<br className="sm:hidden" /> Transfer</span>
         </button>
       </div>
 
       {/* 2. SUB-TOGGLES */}
-      {/* If Outstation: One Way vs Round Trip */}
+      {/* If Outstation: One Way (Zero Return Fare) vs Round Trip */}
       {activeMainCategory === 'outstation' && (
-        <div className="flex items-center gap-1.5 mb-4 p-1 bg-slate-100 rounded-xl border border-slate-200 max-w-sm">
+        <div className="grid grid-cols-2 items-center gap-1.5 mb-5 p-1.5 bg-[#F1F5F9] rounded-2xl border border-slate-200/80">
           <button
             type="button"
             onClick={() => setTripType('oneway')}
-            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-lg transition ${
-              tripType === 'oneway' ? 'bg-white text-slate-950 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+            className={`flex items-center gap-2.5 py-2.5 px-3 text-xs sm:text-sm rounded-xl transition text-left leading-tight ${
+              tripType === 'oneway'
+                ? 'bg-white text-slate-950 font-extrabold shadow-xs border border-slate-200/60'
+                : 'text-slate-700 hover:text-slate-950 font-semibold'
             }`}
           >
-            One Way (Zero Return Fare)
+            <span className="w-7 h-7 rounded-full bg-[#FFCC00] text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <RefreshCw className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+            </span>
+            <span>One Way (Zero Return<br className="sm:hidden" /> Fare)</span>
           </button>
           <button
             type="button"
             onClick={() => setTripType('roundtrip')}
-            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-lg transition ${
-              tripType === 'roundtrip' ? 'bg-white text-slate-950 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm rounded-xl transition ${
+              tripType === 'roundtrip'
+                ? 'bg-white text-slate-950 font-extrabold shadow-xs border border-slate-200/60'
+                : 'text-slate-700 hover:text-slate-950 font-semibold'
             }`}
           >
-            Round Trip
+            <RefreshCw className="w-4 h-4 text-slate-700 shrink-0" />
+            <span>Round Trip</span>
           </button>
         </div>
       )}
 
       {/* If Airport: Drop to Airport vs Pickup from Airport */}
       {activeMainCategory === 'airport' && (
-        <div className="flex items-center gap-1.5 mb-4 p-1 bg-slate-100 rounded-xl border border-slate-200 max-w-sm">
+        <div className="grid grid-cols-2 items-center gap-1.5 mb-5 p-1.5 bg-[#F1F5F9] rounded-2xl border border-slate-200/80">
           <button
             type="button"
             onClick={() => setAirportMode('drop')}
-            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-lg transition ${
-              airportMode === 'drop' ? 'bg-white text-slate-950 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+            className={`py-2.5 px-3 text-xs font-extrabold rounded-xl transition ${
+              airportMode === 'drop' ? 'bg-white text-slate-950 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Going to Airport (Drop)
@@ -418,8 +429,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           <button
             type="button"
             onClick={() => setAirportMode('pickup')}
-            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-lg transition ${
-              airportMode === 'pickup' ? 'bg-white text-slate-950 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+            className={`py-2.5 px-3 text-xs font-extrabold rounded-xl transition ${
+              airportMode === 'pickup' ? 'bg-white text-slate-950 shadow-xs border border-slate-200/60' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Arriving at Airport (Pickup)
@@ -432,19 +443,20 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         
         {/* PICKUP LOCATION WITH OLA MAPS AUTOCOMPLETE */}
         <div className="relative" ref={pickupRef}>
-          <div className="flex items-center justify-between mb-1.5">
-            <label htmlFor="booking-pickup-location" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-              {activeMainCategory === 'airport' && airportMode === 'pickup' ? 'Airport Terminal Pickup' : 'Pickup City / Address'}
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="booking-pickup-location" className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-slate-700">
+              <MapPin className="w-3.5 h-3.5 text-slate-800 shrink-0" />
+              <span>{activeMainCategory === 'airport' && airportMode === 'pickup' ? 'Airport Terminal Pickup' : 'Pickup City / Address'}</span>
             </label>
-            <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-500" />
+            <span className="text-xs text-emerald-700 font-bold flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Ola Maps Powered</span>
             </span>
           </div>
 
           <div className="relative">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-amber-600 pointer-events-none">
-              <Navigation className="w-4 h-4" />
+            <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-amber-500 pointer-events-none">
+              <Navigation className="w-4.5 h-4.5 stroke-[2.2]" />
             </span>
             <input
               id="booking-pickup-location"
@@ -461,10 +473,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               onFocus={() => {
                 setShowPickupDropdown(true);
               }}
-              placeholder="Enter pickup locality, landmark or city..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-16 py-3 text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
+              placeholder="Enter pickup city or area"
+              className="w-full bg-white border border-slate-300 rounded-2xl pl-11 pr-11 py-3.5 text-slate-950 text-base font-bold placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-amber-500 shadow-2xs transition"
             />
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 gap-1.5">
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 gap-1.5">
               {pickupCity && (
                 <button
                   type="button"
@@ -474,14 +486,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     if (setPickupCoords) setPickupCoords(null);
                     setShowPickupDropdown(true);
                   }}
-                  className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition"
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
                   title="Clear"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4 stroke-[2.2]" />
                 </button>
               )}
               {isLoadingPickup && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 mr-1" />
+                <Loader2 className="w-4 h-4 animate-spin text-amber-600 mr-1" />
               )}
             </div>
           </div>
@@ -544,8 +556,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         {/* DROP LOCATION OR HOURLY PACKAGE */}
         {activeMainCategory === 'local' ? (
           <div>
-            <label htmlFor="booking-local-package" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              Select Hourly Package
+            <label htmlFor="booking-local-package" className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-slate-700 mb-2">
+              <Clock className="w-3.5 h-3.5 text-slate-800 shrink-0" />
+              <span>Select Hourly Package</span>
             </label>
             <div className="relative">
               <select
@@ -554,7 +567,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 aria-label="Select hourly car rental package"
                 value={localPackageId}
                 onChange={(e) => setLocalPackageId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:bg-white appearance-none cursor-pointer"
+                className="w-full bg-white border border-slate-300 rounded-2xl px-4 py-3.5 text-slate-950 text-base font-bold focus:outline-none focus:border-amber-500 shadow-2xs appearance-none cursor-pointer"
               >
                 {LOCAL_PACKAGES.map((pkg) => (
                   <option key={pkg.id} value={pkg.id}>
@@ -567,23 +580,24 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         ) : (
           <div className="relative" ref={dropRef}>
-            <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="booking-drop-location" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                {activeMainCategory === 'airport' && airportMode === 'drop' ? 'Airport Destination' : 'Destination / Drop City'}
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="booking-drop-location" className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                <MapPin className="w-3.5 h-3.5 text-slate-800 shrink-0" />
+                <span>{activeMainCategory === 'airport' && airportMode === 'drop' ? 'Airport Destination' : 'Destination / Drop City'}</span>
               </label>
               <button
                 type="button"
                 aria-label="Swap pickup and destination locations"
                 onClick={handleSwapCities}
-                className="text-[11px] text-amber-700 hover:text-amber-800 flex items-center gap-1 font-bold transition p-0.5 rounded focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1 font-extrabold transition p-0.5 rounded focus:outline-none"
               >
-                <ArrowRightLeft className="w-3 h-3" />
+                <ArrowRightLeft className="w-3.5 h-3.5 stroke-[2.4]" />
                 <span>Swap</span>
               </button>
             </div>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-rose-500 pointer-events-none">
-                <MapPin className="w-4 h-4" />
+              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-600 pointer-events-none">
+                <MapPin className="w-4.5 h-4.5 stroke-[2.2]" />
               </span>
               <input
                 id="booking-drop-location"
@@ -600,10 +614,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 onFocus={() => {
                   setShowDropDropdown(true);
                 }}
-                placeholder="Enter drop locality, landmark or city..."
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-16 py-3 text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                placeholder="Enter destination city or area"
+                className="w-full bg-white border border-slate-300 rounded-2xl pl-11 pr-11 py-3.5 text-slate-950 text-base font-bold placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-amber-500 shadow-2xs transition"
               />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 gap-1.5">
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 gap-1.5">
                 {dropCity && (
                   <button
                     type="button"
@@ -613,14 +627,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                       if (setDropCoords) setDropCoords(null);
                       setShowDropDropdown(true);
                     }}
-                    className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition"
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
                     title="Clear"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-4 h-4 stroke-[2.2]" />
                   </button>
                 )}
                 {isLoadingDrop && (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 mr-1" />
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-600 mr-1" />
                 )}
               </div>
             </div>
