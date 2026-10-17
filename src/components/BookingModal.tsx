@@ -187,7 +187,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         try {
           await sendDualBookingNotifications(confirmedBooking);
         } catch (smsError) {
-          console.warn('Fast2SMS automated dual notification notice:', smsError);
+          console.warn('Traccar Cloud automated dual notification notice:', smsError);
         }
 
         setIsProcessing(false);
@@ -536,7 +536,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <span>Razorpay Standard Checkout 256-Bit SSL Encrypted</span>
             </span>
             <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              Instant Fast2SMS Confirmation
+              Instant SMS Confirmation
             </span>
           </div>
 

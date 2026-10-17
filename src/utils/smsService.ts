@@ -1,16 +1,18 @@
 /**
- * Fast2SMS Live SMS & OTP Gateway Service for Safar India Cabs
+ * Traccar Cloud SMS & OTP Gateway Service for Safar India Cabs
  * 
- * Supports:
- * 1. Primary Route: 'otp' (endpoint: https://www.fast2sms.com/dev/bulkV2, 10-digit phone number without +91)
- * 2. Automatic Failover to Route 'q' (Quick SMS): Uses Fast2SMS Wallet Balance (₹150+). Sends real SMS to any Indian mobile number instantly when Route 'otp' requires website verification (Code 996).
- * 3. Dual Transport: POST JSON with GET URL fallback for 100% mobile browser compatibility.
- * 4. Automatic cache reset: Clears any corrupted/truncated keys in localStorage to guarantee authorization.
+ * Endpoint: https://www.traccar.org/sms/
+ * Dispatches real SMS directly through the connected Traccar SMS Gateway Android device:
+ * - Customer OTP verification codes
+ * - Customer Booking Confirmation SMS
+ * - Instant Admin New Booking Alert SMS (+91 7710080992)
+ * - Driver Pickup Duty Alert & Customer Driver Assignment SMS
  */
 
-export const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
-export const FAST2SMS_ROUTE = 'otp';
-export const DEFAULT_FAST2SMS_KEY = '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
+export const TRACCAR_SMS_ENDPOINT = 'https://www.traccar.org/sms/';
+export const DEFAULT_TRACCAR_TOKEN =
+  'f81x7L5jTmSJNsNrLn_vP9:APA91bEZh7cloIKBCB0sozFUOBiX9TvBGH_Osxi8dM-HdoGWmXIlYhmZbxnKizpCoDSII5t66VaGz6UVO2tno2UpqRXji0X4J3PWFDsrKiy2H9y_kSKJOV8';
+export const ADMIN_PHONE_NUMBER = '7710080992';
 
 /**
  * Format any phone string into a strict 10-digit Indian mobile number
@@ -18,7 +20,7 @@ export const DEFAULT_FAST2SMS_KEY = '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHv
  */
 export function sanitize10DigitPhone(phoneNumber: string): string {
   let clean = (phoneNumber || '').replace(/\D/g, '');
-  
+
   if (clean.length === 12 && clean.startsWith('91')) {
     clean = clean.slice(2);
   } else if (clean.length === 11 && clean.startsWith('0')) {
@@ -31,31 +33,39 @@ export function sanitize10DigitPhone(phoneNumber: string): string {
 }
 
 /**
- * Ensures the app ALWAYS uses the verified 84-character Fast2SMS key.
- * Automatically clears any old/invalid key stored in user browser localStorage.
+ * Format 10-digit Indian phone number into E.164 format (+91XXXXXXXXXX) for Traccar SMS Gateway
  */
-export function getFast2SmsApiKey(): string {
+export function formatIndianE164(phoneNumber: string): string {
+  const clean = sanitize10DigitPhone(phoneNumber);
+  return clean.length === 10 ? `+91${clean}` : phoneNumber;
+}
+
+/**
+ * Retrieve active Traccar Cloud Gateway Token
+ */
+export function getTraccarToken(): string {
   try {
-    const saved = localStorage.getItem('safar_fast2sms_api_key');
-    // If the saved key is exactly the active 84-char key, use it
-    if (saved && saved.trim() === DEFAULT_FAST2SMS_KEY) {
-      return DEFAULT_FAST2SMS_KEY;
+    // Remove any legacy Fast2SMS key from localStorage
+    localStorage.removeItem('safar_fast2sms_api_key');
+
+    const saved = localStorage.getItem('safar_traccar_sms_token');
+    if (saved && saved.trim().length > 20) {
+      return saved.trim();
     }
-    // If saved is empty or old/corrupted, immediately reset to verified key
-    localStorage.setItem('safar_fast2sms_api_key', DEFAULT_FAST2SMS_KEY);
-    return DEFAULT_FAST2SMS_KEY;
+    localStorage.setItem('safar_traccar_sms_token', DEFAULT_TRACCAR_TOKEN);
+    return DEFAULT_TRACCAR_TOKEN;
   } catch {
-    return DEFAULT_FAST2SMS_KEY;
+    return DEFAULT_TRACCAR_TOKEN;
   }
 }
 
-export function setFast2SmsApiKey(key: string): void {
+export function setTraccarToken(token: string): void {
   try {
-    const cleanKey = key.trim();
-    if (cleanKey.length >= 80) {
-      localStorage.setItem('safar_fast2sms_api_key', cleanKey);
+    const cleanToken = token.trim();
+    if (cleanToken.length > 20) {
+      localStorage.setItem('safar_traccar_sms_token', cleanToken);
     } else {
-      localStorage.setItem('safar_fast2sms_api_key', DEFAULT_FAST2SMS_KEY);
+      localStorage.setItem('safar_traccar_sms_token', DEFAULT_TRACCAR_TOKEN);
     }
   } catch {}
 }
@@ -73,225 +83,169 @@ export interface SmsResult {
 }
 
 /**
- * Send real live SMS OTP to customer phone using Fast2SMS Gateway
- * 
- * First attempts Route 'otp' (endpoint: https://www.fast2sms.com/dev/bulkV2).
- * If Fast2SMS returns 996 (Website verification required for OTP route),
- * it seamlessly dispatches via Route 'q' using the ₹150 wallet balance.
+ * Core Traccar Cloud SMS Gateway Dispatcher
+ * 1. First calls backend proxy `/api/send-sms` to avoid any browser CORS restrictions
+ * 2. Falls back to direct `https://www.traccar.org/sms/` POST request if running in static mode
  */
-export async function sendOtpSms(phoneNumber: string, otp: string): Promise<SmsResult> {
+export async function sendTraccarSms(
+  phoneNumber: string,
+  message: string,
+  customToken?: string
+): Promise<SmsResult> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
-  
   if (cleanPhone.length !== 10) {
     return {
       success: false,
-      message: 'Please provide a valid 10-digit Indian mobile number without +91 (e.g. 9876543210).',
-      endpointUsed: FAST2SMS_ENDPOINT,
+      message: 'Please provide a valid 10-digit Indian mobile number (e.g. 9876543210).',
+      endpointUsed: TRACCAR_SMS_ENDPOINT,
       numbersSent: cleanPhone
     };
   }
 
-  // Force clean verified 84-char key
-  const apiKey = getFast2SmsApiKey();
-  const otpMessage = `Your Safar India Cabs verification OTP is ${otp}. Valid for 10 minutes. Please do not share this OTP with anyone.`;
+  const recipient = `+91${cleanPhone}`;
+  const token = (customToken || getTraccarToken()).trim();
 
-  // STEP 1: Attempt Route 'otp' as requested
+  // 1. Try Backend Proxy (/api/send-sms)
   try {
-    const otpPayload = {
-      route: 'otp',
-      variables_values: otp,
-      numbers: cleanPhone
-    };
-
-    const otpResponse = await fetch(FAST2SMS_ENDPOINT, {
+    const apiRes = await fetch('/api/send-sms', {
       method: 'POST',
       headers: {
-        'authorization': apiKey,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(otpPayload)
+      body: JSON.stringify({
+        to: recipient,
+        message,
+        token
+      })
     });
 
-    const otpData = await otpResponse.json().catch(() => null);
-
-    if (otpData && (otpData.return === true || otpData.status_code === 200)) {
-      return {
-        success: true,
-        message: `Live SMS delivered successfully to +91 ${cleanPhone} via Fast2SMS (Route OTP)`,
-        isFallback: false,
-        gatewayStatus: 'DELIVERED_REAL_SMS',
-        statusCode: 200,
-        rawResponse: otpData,
-        endpointUsed: FAST2SMS_ENDPOINT,
-        numbersSent: cleanPhone,
-        routeUsed: 'otp'
-      };
+    if (apiRes.ok) {
+      const data = await apiRes.json().catch(() => null);
+      if (data && data.success) {
+        return {
+          success: true,
+          message: `Live SMS delivered to ${recipient} via Traccar Cloud Gateway`,
+          isFallback: false,
+          gatewayStatus: 'DELIVERED_TRACCAR_CLOUD',
+          statusCode: 200,
+          rawResponse: data,
+          endpointUsed: TRACCAR_SMS_ENDPOINT,
+          numbersSent: recipient,
+          routeUsed: 'Traccar Cloud (/api/send-sms)'
+        };
+      }
     }
   } catch (err) {
-    console.info('Route otp call notice, attempting route q failover:', err);
+    console.info('Backend /api/send-sms notice, trying direct Traccar Cloud endpoint:', err);
   }
 
-  // STEP 2: Automatic failover to Route 'q' (Direct wallet balance ₹150 - bypasses 996 domain block)
+  // 2. Direct call to https://www.traccar.org/sms/
   try {
-    const qPayload = {
-      route: 'q',
-      message: otpMessage,
-      numbers: cleanPhone
-    };
-
-    const qResponse = await fetch(FAST2SMS_ENDPOINT, {
+    const directRes = await fetch(TRACCAR_SMS_ENDPOINT, {
       method: 'POST',
       headers: {
-        'authorization': apiKey,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token
       },
-      body: JSON.stringify(qPayload)
+      body: JSON.stringify({
+        to: recipient,
+        message
+      })
     });
 
-    const qData = await qResponse.json().catch(() => null);
-
-    if (qData && (qData.return === true || qData.status_code === 200)) {
+    const rawText = await directRes.text().catch(() => '');
+    if (directRes.ok) {
       return {
         success: true,
-        message: `Live SMS delivered successfully to +91 ${cleanPhone} via Fast2SMS (Wallet Balance)`,
+        message: `Live SMS delivered to ${recipient} via Traccar Cloud Gateway`,
         isFallback: false,
-        gatewayStatus: 'DELIVERED_REAL_SMS',
-        statusCode: 200,
-        rawResponse: qData,
-        endpointUsed: FAST2SMS_ENDPOINT,
-        numbersSent: cleanPhone,
-        routeUsed: 'q'
+        gatewayStatus: 'DELIVERED_TRACCAR_CLOUD',
+        statusCode: directRes.status,
+        rawResponse: rawText,
+        endpointUsed: TRACCAR_SMS_ENDPOINT,
+        numbersSent: recipient,
+        routeUsed: 'Traccar Cloud Direct'
       };
-    }
-  } catch (postErr) {
-    console.info('Fast2SMS POST notice, trying GET fallback:', postErr);
-  }
-
-  // STEP 3: Fast2SMS GET request fallback (bypasses browser preflight CORS blocks)
-  try {
-    const getUrl = `${FAST2SMS_ENDPOINT}?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodeURIComponent(otpMessage)}&language=english&flash=0&numbers=${cleanPhone}`;
-    const getRes = await fetch(getUrl, { method: 'GET' });
-    const getData = await getRes.json().catch(() => null);
-
-    if (getData && (getData.return === true || getData.status_code === 200)) {
-      return {
-        success: true,
-        message: `Live SMS delivered successfully to +91 ${cleanPhone} via Fast2SMS`,
-        isFallback: false,
-        gatewayStatus: 'DELIVERED_REAL_SMS',
-        statusCode: 200,
-        rawResponse: getData,
-        endpointUsed: FAST2SMS_ENDPOINT,
-        numbersSent: cleanPhone,
-        routeUsed: 'q (GET)'
-      };
-    }
-
-    let infoMsg = getData?.message || 'Fast2SMS notice';
-    if (getData?.status_code === 996) {
-      infoMsg = 'Fast2SMS: Domain verification required for route otp. Route q used.';
-    } else if (getData?.status_code === 412) {
-      infoMsg = 'Fast2SMS: Invalid Authentication Key. Please reset in admin dashboard.';
     }
 
     return {
-      success: true,
-      message: infoMsg,
-      isFallback: true,
-      statusCode: getData?.status_code,
-      gatewayStatus: `Fast2SMS Code ${getData?.status_code || 400}`,
-      rawResponse: getData,
-      endpointUsed: FAST2SMS_ENDPOINT,
-      numbersSent: cleanPhone
+      success: false,
+      message: rawText || `Traccar Gateway returned HTTP ${directRes.status}`,
+      isFallback: false,
+      gatewayStatus: `HTTP_${directRes.status}`,
+      statusCode: directRes.status,
+      rawResponse: rawText,
+      endpointUsed: TRACCAR_SMS_ENDPOINT,
+      numbersSent: recipient,
+      routeUsed: 'Traccar Cloud'
     };
   } catch (err: any) {
-    console.info('Fast2SMS network notice (safeguarded via Smart Instant OTP):', err);
     return {
-      success: true,
-      message: 'OTP generated & verified via Smart Secure OTP Gateway',
+      success: false,
+      message: err?.message || 'Unable to reach Traccar Cloud Gateway',
       isFallback: true,
-      statusCode: 200,
-      gatewayStatus: 'SMART_GATEWAY_ACTIVE',
-      rawResponse: err?.message,
-      endpointUsed: FAST2SMS_ENDPOINT,
-      numbersSent: cleanPhone
+      gatewayStatus: 'NETWORK_ERROR',
+      endpointUsed: TRACCAR_SMS_ENDPOINT,
+      numbersSent: recipient
     };
   }
 }
 
 /**
- * Verify Fast2SMS Key for the Owner Dashboard
+ * Send live SMS OTP to customer phone using Traccar Cloud Gateway
  */
-export async function verifyFast2SmsKey(testKey: string, testPhone: string = '7710080992'): Promise<{ 
-  ok: boolean; 
-  info: string; 
+export async function sendOtpSms(phoneNumber: string, otp: string): Promise<SmsResult> {
+  const cleanPhone = sanitize10DigitPhone(phoneNumber);
+  if (cleanPhone.length !== 10) {
+    return {
+      success: false,
+      message: 'Please provide a valid 10-digit Indian mobile number.',
+      endpointUsed: TRACCAR_SMS_ENDPOINT,
+      numbersSent: cleanPhone
+    };
+  }
+
+  const otpMessage = `Your Safar India Cabs verification OTP is ${otp}. Valid for 10 minutes. Please do not share this OTP with anyone.`;
+  return sendTraccarSms(cleanPhone, otpMessage);
+}
+
+/**
+ * Verify & Test Traccar Cloud Gateway Token from Admin Dashboard
+ */
+export async function verifyTraccarGateway(
+  testToken: string,
+  testPhone: string = ADMIN_PHONE_NUMBER
+): Promise<{
+  ok: boolean;
+  info: string;
   statusCode?: number;
   numbersSent: string;
   endpoint: string;
 }> {
   const cleanPhone = sanitize10DigitPhone(testPhone);
-  const activeKey = testKey.trim() || DEFAULT_FAST2SMS_KEY;
+  const activeToken = testToken.trim() || DEFAULT_TRACCAR_TOKEN;
+  const testMsg = `Safar India Cabs live test message from Admin Control Center. Traccar Cloud SMS Gateway is active!`;
 
-  try {
-    const res = await fetch(FAST2SMS_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'authorization': activeKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        route: 'q',
-        message: 'Safar India Cabs live test message from Admin Panel. Gateway is active.',
-        numbers: cleanPhone
-      })
-    });
+  const res = await sendTraccarSms(cleanPhone, testMsg, activeToken);
 
-    const result = await res.json().catch(() => null);
-    
-    if (result && (result.return === true || result.status_code === 200)) {
-      return { 
-        ok: true, 
-        statusCode: 200,
-        info: `Success! Live SMS dispatched to +91 ${cleanPhone} via Fast2SMS (Deducted from ₹150 Wallet balance).`,
-        numbersSent: cleanPhone,
-        endpoint: FAST2SMS_ENDPOINT
-      };
-    } else if (result?.status_code === 996) {
-      return {
-        ok: true,
-        statusCode: 996,
-        info: `Fast2SMS notice: "Before using OTP Message API, complete website verification." Route 'q' is active for direct wallet dispatch.`,
-        numbersSent: cleanPhone,
-        endpoint: FAST2SMS_ENDPOINT
-      };
-    } else if (result?.status_code === 412) {
-      return {
-        ok: false,
-        statusCode: 412,
-        info: `Fast2SMS Code 412: Invalid Authentication Key. Please click "Reset to Official Key".`,
-        numbersSent: cleanPhone,
-        endpoint: FAST2SMS_ENDPOINT
-      };
-    } else {
-      return { 
-        ok: false, 
-        statusCode: result?.status_code,
-        info: result?.message || `Status ${result?.status_code}: Please check Fast2SMS balance or IP whitelist at fast2sms.com`,
-        numbersSent: cleanPhone,
-        endpoint: FAST2SMS_ENDPOINT
-      };
-    }
-  } catch (e: any) {
-    return { 
-      ok: true, 
-      info: `Fast2SMS Route configured with endpoint ${FAST2SMS_ENDPOINT} for 10-digit numbers.`,
-      numbersSent: cleanPhone,
-      endpoint: FAST2SMS_ENDPOINT
+  if (res.success) {
+    return {
+      ok: true,
+      statusCode: res.statusCode || 200,
+      info: `Success! Live SMS dispatched to +91 ${cleanPhone} via Traccar Cloud Gateway.`,
+      numbersSent: `+91${cleanPhone}`,
+      endpoint: TRACCAR_SMS_ENDPOINT
     };
   }
-}
 
-export const ADMIN_PHONE_NUMBER = '7710080992';
+  return {
+    ok: false,
+    statusCode: res.statusCode,
+    info: res.message || 'Failed to dispatch SMS via Traccar Cloud Gateway. Ensure your Traccar SMS Gateway app is online on your Android phone.',
+    numbersSent: `+91${cleanPhone}`,
+    endpoint: TRACCAR_SMS_ENDPOINT
+  };
+}
 
 export interface DualSmsResult {
   success: boolean;
@@ -301,88 +255,10 @@ export interface DualSmsResult {
 }
 
 /**
- * Dispatch single raw SMS via Fast2SMS using POST with GET fallback
- */
-async function sendRawFast2Sms(phone: string, message: string): Promise<SmsResult> {
-  const cleanPhone = sanitize10DigitPhone(phone);
-  const apiKey = getFast2SmsApiKey();
-
-  if (cleanPhone.length !== 10) {
-    return {
-      success: false,
-      message: `Invalid 10-digit number: ${phone}`,
-      endpointUsed: FAST2SMS_ENDPOINT,
-      numbersSent: cleanPhone
-    };
-  }
-
-  // 1. Try POST with route 'q'
-  try {
-    const postRes = await fetch(FAST2SMS_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'authorization': apiKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        route: 'q',
-        message,
-        numbers: cleanPhone
-      })
-    });
-    const postData = await postRes.json().catch(() => null);
-    if (postData && (postData.return === true || postData.status_code === 200)) {
-      return {
-        success: true,
-        message: `SMS delivered to +91 ${cleanPhone} via Fast2SMS`,
-        isFallback: false,
-        gatewayStatus: 'DELIVERED_REAL_SMS',
-        statusCode: 200,
-        rawResponse: postData,
-        endpointUsed: FAST2SMS_ENDPOINT,
-        numbersSent: cleanPhone,
-        routeUsed: 'q (POST)'
-      };
-    }
-  } catch (e: any) {
-    console.info(`Fast2SMS POST to ${cleanPhone} notice:`, e?.message);
-  }
-
-  // 2. Fallback GET
-  try {
-    const getUrl = `${FAST2SMS_ENDPOINT}?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodeURIComponent(message)}&language=english&flash=0&numbers=${cleanPhone}`;
-    const getRes = await fetch(getUrl, { method: 'GET' });
-    const getData = await getRes.json().catch(() => null);
-
-    return {
-      success: true,
-      message: `SMS triggered for +91 ${cleanPhone}`,
-      isFallback: true,
-      statusCode: getData?.status_code || 200,
-      gatewayStatus: 'DELIVERED',
-      rawResponse: getData,
-      endpointUsed: FAST2SMS_ENDPOINT,
-      numbersSent: cleanPhone,
-      routeUsed: 'q (GET)'
-    };
-  } catch (err: any) {
-    return {
-      success: true,
-      message: `SMS queued for +91 ${cleanPhone}`,
-      isFallback: true,
-      statusCode: 200,
-      gatewayStatus: 'QUEUED',
-      endpointUsed: FAST2SMS_ENDPOINT,
-      numbersSent: cleanPhone
-    };
-  }
-}
-
-/**
- * Send real live Booking Confirmation SMS to customer phone via Fast2SMS
+ * Send live Booking Confirmation SMS to customer phone via Traccar Cloud Gateway
  */
 export async function sendBookingConfirmationSms(
-  phoneNumber: string, 
+  phoneNumber: string,
   booking: {
     id: string;
     customerName: string;
@@ -406,21 +282,17 @@ export async function sendBookingConfirmationSms(
   const totalFare = booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
   const advance = booking.paidAmount ?? booking.advancePaid ?? 0;
   const balance = booking.balanceAmount ?? booking.balanceDue ?? 0;
-  
-  // STAGE 1 - Customer Booking Confirmation Template:
+
   const confirmationMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
-  return sendRawFast2Sms(cleanPhone, confirmationMessage);
+  return sendTraccarSms(cleanPhone, confirmationMessage);
 }
 
 /**
  * AUTOMATED DUAL SMS / NOTIFICATION SYSTEM (STAGE 1)
  * 
- * Triggers TWO separate alerts immediately and automatically after Razorpay payment verification:
- * 1. Customer Confirmation SMS (Clean & structured template, NO OTP)
- * 2. Instant Admin New Booking Alert SMS to +91 7710080992 (Clear New Booking Alert template)
- * 
- * First attempts the backend API route (/api/send-booking-sms or /api/booking-notifications).
- * If the backend API is unreachable or running in static mode, seamlessly falls back to direct client-side Fast2SMS gateway.
+ * Triggers TWO separate alerts immediately after Razorpay payment verification via Traccar Cloud Gateway:
+ * 1. Customer Confirmation SMS
+ * 2. Instant Admin New Booking Alert SMS to +91 7710080992
  */
 export async function sendDualBookingNotifications(booking: {
   id: string;
@@ -457,7 +329,7 @@ export async function sendDualBookingNotifications(booking: {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           booking: {
             ...booking,
             cabClass,
@@ -479,16 +351,16 @@ export async function sendDualBookingNotifications(booking: {
             source: 'backend_api',
             customerSms: {
               success: data.customer?.dispatched ?? true,
-              message: `Booking confirmation SMS sent to +91 ${cleanCustomerPhone} via Fast2SMS`,
-              endpointUsed: FAST2SMS_ENDPOINT,
-              numbersSent: cleanCustomerPhone,
+              message: `Booking confirmation SMS sent to +91 ${cleanCustomerPhone} via Traccar Cloud Gateway`,
+              endpointUsed: TRACCAR_SMS_ENDPOINT,
+              numbersSent: `+91${cleanCustomerPhone}`,
               statusCode: 200
             },
             adminSms: {
               success: data.admin?.dispatched ?? true,
-              message: `New booking alert dispatched to Admin (+91 ${adminPhone})`,
-              endpointUsed: FAST2SMS_ENDPOINT,
-              numbersSent: adminPhone,
+              message: `New booking alert dispatched to Admin (+91 ${adminPhone}) via Traccar Cloud Gateway`,
+              endpointUsed: TRACCAR_SMS_ENDPOINT,
+              numbersSent: `+91${adminPhone}`,
               statusCode: 200
             }
           };
@@ -499,33 +371,35 @@ export async function sendDualBookingNotifications(booking: {
     }
   }
 
-  // STEP 2: Direct Failover Gateway (dispatches both SMS messages in parallel using exact clean templates)
+  // STEP 2: Direct Traccar Cloud Gateway Failover
   const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
 
   const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${booking.id}\nCustomer: ${booking.customerName}\nPhone: +91${cleanCustomerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDate}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advance}\nBalance Due: ₹${balance}`;
 
   const [customerResult, adminResult] = await Promise.allSettled([
-    sendRawFast2Sms(cleanCustomerPhone, customerMessage),
-    sendRawFast2Sms(adminPhone, adminMessage)
+    sendTraccarSms(cleanCustomerPhone, customerMessage),
+    sendTraccarSms(adminPhone, adminMessage)
   ]);
 
-  const customerSms: SmsResult = customerResult.status === 'fulfilled'
-    ? customerResult.value
-    : {
-        success: false,
-        message: 'Customer SMS failed',
-        endpointUsed: FAST2SMS_ENDPOINT,
-        numbersSent: cleanCustomerPhone
-      };
+  const customerSms: SmsResult =
+    customerResult.status === 'fulfilled'
+      ? customerResult.value
+      : {
+          success: false,
+          message: 'Customer SMS failed',
+          endpointUsed: TRACCAR_SMS_ENDPOINT,
+          numbersSent: `+91${cleanCustomerPhone}`
+        };
 
-  const adminSms: SmsResult = adminResult.status === 'fulfilled'
-    ? adminResult.value
-    : {
-        success: false,
-        message: 'Admin notification failed',
-        endpointUsed: FAST2SMS_ENDPOINT,
-        numbersSent: adminPhone
-      };
+  const adminSms: SmsResult =
+    adminResult.status === 'fulfilled'
+      ? adminResult.value
+      : {
+          success: false,
+          message: 'Admin notification failed',
+          endpointUsed: TRACCAR_SMS_ENDPOINT,
+          numbersSent: `+91${adminPhone}`
+        };
 
   return {
     success: customerSms.success || adminSms.success,
@@ -537,7 +411,7 @@ export async function sendDualBookingNotifications(booking: {
 
 /**
  * AUTOMATED DRIVER ASSIGNMENT NOTIFICATIONS (STAGE 2)
- * Dispatches BOTH:
+ * Dispatches BOTH via Traccar Cloud Gateway:
  * 1. Pickup Alert SMS to Driver
  * 2. Driver Details SMS to Customer
  */
@@ -585,9 +459,9 @@ export async function sendDriverAssignmentSms(params: {
         if (data && data.success) {
           return {
             success: true,
-            message: `Dual driver & customer SMS dispatched via Fast2SMS`,
+            message: `Dual driver & customer SMS dispatched via Traccar Cloud Gateway`,
             endpointUsed: endpoint,
-            numbersSent: `${cleanCustomerPhone}, ${cleanDriverPhone}`,
+            numbersSent: `+91${cleanCustomerPhone}, +91${cleanDriverPhone}`,
             statusCode: 200
           };
         }
@@ -597,27 +471,25 @@ export async function sendDriverAssignmentSms(params: {
     }
   }
 
-  // 2. Direct Fast2SMS failovers in parallel:
-  // Driver Pickup Alert
+  // 2. Direct Traccar Cloud Gateway failovers in parallel
   const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${params.bookingId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${params.pickup}\nDrop: ${params.drop}\nDate/Time: ${params.travelDate}\nCab: ${cabClass}\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
-  // Customer Driver Details
   const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${params.bookingId}\nRoute: ${params.pickup} to ${params.drop}\nDate/Time: ${params.travelDate}\n\nDriver Name: ${params.driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : params.driverPhone}\nVehicle: ${params.vehicleModel} (${params.vehicleNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
 
-  const dispatches = [
-    sendRawFast2Sms(cleanCustomerPhone, customerMessage)
-  ];
+  const dispatches = [sendTraccarSms(cleanCustomerPhone, customerMessage)];
   if (cleanDriverPhone && cleanDriverPhone.length === 10) {
-    dispatches.push(sendRawFast2Sms(cleanDriverPhone, driverMessage));
+    dispatches.push(sendTraccarSms(cleanDriverPhone, driverMessage));
   }
   const results = await Promise.allSettled(dispatches);
-  const custRes = results[0]?.status === 'fulfilled' ? results[0].value : { success: false, message: 'Customer dispatch failed' };
+  const custRes =
+    results[0]?.status === 'fulfilled'
+      ? results[0].value
+      : { success: false, message: 'Customer dispatch failed' };
   return custRes as SmsResult;
 }
 
 /**
  * SECURE SERVER-SIDE OTP SERVICE
- * Requests server-side OTP generation via /api/verify-otp
- * Never exposes the generated OTP in frontend logs or state
+ * Requests server-side OTP generation via /api/verify-otp using Traccar Cloud Gateway
  */
 export async function requestServerOtp(phoneNumber: string): Promise<{
   success: boolean;
@@ -641,7 +513,7 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
           success: true,
           token: data.token,
           expiresAt: data.expiresAt,
-          message: data.message || 'OTP sent via SMS'
+          message: data.message || 'OTP sent via Traccar Cloud SMS Gateway'
         };
       }
     }
@@ -653,13 +525,12 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
   const fallbackCode = Math.floor(1000 + Math.random() * 9000).toString();
   await sendOtpSms(cleanPhone, fallbackCode);
   const expiresAt = Date.now() + 5 * 60 * 1000;
-  // Use client token format: 'client_fallback.' + expiresAt + '.' + cleanPhone + '.' + btoa(fallbackCode)
   const clientToken = `client_fallback.${expiresAt}.${cleanPhone}.${btoa(fallbackCode)}`;
   return {
     success: true,
     token: clientToken,
     expiresAt,
-    message: 'OTP dispatched to your mobile phone via SMS',
+    message: 'OTP dispatched to your mobile phone via Traccar SMS Gateway',
     isFallback: true
   };
 }
@@ -669,13 +540,12 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
  * Verifies OTP via server-side cryptographic HMAC token
  */
 export async function verifyServerOtp(
-  phoneNumber: string, 
-  otpCode: string, 
+  phoneNumber: string,
+  otpCode: string,
   token: string
 ): Promise<{ success: boolean; error?: string }> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
 
-  // If client-side fallback token
   if (token && token.startsWith('client_fallback.')) {
     const parts = token.split('.');
     const expiresAt = Number(parts[1]);
@@ -699,7 +569,6 @@ export async function verifyServerOtp(
     }
   }
 
-  // Verify against /api/verify-otp serverless function
   try {
     const res = await fetch('/api/verify-otp', {
       method: 'POST',
@@ -727,5 +596,3 @@ export async function verifyServerOtp(
     };
   }
 }
-
-

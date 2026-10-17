@@ -178,7 +178,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
             <div className="text-xs">
               <span className="font-extrabold block">Live SMS Dispatched!</span>
-              <span>Fast2SMS OTP sent to <strong className="font-mono text-xs">+91 {phone}</strong>.</span>
+              <span>Traccar Cloud OTP sent to <strong className="font-mono text-xs">+91 {phone}</strong>.</span>
             </div>
           </div>
         )}
@@ -261,9 +261,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500 font-medium">
                 <span className="flex items-center gap-1 text-emerald-700">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Fast2SMS Live Gateway Active
+                  Traccar Cloud SMS Gateway Active
                 </span>
-                <span className="font-mono text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">Route 'otp'</span>
+                <span className="font-mono text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">Direct SIM</span>
               </div>
 
               <button
@@ -274,7 +274,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 {isSending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                    <span>Connecting Fast2SMS Gateway...</span>
+                    <span>Connecting Traccar SMS Gateway...</span>
                   </>
                 ) : (
                   <span>Send Verification Code</span>

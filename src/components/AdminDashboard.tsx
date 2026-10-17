@@ -31,11 +31,11 @@ import {
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { 
-  getFast2SmsApiKey, 
-  setFast2SmsApiKey, 
-  verifyFast2SmsKey, 
-  FAST2SMS_ENDPOINT, 
-  DEFAULT_FAST2SMS_KEY, 
+  getTraccarToken, 
+  setTraccarToken, 
+  verifyTraccarGateway, 
+  TRACCAR_SMS_ENDPOINT, 
+  DEFAULT_TRACCAR_TOKEN, 
   sanitize10DigitPhone,
   sendDriverAssignmentSms
 } from '../utils/smsService';
@@ -94,9 +94,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isSendingDriverSms, setIsSendingDriverSms] = useState(false);
   const [driverSmsSuccessNotice, setDriverSmsSuccessNotice] = useState('');
 
-  // Fast2SMS API management states
-  const [fast2smsKey, setFast2smsKey] = useState(() => getFast2SmsApiKey());
-  const [fast2smsSaveMsg, setFast2smsSaveMsg] = useState('');
+  // Traccar Cloud SMS Gateway management states
+  const [traccarToken, setTraccarTokenState] = useState(() => getTraccarToken());
+  const [traccarSaveMsg, setTraccarSaveMsg] = useState('');
   const [testPhone, setTestPhone] = useState('7710080992');
   const [testStatus, setTestStatus] = useState<{ running: boolean; ok?: boolean; message?: string }>({ running: false });
 
@@ -204,7 +204,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       vehicleModel
     });
 
-    // 2. Trigger automatic Fast2SMS dual dispatch: Driver Pickup Duty Alert & Customer Driver Details
+    // 2. Trigger automatic Traccar Cloud SMS dual dispatch: Driver Pickup Duty Alert & Customer Driver Details
     const travelDate = `${b.pickupDate} at ${b.pickupTime}`;
     try {
       await sendDriverAssignmentSms({
@@ -303,29 +303,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     document.body.removeChild(link);
   };
 
-  const handleSaveFast2SmsKey = (e: React.FormEvent) => {
+  const handleSaveTraccarToken = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fast2smsKey.trim()) return;
-    setFast2SmsApiKey(fast2smsKey.trim());
-    setFast2smsSaveMsg('Fast2SMS API Key updated & active across all customer login/OTP flows!');
-    setTimeout(() => setFast2smsSaveMsg(''), 4000);
+    if (!traccarToken.trim()) return;
+    setTraccarToken(traccarToken.trim());
+    setTraccarSaveMsg('Traccar Cloud SMS Gateway Token updated & active across all OTP and booking flows!');
+    setTimeout(() => setTraccarSaveMsg(''), 4000);
   };
 
   const handleResetToOfficialKey = () => {
-    setFast2smsKey(DEFAULT_FAST2SMS_KEY);
-    setFast2SmsApiKey(DEFAULT_FAST2SMS_KEY);
-    setFast2smsSaveMsg('Reset to official 84-character Fast2SMS Key! Old/corrupted keys cleared.');
-    setTimeout(() => setFast2smsSaveMsg(''), 4000);
+    setTraccarTokenState(DEFAULT_TRACCAR_TOKEN);
+    setTraccarToken(DEFAULT_TRACCAR_TOKEN);
+    setTraccarSaveMsg('Reset to official Traccar Cloud Gateway Token!');
+    setTimeout(() => setTraccarSaveMsg(''), 4000);
   };
 
-  const handleTestFast2Sms = async () => {
+  const handleTestTraccarSms = async () => {
     const cleanPhone = sanitize10DigitPhone(testPhone);
-    if (!fast2smsKey.trim() || !cleanPhone || cleanPhone.length !== 10) {
-      setTestStatus({ running: false, ok: false, message: 'Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210)' });
+    if (!traccarToken.trim() || !cleanPhone || cleanPhone.length !== 10) {
+      setTestStatus({ running: false, ok: false, message: 'Please enter a valid 10-digit mobile number (e.g. 9876543210)' });
       return;
     }
     setTestStatus({ running: true });
-    const res = await verifyFast2SmsKey(fast2smsKey.trim(), cleanPhone);
+    const res = await verifyTraccarGateway(traccarToken.trim(), cleanPhone);
     setTestStatus({ running: false, ok: res.ok, message: res.info });
   };
 
@@ -872,14 +872,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="text-[10px] text-slate-400">Generates instant digital invoice voucher</div>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Fast2SMS Confirmation</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Traccar Cloud SMS</span>
                   <span className="text-emerald-400 font-bold">Instant SMS Triggered</span>
-                  <div className="text-[10px] text-slate-400">Sends SMS to customer 10-digit mobile</div>
+                  <div className="text-[10px] text-slate-400">Sends SMS to customer & admin mobile</div>
                 </div>
               </div>
             </div>
 
-            {/* Fast2SMS Panel */}
+            {/* Traccar Cloud SMS Gateway Panel */}
             <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -887,52 +887,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <Radio className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-extrabold text-white">Fast2SMS Live OTP Gateway</h4>
-                    <p className="text-xs text-slate-400">Official SMS gateway for sending instant verification codes to customer phones</p>
+                    <h4 className="text-sm font-extrabold text-white">Traccar Cloud SMS Gateway</h4>
+                    <p className="text-xs text-slate-400">Self-hosted Android SIM Cloud Gateway for OTPs, Booking Confirmations & Driver Alerts</p>
                   </div>
                 </div>
                 <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                  Integrated & Ready
+                  Connected & Active
                 </span>
               </div>
 
-              {fast2smsSaveMsg && (
+              {traccarSaveMsg && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
-                  {fast2smsSaveMsg}
+                  {traccarSaveMsg}
                 </div>
               )}
 
-              <form onSubmit={handleSaveFast2SmsKey} className="space-y-3">
+              <form onSubmit={handleSaveTraccarToken} className="space-y-3">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Fast2SMS Authorization API Key
+                    Traccar Cloud Gateway Token
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <input
                       type="text"
                       required
-                      value={fast2smsKey}
-                      onChange={(e) => setFast2smsKey(e.target.value)}
-                      placeholder="Paste your Fast2SMS API Key"
+                      value={traccarToken}
+                      onChange={(e) => setTraccarTokenState(e.target.value)}
+                      placeholder="Paste your Traccar Cloud Gateway Token"
                       className="flex-1 min-w-[260px] bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
                     />
                     <button
                       type="submit"
                       className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
                     >
-                      Save Key
+                      Save Token
                     </button>
                     <button
                       type="button"
                       onClick={handleResetToOfficialKey}
                       className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 transition"
-                      title="Clear local cache and restore verified 84-char key"
+                      title="Restore official Traccar Cloud token"
                     >
-                      Reset Official Key
+                      Reset Official Token
                     </button>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Complete Active Key: <span className="font-mono text-emerald-400 text-[10px] bg-slate-900 px-1.5 py-0.5 rounded break-all">6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz</span>
+                    Active Cloud Token: <span className="font-mono text-emerald-400 text-[10px] bg-slate-900 px-1.5 py-0.5 rounded break-all">{DEFAULT_TRACCAR_TOKEN}</span>
                   </p>
                 </div>
               </form>
@@ -940,22 +940,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Technical Specifications Card */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">API Endpoint</span>
-                  <span className="font-mono text-emerald-400 font-bold break-all">{FAST2SMS_ENDPOINT}</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Cloud API Endpoint</span>
+                  <span className="font-mono text-emerald-400 font-bold break-all">{TRACCAR_SMS_ENDPOINT}</span>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Active Delivery Route</span>
-                  <span className="font-mono text-emerald-400 font-bold">Route 'q' (Wallet ₹150)</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Active Delivery Channel</span>
+                  <span className="font-mono text-emerald-400 font-bold">Traccar Cloud Gateway (₹0 Per SMS)</span>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Phone Sanitization</span>
-                  <span className="text-slate-300 font-medium">Strict 10-digit without +91</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Phone Format</span>
+                  <span className="text-slate-300 font-medium">+91 E.164 Indian Mobile</span>
                 </div>
               </div>
 
               {/* Test Live SMS Tool */}
               <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-white block">Test Live Fast2SMS Dispatch</span>
+                <span className="text-xs font-bold text-white block">Test Live Traccar Cloud SMS Dispatch</span>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
@@ -973,7 +973,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <button
                     type="button"
                     disabled={testStatus.running}
-                    onClick={handleTestFast2Sms}
+                    onClick={handleTestTraccarSms}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
                   >
                     {testStatus.running ? (
@@ -996,20 +996,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
                       : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
                   }`}>
-                    <div className="font-bold">{testStatus.ok ? 'Fast2SMS Server Status:' : 'Fast2SMS Gateway Report:'}</div>
+                    <div className="font-bold">{testStatus.ok ? 'Traccar Cloud Gateway Status:' : 'Traccar Gateway Report:'}</div>
                     <div className="mt-0.5">{testStatus.message}</div>
-                    <div className="text-[10px] text-slate-300 mt-2 bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1.5">
-                      <p className="font-bold text-amber-400">💡 Fast2SMS Route 'q' vs DLT (Sender Header SAFARIN) Audit:</p>
-                      <p><strong className="text-white">Active Channel: Fast2SMS Route 'q' (Quick SMS)</strong> — Dispatches directly using your Fast2SMS wallet balance via pre-configured operator pooled routes. Messages are sent immediately to any Indian number without requiring prior registration of individual dynamic booking templates. This keeps booking confirmations, driver assignments, and admin alerts running seamlessly without interruption.</p>
-                      <p><strong className="text-white">DLT Registration Requirements (For custom 6-letter Header 'SAFARIN'):</strong></p>
-                      <ul className="list-disc pl-4 space-y-0.5 text-slate-400">
-                        <li>Register Business Principal Entity on telecom DLT portal (e.g., Vilpower / Jio / Airtel DLT) using Company PAN / GSTIN.</li>
-                        <li>Submit Brand Header Request for <strong>SAFARIN</strong> (6 alphabetical characters).</li>
-                        <li>Register Transactional SMS Templates with variable placeholders matching Safar India Cabs notifications.</li>
-                        <li>Once DLT approves, link your DLT Entity ID and Template ID inside the Fast2SMS portal.</li>
-                      </ul>
-                      <p className="text-emerald-400 font-semibold pt-1">✓ Server-Side Security: OTPs and booking alerts are dispatched via serverless functions (/api/verify-otp, /api/send-booking-sms, /api/assign-driver) with zero exposure in public frontend logs.</p>
-                    </div>
                   </div>
                 )}
               </div>
@@ -1335,14 +1323,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              {/* Automatic Fast2SMS Notice */}
+              {/* Automatic Traccar Cloud SMS Notice */}
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300 space-y-1">
                 <div className="font-bold flex items-center gap-1.5 text-amber-400">
                   <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Automated Fast2SMS Dispatch</span>
+                  <span>Automated Traccar Cloud SMS Dispatch</span>
                 </div>
                 <p className="text-slate-300 text-[10px] leading-relaxed">
-                  Clicking below will automatically dispatch the <strong>Driver Details SMS</strong> to customer (+91 {selectedBookingForDriver.customerPhone}) AND the <strong>Pickup Duty Alert</strong> to driver (+91 {driverPhone || 'Driver'}) via Fast2SMS gateway.
+                  Clicking below will automatically dispatch the <strong>Driver Details SMS</strong> to customer (+91 {selectedBookingForDriver.customerPhone}) AND the <strong>Pickup Duty Alert</strong> to driver (+91 {driverPhone || 'Driver'}) via Traccar Cloud Gateway.
                 </p>
               </div>
 
@@ -1355,7 +1343,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {isSendingDriverSms ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                      <span>Dispatching Fast2SMS to Customer...</span>
+                      <span>Dispatching SMS via Traccar Gateway...</span>
                     </>
                   ) : (
                     <>

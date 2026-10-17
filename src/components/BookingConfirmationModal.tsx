@@ -87,11 +87,11 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               Booking Ref #{booking.id}
             </h3>
 
-            {/* Fast2SMS Automated Dual SMS Live Notice */}
+            {/* Traccar Cloud Automated Dual SMS Live Notice */}
             <div className="mt-2.5 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1">
               <div className="flex items-center justify-center gap-1.5 font-bold">
                 <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Automated Fast2SMS Notifications Dispatched</span>
+                <span>Automated SMS Notifications Dispatched</span>
               </div>
               <div className="text-[11px] text-emerald-800 flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
                 <span>✓ Confirmation to: <strong className="font-mono font-bold">+91 {booking.customerPhone}</strong></span>

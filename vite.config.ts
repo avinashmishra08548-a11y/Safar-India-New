@@ -19,7 +19,9 @@ export default defineConfig(() => {
               const urlPath = req.url.split('?')[0];
               try {
                 let handlerMod: any;
-                if (urlPath === '/api/send-booking-sms' || urlPath === '/api/booking-notifications') {
+                if (urlPath === '/api/send-sms') {
+                  handlerMod = await import('./api/send-sms.js');
+                } else if (urlPath === '/api/send-booking-sms' || urlPath === '/api/booking-notifications') {
                   handlerMod = await import('./api/send-booking-sms.js');
                 } else if (urlPath === '/api/assign-driver' || urlPath === '/api/send-driver-sms') {
                   handlerMod = await import('./api/assign-driver.js');

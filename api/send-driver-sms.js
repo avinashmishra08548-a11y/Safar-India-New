@@ -1,11 +1,12 @@
 /**
  * Vercel Serverless API Route: /api/send-driver-sms
  * 
- * Automated Driver / Vehicle Assignment SMS to Customer Phone via Fast2SMS
+ * Automated Driver / Vehicle Assignment SMS to Customer & Driver Phone via Traccar Cloud Gateway
  */
 
-const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
-const DEFAULT_KEY = '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
+const TRACCAR_SMS_ENDPOINT = 'https://www.traccar.org/sms/';
+const DEFAULT_TRACCAR_TOKEN =
+  'f81x7L5jTmSJNsNrLn_vP9:APA91bEZh7cloIKBCB0sozFUOBiX9TvBGH_Osxi8dM-HdoGWmXIlYhmZbxnKizpCoDSII5t66VaGz6UVO2tno2UpqRXji0X4J3PWFDsrKiy2H9y_kSKJOV8';
 
 function sanitize10Digit(num) {
   let clean = (num || '').replace(/\D/g, '');
@@ -19,51 +20,38 @@ function sanitize10Digit(num) {
   return clean;
 }
 
-async function dispatchFast2Sms(phone, message, apiKey) {
+async function dispatchTraccarSms(phone, message, token) {
   const cleanPhone = sanitize10Digit(phone);
   if (cleanPhone.length !== 10) {
     return { success: false, reason: 'Invalid 10-digit number' };
   }
 
-  // 1. Try POST with route 'q' (Direct wallet balance)
+  const recipient = `+91${cleanPhone}`;
+
   try {
-    const postRes = await fetch(FAST2SMS_ENDPOINT, {
+    const res = await fetch(TRACCAR_SMS_ENDPOINT, {
       method: 'POST',
       headers: {
-        'authorization': apiKey,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': token
       },
       body: JSON.stringify({
-        route: 'q',
-        message,
-        numbers: cleanPhone
+        to: recipient,
+        message
       })
     });
-    const data = await postRes.json().catch(() => null);
-    if (data && (data.return === true || data.status_code === 200)) {
-      return { success: true, method: 'POST', data };
-    }
-  } catch (err) {
-    console.warn(`Fast2SMS POST to ${cleanPhone} notice:`, err?.message);
-  }
 
-  // 2. Fallback GET
-  try {
-    const getUrl = `${FAST2SMS_ENDPOINT}?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodeURIComponent(message)}&language=english&flash=0&numbers=${cleanPhone}`;
-    const getRes = await fetch(getUrl, { method: 'GET' });
-    const getData = await getRes.json().catch(() => null);
-    return {
-      success: getData?.return === true || getData?.status_code === 200,
-      method: 'GET',
-      data: getData
-    };
+    const text = await res.text().catch(() => '');
+    if (res.ok) {
+      return { success: true, gateway: 'traccar_cloud', to: recipient, data: text };
+    }
+    return { success: false, status: res.status, error: text || `HTTP ${res.status}` };
   } catch (err) {
     return { success: false, error: err?.message };
   }
 }
 
 export default async function handler(req, res) {
-  // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -114,7 +102,7 @@ export default async function handler(req, res) {
     const cab = cabClass || cabName || 'Commercial Cab';
     const balance = balanceAmount ?? balanceDue ?? 0;
 
-    const apiKey = process.env.FAST2SMS_API_KEY || DEFAULT_KEY;
+    const token = process.env.TRACCAR_SMS_TOKEN || DEFAULT_TRACCAR_TOKEN;
 
     // 1. Send Pickup Alert SMS to DRIVER:
     const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${bookingId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${pickup}\nDrop: ${drop}\nDate/Time: ${dateFormatted}\nCab: ${cab}\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
@@ -123,11 +111,11 @@ export default async function handler(req, res) {
     const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${bookingId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${dateFormatted}\n\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : driverPhone}\nVehicle: ${vehicle} (${regNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
 
     const dispatches = [
-      dispatchFast2Sms(cleanCustomerPhone, customerMessage, apiKey)
+      dispatchTraccarSms(cleanCustomerPhone, customerMessage, token)
     ];
 
     if (cleanDriverPhone && cleanDriverPhone.length === 10) {
-      dispatches.push(dispatchFast2Sms(cleanDriverPhone, driverMessage, apiKey));
+      dispatches.push(dispatchTraccarSms(cleanDriverPhone, driverMessage, token));
     }
 
     const results = await Promise.allSettled(dispatches);

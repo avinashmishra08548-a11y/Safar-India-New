@@ -109,7 +109,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const [isLoadingPickup, setIsLoadingPickup] = useState(false);
   const [isLoadingDrop, setIsLoadingDrop] = useState(false);
 
-  // Fast2SMS OTP verification states
+  // Traccar Cloud SMS OTP verification states
   const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(() => Boolean(currentUser));
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpInput, setOtpInput] = useState('');
@@ -244,7 +244,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     }
   };
 
-  // Send Fast2SMS OTP
+  // Send Traccar Cloud SMS OTP
   const handleTriggerOtp = async () => {
     const cleanNumber = sanitize10DigitPhone(customerMobile);
     if (cleanNumber.length !== 10) {
@@ -266,14 +266,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       setCountdown(30);
 
       if (res.success) {
-        setOtpNotice(`OTP sent successfully to +91 ${cleanNumber} via Fast2SMS (${res.routeUsed || 'route=otp'}).`);
+        setOtpNotice(`OTP sent successfully to +91 ${cleanNumber} via Traccar Cloud SMS Gateway.`);
       } else {
-        setOtpNotice(`Test OTP generated for +91 ${cleanNumber}: ${code}`);
+        setOtpNotice(`OTP generated for +91 ${cleanNumber}. Please check your SMS.`);
       }
     } catch {
       setIsSendingOtp(false);
       setShowOtpModal(true);
-      setOtpNotice(`Test OTP generated for +91 ${cleanNumber}: ${code}`);
+      setOtpNotice(`OTP generated for +91 ${cleanNumber}. Please check your SMS.`);
     }
   };
 
@@ -784,7 +784,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         )}
 
-        {/* CUSTOMER MOBILE NUMBER INPUT WITH FAST2SMS OTP VERIFICATION */}
+            {/* CUSTOMER MOBILE NUMBER INPUT WITH TRACCAR CLOUD SMS OTP VERIFICATION */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="booking-customer-mobile" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -798,7 +798,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             ) : (
               <span className="text-[10px] text-amber-800 font-mono font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>Fast2SMS OTP</span>
+                <span>SMS OTP</span>
               </span>
             )}
           </div>
@@ -837,7 +837,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 onClick={handleTriggerOtp}
                 disabled={isSendingOtp || sanitize10DigitPhone(customerMobile).length !== 10}
                 className="px-3 py-2.5 bg-amber-400 hover:bg-amber-500 disabled:bg-slate-200 disabled:text-slate-400 text-slate-950 font-bold text-xs rounded-xl transition whitespace-nowrap flex items-center gap-1 shrink-0 shadow-sm"
-                title="Send Fast2SMS OTP"
+                title="Send SMS OTP"
               >
                 {isSendingOtp ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -916,7 +916,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         </button>
       </div>
 
-      {/* 7. FAST2SMS OTP MODAL */}
+      {/* 7. TRACCAR CLOUD SMS OTP MODAL */}
       {showOtpModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl relative animate-in fade-in zoom-in-95">
@@ -938,7 +938,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             <div>
               <h4 className="text-base font-extrabold text-slate-900">Verify Mobile Number</h4>
               <p className="text-xs text-slate-500 mt-1">
-                Enter the 4-digit code sent via Fast2SMS to <strong className="text-slate-900">+91 {customerMobile}</strong>
+                Enter the 4-digit code sent via SMS to <strong className="text-slate-900">+91 {customerMobile}</strong>
               </p>
             </div>
 
