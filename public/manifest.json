@@ -1,0 +1,56 @@
+{
+  "id": "/",
+  "name": "Safar India Cabs - Outstation & Intercity Taxi Service",
+  "short_name": "Safar Cabs",
+  "description": "Book affordable outstation cabs, one-way taxi with zero return fare, round trips, local hourly rentals, and airport transfers across India.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090D16",
+  "theme_color": "#F59E0B",
+  "categories": ["travel", "navigation", "transportation"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Book a Cab",
+      "short_name": "Book Cab",
+      "description": "Calculate instant fare and reserve an outstation cab",
+      "url": "/?tab=booking",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Bookings",
+      "short_name": "My Trips",
+      "description": "View active cab rides and download invoice vouchers",
+      "url": "/?tab=rides",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "24/7 Helpline",
+      "short_name": "Helpline",
+      "description": "Call Safar India 24/7 customer support",
+      "url": "tel:+917710080992",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Car, Phone, MessageSquare, Clock, Shield, Menu, X, User } from 'lucide-react';
 import { CustomerUser } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   currentUser: CustomerUser | null;
@@ -115,9 +116,12 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </nav>
 
-          {/* TOP RIGHT ACTIONS: WHATSAPP SUPPORT & DIRECT CALL */}
+          {/* TOP RIGHT ACTIONS: PWA INSTALL, WHATSAPP SUPPORT & DIRECT CALL */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             
+            {/* PWA Install Button */}
+            <PWAInstallButton className="hidden md:inline-flex" />
+
             {/* Quick WhatsApp Support Button */}
             <a
               href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20assistance%20with%20cab%20booking"
@@ -267,6 +271,8 @@ export const Header: React.FC<HeaderProps> = ({
             </nav>
 
             <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
+              <PWAInstallButton className="w-full justify-center py-2.5" />
+
               <a
                 href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20assistance"
                 target="_blank"
