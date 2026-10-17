@@ -21,6 +21,7 @@ import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
 import { CABS_FLEET } from './data/cabsFleet';
 import { computeTripFare, FareCalculationResult } from './utils/fareCalculator';
+import { calculateExactRoadDistance } from './utils/olaMapsService';
 import { Header } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
@@ -76,16 +77,32 @@ export default function App() {
   const [airportTerminal, setAirportTerminal] = useState('');
   const [includeTolls, setIncludeTolls] = useState(true);
 
-  // Distance calculation
+  // Distance and Duration calculation via Ola Maps
   const [distanceKm, setDistanceKm] = useState(230);
+  const [travelDuration, setTravelDuration] = useState('3 hrs 45 mins');
+  const [isExactOlaDistance, setIsExactOlaDistance] = useState(false);
 
   useEffect(() => {
-    if (tripType === 'local') {
-      setDistanceKm(localPackageId === '4h_40k' ? 40 : localPackageId === '12h_120k' ? 120 : 80);
-    } else {
-      const dist = estimateDistanceKm(pickupCity, dropCity);
-      setDistanceKm(dist);
+    let isCancelled = false;
+    async function updateDistance() {
+      if (tripType === 'local') {
+        const d = localPackageId === '4h_40k' ? 40 : localPackageId === '12h_120k' ? 120 : 80;
+        setDistanceKm(d);
+        setTravelDuration(localPackageId === '4h_40k' ? '4 hrs' : localPackageId === '12h_120k' ? '12 hrs' : '8 hrs');
+        setIsExactOlaDistance(false);
+      } else {
+        const res = await calculateExactRoadDistance(pickupCity, dropCity);
+        if (!isCancelled) {
+          setDistanceKm(res.distanceKm);
+          setTravelDuration(res.durationText);
+          setIsExactOlaDistance(res.source === 'ola_maps_exact');
+        }
+      }
     }
+    updateDistance();
+    return () => {
+      isCancelled = true;
+    };
   }, [pickupCity, dropCity, tripType, localPackageId]);
 
   // Selected cab for checkout
@@ -331,6 +348,8 @@ export default function App() {
                       includeTolls={includeTolls}
                       setIncludeTolls={setIncludeTolls}
                       distanceKm={distanceKm}
+                      travelDuration={travelDuration}
+                      isExactOlaDistance={isExactOlaDistance}
                       onExploreCabs={scrollToAvailableCabs}
                     />
                   </div>

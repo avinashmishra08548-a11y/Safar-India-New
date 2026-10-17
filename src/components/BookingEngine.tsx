@@ -9,11 +9,14 @@ import {
   ShieldCheck, 
   Car,
   ChevronDown,
-  Info
+  Info,
+  Sparkles,
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import { TripType } from '../types';
-import { POPULAR_INDIAN_CITIES, estimateDistanceKm } from '../data/indianCities';
 import { LOCAL_PACKAGES } from '../data/cabsFleet';
+import { searchOlaPlaces, OlaPlacePrediction } from '../utils/olaMapsService';
 
 interface BookingEngineProps {
   tripType: TripType;
@@ -39,6 +42,8 @@ interface BookingEngineProps {
   includeTolls: boolean;
   setIncludeTolls: (b: boolean) => void;
   distanceKm: number;
+  travelDuration?: string;
+  isExactOlaDistance?: boolean;
   onExploreCabs: () => void;
 }
 
@@ -66,12 +71,16 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   includeTolls,
   setIncludeTolls,
   distanceKm,
+  travelDuration,
+  isExactOlaDistance = false,
   onExploreCabs
 }) => {
-  const [pickupSuggestions, setPickupSuggestions] = useState<string[]>([]);
-  const [dropSuggestions, setDropSuggestions] = useState<string[]>([]);
+  const [pickupPredictions, setPickupPredictions] = useState<OlaPlacePrediction[]>([]);
+  const [dropPredictions, setDropPredictions] = useState<OlaPlacePrediction[]>([]);
   const [showPickupDropdown, setShowPickupDropdown] = useState(false);
   const [showDropDropdown, setShowDropDropdown] = useState(false);
+  const [isLoadingPickup, setIsLoadingPickup] = useState(false);
+  const [isLoadingDrop, setIsLoadingDrop] = useState(false);
 
   const pickupRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -90,16 +99,45 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filterSuggestions = (query: string): string[] => {
-    if (!query || query.trim().length === 0) {
-      return POPULAR_INDIAN_CITIES.slice(0, 7).map(c => c.name);
-    }
-    const q = query.toLowerCase();
-    return POPULAR_INDIAN_CITIES
-      .filter(c => c.name.toLowerCase().includes(q) || c.state.toLowerCase().includes(q))
-      .slice(0, 7)
-      .map(c => c.name);
-  };
+  // Ola Maps Autocomplete search with debounce for Pickup
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(async () => {
+      if (showPickupDropdown) {
+        setIsLoadingPickup(true);
+        const results = await searchOlaPlaces(pickupCity);
+        if (active) {
+          setPickupPredictions(results);
+          setIsLoadingPickup(false);
+        }
+      }
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [pickupCity, showPickupDropdown]);
+
+  // Ola Maps Autocomplete search with debounce for Drop
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(async () => {
+      if (showDropDropdown) {
+        setIsLoadingDrop(true);
+        const results = await searchOlaPlaces(dropCity);
+        if (active) {
+          setDropPredictions(results);
+          setIsLoadingDrop(false);
+        }
+      }
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [dropCity, showDropDropdown]);
 
   const handleSwapCities = () => {
     if (tripType === 'local') return;
@@ -139,7 +177,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          One-Way Outstation
+          One Way
         </button>
         <button
           type="button"
@@ -150,7 +188,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          Round-Trip
+          Round Trip
         </button>
         <button
           type="button"
@@ -161,7 +199,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               : 'text-slate-400 hover:text-white'
           }`}
         >
-          Local Hourly Rental
+          Local Rental
         </button>
         <button
           type="button"
@@ -176,9 +214,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         </button>
       </div>
 
-      {/* Airport Sub-selector if airport tab */}
+      {/* Airport Sub-options */}
       {tripType === 'airport' && (
-        <div className="flex items-center gap-2 mb-4 p-2 bg-slate-950/80 border border-slate-800 rounded-xl">
+        <div className="flex gap-2 mb-4 p-1.5 bg-slate-950 rounded-xl border border-slate-800">
           <button
             type="button"
             onClick={() => setAirportMode('drop')}
@@ -203,11 +241,18 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       {/* Main Location & Date Inputs Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         
-        {/* Pickup Location */}
+        {/* Pickup Location with Ola Maps Autocomplete */}
         <div className="relative" ref={pickupRef}>
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-            {tripType === 'airport' && airportMode === 'pickup' ? 'Airport Terminal Pickup' : 'Pickup City / Address'}
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {tripType === 'airport' && airportMode === 'pickup' ? 'Airport Terminal Pickup' : 'Pickup City / Address'}
+            </label>
+            <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
+              <Sparkles className="w-3 h-3" />
+              <span>Ola Maps Places Search</span>
+            </span>
+          </div>
+
           <div className="relative">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-amber-400 pointer-events-none">
               <Navigation className="w-4 h-4" />
@@ -217,32 +262,49 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               value={pickupCity}
               onChange={(e) => {
                 setPickupCity(e.target.value);
-                setPickupSuggestions(filterSuggestions(e.target.value));
                 setShowPickupDropdown(true);
               }}
               onFocus={() => {
-                setPickupSuggestions(filterSuggestions(pickupCity));
                 setShowPickupDropdown(true);
               }}
-              placeholder="e.g. Delhi NCR, Mumbai, Jaipur"
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:outline-none focus:border-amber-400 transition"
+              placeholder="Search pickup city, airport or landmark..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-9 py-3 text-white text-sm focus:outline-none focus:border-amber-400 transition"
             />
+            {isLoadingPickup && (
+              <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+              </span>
+            )}
           </div>
 
           {/* Autocomplete Dropdown */}
-          {showPickupDropdown && pickupSuggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 max-h-56 overflow-y-auto">
-              {pickupSuggestions.map((city) => (
+          {showPickupDropdown && pickupPredictions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+              <div className="px-3 py-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                <span>Select Location</span>
+                <span className="text-emerald-400 font-mono">Ola Maps Autocomplete</span>
+              </div>
+              {pickupPredictions.map((item, idx) => (
                 <div
-                  key={city}
+                  key={`${item.description}-${idx}`}
                   onClick={() => {
-                    setPickupCity(city);
+                    setPickupCity(item.mainText || item.description);
                     setShowPickupDropdown(false);
                   }}
-                  className="px-3.5 py-2.5 text-xs text-slate-200 hover:bg-slate-900 hover:text-amber-400 cursor-pointer flex items-center gap-2 border-b border-slate-900 last:border-b-0"
+                  className="px-3.5 py-2.5 text-xs text-slate-200 hover:bg-slate-900 hover:text-amber-400 cursor-pointer flex items-start gap-2.5 border-b border-slate-900 last:border-b-0 transition"
                 >
-                  <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{city}</span>
+                  <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-slate-100 truncate">{item.mainText || item.description}</div>
+                    {item.secondaryText && (
+                      <div className="text-[10px] text-slate-400 truncate">{item.secondaryText}</div>
+                    )}
+                  </div>
+                  {item.source === 'ola_maps' && (
+                    <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      Ola Maps
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -294,32 +356,49 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 value={dropCity}
                 onChange={(e) => {
                   setDropCity(e.target.value);
-                  setDropSuggestions(filterSuggestions(e.target.value));
                   setShowDropDropdown(true);
                 }}
                 onFocus={() => {
-                  setDropSuggestions(filterSuggestions(dropCity));
                   setShowDropDropdown(true);
                 }}
-                placeholder="e.g. Agra, Pune, Mysore"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-white text-sm focus:outline-none focus:border-amber-400 transition"
+                placeholder="Search drop city, airport or landmark..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-9 py-3 text-white text-sm focus:outline-none focus:border-amber-400 transition"
               />
+              {isLoadingDrop && (
+                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                </span>
+              )}
             </div>
 
             {/* Drop Suggestions */}
-            {showDropDropdown && dropSuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 max-h-56 overflow-y-auto">
-                {dropSuggestions.map((city) => (
+            {showDropDropdown && dropPredictions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto">
+                <div className="px-3 py-1.5 text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+                  <span>Select Destination</span>
+                  <span className="text-emerald-400 font-mono">Ola Maps Autocomplete</span>
+                </div>
+                {dropPredictions.map((item, idx) => (
                   <div
-                    key={city}
+                    key={`${item.description}-${idx}`}
                     onClick={() => {
-                      setDropCity(city);
+                      setDropCity(item.mainText || item.description);
                       setShowDropDropdown(false);
                     }}
-                    className="px-3.5 py-2.5 text-xs text-slate-200 hover:bg-slate-900 hover:text-amber-400 cursor-pointer flex items-center gap-2 border-b border-slate-900 last:border-b-0"
+                    className="px-3.5 py-2.5 text-xs text-slate-200 hover:bg-slate-900 hover:text-amber-400 cursor-pointer flex items-start gap-2.5 border-b border-slate-900 last:border-b-0 transition"
                   >
-                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                    <span>{city}</span>
+                    <MapPin className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-slate-100 truncate">{item.mainText || item.description}</div>
+                      {item.secondaryText && (
+                        <div className="text-[10px] text-slate-400 truncate">{item.secondaryText}</div>
+                      )}
+                    </div>
+                    {item.source === 'ola_maps' && (
+                      <span className="text-[9px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-mono shrink-0">
+                        Ola Maps
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -418,18 +497,32 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
       </div>
 
-      {/* Distance and Route Information Bar */}
+      {/* Distance, Travel Duration and Route Information Bar */}
       <div className="mt-5 p-3.5 bg-slate-950 rounded-xl border border-slate-800/90 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0">
             <Navigation className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 font-medium">
-              {tripType === 'local' ? 'City Rental Package' : 'Estimated One-Way Route Distance'}
+            <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+              <span>{tripType === 'local' ? 'City Rental Package' : 'Road Driving Distance & Time'}</span>
+              {isExactOlaDistance ? (
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.2 rounded font-mono font-semibold">
+                  Ola Maps Exact
+                </span>
+              ) : (
+                <span className="text-[10px] bg-amber-400/10 text-amber-400 border border-amber-400/30 px-1.5 py-0.2 rounded font-mono">
+                  Highway Matrix
+                </span>
+              )}
             </div>
             <div className="text-sm font-extrabold text-white flex items-center gap-2">
               <span>{tripType === 'local' ? (localPackageId === '4h_40k' ? '40 KM' : localPackageId === '12h_120k' ? '120 KM' : '80 KM') : `${distanceKm} KM`}</span>
+              {travelDuration && tripType !== 'local' && (
+                <span className="text-xs text-amber-400 font-semibold">
+                  · Est. {travelDuration}
+                </span>
+              )}
               {tripType === 'roundtrip' && (
                 <span className="text-xs text-slate-400 font-normal">
                   (Billed min {roundTripDays * 250} KM for {roundTripDays} days or actual 2-way)
@@ -439,7 +532,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         </div>
 
-        {/* Tolls Inclusive Toggle (CabBazar benchmark transparency) */}
+        {/* Tolls Inclusive Toggle */}
         <label className="flex items-center gap-2 cursor-pointer bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 text-xs text-slate-300 hover:border-slate-700 transition">
           <input
             type="checkbox"

@@ -36,6 +36,18 @@ import {
   DEFAULT_FAST2SMS_KEY, 
   sanitize10DigitPhone 
 } from '../utils/smsService';
+import {
+  getOlaMapsApiKey,
+  setOlaMapsApiKey,
+  getOlaMapsClientId,
+  setOlaMapsClientId,
+  getOlaMapsClientSecret,
+  setOlaMapsClientSecret,
+  DEFAULT_OLA_API_KEY,
+  DEFAULT_OLA_CLIENT_ID,
+  DEFAULT_OLA_CLIENT_SECRET,
+  testOlaMapsCredentials
+} from '../utils/olaMapsService';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -69,6 +81,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [fast2smsSaveMsg, setFast2smsSaveMsg] = useState('');
   const [testPhone, setTestPhone] = useState('7710080992');
   const [testStatus, setTestStatus] = useState<{ running: boolean; ok?: boolean; message?: string }>({ running: false });
+
+  // Ola Maps API states
+  const [olaApiKey, setOlaApiKey] = useState(() => getOlaMapsApiKey());
+  const [olaClientId, setOlaClientId] = useState(() => getOlaMapsClientId());
+  const [olaClientSecret, setOlaClientSecret] = useState(() => getOlaMapsClientSecret());
+  const [olaSaveMsg, setOlaSaveMsg] = useState('');
+  const [olaTestStatus, setOlaTestStatus] = useState<{ running: boolean; ok?: boolean; message?: string }>({ running: false });
 
   // Change PIN states
   const [newPin, setNewPin] = useState('');
@@ -239,6 +258,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setTestStatus({ running: true });
     const res = await verifyFast2SmsKey(fast2smsKey.trim(), cleanPhone);
     setTestStatus({ running: false, ok: res.ok, message: res.info });
+  };
+
+  const handleSaveOlaMaps = (e: React.FormEvent) => {
+    e.preventDefault();
+    setOlaMapsApiKey(olaApiKey);
+    setOlaMapsClientId(olaClientId);
+    setOlaMapsClientSecret(olaClientSecret);
+    setOlaSaveMsg('Ola Maps Credentials saved & applied across Autocomplete and Dynamic Fare routing!');
+    setTimeout(() => setOlaSaveMsg(''), 4000);
+  };
+
+  const handleResetOlaMaps = () => {
+    setOlaApiKey(DEFAULT_OLA_API_KEY);
+    setOlaClientId(DEFAULT_OLA_CLIENT_ID);
+    setOlaClientSecret(DEFAULT_OLA_CLIENT_SECRET);
+    setOlaMapsApiKey(DEFAULT_OLA_API_KEY);
+    setOlaMapsClientId(DEFAULT_OLA_CLIENT_ID);
+    setOlaMapsClientSecret(DEFAULT_OLA_CLIENT_SECRET);
+    setOlaSaveMsg('Reset to official Ola Maps credentials provided by owner.');
+    setTimeout(() => setOlaSaveMsg(''), 4000);
+  };
+
+  const handleTestOlaMaps = async () => {
+    setOlaTestStatus({ running: true });
+    const res = await testOlaMapsCredentials(olaApiKey, olaClientId, olaClientSecret);
+    setOlaTestStatus({ running: false, ok: res.ok, message: res.message });
   };
 
   return (
@@ -702,6 +747,140 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* OLA MAPS API INTEGRATION CARD */}
+            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">
+                      Ola Maps Platform Integration
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Exact Location Search (Autocomplete) & Accurate Road KM Driving Distance / Dynamic Fare
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
+                  Active & Safeguarded
+                </span>
+              </div>
+
+              {olaSaveMsg && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
+                  {olaSaveMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveOlaMaps} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Ola Maps API Key
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={olaApiKey}
+                      onChange={(e) => setOlaApiKey(e.target.value)}
+                      placeholder="Paste Ola Maps API Key"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Client ID
+                    </label>
+                    <input
+                      type="text"
+                      value={olaClientId}
+                      onChange={(e) => setOlaClientId(e.target.value)}
+                      placeholder="Ola Maps Client ID"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Client Secret
+                    </label>
+                    <input
+                      type="password"
+                      value={olaClientSecret}
+                      onChange={(e) => setOlaClientSecret(e.target.value)}
+                      placeholder="Ola Maps Client Secret"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
+                  >
+                    Save Ola Maps Credentials
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetOlaMaps}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition"
+                  >
+                    Reset to Default Credentials
+                  </button>
+                  <button
+                    type="button"
+                    disabled={olaTestStatus.running}
+                    onClick={handleTestOlaMaps}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-emerald-400 font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-emerald-500/30"
+                  >
+                    {olaTestStatus.running ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Testing Connection...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Test Ola Maps Connection</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+              {olaTestStatus.message && (
+                <div className={`p-3 rounded-xl text-xs font-medium ${
+                  olaTestStatus.ok
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                }`}>
+                  <div className="font-bold">{olaTestStatus.ok ? 'Ola Maps Connected:' : 'Ola Maps Diagnostic:'}</div>
+                  <div className="mt-0.5">{olaTestStatus.message}</div>
+                </div>
+              )}
+
+              {/* Technical Specifications Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">1. Autocomplete API</span>
+                  <span className="font-mono text-emerald-400 font-bold">places/v1/autocomplete</span>
+                  <div className="text-[10px] text-slate-400">Pickup & Drop location suggestions</div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">2. Driving Directions</span>
+                  <span className="font-mono text-emerald-400 font-bold">routing/v1/directions</span>
+                  <div className="text-[10px] text-slate-400">Exact highway road driving distance & travel time</div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Fallback Engine</span>
+                  <span className="font-mono text-emerald-400 font-bold">National Highway Matrix</span>
+                  <div className="text-[10px] text-slate-400">Ensures 100% booking continuity even if offline</div>
+                </div>
               </div>
             </div>
 
