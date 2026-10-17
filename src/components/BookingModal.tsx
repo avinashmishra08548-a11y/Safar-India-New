@@ -318,18 +318,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-slate-300 font-semibold">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Fast2SMS route: '{FAST2SMS_ROUTE}'</span>
+                  <span>Fast2SMS Live Gateway Active</span>
                 </span>
                 <span className="font-mono text-emerald-400 text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                  endpoint: /dev/bulkV2
+                  Route 'q' (Wallet ₹150)
                 </span>
               </div>
               <div className="flex items-center justify-between text-[10px] text-slate-500">
-                <span>Numbers format: 10-digit ({sanitize10DigitPhone(customerPhone)})</span>
-                <span className="font-mono text-slate-400">Auth: 6B8s...Vxcz</span>
+                <span>Direct delivery to: +91 {sanitize10DigitPhone(customerPhone)}</span>
+                <span className="font-mono text-emerald-400">Key: ...Vxcz</span>
               </div>
               {otpNotice && (
-                <p className="text-slate-400 text-[10px] leading-tight">
+                <p className="text-emerald-400 text-[11px] font-medium leading-tight mt-1 bg-emerald-500/10 border border-emerald-500/20 p-2 rounded-lg">
                   {otpNotice}
                 </p>
               )}

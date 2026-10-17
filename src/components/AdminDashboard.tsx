@@ -28,7 +28,14 @@ import {
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
-import { getFast2SmsApiKey, setFast2SmsApiKey, verifyFast2SmsKey, FAST2SMS_ENDPOINT, FAST2SMS_ROUTE, sanitize10DigitPhone } from '../utils/smsService';
+import { 
+  getFast2SmsApiKey, 
+  setFast2SmsApiKey, 
+  verifyFast2SmsKey, 
+  FAST2SMS_ENDPOINT, 
+  DEFAULT_FAST2SMS_KEY, 
+  sanitize10DigitPhone 
+} from '../utils/smsService';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -213,6 +220,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!fast2smsKey.trim()) return;
     setFast2SmsApiKey(fast2smsKey.trim());
     setFast2smsSaveMsg('Fast2SMS API Key updated & active across all customer login/OTP flows!');
+    setTimeout(() => setFast2smsSaveMsg(''), 4000);
+  };
+
+  const handleResetToOfficialKey = () => {
+    setFast2smsKey(DEFAULT_FAST2SMS_KEY);
+    setFast2SmsApiKey(DEFAULT_FAST2SMS_KEY);
+    setFast2smsSaveMsg('Reset to official 84-character Fast2SMS Key! Old/corrupted keys cleared.');
     setTimeout(() => setFast2smsSaveMsg(''), 4000);
   };
 
@@ -589,20 +603,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Fast2SMS Authorization API Key
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <input
                       type="text"
                       required
                       value={fast2smsKey}
                       onChange={(e) => setFast2smsKey(e.target.value)}
                       placeholder="Paste your Fast2SMS API Key"
-                      className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                      className="flex-1 min-w-[260px] bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
                     />
                     <button
                       type="submit"
                       className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
                     >
                       Save Key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetToOfficialKey}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 transition"
+                      title="Clear local cache and restore verified 84-char key"
+                    >
+                      Reset Official Key
                     </button>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
@@ -618,8 +640,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span className="font-mono text-emerald-400 font-bold break-all">{FAST2SMS_ENDPOINT}</span>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Active Route</span>
-                  <span className="font-mono text-amber-400 font-bold">route: '{FAST2SMS_ROUTE}'</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Active Delivery Route</span>
+                  <span className="font-mono text-emerald-400 font-bold">Route 'q' (Wallet ₹150)</span>
                 </div>
                 <div className="space-y-0.5">
                   <span className="text-[10px] text-slate-500 uppercase font-bold block">Phone Sanitization</span>

@@ -65,7 +65,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
 
-    // Call Fast2SMS Gateway (route: 'otp', endpoint: https://www.fast2sms.com/dev/bulkV2, 10 digits without +91)
+    // Call Fast2SMS Gateway (Route 'q' - direct SMS to mobile from wallet balance)
     const res = await sendOtpSms(cleanPhone, newOtp);
     setIsSending(false);
     setSmsDeliveryInfo(res.message);
@@ -142,13 +142,13 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Live SMS simulation toast */}
+        {/* Live SMS status toast */}
         {showOtpToast && (
-          <div className="bg-amber-400 text-slate-950 p-3 rounded-2xl shadow-xl flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4">
-            <MessageSquare className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="bg-emerald-500 text-slate-950 p-3 rounded-2xl shadow-xl flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4">
+            <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-slate-950" />
             <div className="text-xs">
-              <span className="font-extrabold block">SMS Notification (+91 {phone})</span>
-              <span>Your Safar India Cabs verification OTP is <strong className="font-mono text-sm underline">{generatedOtp}</strong>. Valid for 10 minutes.</span>
+              <span className="font-extrabold block">Live SMS Dispatched!</span>
+              <span>Fast2SMS OTP code sent to <strong className="font-mono text-xs">+91 {phone}</strong>. Check your mobile SMS inbox!</span>
             </div>
           </div>
         )}
@@ -224,7 +224,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500">
                 <span className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Fast2SMS Route: 'otp' Active
+                  Fast2SMS Live Gateway Active
                 </span>
                 <span className="font-mono text-emerald-400">...Vxcz (10-digit)</span>
               </div>
@@ -258,9 +258,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 Sent to <span className="text-amber-400 font-bold">+91 {phone}</span>
               </p>
               {smsDeliveryInfo && (
-                <p className="text-[10px] text-slate-500 mt-1 max-w-[280px] mx-auto truncate">
+                <div className="mt-1.5 max-w-[290px] mx-auto p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400 font-medium">
                   {smsDeliveryInfo}
-                </p>
+                </div>
               )}
             </div>
 
