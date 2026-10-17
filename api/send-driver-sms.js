@@ -100,10 +100,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Valid 10-digit customer phone required' });
     }
 
+    const cleanDriverPhone = sanitize10Digit(driverPhone);
+    const vehicle = vehicleModel || 'Cab';
+    const regNo = (vehicleNo || '').toUpperCase();
+    const dateFormatted = travelDate || 'Scheduled Time';
+
     const apiKey = process.env.FAST2SMS_API_KEY || DEFAULT_KEY;
 
     // Exact Clean Template:
-    const message = `🚗 SAFAR INDIA CABS - DRIVER DETAILS ASSIGNED\n\nBooking ID: ${bookingId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${travelDate}\n\nDriver Name: ${driverName}\nPhone: ${driverPhone}\nVehicle: ${vehicleModel} (${vehicleNo})\n\nDriver will contact you before pickup. For support, call +917710080992.`;
+    const message = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\nBooking ID: ${bookingId}\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone || driverPhone}\nVehicle: ${vehicle} (${regNo})\nPickup: ${pickup}\nDate/Time: ${dateFormatted}\nHelpline: +917710080992`;
 
     const dispatchResult = await dispatchFast2Sms(cleanCustomerPhone, message, apiKey);
 

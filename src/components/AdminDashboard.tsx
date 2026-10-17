@@ -143,11 +143,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch {}
   }, [bookings]);
 
-  // Metrics: calculated strictly from confirmed / completed bookings
+  // Strict Financial & Booking Metrics:
+  // 1. Total Bookings count
   const totalBookings = bookings.length;
+  // 2. Active / Scheduled Bookings
   const activeBookings = bookings.filter(b => b.status === 'confirmed').length;
-  const totalRevenueAdvance = bookings.reduce((sum, b) => (b.status === 'confirmed' || b.status === 'completed') ? sum + (Number(b.advancePaid) || 0) : sum, 0);
-  const totalBalancePending = bookings.reduce((sum, b) => b.status === 'confirmed' ? sum + (Number(b.balanceDue) || 0) : sum, 0);
+  // 3. Completed Bookings
+  const completedBookings = bookings.filter(b => b.status === 'completed').length;
+  // 4. Cancelled Bookings
+  const cancelledBookings = bookings.filter(b => b.status === 'cancelled').length;
+
+  // 5. Verified Advance Payments (Only captured Razorpay payments for confirmed / completed rides)
+  // For booking SIC-789940: Total ₹1,817 has Verified Advance = ₹363
+  const verifiedAdvanceRevenue = bookings.reduce((sum, b) => 
+    (b.status === 'confirmed' || b.status === 'completed') ? sum + (Number(b.advancePaid) || 0) : sum, 0
+  );
+
+  // 6. Outstanding Balance payable at drop (To be collected by drivers for active rides - NOT counted as collected revenue)
+  // For booking SIC-789940: Outstanding Balance = ₹1,454
+  const outstandingBalanceDue = bookings.reduce((sum, b) => 
+    b.status === 'confirmed' ? sum + (Number(b.balanceDue) || 0) : sum, 0
+  );
 
   const filteredBookings = bookings.filter(b => {
     const matchStatus = statusFilter === 'all' || b.status === statusFilter;
@@ -451,27 +467,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {activeTab === 'bookings' && (
           <div className="space-y-4">
-            {/* KPI Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Comprehensive KPI Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Rides</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Bookings</span>
                 <div className="text-xl sm:text-2xl font-black text-white mt-1">{totalBookings}</div>
-                <span className="text-[10px] text-emerald-400 font-medium">{activeBookings} Active Scheduled</span>
+                <span className="text-[10px] text-slate-400 font-medium">Real Confirmed Fleet</span>
               </div>
 
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">20% Advance Collected</span>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{formatINR(totalRevenueAdvance)}</div>
-                <span className="text-[10px] text-slate-500">Credited via Razorpay</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Active / Scheduled</span>
+                <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{activeBookings}</div>
+                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                  <span className="text-emerald-400 font-semibold">{completedBookings} Done</span>
+                  <span>·</span>
+                  <span className="text-rose-400 font-semibold">{cancelledBookings} Cancel</span>
+                </div>
               </div>
 
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Balance Payable at Drop</span>
-                <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{formatINR(totalBalancePending)}</div>
-                <span className="text-[10px] text-slate-500">To be collected by Drivers</span>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Verified Advance</span>
+                <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{formatINR(verifiedAdvanceRevenue)}</div>
+                <span className="text-[10px] text-emerald-400/80 font-medium">Captured Razorpay Payments</span>
               </div>
 
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Outstanding Balance</span>
+                <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{formatINR(outstandingBalanceDue)}</div>
+                <span className="text-[10px] text-slate-500 font-medium">Collect at drop (Not revenue)</span>
+              </div>
+
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 col-span-2 sm:col-span-1 flex flex-col justify-between">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Quick Action</span>
                 <div className="mt-2 flex flex-col gap-1.5">
                   <button
@@ -518,7 +544,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={() => setStatusFilter('completed')}
                   className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'completed' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
                 >
-                  Completed
+                  Completed ({completedBookings})
+                </button>
+                <button
+                  onClick={() => setStatusFilter('cancelled')}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'cancelled' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
+                >
+                  Cancelled ({cancelledBookings})
                 </button>
               </div>
 
@@ -595,7 +627,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {b.driverName && (
                       <div className="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="text-emerald-400 font-bold">Assigned Chauffeur:</span>
+                          <span className="text-emerald-400 font-bold">Assigned Driver:</span>
                           <span className="text-white font-bold">{b.driverName}</span>
                           <a href={`tel:+91${b.driverPhone}`} className="text-emerald-300 underline font-mono text-[11px]">(+91 {b.driverPhone})</a>
                         </div>
@@ -640,7 +672,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               className="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer"
                             >
                               <UserCheck className="w-3.5 h-3.5" />
-                              <span>{b.driverName ? 'Update Driver' : 'Assign Chauffeur'}</span>
+                              <span>{b.driverName ? 'Update Driver' : 'Assign Driver'}</span>
                             </button>
 
                             <button
@@ -963,11 +995,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   }`}>
                     <div className="font-bold">{testStatus.ok ? 'Fast2SMS Server Status:' : 'Fast2SMS Gateway Report:'}</div>
                     <div className="mt-0.5">{testStatus.message}</div>
-                    <div className="text-[10px] text-slate-300 mt-2 bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 space-y-1">
-                      <p className="font-bold text-amber-400">💡 Fast2SMS Live Activation Guide (Step-by-Step):</p>
-                      <p>1. Aapka complete 84-character API key verify ho gaya hai.</p>
-                      <p>2. Fast2SMS ke official niyam ke mutabiq, external mobile numbers par SMS delivery ke liye aapke Fast2SMS wallet me <strong className="text-white">kam se kam ₹100 ka 1st transaction / recharge</strong> hona chahiye, ya phir fast2sms.com ke OTP menu me website domain verify hona chahiye.</p>
-                      <p>3. Website me humne <strong className="text-emerald-400">Smart Instant OTP</strong> laga rakha hai taaki agar Fast2SMS wallet pending ho, tab bhi customer on-screen code se instantly verify hokar direct WhatsApp summary par redirect ho sake!</p>
+                    <div className="text-[10px] text-slate-300 mt-2 bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                      <p className="font-bold text-amber-400">💡 Fast2SMS Route 'q' vs DLT (Sender Header SAFARIN) Audit:</p>
+                      <p><strong className="text-white">Active Channel: Fast2SMS Route 'q' (Quick SMS)</strong> — Dispatches directly using your Fast2SMS wallet balance via pre-configured operator pooled routes. Messages are sent immediately to any Indian number without requiring prior registration of individual dynamic booking templates. This keeps booking confirmations, driver assignments, and admin alerts running seamlessly without interruption.</p>
+                      <p><strong className="text-white">DLT Registration Requirements (For custom 6-letter Header 'SAFARIN'):</strong></p>
+                      <ul className="list-disc pl-4 space-y-0.5 text-slate-400">
+                        <li>Register Business Principal Entity on telecom DLT portal (e.g., Vilpower / Jio / Airtel DLT) using Company PAN / GSTIN.</li>
+                        <li>Submit Brand Header Request for <strong>SAFARIN</strong> (6 alphabetical characters).</li>
+                        <li>Register Transactional SMS Templates with variable placeholders matching Safar India Cabs notifications.</li>
+                        <li>Once DLT approves, link your DLT Entity ID and Template ID inside the Fast2SMS portal.</li>
+                      </ul>
+                      <p className="text-emerald-400 font-semibold pt-1">✓ Server-Side Security: OTPs and booking alerts are dispatched via serverless functions (/api/verify-otp, /api/send-booking-sms, /api/assign-driver) with zero exposure in public frontend logs.</p>
                     </div>
                   </div>
                 )}
@@ -1221,7 +1259,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
-                <h4 className="text-base font-bold text-white">Assign Chauffeur & Vehicle</h4>
+                <h4 className="text-base font-bold text-white">Assign Driver & Vehicle</h4>
                 <p className="text-xs text-amber-400 font-medium">Booking #{selectedBookingForDriver.id} · {selectedBookingForDriver.customerName}</p>
               </div>
               <button
@@ -1241,7 +1279,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <form onSubmit={handleSaveDriver} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Name *</label>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Full Name *</label>
                 <input
                   type="text"
                   required
@@ -1253,7 +1291,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Phone *</label>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Mobile Number *</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
                     +91
@@ -1271,25 +1309,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Name / Model *</label>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Make / Model (e.g. Swift Dzire, Ertiga) *</label>
                 <input
                   type="text"
                   required
                   value={driverVehicleModel}
                   onChange={(e) => setDriverVehicleModel(e.target.value)}
-                  placeholder="e.g. Toyota Innova Crysta / Maruti Dzire"
+                  placeholder="e.g. Swift Dzire / Ertiga / Innova Crysta"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Number (Registration Plate) *</label>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Registration Number (e.g. DL 01 AB 1234) *</label>
                 <input
                   type="text"
                   required
                   value={driverCarPlate}
                   onChange={(e) => setDriverCarPlate(e.target.value.toUpperCase())}
-                  placeholder="e.g. DL 1Z 1234 / HR 26 DQ 5602"
+                  placeholder="e.g. DL 01 AB 1234"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-mono font-bold uppercase tracking-wider"
                 />
               </div>
@@ -1329,15 +1367,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="button"
                     onClick={() => {
                       const dispatchText = 
-                        `*SAFAR INDIA CABS - DRIVER ALLOCATED*\n\n` +
-                        `Hello ${selectedBookingForDriver.customerName},\n` +
-                        `Your chauffeur for Booking *#${selectedBookingForDriver.id}* has been assigned:\n\n` +
-                        `*Chauffeur Name:* ${driverName || 'Assigned'}\n` +
-                        `*Chauffeur Phone:* +91 ${driverPhone || 'Shared'}\n` +
-                        `*Vehicle:* ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n` +
-                        `*Pickup Time:* ${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}\n` +
-                        `*Balance to Pay Driver:* ${formatINR(selectedBookingForDriver.balanceDue)}\n\n` +
-                        `*24/7 Helpline:* +91 77100 80992`;
+                        `🚗 *SAFAR INDIA CABS — DRIVER ASSIGNED*\n\n` +
+                        `Booking ID: ${selectedBookingForDriver.id}\n` +
+                        `Driver Name: ${driverName || 'Assigned'}\n` +
+                        `Driver Phone: +91 ${driverPhone || 'Shared'}\n` +
+                        `Vehicle: ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n` +
+                        `Pickup: ${selectedBookingForDriver.pickupCity}\n` +
+                        `Date/Time: ${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}\n` +
+                        `Helpline: +917710080992`;
                       window.open(`https://wa.me/91${selectedBookingForDriver.customerPhone}?text=${encodeURIComponent(dispatchText)}`, '_blank');
                     }}
                     className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"

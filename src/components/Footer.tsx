@@ -37,7 +37,7 @@ export const Footer: React.FC<FooterProps> = ({
   ];
 
   return (
-    <footer id="footer-contact-section" className="bg-slate-100/80 border-t border-slate-200 pt-14 pb-12 text-xs text-slate-600">
+    <footer id="footer-contact-section" className="bg-slate-100/80 border-t border-slate-200 pt-14 pb-28 sm:pb-12 text-xs text-slate-600">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         
         {/* Top Grid: Brand, Intercity Routes, Customer Guarantees & Contact */}

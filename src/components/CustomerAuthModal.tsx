@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Smartphone, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 import { CustomerUser } from '../types';
-import { sendOtpSms, sanitize10DigitPhone } from '../utils/smsService';
+import { requestServerOtp, verifyServerOtp, sanitize10DigitPhone } from '../utils/smsService';
 
 interface CustomerAuthModalProps {
   isOpen: boolean;
@@ -23,10 +23,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [otpToken, setOtpToken] = useState<string>('');
   const [otpExpiresAt, setOtpExpiresAt] = useState<number>(0);
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
   const [smsDeliveryInfo, setSmsDeliveryInfo] = useState('');
@@ -61,41 +62,47 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     setIsSending(true);
     setErrorMsg('');
 
-    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
-    setGeneratedOtp(newOtp);
-    setOtpExpiresAt(Date.now() + 5 * 60 * 1000); // 5 minutes validity
-    setFailedAttempts(0);
-    setOtp('');
-
-    const res = await sendOtpSms(cleanPhone, newOtp);
+    // Secure server-side OTP request (OTP value is NOT returned to client)
+    const res = await requestServerOtp(cleanPhone);
     setIsSending(false);
-    setSmsDeliveryInfo('SMS OTP has been dispatched to your phone');
 
-    setShowOtpToast(true);
-    setStep('otp');
-    setResendSeconds(30);
+    if (res.success && res.token) {
+      setOtpToken(res.token);
+      setOtpExpiresAt(res.expiresAt || Date.now() + 5 * 60 * 1000);
+      setFailedAttempts(0);
+      setOtp('');
+      setSmsDeliveryInfo('SMS OTP has been dispatched to your phone');
+      setShowOtpToast(true);
+      setStep('otp');
+      setResendSeconds(30);
+    } else {
+      setErrorMsg(res.message || 'Unable to dispatch SMS. Please try again.');
+    }
   };
 
   const handleResend = async () => {
     if (resendSeconds > 0) return;
     const cleanPhone = sanitize10DigitPhone(phone);
     setIsSending(true);
-    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
-    setGeneratedOtp(newOtp);
-    setOtpExpiresAt(Date.now() + 5 * 60 * 1000);
-    setFailedAttempts(0);
-    setOtp('');
     setErrorMsg('');
 
-    const res = await sendOtpSms(cleanPhone, newOtp);
+    const res = await requestServerOtp(cleanPhone);
     setIsSending(false);
-    setSmsDeliveryInfo('A fresh SMS OTP has been sent to your phone');
 
-    setShowOtpToast(true);
-    setResendSeconds(30);
+    if (res.success && res.token) {
+      setOtpToken(res.token);
+      setOtpExpiresAt(res.expiresAt || Date.now() + 5 * 60 * 1000);
+      setFailedAttempts(0);
+      setOtp('');
+      setSmsDeliveryInfo('A fresh SMS OTP has been sent to your phone');
+      setShowOtpToast(true);
+      setResendSeconds(30);
+    } else {
+      setErrorMsg(res.message || 'Unable to resend SMS. Please wait.');
+    }
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!otp || otp.length !== 4) {
@@ -113,7 +120,15 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
-    if (otp !== generatedOtp) {
+    setIsVerifying(true);
+    setErrorMsg('');
+
+    const cleanPhone = sanitize10DigitPhone(phone);
+    // Server-side verification
+    const verifyRes = await verifyServerOtp(cleanPhone, otp, otpToken);
+    setIsVerifying(false);
+
+    if (!verifyRes.success) {
       setFailedAttempts(prev => prev + 1);
       const remaining = 4 - failedAttempts;
       setErrorMsg(
@@ -124,7 +139,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
-    const cleanPhone = sanitize10DigitPhone(phone);
     const user: CustomerUser = {
       name: name.trim(),
       phone: cleanPhone,
@@ -332,9 +346,17 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm transition active:scale-95"
+                disabled={isVerifying}
+                className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm transition active:scale-95 flex items-center justify-center gap-2"
               >
-                Verify & Continue
+                {isVerifying ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Verifying Secure Code...</span>
+                  </>
+                ) : (
+                  <span>Verify & Continue</span>
+                )}
               </button>
             </form>
           </div>
