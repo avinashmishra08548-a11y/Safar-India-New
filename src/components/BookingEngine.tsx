@@ -433,7 +433,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         {/* PICKUP LOCATION WITH OLA MAPS AUTOCOMPLETE */}
         <div className="relative" ref={pickupRef}>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+            <label htmlFor="booking-pickup-location" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
               {activeMainCategory === 'airport' && airportMode === 'pickup' ? 'Airport Terminal Pickup' : 'Pickup City / Address'}
             </label>
             <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
@@ -447,7 +447,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               <Navigation className="w-4 h-4" />
             </span>
             <input
+              id="booking-pickup-location"
+              name="pickupLocation"
               type="text"
+              aria-label="Pickup city, locality or address"
+              aria-autocomplete="list"
+              aria-expanded={showPickupDropdown && pickupPredictions.length > 0}
               value={pickupCity}
               onChange={(e) => {
                 setPickupCity(e.target.value);
@@ -463,12 +468,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               {pickupCity && (
                 <button
                   type="button"
+                  aria-label="Clear pickup location"
                   onClick={() => {
                     setPickupCity('');
                     if (setPickupCoords) setPickupCoords(null);
                     setShowPickupDropdown(true);
                   }}
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                  className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition"
                   title="Clear"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -482,22 +488,31 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
           {/* Autocomplete Dropdown */}
           {showPickupDropdown && pickupPredictions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-100">
-              <div className="px-3.5 py-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-10">
+            <div role="listbox" className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-100">
+              <div className="px-3.5 py-2 text-[10px] text-slate-600 font-bold uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-10">
                 <span>Suggested Indian Locations (IN)</span>
-                <span className="text-emerald-700 font-mono text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                <span className="text-emerald-700 font-mono text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold">
                   Ola Maps Geocoded
                 </span>
               </div>
               {pickupPredictions.map((item, idx) => (
                 <div
                   key={`${item.description}-${idx}`}
+                  role="option"
+                  aria-selected={false}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelectPickup(item);
+                    }
+                  }}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     handleSelectPickup(item);
                   }}
-                  className="px-3.5 py-2.5 text-xs text-slate-800 hover:bg-amber-50/70 hover:text-slate-950 cursor-pointer flex items-start gap-2.5 transition active:bg-amber-100"
+                  className="px-3.5 py-2.5 text-xs text-slate-800 hover:bg-amber-50/70 hover:text-slate-950 cursor-pointer flex items-start gap-2.5 transition active:bg-amber-100 focus:bg-amber-50 focus:outline-none"
                 >
                   {getPlaceIcon(item)}
                   <div className="flex-1 min-w-0">
@@ -512,7 +527,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-1">
                     {item.lat && item.lng && (
-                      <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      <span className="text-[9px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                         {item.lat.toFixed(2)}°N, {item.lng.toFixed(2)}°E
                       </span>
                     )}
@@ -529,11 +544,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         {/* DROP LOCATION OR HOURLY PACKAGE */}
         {activeMainCategory === 'local' ? (
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            <label htmlFor="booking-local-package" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
               Select Hourly Package
             </label>
             <div className="relative">
               <select
+                id="booking-local-package"
+                name="localPackage"
+                aria-label="Select hourly car rental package"
                 value={localPackageId}
                 onChange={(e) => setLocalPackageId(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm font-semibold focus:outline-none focus:border-amber-500 focus:bg-white appearance-none cursor-pointer"
@@ -550,13 +568,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         ) : (
           <div className="relative" ref={dropRef}>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+              <label htmlFor="booking-drop-location" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                 {activeMainCategory === 'airport' && airportMode === 'drop' ? 'Airport Destination' : 'Destination / Drop City'}
               </label>
               <button
                 type="button"
+                aria-label="Swap pickup and destination locations"
                 onClick={handleSwapCities}
-                className="text-[11px] text-amber-700 hover:text-amber-800 flex items-center gap-1 font-bold transition"
+                className="text-[11px] text-amber-700 hover:text-amber-800 flex items-center gap-1 font-bold transition p-0.5 rounded focus:outline-none focus:ring-1 focus:ring-amber-500"
               >
                 <ArrowRightLeft className="w-3 h-3" />
                 <span>Swap</span>
@@ -567,7 +586,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 <MapPin className="w-4 h-4" />
               </span>
               <input
+                id="booking-drop-location"
+                name="dropLocation"
                 type="text"
+                aria-label="Drop locality, landmark or city"
+                aria-autocomplete="list"
+                aria-expanded={showDropDropdown && dropPredictions.length > 0}
                 value={dropCity}
                 onChange={(e) => {
                   setDropCity(e.target.value);
@@ -583,12 +607,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 {dropCity && (
                   <button
                     type="button"
+                    aria-label="Clear destination drop location"
                     onClick={() => {
                       setDropCity('');
                       if (setDropCoords) setDropCoords(null);
                       setShowDropDropdown(true);
                     }}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition"
+                    className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition"
                     title="Clear"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -602,22 +627,31 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
             {/* Drop Suggestions */}
             {showDropDropdown && dropPredictions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-100">
-                <div className="px-3.5 py-2 text-[10px] text-slate-500 font-bold uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-10">
+              <div role="listbox" className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-100">
+                <div className="px-3.5 py-2 text-[10px] text-slate-600 font-bold uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-10">
                   <span>Suggested Indian Destinations (IN)</span>
-                  <span className="text-emerald-700 font-mono text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                  <span className="text-emerald-700 font-mono text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold">
                     Ola Maps Geocoded
                   </span>
                 </div>
                 {dropPredictions.map((item, idx) => (
                   <div
                     key={`${item.description}-${idx}`}
+                    role="option"
+                    aria-selected={false}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSelectDrop(item);
+                      }
+                    }}
                     onMouseDown={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       handleSelectDrop(item);
                     }}
-                    className="px-3.5 py-2.5 text-xs text-slate-800 hover:bg-amber-50/70 hover:text-slate-950 cursor-pointer flex items-start gap-2.5 transition active:bg-amber-100"
+                    className="px-3.5 py-2.5 text-xs text-slate-800 hover:bg-amber-50/70 hover:text-slate-950 cursor-pointer flex items-start gap-2.5 transition active:bg-amber-100 focus:bg-amber-50 focus:outline-none"
                   >
                     {getPlaceIcon(item)}
                     <div className="flex-1 min-w-0">
@@ -632,7 +666,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     </div>
                     <div className="shrink-0 flex flex-col items-end gap-1">
                       {item.lat && item.lng && (
-                        <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                        <span className="text-[9px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                           {item.lat.toFixed(2)}°N, {item.lng.toFixed(2)}°E
                         </span>
                       )}
@@ -654,11 +688,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         
         {/* Pickup Date & Time Box */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+          <label htmlFor="booking-pickup-date" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
             Pickup Date & Time
           </label>
           <div className="grid grid-cols-2 gap-1.5">
             <input
+              id="booking-pickup-date"
+              name="pickupDate"
+              aria-label="Pickup Date"
               type="date"
               min={todayStr}
               value={pickupDate}
@@ -666,6 +703,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
             />
             <select
+              id="booking-pickup-time"
+              name="pickupTime"
+              aria-label="Pickup Time"
               value={pickupTime}
               onChange={(e) => setPickupTime(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition cursor-pointer"
@@ -681,13 +721,16 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         {tripType === 'roundtrip' ? (
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Return Date
+              <label htmlFor="booking-return-date" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Return Date & Time
               </label>
               <span className="text-[10px] text-amber-700 font-bold">{roundTripDays} Day{roundTripDays > 1 ? 's' : ''}</span>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <input
+                id="booking-return-date"
+                name="returnDate"
+                aria-label="Return Date"
                 type="date"
                 min={pickupDate || todayStr}
                 value={returnDate}
@@ -695,6 +738,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
               />
               <select
+                id="booking-return-time"
+                name="returnTime"
+                aria-label="Return Time"
                 value={returnTime}
                 onChange={(e) => setReturnTime(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition cursor-pointer"
@@ -708,20 +754,25 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         ) : (
           /* Airport details or Highway inclusions toggle */
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            <label htmlFor={activeMainCategory === 'airport' ? 'booking-airport-terminal' : 'booking-include-tolls'} className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
               {activeMainCategory === 'airport' ? 'Airport Terminal / Flight No.' : 'Toll Taxes Preference'}
             </label>
             {activeMainCategory === 'airport' ? (
               <input
+                id="booking-airport-terminal"
+                name="airportTerminal"
                 type="text"
+                aria-label="Airport terminal or flight number"
                 value={airportTerminal}
                 onChange={(e) => setAirportTerminal(e.target.value)}
                 placeholder="e.g. Terminal 3 (T3), 6E-204"
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
               />
             ) : (
-              <label className="flex items-center h-[38px] px-3 bg-slate-50 rounded-xl border border-slate-300 text-xs text-slate-700 cursor-pointer hover:bg-slate-100 transition">
+              <label htmlFor="booking-include-tolls" className="flex items-center h-[38px] px-3 bg-slate-50 rounded-xl border border-slate-300 text-xs text-slate-700 cursor-pointer hover:bg-slate-100 transition">
                 <input
+                  id="booking-include-tolls"
+                  name="includeTolls"
                   type="checkbox"
                   checked={includeTolls}
                   onChange={(e) => setIncludeTolls(e.target.checked)}
@@ -736,7 +787,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         {/* CUSTOMER MOBILE NUMBER INPUT WITH FAST2SMS OTP VERIFICATION */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+            <label htmlFor="booking-customer-mobile" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
               Mobile Number (10-Digit) *
             </label>
             {isPhoneVerified ? (
@@ -754,12 +805,16 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
           <div className="relative flex items-center gap-1.5">
             <div className="relative flex-1">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-xs font-bold text-slate-400 pointer-events-none">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-xs font-bold text-slate-500 pointer-events-none">
                 +91
               </span>
               <input
+                id="booking-customer-mobile"
+                name="customerMobile"
                 type="tel"
+                inputMode="numeric"
                 maxLength={10}
+                aria-label="10-digit mobile number for booking updates"
                 value={customerMobile}
                 onChange={(e) => {
                   const cleaned = sanitize10DigitPhone(e.target.value);

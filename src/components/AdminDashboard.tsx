@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   Sparkles,
   ExternalLink,
-  Loader2
+  Loader2,
+  CreditCard
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
@@ -48,6 +49,12 @@ import {
   DEFAULT_OLA_CLIENT_SECRET,
   testOlaMapsCredentials
 } from '../utils/olaMapsService';
+import { 
+  getRazorpayKeyId, 
+  setRazorpayKeyId, 
+  DEFAULT_RAZORPAY_KEY,
+  launchRazorpayStandardCheckout
+} from '../utils/razorpayService';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -88,6 +95,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [olaClientSecret, setOlaClientSecret] = useState(() => getOlaMapsClientSecret());
   const [olaSaveMsg, setOlaSaveMsg] = useState('');
   const [olaTestStatus, setOlaTestStatus] = useState<{ running: boolean; ok?: boolean; message?: string }>({ running: false });
+
+  // Razorpay Gateway states
+  const [razorpayKey, setRazorpayKey] = useState(() => getRazorpayKeyId());
+  const [razorpaySaveMsg, setRazorpaySaveMsg] = useState('');
+  const [razorpayTestStatus, setRazorpayTestStatus] = useState<string>('');
 
   // Change PIN states
   const [newPin, setNewPin] = useState('');
@@ -258,6 +270,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setTestStatus({ running: true });
     const res = await verifyFast2SmsKey(fast2smsKey.trim(), cleanPhone);
     setTestStatus({ running: false, ok: res.ok, message: res.info });
+  };
+
+  const handleSaveRazorpayKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!razorpayKey.trim()) return;
+    setRazorpayKeyId(razorpayKey.trim());
+    setRazorpaySaveMsg('Razorpay Key ID saved and active across customer checkout flows!');
+    setTimeout(() => setRazorpaySaveMsg(''), 4000);
+  };
+
+  const handleResetRazorpayKey = () => {
+    setRazorpayKeyId(DEFAULT_RAZORPAY_KEY);
+    setRazorpayKey(DEFAULT_RAZORPAY_KEY);
+    setRazorpaySaveMsg('Reset to official Razorpay Standard Checkout test key.');
+    setTimeout(() => setRazorpaySaveMsg(''), 4000);
+  };
+
+  const handleTestRazorpay = () => {
+    setRazorpayTestStatus('Launching Razorpay Standard Checkout modal...');
+    launchRazorpayStandardCheckout({
+      amountInRupees: 1, // Demo 1 INR
+      bookingId: 'SIC-TEST-' + Math.floor(1000 + Math.random() * 9000),
+      customerName: 'Admin Test Traveler',
+      customerPhone: testPhone || '7710080992',
+      customerEmail: 'admin@safarindiacabs.in',
+      cabName: 'Sedan AC (Test Ride)',
+      pickupCity: 'Delhi NCR',
+      dropCity: 'Agra',
+      pickupDate: 'Tomorrow at 08:00 AM',
+      paymentMode: 'advance_20',
+      onSuccess: (paymentId) => {
+        setRazorpayTestStatus(`Razorpay Test Success! Payment ID: ${paymentId}`);
+      },
+      onDismiss: () => {
+        setRazorpayTestStatus('Razorpay Checkout modal was dismissed by user.');
+      },
+      onError: (err) => {
+        setRazorpayTestStatus('Razorpay Notice: ' + (err?.description || JSON.stringify(err)));
+      }
+    });
   };
 
   const handleSaveOlaMaps = (e: React.FormEvent) => {
@@ -620,6 +672,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {activeTab === 'gateways' && (
           <div className="space-y-6">
             
+            {/* Razorpay Standard Checkout & Dynamic UPI Panel */}
+            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold">
+                    <CreditCard className="w-5 h-5 text-slate-950" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Razorpay Standard Checkout & Dynamic UPI QR</h4>
+                    <p className="text-xs text-slate-400">Accept 20% advance or 100% full fares via Dynamic UPI QR (Paytm, PhonePe, Google Pay), Cards & NetBanking</p>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
+                  Active & Enabled
+                </span>
+              </div>
+
+              {razorpaySaveMsg && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
+                  {razorpaySaveMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveRazorpayKey} className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Razorpay Key ID (rzp_live_... or rzp_test_...)
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={razorpayKey}
+                      onChange={(e) => setRazorpayKey(e.target.value)}
+                      placeholder="Paste Razorpay Key ID"
+                      className="flex-1 min-w-[260px] bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
+                    >
+                      Save Key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetRazorpayKey}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition"
+                    >
+                      Reset Test Key
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleTestRazorpay}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-400/30 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Test Checkout Modal</span>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Default Test Key: <span className="font-mono text-emerald-400 text-[10px] bg-slate-900 px-1.5 py-0.5 rounded break-all">{DEFAULT_RAZORPAY_KEY}</span>
+                  </p>
+                </div>
+              </form>
+
+              {razorpayTestStatus && (
+                <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-amber-300 font-mono">
+                  {razorpayTestStatus}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">1. Dynamic UPI / QR Code</span>
+                  <span className="text-white font-bold">Google Pay, PhonePe, Paytm, BHIM</span>
+                  <div className="text-[10px] text-slate-400">Scan & pay 20% advance or full fare</div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">2. Status & Confirmation</span>
+                  <span className="text-emerald-400 font-bold">Auto "Confirmed" on Success</span>
+                  <div className="text-[10px] text-slate-400">Generates instant digital invoice voucher</div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Fast2SMS Confirmation</span>
+                  <span className="text-emerald-400 font-bold">Instant SMS Triggered</span>
+                  <div className="text-[10px] text-slate-400">Sends SMS to customer 10-digit mobile</div>
+                </div>
+              </div>
+            </div>
+
             {/* Fast2SMS Panel */}
             <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">

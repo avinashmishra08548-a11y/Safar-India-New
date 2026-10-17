@@ -1,4 +1,6 @@
 import { CabVehicle } from '../types';
+import heroCabsImg from '../assets/images/hero_cabs_intercity_1792165620723.jpg';
+import fleetShowcaseImg from '../assets/images/cabs_fleet_showcase_1792165620669.jpg';
 
 export const CABS_FLEET: CabVehicle[] = [
   {
@@ -11,7 +13,7 @@ export const CABS_FLEET: CabVehicle[] = [
     capacityLuggage: 2,
     features: ['Chilled Air Conditioning', 'Clean Sanitized Seats', 'Music System', 'GPS Tracking'],
     popular: false,
-    image: '/src/assets/images/hero_cabs_intercity_1792165620723.jpg',
+    image: heroCabsImg,
     description: 'Best for solo travelers, couples, or small families looking for comfortable budget travel.'
   },
   {
@@ -24,7 +26,7 @@ export const CABS_FLEET: CabVehicle[] = [
     capacityLuggage: 3,
     features: ['Generous Boot Space (3 Bags)', 'Superior Highway Stability', 'Smooth Rear Suspension', 'Rear AC Vents'],
     popular: true,
-    image: '/src/assets/images/cabs_fleet_showcase_1792165620669.jpg',
+    image: fleetShowcaseImg,
     description: 'India\'s #1 choice for intercity travel. Highly comfortable for 4 passengers with dedicated boot luggage.'
   },
   {
@@ -37,7 +39,7 @@ export const CABS_FLEET: CabVehicle[] = [
     capacityLuggage: 4,
     features: ['Plush Leather Seats', 'Extra Legroom', 'Silent Highway Cabin', 'Chauffeur in Uniform'],
     popular: false,
-    image: '/src/assets/images/hero_cabs_intercity_1792165620723.jpg',
+    image: heroCabsImg,
     description: 'Premium business class road travel. Ample legroom, top-tier comfort for meetings or luxury trips.'
   },
   {
@@ -50,7 +52,7 @@ export const CABS_FLEET: CabVehicle[] = [
     capacityLuggage: 4,
     features: ['6-7 Passenger Seating', 'Roof Luggage Carrier', 'Dual AC Cooling', 'USB Fast Charging'],
     popular: false,
-    image: '/src/assets/images/cabs_fleet_showcase_1792165620669.jpg',
+    image: fleetShowcaseImg,
     description: 'Perfect for joint families, groups, or travelers carrying multiple suitcases.'
   },
   {
@@ -63,7 +65,7 @@ export const CABS_FLEET: CabVehicle[] = [
     capacityLuggage: 5,
     features: ['Captain Recliner Seats', 'Unmatched Highway Safety', 'Dual Zone Climate AC', 'Senior Citizen Friendly'],
     popular: true,
-    image: '/src/assets/images/cabs_fleet_showcase_1792165620669.jpg',
+    image: fleetShowcaseImg,
     description: 'Gold standard for long distance outstation travel. Supreme comfort on hills and expressways.'
   },
   {
@@ -76,7 +78,7 @@ export const CABS_FLEET: CabVehicle[] = [
     capacityLuggage: 10,
     features: ['Individual Pushback Seats', 'Spacious Center Aisle', 'Surround Sound Audio', 'Dedicated Rear Boot'],
     popular: false,
-    image: '/src/assets/images/cabs_fleet_showcase_1792165620669.jpg',
+    image: fleetShowcaseImg,
     description: 'Spacious transport for wedding parties, pilgrimages, college trips, or corporate offsites.'
   }
 ];
