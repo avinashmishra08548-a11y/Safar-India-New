@@ -2,14 +2,10 @@ import React from 'react';
 import { 
   Car, 
   Phone, 
-  Mail, 
   MapPin, 
   ShieldCheck, 
   MessageSquare, 
-  ExternalLink,
-  ChevronRight,
-  Shield,
-  Heart
+  ChevronRight
 } from 'lucide-react';
 
 interface FooterProps {
@@ -41,7 +37,7 @@ export const Footer: React.FC<FooterProps> = ({
   ];
 
   return (
-    <footer id="footer-contact-section" className="bg-slate-950 border-t border-slate-800/80 pt-14 pb-12 text-xs text-slate-400">
+    <footer id="footer-contact-section" className="bg-slate-100/80 border-t border-slate-200 pt-14 pb-12 text-xs text-slate-600">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         
         {/* Top Grid: Brand, Intercity Routes, Customer Guarantees & Contact */}
@@ -54,31 +50,31 @@ export const Footer: React.FC<FooterProps> = ({
                 <Car className="w-5 h-5 text-slate-950" />
               </div>
               <div>
-                <div className="font-black tracking-tight text-lg text-white font-sans flex items-center">
+                <div className="font-black tracking-tight text-lg text-slate-950 font-sans flex items-center">
                   <span>SAFAR</span>
-                  <span className="text-amber-400 mx-0.5 font-mono">.</span>
+                  <span className="text-amber-500 mx-0.5 font-mono">.</span>
                   <span>INDIA</span>
-                  <span className="text-amber-400 mx-0.5 font-mono">.</span>
-                  <span className="text-amber-400">CABS</span>
+                  <span className="text-amber-500 mx-0.5 font-mono">.</span>
+                  <span className="text-amber-500">CABS</span>
                 </div>
-                <div className="text-[10px] tracking-[0.25em] font-extrabold text-amber-400 uppercase -mt-0.5">
+                <div className="text-[10px] tracking-[0.25em] font-extrabold text-amber-600 uppercase -mt-0.5">
                   Travel Smart
                 </div>
               </div>
             </div>
 
-            <p className="text-slate-400 text-xs leading-relaxed max-w-sm">
+            <p className="text-slate-600 text-xs leading-relaxed max-w-sm">
               India's premier outstation taxi network. Providing verified chauffeurs, one-way rides with zero return fare, round trips, local hourly rentals, and airport transfers across 150+ Indian cities.
             </p>
 
-            <div className="flex items-center gap-2 text-slate-300 font-medium">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-2 text-slate-700 font-semibold">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>All India Tourist Permit (AITP) Verified Fleet</span>
             </div>
 
             {/* SOCIAL MEDIA LINKS INTEGRATION */}
             <div className="pt-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-2">
                 Connect With Us
               </span>
               <div className="flex items-center gap-2.5">
@@ -88,7 +84,7 @@ export const Footer: React.FC<FooterProps> = ({
                   href="https://wa.me/917710080992"
                   target="_blank"
                   rel="noreferrer"
-                  className="w-9 h-9 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 border border-emerald-500/30 flex items-center justify-center transition-all shadow-sm"
+                  className="w-9 h-9 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 flex items-center justify-center transition-all shadow-xs"
                   title="WhatsApp: +91 77100 80992"
                 >
                   <MessageSquare className="w-4 h-4 fill-current" />
@@ -99,7 +95,7 @@ export const Footer: React.FC<FooterProps> = ({
                   href="https://www.facebook.com/share/1CAp8b8muP/"
                   target="_blank"
                   rel="noreferrer"
-                  className="w-9 h-9 rounded-xl bg-blue-500/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 flex items-center justify-center transition-all shadow-sm"
+                  className="w-9 h-9 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 flex items-center justify-center transition-all shadow-xs"
                   title="Facebook: Safar India Cabs"
                 >
                   <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -112,7 +108,7 @@ export const Footer: React.FC<FooterProps> = ({
                   href="https://www.instagram.com/safarindiacabs01"
                   target="_blank"
                   rel="noreferrer"
-                  className="w-9 h-9 rounded-xl bg-pink-500/10 hover:bg-gradient-to-tr hover:from-amber-500 hover:to-pink-500 text-pink-400 hover:text-white border border-pink-500/30 flex items-center justify-center transition-all shadow-sm"
+                  className="w-9 h-9 rounded-xl bg-pink-50 hover:bg-gradient-to-tr hover:from-amber-500 hover:to-pink-500 text-pink-700 hover:text-white border border-pink-200 flex items-center justify-center transition-all shadow-xs"
                   title="Instagram: @safarindiacabs01"
                 >
                   <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -126,9 +122,9 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* Column 2: Popular Intercity Routes (4 cols) */}
           <div className="lg:col-span-5 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center justify-between">
               <span>Popular Intercity Routes</span>
-              <span className="text-[10px] text-amber-400 lowercase font-mono">150+ routes active</span>
+              <span className="text-[10px] text-amber-700 lowercase font-mono font-bold">150+ routes active</span>
             </h4>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
               {popularRoutes.map((r, idx) => (
@@ -139,9 +135,9 @@ export const Footer: React.FC<FooterProps> = ({
                     if (onSelectRoute) onSelectRoute(r.from, r.to);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="text-left text-slate-400 hover:text-amber-400 transition flex items-center gap-1 group truncate"
+                  className="text-left text-slate-600 hover:text-amber-700 transition flex items-center gap-1 group truncate font-medium"
                 >
-                  <ChevronRight className="w-3 h-3 text-slate-600 group-hover:text-amber-400 shrink-0" />
+                  <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-amber-600 shrink-0" />
                   <span className="truncate">{r.from} ➔ {r.to}</span>
                 </button>
               ))}
@@ -150,20 +146,20 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* Column 3: 24/7 Helpline & Direct Dispatch (3 cols) */}
           <div className="lg:col-span-3 space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
               24/7 Booking Helpline
             </h4>
-            <div className="space-y-2.5 text-slate-300">
+            <div className="space-y-2.5 text-slate-700">
               <a
                 href="tel:+917710080992"
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-400 transition text-white"
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 hover:border-amber-400 transition text-slate-900 shadow-xs"
               >
-                <div className="w-8 h-8 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0">
-                  <Phone className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <Phone className="w-4 h-4 text-amber-600" />
                 </div>
                 <div>
-                  <div className="text-[10px] text-slate-400 font-bold uppercase">Toll-Free Helpline</div>
-                  <div className="font-bold text-xs sm:text-sm text-white">+91 77100 80992</div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">Toll-Free Helpline</div>
+                  <div className="font-bold text-xs sm:text-sm text-slate-900">+91 77100 80992</div>
                 </div>
               </a>
 
@@ -171,14 +167,14 @@ export const Footer: React.FC<FooterProps> = ({
                 href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20assistance%20with%20cab%20booking"
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-400 transition text-emerald-400"
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 transition text-emerald-700 shadow-xs"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-                  <MessageSquare className="w-4 h-4 fill-current" />
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <MessageSquare className="w-4 h-4 fill-current text-emerald-600" />
                 </div>
                 <div>
-                  <div className="text-[10px] text-slate-400 font-bold uppercase">WhatsApp Concierge</div>
-                  <div className="font-bold text-xs sm:text-sm text-emerald-400">Chat & Get Quote</div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">WhatsApp Concierge</div>
+                  <div className="font-bold text-xs sm:text-sm text-emerald-700">Chat & Get Quote</div>
                 </div>
               </a>
 
@@ -186,7 +182,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={onOpenDriverPartner}
-                  className="w-full py-2.5 px-3 bg-slate-900 hover:bg-slate-800 border border-amber-400/30 rounded-xl text-amber-400 font-bold text-xs text-center transition block"
+                  className="w-full py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl text-slate-800 hover:text-amber-700 font-bold text-xs text-center transition block shadow-xs"
                 >
                   Join as Driver / Vendor Partner
                 </button>
@@ -197,23 +193,23 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* Bottom Strip: Copyright & Legal */}
-        <div className="border-t border-slate-900 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+        <div className="border-t border-slate-200 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
           <div>
             © {new Date().getFullYear()} <strong>Safar India Cabs</strong> (safarindiacabs.com). All rights reserved. Travel Smart.
           </div>
 
-          <div className="flex items-center gap-5">
-            <span className="hover:text-slate-400 cursor-pointer">Privacy Policy</span>
+          <div className="flex items-center gap-5 font-medium">
+            <span className="hover:text-slate-800 cursor-pointer">Privacy Policy</span>
             <span>·</span>
-            <span className="hover:text-slate-400 cursor-pointer">Terms of Service</span>
+            <span className="hover:text-slate-800 cursor-pointer">Terms of Service</span>
             <span>·</span>
-            <span className="hover:text-slate-400 cursor-pointer">Fare Rules</span>
+            <span className="hover:text-slate-800 cursor-pointer">Fare Rules</span>
             {onOpenAdmin && (
               <>
                 <span>·</span>
                 <button
                   onClick={onOpenAdmin}
-                  className="text-slate-500 hover:text-amber-400 transition font-mono"
+                  className="text-slate-500 hover:text-amber-700 transition font-mono font-semibold"
                 >
                   Admin Portal
                 </button>

@@ -53,6 +53,7 @@ export default function App() {
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isDriverPartnerOpen, setIsDriverPartnerOpen] = useState(false);
+  const [isCabsModalOpen, setIsCabsModalOpen] = useState(false);
   const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
 
   // Booking Engine form states
@@ -192,8 +193,7 @@ export default function App() {
     setPickupCity(route.from);
     setDropCity(route.to);
     setActiveTab('booking');
-    // Scroll smoothly to available cabs
-    window.scrollTo({ top: 350, behavior: 'smooth' });
+    setIsCabsModalOpen(true);
   };
 
   const handleLoginSuccess = (user: CustomerUser) => {
@@ -261,15 +261,12 @@ export default function App() {
     }));
   };
 
-  const scrollToAvailableCabs = () => {
-    const el = document.getElementById('available-cabs-section');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+  const handleOpenAvailableCabs = () => {
+    setIsCabsModalOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
       
       {/* Header */}
       <Header
@@ -306,24 +303,21 @@ export default function App() {
           <div className="space-y-10">
             
             {/* HERO SECTION */}
-            <div className="relative overflow-hidden bg-slate-950 pt-6 pb-12 sm:pb-16 border-b border-slate-900">
-              {/* Subtle ambient lighting */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-amber-500/5 blur-3xl pointer-events-none rounded-full" />
-
+            <div className="relative overflow-hidden bg-gradient-to-b from-amber-500/5 via-slate-50 to-[#F8FAFC] pt-6 pb-12 sm:pb-16 border-b border-slate-200">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 
                 {/* Hero Header Typography */}
                 <div className="text-center max-w-3xl mx-auto mb-8 space-y-3">
-                  <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-3.5 py-1.5 rounded-full">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-full">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                     <span>India's Most Trusted Outstation Taxi Service</span>
                   </div>
 
-                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
-                    Intercity Outstation & Local Cabs with <span className="text-amber-400">Guaranteed Low Fares</span>
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-950 tracking-tight leading-tight">
+                    Intercity Outstation & Local Cabs with <span className="text-amber-600">Guaranteed Low Fares</span>
                   </h1>
 
-                  <p className="text-xs sm:text-sm text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
                     Zero return fare on one-way trips · Verified AC commercial cabs · 20% advance booking deposit · Free cancellation up to 6 hours.
                   </p>
                 </div>
@@ -367,7 +361,7 @@ export default function App() {
                       setCustomerMobile={setCustomerMobile}
                       currentUser={currentUser}
                       onLoginSuccess={handleLoginSuccess}
-                      onExploreCabs={scrollToAvailableCabs}
+                      onExploreCabs={handleOpenAvailableCabs}
                     />
                   </div>
 
@@ -375,7 +369,7 @@ export default function App() {
                   <div className="lg:col-span-5 space-y-4">
                     
                     {/* Visual Fleet Card */}
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl group">
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm group bg-white">
                       <img
                         src="/src/assets/images/cabs_fleet_showcase_1792165620669.jpg"
                         alt="Safar India Cabs Fleet and Chauffeurs"
@@ -396,34 +390,34 @@ export default function App() {
                     </div>
 
                     {/* Quick Trust Pillars */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
                       <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
-                          <CheckCircle2 className="w-4 h-4" />
+                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-white">No Return Fare for One-Way</div>
-                          <div className="text-[11px] text-slate-400">Pay only for kilometers traveled from pickup to drop.</div>
+                          <div className="text-xs font-bold text-slate-900">No Return Fare for One-Way</div>
+                          <div className="text-[11px] text-slate-500">Pay only for kilometers traveled from pickup to drop.</div>
                         </div>
                       </div>
 
                       <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-400/20">
-                          <ShieldCheck className="w-4 h-4" />
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
+                          <ShieldCheck className="w-4 h-4 text-amber-600" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-white">Pay 20% Now, Rest to Chauffeur</div>
-                          <div className="text-[11px] text-slate-400">Secure booking confirmation via Razorpay or Instant UPI.</div>
+                          <div className="text-xs font-bold text-slate-900">Pay 20% Now, Rest to Chauffeur</div>
+                          <div className="text-[11px] text-slate-500">Secure booking confirmation via Razorpay or Instant UPI.</div>
                         </div>
                       </div>
 
                       <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
-                          <Clock className="w-4 h-4" />
+                        <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200">
+                          <Clock className="w-4 h-4 text-sky-600" />
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-white">Chauffeur SMS 2 Hours Prior</div>
-                          <div className="text-[11px] text-slate-400">Complete vehicle plate & driver contact details delivered to WhatsApp.</div>
+                          <div className="text-xs font-bold text-slate-900">Chauffeur SMS 2 Hours Prior</div>
+                          <div className="text-[11px] text-slate-500">Complete vehicle plate & driver contact details delivered to WhatsApp.</div>
                         </div>
                       </div>
                     </div>
@@ -435,21 +429,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* CAB FLEET SELECTION SECTION */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <CabSelector
-                tripType={tripType}
-                pickupCity={pickupCity}
-                dropCity={dropCity}
-                distanceKm={distanceKm}
-                pickupDate={pickupDate}
-                returnDate={returnDate}
-                localPackageId={localPackageId}
-                includeTolls={includeTolls}
-                travelDuration={travelDuration}
-                onSelectCab={handleSelectCab}
-              />
-            </div>
 
             {/* POPULAR INTERCITY ROUTES SECTION */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -494,12 +473,12 @@ export default function App() {
       </a>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 z-40 px-3 py-2">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-3 py-2 shadow-lg">
         <div className="grid grid-cols-4 text-center">
           <button
             onClick={() => setActiveTab('booking')}
             className={`flex flex-col items-center py-1 text-[10px] font-bold ${
-              activeTab === 'booking' ? 'text-amber-400' : 'text-slate-400'
+              activeTab === 'booking' ? 'text-amber-600' : 'text-slate-600'
             }`}
           >
             <Car className="w-4 h-4 mb-0.5" />
@@ -513,7 +492,7 @@ export default function App() {
               }, 100);
             }}
             className={`flex flex-col items-center py-1 text-[10px] font-bold ${
-              activeTab === 'routes' ? 'text-amber-400' : 'text-slate-400'
+              activeTab === 'routes' ? 'text-amber-600' : 'text-slate-600'
             }`}
           >
             <MapPin className="w-4 h-4 mb-0.5" />
@@ -522,7 +501,7 @@ export default function App() {
           <button
             onClick={() => setActiveTab('rides')}
             className={`flex flex-col items-center py-1 text-[10px] font-bold ${
-              activeTab === 'rides' ? 'text-amber-400' : 'text-slate-400'
+              activeTab === 'rides' ? 'text-amber-600' : 'text-slate-600'
             }`}
           >
             <Clock className="w-4 h-4 mb-0.5" />
@@ -530,7 +509,7 @@ export default function App() {
           </button>
           <button
             onClick={() => setIsAdminPinModalOpen(true)}
-            className="flex flex-col items-center py-1 text-[10px] font-bold text-amber-400"
+            className="flex flex-col items-center py-1 text-[10px] font-bold text-amber-700"
           >
             <Shield className="w-4 h-4 mb-0.5" />
             <span>Owner</span>
@@ -556,6 +535,43 @@ export default function App() {
         isOpen={isDriverPartnerOpen}
         onClose={() => setIsDriverPartnerOpen(false)}
       />
+
+      {/* Available Cabs Selection Modal */}
+      {isCabsModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-[#F8FAFC] border border-slate-200 rounded-3xl max-w-4xl w-full p-4 sm:p-6 space-y-4 shadow-2xl relative my-6 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 sticky top-0 bg-[#F8FAFC] z-10 pt-1">
+              <div>
+                <h3 className="text-lg font-black text-slate-950">Available Cabs & Fares</h3>
+                <p className="text-xs text-slate-500">Select your preferred vehicle for {pickupCity} to {dropCity}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCabsModalOpen(false)}
+                className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <CabSelector
+              tripType={tripType}
+              pickupCity={pickupCity}
+              dropCity={dropCity}
+              distanceKm={distanceKm}
+              pickupDate={pickupDate}
+              returnDate={returnDate}
+              localPackageId={localPackageId}
+              includeTolls={includeTolls}
+              travelDuration={travelDuration}
+              onSelectCab={(cab, fare) => {
+                setIsCabsModalOpen(false);
+                handleSelectCab(cab, fare);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Booking Drawer / Traveler Details Modal */}
       {selectedCabForCheckout && (
@@ -597,27 +613,27 @@ export default function App() {
 
       {/* Owner Security PIN Modal */}
       {isAdminPinModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-60 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-xs w-full p-6 text-center space-y-4 shadow-2xl relative">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-60 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-xs w-full p-6 text-center space-y-4 shadow-2xl relative">
             <button
               onClick={() => {
                 setIsAdminPinModalOpen(false);
                 setAdminPinError('');
                 setAdminPinInput('');
               }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700"
             >
               ✕
             </button>
-            <div className="w-12 h-12 rounded-2xl bg-amber-400/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-400/20">
-              <ShieldCheck className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+              <ShieldCheck className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <h4 className="text-base font-extrabold text-white">Owner Access PIN</h4>
-              <p className="text-xs text-slate-400 mt-0.5">Enter secret security PIN to manage bookings</p>
+              <h4 className="text-base font-extrabold text-slate-900">Owner Access PIN</h4>
+              <p className="text-xs text-slate-500 mt-0.5">Enter secret security PIN to manage bookings</p>
             </div>
             {adminPinError && (
-              <div className="text-xs text-rose-400 bg-rose-500/10 py-1.5 px-2 rounded-lg border border-rose-500/20">
+              <div className="text-xs text-rose-700 bg-rose-50 py-1.5 px-2 rounded-lg border border-rose-200">
                 {adminPinError}
               </div>
             )}
@@ -629,11 +645,11 @@ export default function App() {
                 value={adminPinInput}
                 onChange={(e) => setAdminPinInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
-                className="w-32 text-center tracking-[0.5em] text-xl font-black bg-slate-950 border border-slate-800 rounded-2xl py-2.5 text-amber-400 focus:outline-none focus:border-amber-400 font-mono mx-auto block"
+                className="w-32 text-center tracking-[0.5em] text-xl font-black bg-slate-50 border border-slate-300 rounded-2xl py-2.5 text-slate-900 focus:outline-none focus:border-amber-500 font-mono mx-auto block"
               />
               <button
                 type="submit"
-                className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl transition shadow"
+                className="w-full py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition shadow-sm"
               >
                 Unlock Dashboard
               </button>

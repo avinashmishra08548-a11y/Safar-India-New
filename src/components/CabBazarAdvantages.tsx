@@ -4,8 +4,6 @@ import {
   Banknote, 
   Clock, 
   MapPin, 
-  Smile, 
-  CheckCircle,
   FileCheck2,
   Award
 } from 'lucide-react';
@@ -47,10 +45,10 @@ export const CabBazarAdvantages: React.FC = () => {
   return (
     <section className="space-y-6 py-6" id="why-safar-cabs">
       <div className="text-center max-w-2xl mx-auto space-y-2">
-        <h2 className="text-xl sm:text-2xl font-black text-white">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
           Why Travelers Choose Safar India Cabs
         </h2>
-        <p className="text-xs sm:text-sm text-slate-400">
+        <p className="text-xs sm:text-sm text-slate-500">
           The reliable, transparent alternative to expensive flight tickets and crowded trains for intercity travel across India.
         </p>
       </div>
@@ -61,15 +59,15 @@ export const CabBazarAdvantages: React.FC = () => {
           return (
             <div
               key={idx}
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition space-y-2.5"
+              className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-amber-400 transition-all shadow-sm hover:shadow-md space-y-2.5"
             >
-              <div className="w-10 h-10 rounded-xl bg-amber-400/10 text-amber-400 flex items-center justify-center border border-amber-400/20">
-                <Icon className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
+                <Icon className="w-5 h-5 text-amber-600" />
               </div>
-              <h3 className="text-sm font-bold text-white">
+              <h3 className="text-sm font-bold text-slate-900">
                 {item.title}
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 {item.desc}
               </p>
             </div>

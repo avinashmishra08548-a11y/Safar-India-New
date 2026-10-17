@@ -41,14 +41,14 @@ export const FaqSection: React.FC = () => {
   };
 
   return (
-    <section className="space-y-5 py-6 border-t border-slate-800" id="faq-section">
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-        <HelpCircle className="w-5 h-5 text-amber-400" />
+    <section className="space-y-5 py-6 border-t border-slate-200" id="faq-section">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <HelpCircle className="w-5 h-5 text-amber-500" />
         <div>
-          <h2 className="text-lg sm:text-xl font-extrabold text-white">
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
             Frequently Asked Questions & Fare Rules
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Transparent policies, booking procedures, and billing guidelines.
           </p>
         </div>
@@ -60,25 +60,25 @@ export const FaqSection: React.FC = () => {
           return (
             <div
               key={idx}
-              className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden transition"
+              className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm transition"
             >
               <button
                 type="button"
                 onClick={() => toggleIndex(idx)}
-                className="w-full text-left p-4 sm:p-5 flex items-center justify-between gap-4 hover:bg-slate-800/40 transition"
+                className="w-full text-left p-4 sm:p-5 flex items-center justify-between gap-4 hover:bg-slate-50 transition"
               >
-                <span className="text-xs sm:text-sm font-bold text-white">
+                <span className="text-xs sm:text-sm font-bold text-slate-900">
                   {faq.question}
                 </span>
                 <ChevronDown
-                  className={`w-4 h-4 text-amber-400 shrink-0 transition-transform duration-200 ${
+                  className={`w-4 h-4 text-amber-600 shrink-0 transition-transform duration-200 ${
                     isOpen ? 'rotate-180' : ''
                   }`}
                 />
               </button>
 
               {isOpen && (
-                <div className="px-4 pb-4 sm:px-5 sm:pb-5 text-xs text-slate-300 leading-relaxed border-t border-slate-800/60 pt-3">
+                <div className="px-4 pb-4 sm:px-5 sm:pb-5 text-xs text-slate-600 leading-relaxed border-t border-slate-100 pt-3">
                   {faq.answer}
                 </div>
               )}

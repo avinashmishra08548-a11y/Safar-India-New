@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, CheckCircle, Quote } from 'lucide-react';
+import { Star, CheckCircle } from 'lucide-react';
 
 interface Review {
   name: string;
@@ -43,21 +43,21 @@ const REVIEWS: Review[] = [
 
 export const CustomerReviews: React.FC = () => {
   return (
-    <section className="space-y-6 py-6 border-t border-slate-800" id="reviews-section">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+    <section className="space-y-6 py-6 border-t border-slate-200" id="reviews-section">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
         <div>
-          <h2 className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 flex items-center gap-2">
             <span>Verified Customer Reviews</span>
-            <span className="text-xs bg-amber-400/20 text-amber-400 px-2 py-0.5 rounded-full font-bold border border-amber-400/30">
+            <span className="text-xs bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full font-bold border border-amber-200">
               4.9 / 5.0 Rating
             </span>
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             Real feedback from outstation and airport travelers across India.
           </p>
         </div>
-        <div className="text-xs text-slate-400 flex items-center gap-1">
-          <CheckCircle className="w-4 h-4 text-emerald-400" />
+        <div className="text-xs text-slate-600 flex items-center gap-1 font-medium">
+          <CheckCircle className="w-4 h-4 text-emerald-600" />
           <span>100% Verified Journeys</span>
         </div>
       </div>
@@ -66,27 +66,27 @@ export const CustomerReviews: React.FC = () => {
         {REVIEWS.map((rev, idx) => (
           <div
             key={idx}
-            className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-3"
+            className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between space-y-3 shadow-sm hover:shadow-md transition-all"
           >
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex text-amber-400">
                   {[...Array(rev.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-amber-400" />
+                    <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium">{rev.date}</span>
+                <span className="text-[10px] text-slate-400 font-medium">{rev.date}</span>
               </div>
 
-              <p className="text-xs text-slate-300 leading-relaxed italic">
+              <p className="text-xs text-slate-600 leading-relaxed italic">
                 "{rev.review}"
               </p>
             </div>
 
-            <div className="pt-3 border-t border-slate-800/80">
-              <div className="text-xs font-bold text-white">{rev.name}</div>
-              <div className="text-[10px] text-slate-400">{rev.city} · {rev.route}</div>
-              <div className="text-[10px] text-amber-400 font-medium mt-0.5">{rev.car}</div>
+            <div className="pt-3 border-t border-slate-100">
+              <div className="text-xs font-bold text-slate-900">{rev.name}</div>
+              <div className="text-[10px] text-slate-500">{rev.city} · {rev.route}</div>
+              <div className="text-[10px] text-amber-700 font-bold mt-0.5">{rev.car}</div>
             </div>
           </div>
         ))}
