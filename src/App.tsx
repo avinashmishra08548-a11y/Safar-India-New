@@ -644,46 +644,66 @@ export default function App() {
 
                 </div>
 
-                {/* 3. Four-Column Trust Feature Strip Card (Directly Below Headline & Cab Banner) */}
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-3 sm:p-4 mb-5 sm:mb-7 shadow-sm grid grid-cols-4 divide-x divide-slate-200">
+                {/* 3. Four-Column Trust Feature Strip Card (Matching IMG-20261018-WA0011.jpg) */}
+                <div className="bg-white border border-[#FDE68A]/90 rounded-[28px] sm:rounded-[34px] px-2.5 py-3.5 sm:px-6 sm:py-5 mb-5 sm:mb-7 shadow-[0_8px_28px_rgba(245,158,11,0.09)] grid grid-cols-4 divide-x divide-slate-200/90 items-center">
                   
-                  {/* Feature 1 */}
-                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
-                      ₹
+                  {/* Feature 1: Zero return fare on one-way trips */}
+                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
+                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] font-black text-sm sm:text-xl flex items-center justify-center">
+                        ₹
+                      </div>
                     </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
-                      Zero return fare on one-way trips
-                    </div>
-                  </div>
-
-                  {/* Feature 2 */}
-                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
-                      <ShieldCheck className="w-4 h-4 text-slate-950 stroke-[2.2]" />
-                    </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
-                      Verified AC commercial cabs
+                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
+                      <div className="font-extrabold text-[#0F172A]">Zero</div>
+                      <div>return fare</div>
+                      <div>on one-way</div>
+                      <div>trips</div>
+                      <div className="h-[3px] w-4 sm:w-6 rounded-full bg-[#FACC15] mt-1.5" />
                     </div>
                   </div>
 
-                  {/* Feature 3 */}
-                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
-                      <Clock className="w-4 h-4 text-slate-950 stroke-[2.2]" />
+                  {/* Feature 2: Verified AC commercial cabs */}
+                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
+                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] flex items-center justify-center">
+                        <ShieldCheck className="w-4.5 h-4.5 sm:w-6 sm:h-6 text-[#0F172A] stroke-[2.2]" />
+                      </div>
                     </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
-                      20% advance booking deposit
+                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
+                      <div className="font-extrabold text-[#0F172A]">Verified AC</div>
+                      <div>commercial</div>
+                      <div>cabs</div>
+                      <div className="h-[3px] w-4 sm:w-6 rounded-full bg-[#FACC15] mt-1.5" />
                     </div>
                   </div>
 
-                  {/* Feature 4 */}
-                  <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs font-black text-xs">
-                      ✕
+                  {/* Feature 3: 20% advance booking deposit */}
+                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
+                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] flex items-center justify-center">
+                        <Clock className="w-4.5 h-4.5 sm:w-6 sm:h-6 text-[#0F172A] stroke-[2.2]" />
+                      </div>
                     </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
-                      Free cancellation up to 6 hours.
+                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
+                      <div className="font-extrabold text-[#0F172A]">20% advance</div>
+                      <div>booking</div>
+                      <div>deposit</div>
+                      <div className="h-[3px] w-4 sm:w-6 rounded-full bg-[#FACC15] mt-1.5" />
+                    </div>
+                  </div>
+
+                  {/* Feature 4: Free cancellation up to 6 hours. */}
+                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
+                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
+                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] font-black text-xs sm:text-lg flex items-center justify-center">
+                        ✕
+                      </div>
+                    </div>
+                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
+                      <div className="font-extrabold text-[#0F172A]">Free cancellation</div>
+                      <div>up to 6 hours.</div>
+                      <div className="h-[3px] w-5 sm:w-7 rounded-full bg-[#FACC15] mt-1.5" />
                     </div>
                   </div>
 
