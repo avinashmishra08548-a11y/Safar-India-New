@@ -6,6 +6,16 @@
   }
 }
 
+/* Mobile Safe Area & Top Header Fix for AppsGeyser App */
+html, body {
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+
+/* Header Spacing Fix */
+header {
+  padding-top: env(safe-area-inset-top, 16px);
+}
+
 /* Print styles for booking invoice / tax voucher */
 @media print {
   body * {
