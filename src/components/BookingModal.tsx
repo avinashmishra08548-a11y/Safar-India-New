@@ -64,9 +64,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [customerName, setCustomerName] = useState(currentUser?.name || '');
   const [customerPhone, setCustomerPhone] = useState(currentUser?.phone || '');
   const [customerEmail, setCustomerEmail] = useState(currentUser?.email || '');
-  const [pickupAddress, setPickupAddress] = useState('');
+  const [pickupAddress, setPickupAddress] = useState(pickupCity || '');
   const [landmark, setLandmark] = useState('');
-  const [dropAddress, setDropAddress] = useState('');
+  const [dropAddress, setDropAddress] = useState(dropCity || '');
   const [specialNotes, setSpecialNotes] = useState('');
 
   // GST optional

@@ -21,7 +21,7 @@ import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
 import { CABS_FLEET } from './data/cabsFleet';
 import { computeTripFare, FareCalculationResult } from './utils/fareCalculator';
-import { calculateExactRoadDistance } from './utils/olaMapsService';
+import { calculateExactRoadDistance, Coordinates } from './utils/olaMapsService';
 import { Header } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
@@ -81,6 +81,8 @@ export default function App() {
   const [distanceKm, setDistanceKm] = useState(230);
   const [travelDuration, setTravelDuration] = useState('3 hrs 45 mins');
   const [isExactOlaDistance, setIsExactOlaDistance] = useState(false);
+  const [pickupCoords, setPickupCoords] = useState<Coordinates | null>({ lat: 28.6139, lng: 77.2090 });
+  const [dropCoords, setDropCoords] = useState<Coordinates | null>({ lat: 27.1767, lng: 78.0081 });
 
   useEffect(() => {
     let isCancelled = false;
@@ -91,11 +93,13 @@ export default function App() {
         setTravelDuration(localPackageId === '4h_40k' ? '4 hrs' : localPackageId === '12h_120k' ? '12 hrs' : '8 hrs');
         setIsExactOlaDistance(false);
       } else {
-        const res = await calculateExactRoadDistance(pickupCity, dropCity);
+        const res = await calculateExactRoadDistance(pickupCity, dropCity, pickupCoords, dropCoords);
         if (!isCancelled) {
           setDistanceKm(res.distanceKm);
           setTravelDuration(res.durationText);
           setIsExactOlaDistance(res.source === 'ola_maps_exact');
+          if (res.originCoords && !pickupCoords) setPickupCoords(res.originCoords);
+          if (res.destCoords && !dropCoords) setDropCoords(res.destCoords);
         }
       }
     }
@@ -103,7 +107,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [pickupCity, dropCity, tripType, localPackageId]);
+  }, [pickupCity, dropCity, pickupCoords, dropCoords, tripType, localPackageId]);
 
   // Selected cab for checkout
   const [selectedCabForCheckout, setSelectedCabForCheckout] = useState<{
@@ -331,6 +335,10 @@ export default function App() {
                       setPickupCity={setPickupCity}
                       dropCity={dropCity}
                       setDropCity={setDropCity}
+                      pickupCoords={pickupCoords}
+                      setPickupCoords={setPickupCoords}
+                      dropCoords={dropCoords}
+                      setDropCoords={setDropCoords}
                       pickupDate={pickupDate}
                       setPickupDate={setPickupDate}
                       pickupTime={pickupTime}
