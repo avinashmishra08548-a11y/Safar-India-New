@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Car, Phone, MessageSquare, Clock, Shield, Menu, X, User } from 'lucide-react';
 import { CustomerUser } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
+import { checkIsStandaloneOrApp } from '../hooks/usePWAInstall';
 
 interface HeaderProps {
   currentUser: CustomerUser | null;
@@ -23,6 +24,30 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDriverPartner
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isStandaloneApp, setIsStandaloneApp] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      checkIsStandaloneOrApp() ||
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true
+    );
+  });
+
+  useEffect(() => {
+    const updateStandalone = () => {
+      setIsStandaloneApp(
+        checkIsStandaloneOrApp() ||
+          window.matchMedia('(display-mode: standalone)').matches ||
+          (window.navigator as any).standalone === true
+      );
+    };
+    updateStandalone();
+    const mq = window.matchMedia('(display-mode: standalone)');
+    if (mq.addEventListener) {
+      mq.addEventListener('change', updateStandalone);
+      return () => mq.removeEventListener('change', updateStandalone);
+    }
+  }, []);
 
   const handleNavClick = (tab: 'booking' | 'rides' | 'routes' | 'faq') => {
     onNavigateTab(tab);
@@ -123,8 +148,8 @@ export const Header: React.FC<HeaderProps> = ({
           {/* RIGHT ACTIONS: Install App Pill + Login Pill + White Circle Hamburger Menu */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             
-            {/* 1. Yellow Pill: Install App */}
-            <PWAInstallButton />
+            {/* 1. Yellow Pill: Install App (Hidden in Standalone PWA / Android WebView) */}
+            {!isStandaloneApp && <PWAInstallButton />}
 
             {/* 2. Yellow Pill: Login or Active Customer */}
             {currentUser ? (

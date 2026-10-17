@@ -40,6 +40,8 @@ import { DriverPartnerSection } from './components/DriverPartnerSection';
 import { DriverPartnerModal } from './components/DriverPartnerModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
+import cabsFleetShowcaseImg from './assets/images/cabs_fleet_showcase_1792165620669.jpg';
+import heroCabsIntercityImg from './assets/images/hero_cabs_intercity_1792165620723.jpg';
 
 export default function App() {
   // Navigation tabs: 'booking' | 'rides' | 'routes' | 'faq'
@@ -666,22 +668,28 @@ export default function App() {
                   {/* Right Column: Fleet Visual & Trust Guarantees */}
                   <div className="lg:col-span-5 space-y-4">
                     
-                    {/* Visual Fleet Card */}
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-sm group bg-white">
+                    {/* Visual Fleet Card: Premium Chauffeur Fleet */}
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-md group bg-slate-950">
                       <img
-                        src="/src/assets/images/cabs_fleet_showcase_1792165620669.jpg"
+                        src={heroCabsIntercityImg || '/assets/images/hero_cabs_intercity_1792165620723.jpg'}
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          if (!target.dataset.fallbackApplied) {
+                            target.dataset.fallbackApplied = 'true';
+                            target.src = cabsFleetShowcaseImg || '/assets/images/cabs_fleet_showcase_1792165620669.jpg';
+                          }
+                        }}
                         alt="Safar India Cabs Fleet and Chauffeurs"
-                        className="w-full h-56 sm:h-64 object-cover group-hover:scale-102 transition duration-500"
-                        referrerPolicy="no-referrer"
+                        className="w-full h-auto aspect-[16/9] object-cover group-hover:scale-102 transition duration-500 block"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent flex flex-col justify-end p-4">
-                        <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/55 to-slate-950/10 flex flex-col justify-end p-4 sm:p-5">
+                        <span className="text-xs font-extrabold text-[#FFCC00] uppercase tracking-wider drop-shadow-md">
                           Premium Chauffeur Fleet
                         </span>
-                        <h4 className="text-sm font-extrabold text-white">
+                        <h4 className="text-sm sm:text-base font-black text-white drop-shadow-md mt-0.5">
                           Dzire, Ertiga, Innova Crysta &amp; Urbania
                         </h4>
-                        <p className="text-[11px] text-slate-300">
+                        <p className="text-[11px] sm:text-xs text-slate-100 font-medium drop-shadow-md mt-0.5">
                           Professional uniformed drivers with 5+ years highway experience.
                         </p>
                       </div>
@@ -763,15 +771,15 @@ export default function App() {
         href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20want%20to%20book%20a%20cab%20urgently"
         target="_blank"
         rel="noreferrer"
-        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 bg-[#10B981] hover:bg-emerald-500 text-white font-black w-13 h-13 sm:w-auto sm:h-auto sm:px-4 sm:py-3.5 rounded-full shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all group"
+        className="fixed bottom-[104px] sm:bottom-6 right-4 sm:right-6 z-40 bg-[#10B981] hover:bg-emerald-500 text-white font-black w-13 h-13 sm:w-auto sm:h-auto sm:px-4 sm:py-3.5 rounded-full shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all group"
         title="Chat on WhatsApp (+91 7710080992)"
       >
         <MessageSquare className="w-6 h-6 text-white stroke-[2.2]" />
         <span className="hidden sm:inline text-xs tracking-tight">Quick WhatsApp Booking</span>
       </a>
 
-      {/* Mobile Bottom Navigation Bar: Fixed completely at the bottom of the viewport (bottom: 0) */}
-      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      {/* Mobile Bottom Navigation Bar: Positioned at bottom: 40px comfortably above the 50px AppsGeyser Ad Banner */}
+      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[40px] left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         <div className="grid grid-cols-5 text-center items-center gap-1">
           <button
             type="button"

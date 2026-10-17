@@ -28,22 +28,22 @@ header.safar-dark-header {
   margin-top: 0 !important;
 }
 
-/* 2. Bottom Spacing so page & footer content isn't covered by the fixed bottom bar */
+/* 2. Bottom Spacing so page & footer content isn't covered by the fixed bottom bar + ad banner */
 main, #app-content, body {
-  padding-bottom: 85px !important;
+  padding-bottom: 115px !important;
 }
 
 footer {
-  padding-bottom: 95px !important;
+  padding-bottom: 120px !important;
 }
 
-/* 3. Bottom Navigation Bar (Book Cab, Routes, Rides, Login, Owner) Fixed Completely at Bottom (bottom: 0) */
+/* 3. Bottom Navigation Bar (Book Cab, Routes, Rides, Login, Owner) Positioned at bottom: 40px !important */
 nav.fixed-bottom, 
 .bottom-nav, 
 footer nav,
 div[class*="bottom-nav"] {
   position: fixed !important;
-  bottom: 0 !important;
+  bottom: 40px !important;
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
@@ -51,8 +51,8 @@ div[class*="bottom-nav"] {
   background: #ffffff !important;
   border-top: 1px solid #e5e7eb !important;
   padding-top: 6px !important;
-  padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06) !important;
+  padding-bottom: 6px !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
 }
 
 /* Print styles for booking invoice / tax voucher */

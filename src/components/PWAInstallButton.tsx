@@ -1,10 +1,22 @@
 import React, { useState } from 'react';
-import { Smartphone, Download, Share, X, CheckCircle2 } from 'lucide-react';
-import { usePWAInstall } from '../hooks/usePWAInstall';
+import { Smartphone, Download, Share, X } from 'lucide-react';
+import { usePWAInstall, checkIsStandaloneOrApp } from '../hooks/usePWAInstall';
 
 export const PWAInstallButton: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showInstallModal, setShowInstallModal] = useState(false);
+
+  // Completely hide "Install App" button when opened in Standalone PWA or Android App / WebView
+  const isStandalone =
+    isInstalled ||
+    checkIsStandaloneOrApp() ||
+    (typeof window !== 'undefined' &&
+      (window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true));
+
+  if (isStandalone) {
+    return null;
+  }
 
   const handleInstallClick = async () => {
     if (isInstallable && install) {
@@ -51,17 +63,7 @@ export const PWAInstallButton: React.FC<{ className?: string }> = ({ className =
               </button>
             </div>
 
-            {isInstalled ? (
-              <div className="mt-4 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5 text-xs text-emerald-900">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold">App is Ready & Active!</div>
-                  <div className="text-[11px] text-emerald-700 mt-0.5">
-                    You are already using the SafarIndiaCabs mobile app experience.
-                  </div>
-                </div>
-              </div>
-            ) : isIOS ? (
+            {isIOS ? (
               <div className="mt-4 space-y-2.5 text-xs text-slate-700">
                 <div className="flex items-start gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                   <span className="w-5 h-5 rounded-full bg-[#FFCC00] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>

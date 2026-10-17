@@ -5,17 +5,38 @@ export interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
+export function checkIsStandaloneOrApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  const isStandaloneMedia =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches;
+  const isNavigatorStandalone =
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+  const isAndroidTwa =
+    typeof document !== 'undefined' && document.referrer.includes('android-app://');
+  const isAndroidWebView =
+    /; wv\)|AppsGeyser|WebView/i.test(window.navigator.userAgent);
+
+  return isStandaloneMedia || isNavigatorStandalone || isAndroidTwa || isAndroidWebView;
+}
+
 export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => checkIsStandaloneOrApp());
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
-    // Detect standalone mode (already installed on homescreen)
-    const isStandalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsInstalled(isStandalone);
+    const updateStandaloneStatus = () => {
+      setIsInstalled(checkIsStandaloneOrApp());
+    };
+
+    updateStandaloneStatus();
+
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateStandaloneStatus);
+    }
 
     // Detect iOS devices (Safari does not support beforeinstallprompt)
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -36,6 +57,9 @@ export function usePWAInstall() {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', updateStandaloneStatus);
+      }
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
