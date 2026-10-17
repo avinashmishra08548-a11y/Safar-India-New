@@ -6,14 +6,37 @@
   }
 }
 
-/* Mobile Safe Area & Top Header Fix for AppsGeyser App */
-html, body {
-  padding-top: max(16px, env(safe-area-inset-top));
+/* 1. Prevent Unwanted Zoom & Scale on Mobile */
+html {
+  touch-action: manipulation;
+  text-size-adjust: 100%;
 }
 
-/* Header Spacing Fix */
+body {
+  /* Status bar par white gap hatane ke liye balanced safe-area */
+  padding-top: env(safe-area-inset-top, 0px);
+  margin: 0;
+  overflow-x: hidden;
+  /* Neeche AppsGeyser ad banner ke liye extra space taaki bottom bar na chupe */
+  padding-bottom: 70px; 
+}
+
+/* 2. Fix Header Overlap cleanly without giant white space */
 header {
-  padding-top: env(safe-area-inset-top, 16px);
+  position: sticky;
+  top: 0;
+  z-index: 999;
+  padding-top: max(8px, env(safe-area-inset-top));
+  background-color: #ffffff;
+}
+
+/* 3. Fix Bottom Navigation Bar so it floats above Ads */
+.bottom-nav, nav[class*="fixed"], div[class*="bottom"] {
+  position: fixed;
+  bottom: 50px; /* AppsGeyser ad banner ke upar float karega */
+  left: 0;
+  right: 0;
+  z-index: 9999;
 }
 
 /* Print styles for booking invoice / tax voucher */
