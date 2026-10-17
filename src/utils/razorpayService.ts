@@ -12,8 +12,20 @@
 
 export const DEFAULT_RAZORPAY_KEY = 'rzp_test_1DP5mmOlF5G5ag';
 
+/**
+ * Retrieve public Razorpay Key ID
+ * Prioritizes:
+ * 1. Vite Environment Variable VITE_RAZORPAY_KEY_ID
+ * 2. Admin configured key stored in localStorage
+ * 3. Default verified public test key
+ * Note: Secret Key is NEVER stored or exposed in frontend code.
+ */
 export function getRazorpayKeyId(): string {
   try {
+    const envKey = (import.meta as any).env?.VITE_RAZORPAY_KEY_ID;
+    if (envKey && typeof envKey === 'string' && envKey.trim().startsWith('rzp_')) {
+      return envKey.trim();
+    }
     const saved = localStorage.getItem('safar_razorpay_key');
     if (saved && saved.trim().startsWith('rzp_')) {
       return saved.trim();
@@ -69,38 +81,35 @@ export interface RazorpayCheckoutOptions {
   paymentMode: 'advance_20' | 'full';
   onSuccess: (paymentId: string) => void;
   onDismiss?: () => void;
-  onError?: (err: any) => void;
+  onError?: (errMessage: string) => void;
 }
 
 /**
- * Generate standard UPI Payment Intent URL for dynamic QR codes
- */
-export function generateUpiIntentUrl(amount: number, bookingId: string, note?: string): string {
-  const payeeVpa = '7710080992@okbizaxis';
-  const payeeName = encodeURIComponent('Safar India Cabs');
-  const transactionNote = encodeURIComponent(note || `Booking ${bookingId}`);
-  return `upi://pay?pa=${payeeVpa}&pn=${payeeName}&am=${amount.toFixed(2)}&cu=INR&tn=${transactionNote}`;
-}
-
-/**
- * Open Razorpay Standard Checkout Modal dynamically with Dynamic UPI / QR Code explicitly enabled
+ * Open official Razorpay Standard Checkout Modal
+ * 
+ * Uses standard, certified Razorpay options which automatically enable:
+ * - Dynamic UPI QR Code (Paytm, PhonePe, Google Pay, BHIM)
+ * - UPI App Direct Intent (Mobile 1-tap redirect)
+ * - UPI Collect (Any UPI ID)
+ * - Credit & Debit Cards (RuPay, Visa, Mastercard)
+ * - NetBanking & Mobile Wallets
+ * 
+ * Prevents "Invalid UPI ID" error by letting Razorpay generate verified UPI QR codes dynamically.
  */
 export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOptions): Promise<void> {
   const isLoaded = await loadRazorpayScript();
   const Razorpay = (window as any).Razorpay;
 
-  const keyId = getRazorpayKeyId();
-  const amountInPaise = Math.round(options.amountInRupees * 100);
-  const paymentTypeLabel = options.paymentMode === 'advance_20' ? '20% Advance Booking Deposit' : '100% Full Fare';
-
   if (!isLoaded || !Razorpay) {
-    console.warn('Razorpay SDK script not directly reachable, providing fallback payment confirmation');
-    setTimeout(() => {
-      options.onSuccess(`pay_demo_${Date.now()}`);
-    }, 700);
+    if (options.onError) {
+      options.onError('Payment Gateway SDK is loading. Please check your internet connection and try again.');
+    }
     return;
   }
 
+  const keyId = getRazorpayKeyId();
+  const amountInPaise = Math.round(options.amountInRupees * 100);
+  const paymentTypeLabel = options.paymentMode === 'advance_20' ? '20% Advance Booking Deposit' : '100% Full Fare';
   const cleanPhone = (options.customerPhone || '').replace(/\D/g, '').slice(-10);
 
   const rzpOptions: any = {
@@ -131,66 +140,47 @@ export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOp
       backdropclose: false,
       animation: true,
       ondismiss: function () {
-        if (options.onDismiss) options.onDismiss();
-      }
-    },
-    // Explicitly configure and prioritize Dynamic UPI / QR Code option
-    config: {
-      display: {
-        blocks: {
-          upi: {
-            name: 'Pay via UPI / Dynamic QR Code (Paytm, PhonePe, Google Pay, BHIM)',
-            instruments: [
-              {
-                method: 'upi',
-                flows: ['qr', 'intent', 'collect'],
-                apps: ['google_pay', 'phonepe', 'paytm', 'bhim']
-              }
-            ]
-          },
-          cards: {
-            name: 'Credit & Debit Cards (RuPay, Visa, MasterCard)',
-            instruments: [
-              { method: 'card' }
-            ]
-          },
-          netbanking: {
-            name: 'Net Banking (All Indian Banks)',
-            instruments: [
-              { method: 'netbanking' }
-            ]
-          },
-          wallets: {
-            name: 'Mobile Wallets (Paytm, PhonePe, Mobikwik)',
-            instruments: [
-              { method: 'wallet' }
-            ]
-          }
-        },
-        sequence: ['block.upi', 'block.cards', 'block.netbanking', 'block.wallets'],
-        preferences: {
-          show_default_blocks: true
+        if (options.onDismiss) {
+          options.onDismiss();
         }
       }
     },
     handler: function (response: any) {
-      const paymentId = response.razorpay_payment_id || `pay_${Date.now()}`;
+      if (!response || !response.razorpay_payment_id || typeof response.razorpay_payment_id !== 'string') {
+        if (options.onError) {
+          options.onError('Payment verification failed. No valid transaction ID was returned by the gateway.');
+        }
+        return;
+      }
+
+      const paymentId = response.razorpay_payment_id;
+      if (!paymentId.startsWith('pay_')) {
+        if (options.onError) {
+          options.onError('Invalid payment reference returned by gateway.');
+        }
+        return;
+      }
+
       options.onSuccess(paymentId);
     }
   };
 
   try {
     const rzp = new Razorpay(rzpOptions);
+
     rzp.on('payment.failed', function (errResp: any) {
-      console.warn('Razorpay payment failed or cancelled', errResp);
+      console.warn('Razorpay payment failed or declined:', errResp);
+      const reason = errResp?.error?.description || errResp?.error?.reason || 'Payment was declined or cancelled.';
       if (options.onError) {
-        options.onError(errResp);
+        options.onError(reason);
       }
     });
+
     rzp.open();
-  } catch (err) {
+  } catch (err: any) {
     console.warn('Razorpay initialization exception:', err);
-    // Instant fallback
-    options.onSuccess(`pay_fallback_${Date.now()}`);
+    if (options.onError) {
+      options.onError(err?.message || 'Could not launch payment gateway. Please verify your connection.');
+    }
   }
 }

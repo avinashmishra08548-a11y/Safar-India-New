@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Car, 
   MapPin, 
@@ -24,6 +24,7 @@ import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/ind
 import { CABS_FLEET } from './data/cabsFleet';
 import { computeTripFare, FareCalculationResult } from './utils/fareCalculator';
 import { calculateExactRoadDistance, Coordinates } from './utils/olaMapsService';
+import { sanitize10DigitPhone } from './utils/smsService';
 import { Header } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
@@ -126,56 +127,36 @@ export default function App() {
     fare: FareCalculationResult;
   } | null>(null);
 
-  // Completed / Active Bookings list
-  const [bookings, setBookings] = useState<BookingRecord[]>(() => {
+  // Master Bookings Repository (stored securely for fleet management)
+  const [allBookings, setAllBookings] = useState<BookingRecord[]>(() => {
     try {
       const saved = localStorage.getItem('safar_bookings');
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.warn('Error reading saved bookings', e);
     }
-    // Default demo booking so customer can inspect invoice immediately
-    return [
-      {
-        id: 'SIC-784912',
-        tripType: 'oneway',
-        pickupCity: 'Delhi NCR',
-        dropCity: 'Agra',
-        pickupAddress: 'Tower B, Cyber City, Phase 2, Gurugram',
-        dropAddress: 'Taj East Gate Road, Tajganj, Agra',
-        landmark: 'Near DLF Cyber Hub',
-        pickupDate: '2026-10-20',
-        pickupTime: '06:30 AM',
-        cabId: 'sedan',
-        cabName: 'Sedan AC (Dzire / Etios)',
-        distanceKm: 230,
-        baseFare: 2760,
-        driverAllowance: 300,
-        tollsAndTaxes: 368,
-        gstAmount: 153,
-        totalFare: 3581,
-        advancePaid: 716,
-        balanceDue: 2865,
-        paymentMode: 'advance_20',
-        paymentMethod: 'Razorpay UPI',
-        transactionId: 'TXN_PAY_982401',
-        customerName: 'Avinash Mishra',
-        customerPhone: '7710080992',
-        customerEmail: 'avinashmishra08548@gmail.com',
-        status: 'confirmed',
-        createdAt: new Date().toISOString()
-      }
-    ];
+    return [];
   });
 
-  // Save bookings to localStorage
+  // Save master bookings to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('safar_bookings', JSON.stringify(bookings));
+      localStorage.setItem('safar_bookings', JSON.stringify(allBookings));
     } catch (e) {
       console.warn('Failed to save bookings to localStorage', e);
     }
-  }, [bookings]);
+  }, [allBookings]);
+
+  // STRICT PRIVACY & OWNERSHIP FILTERING:
+  // When a user is logged in, show ONLY bookings with their exact 10-digit mobile number.
+  // When logged out, strictly return empty array []. No previous or cross-user bookings are ever exposed!
+  const currentUserBookings = useMemo(() => {
+    if (!currentUser || !currentUser.phone) {
+      return [];
+    }
+    const cleanUserPhone = sanitize10DigitPhone(currentUser.phone);
+    return allBookings.filter(b => sanitize10DigitPhone(b.customerPhone) === cleanUserPhone);
+  }, [allBookings, currentUser]);
 
   // Active voucher modal
   const [activeVoucherBooking, setActiveVoucherBooking] = useState<BookingRecord | null>(null);
@@ -192,13 +173,21 @@ export default function App() {
   };
 
   const handleBookingSuccess = (newBooking: BookingRecord) => {
-    setBookings(prev => [newBooking, ...prev]);
+    setAllBookings(prev => [newBooking, ...prev]);
     setSelectedCabForCheckout(null);
     setActiveVoucherBooking(newBooking);
   };
 
   const handleCancelBooking = (bookingId: string) => {
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'cancelled' } : b));
+    if (!currentUser?.phone) return;
+    const cleanUserPhone = sanitize10DigitPhone(currentUser.phone);
+    // Strict ownership verification: only allow cancelling own booking
+    setAllBookings(prev => prev.map(b => {
+      if (b.id === bookingId && sanitize10DigitPhone(b.customerPhone) === cleanUserPhone) {
+        return { ...b, status: 'cancelled' };
+      }
+      return b;
+    }));
   };
 
   const handlePopularRouteClick = (route: PopularRouteDeal) => {
@@ -232,9 +221,13 @@ export default function App() {
     setIsCustomerProfileOpen(false);
     try {
       localStorage.removeItem('safar_user');
+      // Invalidate any session or transient storage
+      sessionStorage.clear();
     } catch {}
-    setAuthNotice('You have been logged out successfully.');
+    setAuthNotice('You have been logged out securely.');
     setTimeout(() => setAuthNotice(''), 4000);
+    // Switch to booking tab so previous user's booking view is immediately closed
+    setActiveTab('booking');
   };
 
   // Admin Dashboard States & Handlers
@@ -276,7 +269,7 @@ export default function App() {
     status: 'confirmed' | 'completed' | 'cancelled',
     driverInfo?: { name: string; phone: string; carPlate: string }
   ) => {
-    setBookings(prev => prev.map(b => {
+    setAllBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
         return {
           ...b,
@@ -320,7 +313,12 @@ export default function App() {
         {activeTab === 'rides' ? (
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <MyBookingsView
-              bookings={bookings}
+              currentUser={currentUser}
+              bookings={currentUserBookings}
+              onOpenLogin={() => {
+                setAuthPrompt('Please login with your mobile number to view your rides & tax invoices.');
+                setIsAuthModalOpen(true);
+              }}
               onSelectBookingForInvoice={(b) => setActiveVoucherBooking(b)}
               onCancelBooking={handleCancelBooking}
               onNavigateToBooking={() => setActiveTab('booking')}
@@ -694,7 +692,7 @@ export default function App() {
               )}
               <div className="flex justify-between py-1">
                 <span className="text-slate-500">My Total Bookings:</span>
-                <span className="text-slate-900 font-bold">{bookings.filter(b => b.customerPhone === currentUser.phone).length} trips</span>
+                <span className="text-slate-900 font-bold">{currentUserBookings.length} trips</span>
               </div>
             </div>
 
@@ -792,7 +790,7 @@ export default function App() {
       <AdminDashboard
         isOpen={isAdminDashboardOpen}
         onClose={() => setIsAdminDashboardOpen(false)}
-        bookings={bookings}
+        bookings={allBookings}
         onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
         onChangePin={handleChangeOwnerPin}
       />

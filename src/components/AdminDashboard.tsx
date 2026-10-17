@@ -306,8 +306,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onDismiss: () => {
         setRazorpayTestStatus('Razorpay Checkout modal was dismissed by user.');
       },
-      onError: (err) => {
-        setRazorpayTestStatus('Razorpay Notice: ' + (err?.description || JSON.stringify(err)));
+      onError: (errMessage) => {
+        setRazorpayTestStatus('Razorpay Notice: ' + (typeof errMessage === 'string' ? errMessage : JSON.stringify(errMessage)));
       }
     });
   };

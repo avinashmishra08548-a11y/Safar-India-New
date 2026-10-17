@@ -10,20 +10,26 @@ import {
   Search, 
   Filter,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Lock,
+  User
 } from 'lucide-react';
-import { BookingRecord } from '../types';
+import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 
 interface MyBookingsViewProps {
+  currentUser: CustomerUser | null;
   bookings: BookingRecord[];
+  onOpenLogin: () => void;
   onSelectBookingForInvoice: (booking: BookingRecord) => void;
   onCancelBooking: (bookingId: string) => void;
   onNavigateToBooking: () => void;
 }
 
 export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
+  currentUser,
   bookings,
+  onOpenLogin,
   onSelectBookingForInvoice,
   onCancelBooking,
   onNavigateToBooking
@@ -55,6 +61,32 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
       `Status: ${b.status.toUpperCase()}`;
     window.open(`https://wa.me/917710080992?text=${encodeURIComponent(text)}`, '_blank');
   };
+
+  // PRIVACY GATE: If not logged in, enforce authentication
+  if (!currentUser) {
+    return (
+      <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-8 sm:p-12 text-center max-w-lg mx-auto space-y-5 shadow-2xl">
+        <div className="w-16 h-16 rounded-2xl bg-amber-400/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-400/20">
+          <Lock className="w-8 h-8 text-amber-400" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-black text-white">Login Required for Ride History</h2>
+          <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+            To protect your privacy and travel records, bookings and official GST invoices are only accessible to the verified account holder.
+          </p>
+        </div>
+        <div className="pt-2">
+          <button
+            onClick={onOpenLogin}
+            className="w-full py-3.5 px-5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
+          >
+            <User className="w-4 h-4 text-slate-950" />
+            <span>Login with Mobile Number</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -127,7 +159,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
             <h3 className="text-base font-bold text-white">No Bookings Found</h3>
             <p className="text-xs text-slate-400 mt-1">
               {bookings.length === 0 
-                ? "You haven't booked any rides yet. Book your first outstation or local cab now!"
+                ? `No rides found for +91 ${currentUser.phone}. You haven't booked any rides yet with this account. Book your first outstation or local cab now!`
                 : "No rides matched your active filter or search query."}
             </p>
           </div>

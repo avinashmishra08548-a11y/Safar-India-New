@@ -24,6 +24,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
+  const [otpExpiresAt, setOtpExpiresAt] = useState<number>(0);
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
@@ -61,10 +63,13 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
+    setOtpExpiresAt(Date.now() + 5 * 60 * 1000); // 5 minutes validity
+    setFailedAttempts(0);
+    setOtp('');
 
     const res = await sendOtpSms(cleanPhone, newOtp);
     setIsSending(false);
-    setSmsDeliveryInfo(res.message);
+    setSmsDeliveryInfo('SMS OTP has been dispatched to your phone');
 
     setShowOtpToast(true);
     setStep('otp');
@@ -77,11 +82,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     setIsSending(true);
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
+    setOtpExpiresAt(Date.now() + 5 * 60 * 1000);
+    setFailedAttempts(0);
     setOtp('');
+    setErrorMsg('');
 
     const res = await sendOtpSms(cleanPhone, newOtp);
     setIsSending(false);
-    setSmsDeliveryInfo(res.message);
+    setSmsDeliveryInfo('A fresh SMS OTP has been sent to your phone');
 
     setShowOtpToast(true);
     setResendSeconds(30);
@@ -89,8 +97,30 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
   const handleVerifyOtp = (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp !== generatedOtp && otp !== '0992' && otp !== '1234') {
-      setErrorMsg('Invalid verification code! Please enter the code sent to your phone or click Auto-fill.');
+
+    if (!otp || otp.length !== 4) {
+      setErrorMsg('Please enter the complete 4-digit verification code sent to your phone.');
+      return;
+    }
+
+    if (Date.now() > otpExpiresAt) {
+      setErrorMsg('Verification code has expired. Please click "Resend Code".');
+      return;
+    }
+
+    if (failedAttempts >= 5) {
+      setErrorMsg('Too many invalid attempts. Please request a new verification code.');
+      return;
+    }
+
+    if (otp !== generatedOtp) {
+      setFailedAttempts(prev => prev + 1);
+      const remaining = 4 - failedAttempts;
+      setErrorMsg(
+        remaining > 0 
+          ? `Incorrect verification code. Please check your SMS. (${remaining} attempts remaining)`
+          : 'Too many incorrect attempts. Please request a new code.'
+      );
       return;
     }
 
@@ -274,13 +304,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   placeholder="••••"
                   className="w-36 text-center tracking-[0.5em] text-xl font-black bg-slate-50 border border-slate-300 rounded-2xl py-3 text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white font-mono"
                 />
-                <button
-                  type="button"
-                  onClick={() => setOtp(generatedOtp)}
-                  className="text-[10px] text-amber-800 hover:text-amber-900 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200"
-                >
-                  ⚡ Auto-fill Code ({generatedOtp})
-                </button>
+                <p className="text-[11px] text-slate-500 text-center font-medium">
+                  Enter the 4-digit code received via SMS
+                </p>
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-500">
