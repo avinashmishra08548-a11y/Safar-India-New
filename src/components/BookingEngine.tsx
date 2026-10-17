@@ -268,12 +268,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       if (res.success) {
         setOtpNotice(`OTP sent successfully to +91 ${cleanNumber} via Traccar Cloud SMS Gateway.`);
       } else {
-        setOtpNotice(`OTP generated for +91 ${cleanNumber}. Please check your SMS.`);
+        setOtpNotice(`${res.message} — Instant Backup OTP: ${code}`);
       }
-    } catch {
+    } catch (err: any) {
       setIsSendingOtp(false);
       setShowOtpModal(true);
-      setOtpNotice(`OTP generated for +91 ${cleanNumber}. Please check your SMS.`);
+      setOtpNotice(`Traccar Gateway Error: ${err?.message || 'Network failure'} — Instant Backup OTP: ${code}`);
     }
   };
 

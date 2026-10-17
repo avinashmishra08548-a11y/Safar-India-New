@@ -31,9 +31,13 @@ import {
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { 
+  getTraccarLocalEndpoint,
+  getTraccarLocalToken,
   getTraccarToken, 
-  setTraccarToken, 
+  setTraccarConfig,
   verifyTraccarGateway, 
+  DEFAULT_LOCAL_ENDPOINT,
+  DEFAULT_LOCAL_TOKEN,
   TRACCAR_SMS_ENDPOINT, 
   DEFAULT_TRACCAR_TOKEN, 
   sanitize10DigitPhone,
@@ -94,11 +98,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isSendingDriverSms, setIsSendingDriverSms] = useState(false);
   const [driverSmsSuccessNotice, setDriverSmsSuccessNotice] = useState('');
 
-  // Traccar Cloud SMS Gateway management states
+  // Traccar Local Service + Cloud Fallback SMS Gateway management states
+  const [traccarLocalEndpoint, setTraccarLocalEndpointState] = useState(() => getTraccarLocalEndpoint());
+  const [traccarLocalToken, setTraccarLocalTokenState] = useState(() => getTraccarLocalToken());
   const [traccarToken, setTraccarTokenState] = useState(() => getTraccarToken());
   const [traccarSaveMsg, setTraccarSaveMsg] = useState('');
   const [testPhone, setTestPhone] = useState('7710080992');
-  const [testStatus, setTestStatus] = useState<{ running: boolean; ok?: boolean; message?: string }>({ running: false });
+  const [testStatus, setTestStatus] = useState<{
+    running: boolean;
+    ok?: boolean;
+    message?: string;
+    errorCode?: string;
+    rawResponse?: any;
+  }>({ running: false });
 
   // Ola Maps API states
   const [olaApiKey, setOlaApiKey] = useState(() => getOlaMapsApiKey());
@@ -305,28 +317,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleSaveTraccarToken = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!traccarToken.trim()) return;
-    setTraccarToken(traccarToken.trim());
-    setTraccarSaveMsg('Traccar Cloud SMS Gateway Token updated & active across all OTP and booking flows!');
+    setTraccarConfig({
+      localEndpoint: traccarLocalEndpoint.trim() || DEFAULT_LOCAL_ENDPOINT,
+      localToken: traccarLocalToken.trim() || DEFAULT_LOCAL_TOKEN,
+      cloudToken: traccarToken.trim() || DEFAULT_TRACCAR_TOKEN
+    });
+    setTraccarSaveMsg('Traccar Local Service + Cloud Fallback configuration saved & synced across all OTP and booking flows!');
     setTimeout(() => setTraccarSaveMsg(''), 4000);
   };
 
   const handleResetToOfficialKey = () => {
+    setTraccarLocalEndpointState(DEFAULT_LOCAL_ENDPOINT);
+    setTraccarLocalTokenState(DEFAULT_LOCAL_TOKEN);
     setTraccarTokenState(DEFAULT_TRACCAR_TOKEN);
-    setTraccarToken(DEFAULT_TRACCAR_TOKEN);
-    setTraccarSaveMsg('Reset to official Traccar Cloud Gateway Token!');
+    setTraccarConfig({
+      localEndpoint: DEFAULT_LOCAL_ENDPOINT,
+      localToken: DEFAULT_LOCAL_TOKEN,
+      cloudToken: DEFAULT_TRACCAR_TOKEN
+    });
+    setTraccarSaveMsg('Reset to default Local Service (http://172.24.139.153:8082) + Cloud Fallback credentials!');
     setTimeout(() => setTraccarSaveMsg(''), 4000);
   };
 
   const handleTestTraccarSms = async () => {
     const cleanPhone = sanitize10DigitPhone(testPhone);
-    if (!traccarToken.trim() || !cleanPhone || cleanPhone.length !== 10) {
+    if (!cleanPhone || cleanPhone.length !== 10) {
       setTestStatus({ running: false, ok: false, message: 'Please enter a valid 10-digit mobile number (e.g. 9876543210)' });
       return;
     }
     setTestStatus({ running: true });
-    const res = await verifyTraccarGateway(traccarToken.trim(), cleanPhone);
-    setTestStatus({ running: false, ok: res.ok, message: res.info });
+    const res = await verifyTraccarGateway(
+      {
+        localEndpoint: traccarLocalEndpoint.trim() || DEFAULT_LOCAL_ENDPOINT,
+        localToken: traccarLocalToken.trim() || DEFAULT_LOCAL_TOKEN,
+        cloudToken: traccarToken.trim() || DEFAULT_TRACCAR_TOKEN
+      },
+      cleanPhone
+    );
+    setTestStatus({
+      running: false,
+      ok: res.ok,
+      message: res.info,
+      errorCode: res.errorCode,
+      rawResponse: res.rawResponse
+    });
   };
 
   const handleSaveRazorpayKey = (e: React.FormEvent) => {
@@ -879,7 +913,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
 
-            {/* Traccar Cloud SMS Gateway Panel */}
+            {/* Traccar Local Service + Cloud Fallback SMS Gateway Panel */}
             <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -887,12 +921,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <Radio className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-extrabold text-white">Traccar Cloud SMS Gateway</h4>
-                    <p className="text-xs text-slate-400">Self-hosted Android SIM Cloud Gateway for OTPs, Booking Confirmations & Driver Alerts</p>
+                    <h4 className="text-sm font-extrabold text-white">Traccar SMS Gateway (Local Service Primary + Cloud Fallback)</h4>
+                    <p className="text-xs text-slate-400">Bypasses Cloud FCM token issues using Direct Local HTTP Service first, with Cloud Service fallback</p>
                   </div>
                 </div>
                 <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                  Connected & Active
+                  Local + Cloud Active
                 </span>
               </div>
 
@@ -903,9 +937,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
 
               <form onSubmit={handleSaveTraccarToken} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-1">
+                      1. Primary Local Service Endpoint
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={traccarLocalEndpoint}
+                      onChange={(e) => setTraccarLocalEndpointState(e.target.value)}
+                      placeholder="http://172.24.139.153:8082"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-1">
+                      2. Primary Local Service Token
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={traccarLocalToken}
+                      onChange={(e) => setTraccarLocalTokenState(e.target.value)}
+                      placeholder="b45b4260-7725-485b-8a65-15a2dd324fb9"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Traccar Cloud Gateway Token
+                    3. Cloud Fallback Token (https://www.traccar.org/sms/)
                   </label>
                   <div className="flex flex-wrap gap-2">
                     <input
@@ -913,49 +976,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       required
                       value={traccarToken}
                       onChange={(e) => setTraccarTokenState(e.target.value)}
-                      placeholder="Paste your Traccar Cloud Gateway Token"
+                      placeholder="Paste your Traccar Cloud Fallback Token"
                       className="flex-1 min-w-[260px] bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
                     />
                     <button
                       type="submit"
                       className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
                     >
-                      Save Token
+                      Save Configuration
                     </button>
                     <button
                       type="button"
                       onClick={handleResetToOfficialKey}
                       className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 transition"
-                      title="Restore official Traccar Cloud token"
+                      title="Restore official Local + Cloud tokens"
                     >
-                      Reset Official Token
+                      Reset Defaults
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Active Cloud Token: <span className="font-mono text-emerald-400 text-[10px] bg-slate-900 px-1.5 py-0.5 rounded break-all">{DEFAULT_TRACCAR_TOKEN}</span>
-                  </p>
                 </div>
               </form>
 
               {/* Technical Specifications Card */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Cloud API Endpoint</span>
-                  <span className="font-mono text-emerald-400 font-bold break-all">{TRACCAR_SMS_ENDPOINT}</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Primary Local Endpoint</span>
+                  <span className="font-mono text-emerald-400 font-bold break-all">{traccarLocalEndpoint}</span>
+                  <div className="text-[10px] text-slate-400 font-mono">Token: {traccarLocalToken}</div>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Active Delivery Channel</span>
-                  <span className="font-mono text-emerald-400 font-bold">Traccar Cloud Gateway (₹0 Per SMS)</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Automatic Cloud Fallback</span>
+                  <span className="font-mono text-amber-400 font-bold break-all">{TRACCAR_SMS_ENDPOINT}</span>
+                  <div className="text-[10px] text-slate-400">Used if Local IP is unreachable</div>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Phone Format</span>
-                  <span className="text-slate-300 font-medium">+91 E.164 Indian Mobile</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Payload Format</span>
+                  <span className="text-slate-300 font-mono text-[10px]">{`{ "to": "+91XXXXXXXXXX", "message": "..." }`}</span>
                 </div>
               </div>
 
               {/* Test Live SMS Tool */}
               <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-white block">Test Live Traccar Cloud SMS Dispatch</span>
+                <span className="text-xs font-bold text-white block">Test Live Traccar SMS Dispatch (Local Service &rarr; Cloud Fallback)</span>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
@@ -979,7 +1041,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     {testStatus.running ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Sending Test SMS...</span>
+                        <span>Testing Local & Cloud...</span>
                       </>
                     ) : (
                       <>
@@ -991,13 +1053,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {testStatus.message && (
-                  <div className={`p-3 rounded-xl text-xs font-medium ${
+                  <div className={`p-3 rounded-xl text-xs font-medium space-y-2 ${
                     testStatus.ok 
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                      : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                      : 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
                   }`}>
-                    <div className="font-bold">{testStatus.ok ? 'Traccar Cloud Gateway Status:' : 'Traccar Gateway Report:'}</div>
-                    <div className="mt-0.5">{testStatus.message}</div>
+                    <div className="font-bold">
+                      {testStatus.ok ? '✓ Traccar SMS Gateway Delivered:' : '⚠️ Traccar SMS Gateway Diagnostic Log:'}
+                    </div>
+                    <div>{testStatus.message}</div>
+                    {testStatus.rawResponse && (
+                      <pre className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-[10px] font-mono text-amber-300 overflow-x-auto whitespace-pre-wrap">
+                        {typeof testStatus.rawResponse === 'string'
+                          ? testStatus.rawResponse
+                          : JSON.stringify(testStatus.rawResponse, null, 2)}
+                      </pre>
+                    )}
                   </div>
                 )}
               </div>
