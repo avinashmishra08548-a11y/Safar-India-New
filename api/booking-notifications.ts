@@ -96,11 +96,13 @@ export default async function handler(req: any, res: any) {
     const customerPhone = sanitize10Digit(booking.customerPhone);
     const adminPhone = ADMIN_PHONE_NUMBER;
 
-    // 1. Customer Confirmation SMS
-    const customerMessage = `Booking Confirmed! ID: ${booking.id}. Safar India Cabs: ${booking.cabName} from ${booking.pickupCity} to ${booking.dropCity} on ${booking.pickupDate} at ${booking.pickupTime}. Paid: Rs.${booking.advancePaid}. Bal: Rs.${booking.balanceDue}. Chauffeur details 2 hrs prior. Helpline: 7710080992`;
+    const travelDate = `${booking.pickupDate} at ${booking.pickupTime}`;
 
-    // 2. Admin New Booking Alert SMS
-    const adminMessage = `NEW BOOKING ALERT! ID: ${booking.id}. Customer: ${booking.customerName} (+91${customerPhone}). Route: ${booking.pickupCity} (${booking.pickupAddress || ''}) to ${booking.dropCity}. Cab: ${booking.cabName}. Date: ${booking.pickupDate} at ${booking.pickupTime}. Paid: Rs.${booking.advancePaid} (Txn: ${booking.transactionId || 'Razorpay'}). Bal: Rs.${booking.balanceDue}. Safar India Cabs`;
+    // 1. Customer SMS Template (Clean and structured)
+    const customerMessage = `🎉 SAFAR INDIA CABS - BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nCab: ${booking.cabName}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\n\nPaid Advance: Rs.${booking.advancePaid}\nBalance (Pay Driver): Rs.${booking.balanceDue}\n\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
+
+    // 2. Admin Alert SMS Template (Clear New Booking Alert)
+    const adminMessage = `🚨 NEW BOOKING ALERT! 🚨\n\nBooking ID: ${booking.id}\nCustomer Name: ${booking.customerName}\nPhone: +91${customerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nCab Type: ${booking.cabName}\nTravel Date: ${travelDate}\n\nAdvance Paid: Rs.${booking.advancePaid}\nBalance Due: Rs.${booking.balanceDue}`;
 
     // Execute both SMS dispatches in parallel
     const [customerRes, adminRes] = await Promise.allSettled([

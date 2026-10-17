@@ -397,7 +397,8 @@ export async function sendBookingConfirmationSms(
   }
 ): Promise<SmsResult> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
-  const confirmationMessage = `Booking Confirmed! ID: ${booking.id}. Safar India Cabs: ${booking.cabName} from ${booking.pickupCity} to ${booking.dropCity} on ${booking.pickupDate} at ${booking.pickupTime}. Paid: Rs.${booking.advancePaid}. Bal: Rs.${booking.balanceDue}. Chauffeur details 2 hrs prior. Helpline: 7710080992`;
+  const travelDate = `${booking.pickupDate} at ${booking.pickupTime}`;
+  const confirmationMessage = `🎉 SAFAR INDIA CABS - BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nCab: ${booking.cabName}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\n\nPaid Advance: Rs.${booking.advancePaid}\nBalance (Pay Driver): Rs.${booking.balanceDue}\n\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
   return sendRawFast2Sms(cleanPhone, confirmationMessage);
 }
 
@@ -405,10 +406,10 @@ export async function sendBookingConfirmationSms(
  * AUTOMATED DUAL SMS / NOTIFICATION SYSTEM
  * 
  * Triggers TWO separate alerts immediately and automatically after Razorpay payment verification:
- * 1. Customer Confirmation SMS (with Booking ID, Cab Details, Pickup/Drop, Paid Amount, Balance)
- * 2. Instant Admin New Booking Alert SMS to +91 7710080992 (with Customer Name, Phone, Pickup/Drop, Cab, Date, Paid, Balance)
+ * 1. Customer Confirmation SMS (Clean & structured template)
+ * 2. Instant Admin New Booking Alert SMS to +91 7710080992 (Clear New Booking Alert template)
  * 
- * First attempts the backend API route (/api/booking-notifications).
+ * First attempts the backend API route (/api/send-booking-sms or /api/booking-notifications).
  * If the backend API is unreachable or running in static mode, seamlessly falls back to direct client-side Fast2SMS gateway.
  */
 export async function sendDualBookingNotifications(booking: {
@@ -428,48 +429,51 @@ export async function sendDualBookingNotifications(booking: {
 }): Promise<DualSmsResult> {
   const cleanCustomerPhone = sanitize10DigitPhone(booking.customerPhone);
   const adminPhone = ADMIN_PHONE_NUMBER;
+  const travelDate = `${booking.pickupDate} at ${booking.pickupTime}`;
 
-  // STEP 1: Attempt backend API request (/api/booking-notifications)
-  try {
-    const apiRes = await fetch('/api/booking-notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ booking })
-    });
+  // STEP 1: Attempt backend API request (/api/send-booking-sms or /api/booking-notifications)
+  for (const endpoint of ['/api/send-booking-sms', '/api/booking-notifications']) {
+    try {
+      const apiRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ booking })
+      });
 
-    if (apiRes.ok) {
-      const data = await apiRes.json().catch(() => null);
-      if (data && data.success) {
-        return {
-          success: true,
-          source: 'backend_api',
-          customerSms: {
-            success: data.customer?.dispatched ?? true,
-            message: `Booking confirmation SMS sent to +91 ${cleanCustomerPhone} via Fast2SMS`,
-            endpointUsed: FAST2SMS_ENDPOINT,
-            numbersSent: cleanCustomerPhone,
-            statusCode: 200
-          },
-          adminSms: {
-            success: data.admin?.dispatched ?? true,
-            message: `New booking alert dispatched to Admin (+91 ${adminPhone})`,
-            endpointUsed: FAST2SMS_ENDPOINT,
-            numbersSent: adminPhone,
-            statusCode: 200
-          }
-        };
+      if (apiRes.ok) {
+        const data = await apiRes.json().catch(() => null);
+        if (data && data.success) {
+          return {
+            success: true,
+            source: 'backend_api',
+            customerSms: {
+              success: data.customer?.dispatched ?? true,
+              message: `Booking confirmation SMS sent to +91 ${cleanCustomerPhone} via Fast2SMS`,
+              endpointUsed: FAST2SMS_ENDPOINT,
+              numbersSent: cleanCustomerPhone,
+              statusCode: 200
+            },
+            adminSms: {
+              success: data.admin?.dispatched ?? true,
+              message: `New booking alert dispatched to Admin (+91 ${adminPhone})`,
+              endpointUsed: FAST2SMS_ENDPOINT,
+              numbersSent: adminPhone,
+              statusCode: 200
+            }
+          };
+        }
       }
+    } catch (apiErr) {
+      console.info(`Backend ${endpoint} call notice, trying next failover:`, apiErr);
     }
-  } catch (apiErr) {
-    console.info('Backend /api/booking-notifications call notice, utilizing direct gateway fallback:', apiErr);
   }
 
-  // STEP 2: Direct Failover Gateway (dispatches both SMS messages in parallel)
-  const customerMessage = `Booking Confirmed! ID: ${booking.id}. Safar India Cabs: ${booking.cabName} from ${booking.pickupCity} to ${booking.dropCity} on ${booking.pickupDate} at ${booking.pickupTime}. Paid: Rs.${booking.advancePaid}. Bal: Rs.${booking.balanceDue}. Chauffeur details 2 hrs prior. Helpline: 7710080992`;
+  // STEP 2: Direct Failover Gateway (dispatches both SMS messages in parallel using exact clean templates)
+  const customerMessage = `🎉 SAFAR INDIA CABS - BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nCab: ${booking.cabName}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\n\nPaid Advance: Rs.${booking.advancePaid}\nBalance (Pay Driver): Rs.${booking.balanceDue}\n\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
 
-  const adminMessage = `NEW BOOKING ALERT! ID: ${booking.id}. Customer: ${booking.customerName} (+91${cleanCustomerPhone}). Route: ${booking.pickupCity} (${booking.pickupAddress || ''}) to ${booking.dropCity}. Cab: ${booking.cabName}. Date: ${booking.pickupDate} at ${booking.pickupTime}. Paid: Rs.${booking.advancePaid} (Txn: ${booking.transactionId || 'Razorpay'}). Bal: Rs.${booking.balanceDue}. Safar India Cabs`;
+  const adminMessage = `🚨 NEW BOOKING ALERT! 🚨\n\nBooking ID: ${booking.id}\nCustomer Name: ${booking.customerName}\nPhone: +91${cleanCustomerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nCab Type: ${booking.cabName}\nTravel Date: ${travelDate}\n\nAdvance Paid: Rs.${booking.advancePaid}\nBalance Due: Rs.${booking.balanceDue}`;
 
   const [customerResult, adminResult] = await Promise.allSettled([
     sendRawFast2Sms(cleanCustomerPhone, customerMessage),
