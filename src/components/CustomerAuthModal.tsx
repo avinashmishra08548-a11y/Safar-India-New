@@ -7,12 +7,14 @@ interface CustomerAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: CustomerUser) => void;
+  authPrompt?: string;
 }
 
 export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   isOpen,
   onClose,
-  onLoginSuccess
+  onLoginSuccess,
+  authPrompt
 }) => {
   if (!isOpen) return null;
 
@@ -150,6 +152,13 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 Login with mobile number to sync your rides & bills
               </p>
             </div>
+
+            {authPrompt && (
+              <div className="mb-3.5 p-3 bg-amber-50 border border-amber-300 rounded-2xl text-amber-900 text-xs font-semibold flex items-center gap-2">
+                <span className="text-base">🔒</span>
+                <span>{authPrompt}</span>
+              </div>
+            )}
 
             {errorMsg && (
               <div className="mb-3 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs text-center font-medium">

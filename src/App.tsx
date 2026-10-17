@@ -15,7 +15,9 @@ import {
   CheckCircle2, 
   Sparkles,
   ArrowRight,
-  Shield
+  Shield,
+  User,
+  LogOut
 } from 'lucide-react';
 import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
@@ -52,6 +54,10 @@ export default function App() {
     }
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
+  const [isCustomerProfileOpen, setIsCustomerProfileOpen] = useState(false);
+  const [pendingCabSelection, setPendingCabSelection] = useState<{ cab: CabVehicle; fare: FareCalculationResult } | null>(null);
   const [isDriverPartnerOpen, setIsDriverPartnerOpen] = useState(false);
   const [isCabsModalOpen, setIsCabsModalOpen] = useState(false);
   const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
@@ -175,6 +181,13 @@ export default function App() {
   const [activeVoucherBooking, setActiveVoucherBooking] = useState<BookingRecord | null>(null);
 
   const handleSelectCab = (cab: CabVehicle, fare: FareCalculationResult) => {
+    // If customer is not logged in, prompt login first
+    if (!currentUser) {
+      setPendingCabSelection({ cab, fare });
+      setAuthPrompt(`Please login with your mobile number to book ${cab.name}.`);
+      setIsAuthModalOpen(true);
+      return;
+    }
     setSelectedCabForCheckout({ cab, fare });
   };
 
@@ -198,16 +211,30 @@ export default function App() {
 
   const handleLoginSuccess = (user: CustomerUser) => {
     setCurrentUser(user);
+    setCustomerMobile(user.phone);
     try {
       localStorage.setItem('safar_user', JSON.stringify(user));
     } catch {}
+
+    setAuthNotice(`Welcome back, ${user.name}! You are logged in.`);
+    setTimeout(() => setAuthNotice(''), 4000);
+
+    // If customer was waiting to book a cab, open checkout immediately
+    if (pendingCabSelection) {
+      setSelectedCabForCheckout(pendingCabSelection);
+      setPendingCabSelection(null);
+      setAuthPrompt('');
+    }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setIsCustomerProfileOpen(false);
     try {
       localStorage.removeItem('safar_user');
     } catch {}
+    setAuthNotice('You have been logged out successfully.');
+    setTimeout(() => setAuthNotice(''), 4000);
   };
 
   // Admin Dashboard States & Handlers
@@ -473,12 +500,12 @@ export default function App() {
       </a>
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-3 py-2 shadow-lg">
-        <div className="grid grid-cols-4 text-center">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-2 py-2 shadow-lg">
+        <div className="grid grid-cols-5 text-center items-center">
           <button
             onClick={() => setActiveTab('booking')}
             className={`flex flex-col items-center py-1 text-[10px] font-bold ${
-              activeTab === 'booking' ? 'text-amber-600' : 'text-slate-600'
+              activeTab === 'booking' ? 'text-amber-600 font-black' : 'text-slate-600'
             }`}
           >
             <Car className="w-4 h-4 mb-0.5" />
@@ -492,7 +519,7 @@ export default function App() {
               }, 100);
             }}
             className={`flex flex-col items-center py-1 text-[10px] font-bold ${
-              activeTab === 'routes' ? 'text-amber-600' : 'text-slate-600'
+              activeTab === 'routes' ? 'text-amber-600 font-black' : 'text-slate-600'
             }`}
           >
             <MapPin className="w-4 h-4 mb-0.5" />
@@ -501,15 +528,40 @@ export default function App() {
           <button
             onClick={() => setActiveTab('rides')}
             className={`flex flex-col items-center py-1 text-[10px] font-bold ${
-              activeTab === 'rides' ? 'text-amber-600' : 'text-slate-600'
+              activeTab === 'rides' ? 'text-amber-600 font-black' : 'text-slate-600'
             }`}
           >
             <Clock className="w-4 h-4 mb-0.5" />
             <span>Rides</span>
           </button>
+
+          {/* Customer Login / Profile Button */}
+          {currentUser ? (
+            <button
+              onClick={() => setIsCustomerProfileOpen(true)}
+              className="flex flex-col items-center py-1 text-[10px] font-bold text-amber-700"
+            >
+              <div className="w-4 h-4 mb-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center">
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="truncate max-w-[50px]">{currentUser.name.split(' ')[0]}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setAuthPrompt('');
+                setIsAuthModalOpen(true);
+              }}
+              className="flex flex-col items-center py-1 text-[10px] font-black text-slate-900 bg-amber-100/70 rounded-lg"
+            >
+              <User className="w-4 h-4 mb-0.5 text-slate-900" />
+              <span>Login</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsAdminPinModalOpen(true)}
-            className="flex flex-col items-center py-1 text-[10px] font-bold text-amber-700"
+            className="flex flex-col items-center py-1 text-[10px] font-bold text-slate-500 hover:text-amber-700"
           >
             <Shield className="w-4 h-4 mb-0.5" />
             <span>Owner</span>
@@ -604,12 +656,90 @@ export default function App() {
         />
       )}
 
+      {/* Customer Account & Profile Modal */}
+      {isCustomerProfileOpen && currentUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative space-y-5 animate-in zoom-in-95">
+            <button
+              onClick={() => setIsCustomerProfileOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl bg-slate-100 transition"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 font-black text-xl flex items-center justify-center shadow-md">
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Customer Profile</div>
+                <h3 className="text-base font-extrabold text-slate-900 leading-tight">{currentUser.name}</h3>
+                <div className="text-xs font-mono text-slate-600 font-semibold">+91 {currentUser.phone}</div>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2 text-xs">
+              <div className="flex justify-between py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">Phone Status:</span>
+                <span className="text-emerald-700 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Verified via OTP</span>
+                </span>
+              </div>
+              {currentUser.email && (
+                <div className="flex justify-between py-1 border-b border-slate-200/60">
+                  <span className="text-slate-500">Email:</span>
+                  <span className="text-slate-800 font-medium">{currentUser.email}</span>
+                </div>
+              )}
+              <div className="flex justify-between py-1">
+                <span className="text-slate-500">My Total Bookings:</span>
+                <span className="text-slate-900 font-bold">{bookings.filter(b => b.customerPhone === currentUser.phone).length} trips</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => {
+                  setIsCustomerProfileOpen(false);
+                  setActiveTab('rides');
+                }}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2"
+              >
+                <Clock className="w-4 h-4 text-slate-600" />
+                <span>View My Rides & Tax Invoices</span>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+              >
+                <LogOut className="w-4 h-4 text-rose-600" />
+                <span>Logout from Account</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Customer Mobile OTP Login Modal */}
       <CustomerAuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthPrompt('');
+        }}
+        authPrompt={authPrompt}
         onLoginSuccess={handleLoginSuccess}
       />
+
+      {/* Auth Floating Notification */}
+      {authNotice && (
+        <div className="fixed top-20 right-4 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 border border-slate-700">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{authNotice}</span>
+        </div>
+      )}
 
       {/* Owner Security PIN Modal */}
       {isAdminPinModalOpen && (
