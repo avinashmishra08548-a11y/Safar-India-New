@@ -6,37 +6,43 @@
   }
 }
 
-/* 1. Prevent Unwanted Zoom & Scale on Mobile */
-html {
-  touch-action: manipulation;
-  text-size-adjust: 100%;
-}
-
-body {
-  /* Status bar par white gap hatane ke liye balanced safe-area */
-  padding-top: env(safe-area-inset-top, 0px);
-  margin: 0;
+/* Prevent Zoom & Horizontal Overflow */
+html, body {
+  width: 100%;
+  height: 100%;
   overflow-x: hidden;
-  /* Neeche AppsGeyser ad banner ke liye extra space taaki bottom bar na chupe */
-  padding-bottom: 70px; 
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-/* 2. Fix Header Overlap cleanly without giant white space */
+/* Header Status Bar Fix - No extra white patch */
 header {
   position: sticky;
   top: 0;
-  z-index: 999;
-  padding-top: max(8px, env(safe-area-inset-top));
+  z-index: 1000;
+  padding-top: 12px !important;
   background-color: #ffffff;
 }
 
-/* 3. Fix Bottom Navigation Bar so it floats above Ads */
-.bottom-nav, nav[class*="fixed"], div[class*="bottom"] {
-  position: fixed;
-  bottom: 50px; /* AppsGeyser ad banner ke upar float karega */
-  left: 0;
-  right: 0;
-  z-index: 9999;
+/* Extra Bottom Margin so page content isn't covered by Ad Banner */
+main, #app-content, body {
+  padding-bottom: 110px !important;
+}
+
+/* Bottom Navigation Bar - Float strictly ABOVE AppsGeyser Ad Banner */
+nav.fixed-bottom, 
+.bottom-nav, 
+footer nav,
+div[class*="bottom-nav"] {
+  position: fixed !important;
+  bottom: 50px !important; /* Lifts bar cleanly above 50px AppsGeyser banner */
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 99999 !important;
+  background: #ffffff !important;
+  border-top: 1px solid #e5e7eb;
 }
 
 /* Print styles for booking invoice / tax voucher */

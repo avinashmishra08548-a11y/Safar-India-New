@@ -586,7 +586,7 @@ export default function App() {
         href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20want%20to%20book%20a%20cab%20urgently"
         target="_blank"
         rel="noreferrer"
-        className="fixed bottom-22 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black p-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all group"
+        className="fixed bottom-32 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black p-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all group"
         title="Chat on WhatsApp (+91 7710080992)"
       >
         <MessageSquare className="w-5 h-5 text-slate-950" />
@@ -594,7 +594,7 @@ export default function App() {
       </a>
 
       {/* Mobile Bottom Navigation Bar: Persistent, high-contrast, safe-area padded */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/98 backdrop-blur-md border-t border-slate-200 z-40 px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[50px] left-0 right-0 bg-white border-t border-slate-200 z-[99999] px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <div className="grid grid-cols-5 text-center items-center">
           <button
             onClick={() => {

@@ -16,8 +16,8 @@ export const viewport = {
   themeColor: '#F59E0B',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 5,
-  userScalable: true,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: 'cover',
 };
 
@@ -70,6 +70,11 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
         document.head.appendChild(link);
       }
     };
+
+    const viewportMeta = document.head.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+    if (viewportMeta) {
+      viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+    }
 
     ensureLink('manifest', '/manifest.json');
     ensureLink('icon', '/icon-192.png', { type: 'image/png', sizes: '192x192' });
