@@ -426,132 +426,195 @@ export default function App() {
         ) : (
           <div className="space-y-10">
             
-            {/* HERO SECTION MATCHING REFERENCE DESIGN */}
-            <div className="relative overflow-hidden bg-gradient-to-b from-[#FAF8F5] via-[#F8FAFC] to-[#F8FAFC] pt-4 sm:pt-7 pb-10 sm:pb-14 border-b border-slate-200/80">
+            {/* HERO SECTION MATCHING IMG-20261018-WA0009.jpg */}
+            <div className="relative overflow-hidden bg-gradient-to-b from-[#FAF7F0] via-[#F7F8FA] to-[#F3F4F6] pt-3.5 sm:pt-6 pb-8 sm:pb-12">
               <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10">
                 
                 {/* 1. Centered Cream/Gold Trust Pill */}
-                <div className="flex justify-center mb-4 sm:mb-6">
-                  <div className="inline-flex items-center gap-2 text-xs sm:text-sm text-[#78350F] bg-[#FFF8DB] border border-[#F2D675] px-4 sm:px-6 py-2 rounded-full shadow-2xs">
-                    <Sparkles className="w-4 h-4 text-[#D97706] shrink-0" />
-                    <span>
-                      India&apos;s Most Trusted <strong className="font-extrabold text-[#5C2808]">Outstation Taxi Service</strong>
+                <div className="flex justify-center mb-3 sm:mb-5">
+                  <div className="inline-flex items-center gap-2 text-xs sm:text-sm text-[#78350F] bg-[#FEF9E7] border border-[#F3D87D] px-4 sm:px-6 py-1.5 sm:py-2 rounded-full shadow-2xs">
+                    <Sparkles className="w-4 h-4 text-[#F59E0B] shrink-0" />
+                    <span className="font-bold text-[#6B2F0A]">
+                      India&apos;s Most Trusted Outstation Taxi Service
                     </span>
                   </div>
                 </div>
 
-                {/* 2. Split Headline (Left) + White Sedan Taxi with India Gate & Plane Illustration (Right) */}
-                <div className="relative flex items-center justify-between gap-2 sm:gap-6 mb-4 sm:mb-6 min-h-[145px] sm:min-h-[210px]">
+                {/* 2. Seamless Split Hero Banner: Left 4-Line Headline + Right India Gate, Airplane & White Sedan Taxi */}
+                <div className="relative flex items-center justify-between min-h-[168px] sm:min-h-[240px] mb-3 sm:mb-5">
                   
-                  {/* Left Headline */}
-                  <div className="w-[58%] sm:w-[56%] z-10 pr-1">
-                    <h1 className="text-[25px] sm:text-4xl md:text-5xl font-black text-slate-950 tracking-tight leading-[1.14]">
-                      Intercity Outstation &amp;
+                  {/* Left 4-Line Stacked Headline */}
+                  <div className="w-[56%] sm:w-[52%] z-20 pr-1 py-1">
+                    <h1 className="text-[26px] sm:text-4xl md:text-5xl font-black text-[#0F172A] tracking-tight leading-[1.12]">
+                      Intercity
+                      <br />
+                      Outstation &amp;
                       <br />
                       Local Cabs with
                       <br />
-                      <span className="text-[#D97706]">Guaranteed Low Fares</span>
+                      <span className="text-[#F59E0B]">Guaranteed Low Fares</span>
                     </h1>
                   </div>
 
-                  {/* Right Visual Banner: India Gate Sunrise + Airplane + White Sedan Cab with SafarIndiaCabs Plate */}
-                  <div className="w-[46%] sm:w-[44%] -ml-4 sm:ml-0 relative flex items-center justify-end select-none">
-                    <div className="relative w-full max-w-[240px] sm:max-w-[380px] aspect-[16/11] rounded-2xl overflow-hidden bg-gradient-to-tr from-amber-100 via-orange-100/70 to-sky-100 shadow-xs border border-amber-200/50">
-                      {/* Sunrise Sky & India Gate Silhouette Backdrop */}
+                  {/* Right Seamless Illustration: India Gate + City Skyline + Airplane + Trees + White Sedan Taxi */}
+                  <div className="w-[54%] sm:w-[52%] -ml-10 sm:-ml-6 relative flex items-center justify-end select-none z-10">
+                    <div className="relative w-full max-w-[270px] sm:max-w-[440px] aspect-[16/11]">
                       <svg
-                        viewBox="0 0 400 260"
-                        className="w-full h-full object-cover"
+                        viewBox="0 0 420 270"
+                        className="w-full h-full overflow-visible"
                         aria-label="SafarIndiaCabs White Sedan Taxi at India Gate"
                       >
                         <defs>
-                          <linearGradient id="skyGrad" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor="#FFFBEB" />
-                            <stop offset="45%" stopColor="#FDE68A" />
-                            <stop offset="75%" stopColor="#BAE6FD" />
-                            <stop offset="100%" stopColor="#E0F2FE" />
+                          <linearGradient id="heroSkyGrad" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor="#FAF7F0" stopOpacity="0" />
+                            <stop offset="30%" stopColor="#FEF3C7" stopOpacity="0.85" />
+                            <stop offset="68%" stopColor="#FDE68A" stopOpacity="0.95" />
+                            <stop offset="100%" stopColor="#BAE6FD" stopOpacity="0.9" />
                           </linearGradient>
-                          <linearGradient id="sunGlow" x1="0.5" y1="0" x2="0.5" y2="1">
-                            <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.45" />
-                            <stop offset="100%" stopColor="#FEF3C7" stopOpacity="0" />
+                          <radialGradient id="sunriseGlow" cx="0.52" cy="0.48" r="0.48">
+                            <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.5" />
+                            <stop offset="65%" stopColor="#FDE68A" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#FAF7F0" stopOpacity="0" />
+                          </radialGradient>
+                          <linearGradient id="highwayGrad" x1="0" y1="0" x2="1" y2="0.4">
+                            <stop offset="0%" stopColor="#FAF7F0" stopOpacity="0" />
+                            <stop offset="25%" stopColor="#E2E8F0" stopOpacity="0.9" />
+                            <stop offset="100%" stopColor="#334155" stopOpacity="0.95" />
                           </linearGradient>
-                          <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#E2E8F0" />
-                            <stop offset="100%" stopColor="#94A3B8" />
+                          <linearGradient id="carBodyGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#FFFFFF" />
+                            <stop offset="70%" stopColor="#F8FAFC" />
+                            <stop offset="100%" stopColor="#E2E8F0" />
                           </linearGradient>
                         </defs>
 
-                        {/* Sky */}
-                        <rect width="400" height="260" fill="url(#skyGrad)" />
-                        <circle cx="220" cy="115" r="75" fill="url(#sunGlow)" />
+                        {/* Soft Blended Sky & Sunrise Glow */}
+                        <ellipse cx="245" cy="125" rx="170" ry="115" fill="url(#heroSkyGrad)" />
+                        <circle cx="220" cy="125" r="105" fill="url(#sunriseGlow)" />
 
-                        {/* India Gate Monument Silhouette */}
-                        <g fill="#D97706" opacity="0.48" transform="translate(105, 52)">
-                          <rect x="18" y="0" width="54" height="8" rx="1" />
-                          <rect x="12" y="8" width="66" height="10" rx="1" />
-                          <rect x="6" y="18" width="78" height="95" rx="2" />
-                          <path d="M 29 113 L 29 58 A 16 16 0 0 1 61 58 L 61 113 Z" fill="#FEF3C7" />
+                        {/* Distant Golden City Skyline Silhouettes */}
+                        <g fill="#F59E0B" opacity="0.28">
+                          <rect x="65" y="108" width="14" height="58" />
+                          <rect x="82" y="95" width="16" height="71" />
+                          <polygon points="90,78 82,95 98,95" />
+                          <rect x="102" y="114" width="12" height="52" />
+                          <rect x="235" y="102" width="18" height="64" />
+                          <rect x="256" y="115" width="15" height="51" />
                         </g>
 
-                        {/* Lush Trees on Horizon */}
-                        <circle cx="80" cy="158" r="22" fill="#65A30D" opacity="0.45" />
-                        <circle cx="105" cy="162" r="18" fill="#4D7C0F" opacity="0.45" />
-                        <circle cx="345" cy="152" r="26" fill="#65A30D" opacity="0.5" />
-                        <circle cx="375" cy="156" r="22" fill="#4D7C0F" opacity="0.55" />
-
-                        {/* Airplane Flying in Sky */}
-                        <g transform="translate(275, 28) rotate(-14)" fill="#475569" opacity="0.75">
-                          <path d="M0 12 L26 8 L38 2 L42 3 L34 9 L48 7 L52 3 L55 4 L51 11 L35 13 L25 22 L20 21 L26 14 L8 15 Z" />
+                        {/* Detailed India Gate Monument in Warm Terracotta/Gold */}
+                        <g transform="translate(132, 42)">
+                          {/* Top Stepped Crown */}
+                          <rect x="20" y="0" width="52" height="7" rx="1" fill="#D97706" opacity="0.72" />
+                          <rect x="13" y="7" width="66" height="9" rx="1" fill="#EA580C" opacity="0.76" />
+                          <rect x="6" y="16" width="80" height="8" rx="1" fill="#D97706" opacity="0.82" />
+                          {/* Main Arch Pillar Body */}
+                          <rect x="9" y="24" width="74" height="100" rx="1.5" fill="#F59E0B" opacity="0.78" />
+                          {/* Architectural Inner Arch Cutout */}
+                          <path d="M 31 124 L 31 64 A 15 15 0 0 1 61 64 L 61 124 Z" fill="#FEF3C7" />
+                          {/* Horizontal Cornice Lines */}
+                          <line x1="9" y1="44" x2="83" y2="44" stroke="#B45309" strokeWidth="1.5" opacity="0.5" />
+                          <line x1="9" y1="62" x2="31" y2="62" stroke="#B45309" strokeWidth="1.2" opacity="0.5" />
+                          <line x1="61" y1="62" x2="83" y2="62" stroke="#B45309" strokeWidth="1.2" opacity="0.5" />
                         </g>
 
-                        {/* Highway Road */}
-                        <polygon points="0,165 400,165 400,260 0,260" fill="url(#roadGrad)" />
-                        <line x1="20" y1="165" x2="395" y2="165" stroke="#CBD5E1" strokeWidth="2" />
-
-                        {/* Car Ground Shadow */}
-                        <ellipse cx="235" cy="226" rx="132" ry="14" fill="#0F172A" opacity="0.28" />
-
-                        {/* White Commercial Sedan Taxi (3/4 Front Left Angle) */}
-                        <g transform="translate(88, 96)">
-                          {/* Taxi Top Roof Sign */}
-                          <rect x="118" y="2" width="32" height="9" rx="3" fill="#0F172A" />
-                          <rect x="121" y="4" width="26" height="5" rx="1.5" fill="#FFCC00" />
-
-                          {/* Main Car Body */}
+                        {/* Commercial Jet Airplane Ascending in Top-Right Sky */}
+                        <g transform="translate(308, 18) rotate(-14)">
+                          {/* Fuselage */}
                           <path
-                            d="M 18 76 L 45 48 C 68 22, 102 12, 158 12 L 222 14 C 254 16, 276 36, 288 62 L 292 98 C 292 108, 284 114, 270 115 L 22 115 C 10 114, 6 105, 8 92 Z"
-                            fill="#FFFFFF"
-                            stroke="#CBD5E1"
-                            strokeWidth="1.5"
-                          />
-
-                          {/* Windshield & Side Windows */}
-                          <path
-                            d="M 56 50 C 75 28, 102 20, 148 20 L 156 52 Z"
-                            fill="#1E293B"
-                          />
-                          <path
-                            d="M 164 20 L 218 21 C 238 22, 255 34, 264 50 L 164 52 Z"
+                            d="M 2 20 C 18 16, 46 11, 64 9 C 70 8.5, 74 10, 72 13 C 62 16, 34 21, 6 24 Z"
                             fill="#334155"
                           />
+                          {/* Tail Fin */}
+                          <polygon points="4,20 1,9 9,10 14,18" fill="#1E293B" />
+                          {/* Swept Wings */}
+                          <polygon points="30,16 18,4 26,4 44,14" fill="#64748B" />
+                          <polygon points="34,18 24,29 32,28 48,16" fill="#1E293B" />
+                        </g>
 
-                          {/* Front Hood Lines & Grille */}
-                          <path d="M 14 76 Q 72 82 140 74" fill="none" stroke="#E2E8F0" strokeWidth="2" />
-                          <polygon points="18,80 98,82 92,96 22,95" fill="#0F172A" />
-                          {/* Headlights */}
-                          <polygon points="98,78 138,74 132,88 94,90" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="1.5" />
-                          <polygon points="10,77 22,79 20,90 10,88" fill="#F8FAFC" stroke="#94A3B8" strokeWidth="1" />
+                        {/* Lush Green Trees on Horizon */}
+                        <g>
+                          {/* Left Shrubs */}
+                          <circle cx="98" cy="160" r="14" fill="#65A30D" opacity="0.75" />
+                          <circle cx="118" cy="156" r="17" fill="#4D7C0F" opacity="0.8" />
+                          <circle cx="136" cy="162" r="12" fill="#84CC16" opacity="0.75" />
+                          {/* Right Trees */}
+                          <circle cx="356" cy="130" r="24" fill="#65A30D" />
+                          <circle cx="384" cy="122" r="28" fill="#4D7C0F" />
+                          <circle cx="404" cy="142" r="22" fill="#3F6212" />
+                          <circle cx="366" cy="148" r="20" fill="#84CC16" />
+                        </g>
 
-                          {/* Lower Bumper Grille */}
-                          <polygon points="18,100 104,101 100,110 20,109" fill="#1E293B" />
+                        {/* Highway Road with Yellow Lane Stripe */}
+                        <polygon points="20,168 420,168 420,255 0,255" fill="url(#highwayGrad)" />
+                        <polygon points="285,255 420,218 420,228 310,255" fill="#FACC15" />
 
-                          {/* YELLOW LICENSE PLATE: SafarIndiaCabs */}
-                          <rect x="30" y="94" width="64" height="14" rx="2.5" fill="#FFCC00" stroke="#B45309" strokeWidth="1" />
+                        {/* Realistic Car Ground Shadow */}
+                        <ellipse cx="262" cy="222" rx="125" ry="15" fill="#0F172A" opacity="0.38" />
+
+                        {/* Sleek White Commercial Sedan Taxi (3/4 Front-Left Angle) */}
+                        <g transform="translate(122, 86)">
+                          {/* Yellow TAXI Roof Sign */}
+                          <rect x="92" y="0" width="44" height="14" rx="3.5" fill="#FACC15" stroke="#B45309" strokeWidth="1" />
                           <text
-                            x="62"
-                            y="103.5"
+                            x="114"
+                            y="10.2"
                             textAnchor="middle"
                             fill="#0F172A"
-                            fontSize="7.5"
+                            fontSize="8.5"
+                            fontWeight="900"
+                            fontFamily="Inter, sans-serif"
+                            letterSpacing="0.5"
+                          >
+                            TAXI
+                          </text>
+
+                          {/* Sedan Body Silhouette */}
+                          <path
+                            d="M 8 88 L 16 64 C 24 54, 42 46, 58 42 L 88 18 C 104 12, 146 11, 186 14 L 236 32 C 254 38, 266 50, 270 68 L 272 104 C 272 114, 264 118, 250 118 L 20 118 C 10 118, 6 110, 6 98 Z"
+                            fill="url(#carBodyGrad)"
+                            stroke="#CBD5E1"
+                            strokeWidth="1.2"
+                          />
+
+                          {/* Dark Tinted Windshield */}
+                          <path
+                            d="M 62 43 L 90 21 C 102 16, 136 16, 150 18 L 142 45 Z"
+                            fill="#1E293B"
+                          />
+                          {/* Side Passenger Windows */}
+                          <path
+                            d="M 156 18 L 192 20 L 226 35 L 150 45 Z"
+                            fill="#0F172A"
+                          />
+                          {/* White Side Wing Mirror */}
+                          <rect x="144" y="38" width="15" height="9" rx="4" fill="#FFFFFF" stroke="#94A3B8" strokeWidth="1" />
+
+                          {/* Sculpted Hood & Side Character Lines */}
+                          <path d="M 14 68 Q 72 74 136 62" fill="none" stroke="#CBD5E1" strokeWidth="1.5" />
+                          <path d="M 152 78 L 258 68" fill="none" stroke="#CBD5E1" strokeWidth="1.5" />
+
+                          {/* Bold Black Front Upper Grille & LED Headlamps */}
+                          <polygon points="18,74 102,76 96,90 22,88" fill="#0F172A" />
+                          {/* Left Headlamp */}
+                          <polygon points="8,69 24,73 22,84 8,81" fill="#F8FAFC" stroke="#64748B" strokeWidth="1.2" />
+                          {/* Right Swept LED Headlamp */}
+                          <polygon points="98,73 140,66 132,82 94,85" fill="#F8FAFC" stroke="#475569" strokeWidth="1.5" />
+                          <line x1="100" y1="81" x2="130" y2="77" stroke="#38BDF8" strokeWidth="2" />
+
+                          {/* Lower Sport Bumper & Fog Lamps */}
+                          <polygon points="16,96 104,97 98,112 20,111" fill="#0F172A" />
+                          <polygon points="108,96 132,92 128,108 104,110" fill="#1E293B" />
+                          <circle cx="118" cy="101" r="3.5" fill="#F8FAFC" />
+
+                          {/* Yellow Commercial Front License Plate: SafarIndiaCabs */}
+                          <rect x="28" y="90" width="66" height="14" rx="2.5" fill="#FACC15" stroke="#B45309" strokeWidth="1" />
+                          <text
+                            x="61"
+                            y="99.8"
+                            textAnchor="middle"
+                            fill="#0F172A"
+                            fontSize="7.4"
                             fontWeight="900"
                             fontFamily="Inter, sans-serif"
                           >
@@ -559,64 +622,67 @@ export default function App() {
                           </text>
 
                           {/* Front & Rear Alloy Wheels */}
-                          <g transform="translate(172, 112)">
-                            <circle cx="0" cy="0" r="22" fill="#0F172A" />
-                            <circle cx="0" cy="0" r="14" fill="#E2E8F0" />
-                            <circle cx="0" cy="0" r="5" fill="#475569" />
+                          <g transform="translate(36, 114)">
+                            <ellipse cx="0" cy="6" rx="16" ry="8" fill="#0F172A" />
                           </g>
-                          <g transform="translate(265, 108)">
-                            <circle cx="0" cy="0" r="19" fill="#0F172A" />
+                          <g transform="translate(162, 112)">
+                            <circle cx="0" cy="0" r="24" fill="#0F172A" />
+                            <circle cx="0" cy="0" r="15" fill="#E2E8F0" />
+                            <circle cx="0" cy="0" r="5" fill="#334155" />
+                            <line x1="-14" y1="0" x2="14" y2="0" stroke="#475569" strokeWidth="2" />
+                            <line x1="0" y1="-14" x2="0" y2="14" stroke="#475569" strokeWidth="2" />
+                          </g>
+                          <g transform="translate(248, 108)">
+                            <circle cx="0" cy="0" r="20" fill="#0F172A" />
                             <circle cx="0" cy="0" r="12" fill="#CBD5E1" />
-                            <circle cx="0" cy="0" r="4" fill="#475569" />
+                            <circle cx="0" cy="0" r="4" fill="#334155" />
                           </g>
                         </g>
                       </svg>
-                      {/* Smooth Left Gradient Fade */}
-                      <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#FAF8F5] to-transparent pointer-events-none" />
                     </div>
                   </div>
 
                 </div>
 
                 {/* 3. Four-Column Trust Feature Strip Card (Directly Below Headline & Cab Banner) */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-4 mb-5 sm:mb-7 shadow-xs grid grid-cols-4 divide-x divide-slate-200">
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-3 sm:p-4 mb-5 sm:mb-7 shadow-sm grid grid-cols-4 divide-x divide-slate-200">
                   
                   {/* Feature 1 */}
                   <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
                       ₹
                     </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
                       Zero return fare on one-way trips
                     </div>
                   </div>
 
                   {/* Feature 2 */}
                   <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
-                      <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white fill-amber-500" />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
+                      <ShieldCheck className="w-4 h-4 text-slate-950 stroke-[2.2]" />
                     </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
                       Verified AC commercial cabs
                     </div>
                   </div>
 
                   {/* Feature 3 */}
                   <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
-                      <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-900" />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
+                      <Clock className="w-4 h-4 text-slate-950 stroke-[2.2]" />
                     </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
                       20% advance booking deposit
                     </div>
                   </div>
 
                   {/* Feature 4 */}
                   <div className="flex items-start sm:items-center gap-1.5 sm:gap-2.5 px-1.5 sm:px-3">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#FFCC00] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs">
-                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-900" />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FACC15] text-slate-950 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 shadow-2xs font-black text-xs">
+                      ✕
                     </div>
-                    <div className="text-[10px] sm:text-xs font-medium text-slate-700 leading-tight">
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-800 leading-tight">
                       Free cancellation up to 6 hours.
                     </div>
                   </div>
