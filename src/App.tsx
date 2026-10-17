@@ -586,26 +586,26 @@ export default function App() {
         href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20want%20to%20book%20a%20cab%20urgently"
         target="_blank"
         rel="noreferrer"
-        className="fixed bottom-32 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black p-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all group"
+        className="fixed bottom-[118px] sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black p-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all group"
         title="Chat on WhatsApp (+91 7710080992)"
       >
         <MessageSquare className="w-5 h-5 text-slate-950" />
         <span className="hidden sm:inline text-xs tracking-tight">Quick WhatsApp Booking</span>
       </a>
 
-      {/* Mobile Bottom Navigation Bar: Persistent, high-contrast, safe-area padded */}
-      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[50px] left-0 right-0 bg-white border-t border-slate-200 z-[99999] px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-        <div className="grid grid-cols-5 text-center items-center">
+      {/* Mobile Bottom Navigation Bar: Floats strictly at bottom: 55px above AppsGeyser Ad Banner */}
+      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[55px] left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-1.5 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+        <div className="grid grid-cols-5 text-center items-center gap-0.5">
           <button
             onClick={() => {
               setActiveTab('booking');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className={`flex flex-col items-center py-1 text-[10px] font-bold transition active:scale-95 ${
-              activeTab === 'booking' ? 'text-amber-600 font-black' : 'text-slate-600 hover:text-slate-900'
+            className={`flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold transition active:scale-95 whitespace-nowrap ${
+              activeTab === 'booking' ? 'text-amber-600 font-black' : 'text-slate-700 hover:text-slate-950'
             }`}
           >
-            <Car className="w-4 h-4 mb-0.5" />
+            <Car className="w-4 h-4 mb-0.5 shrink-0" />
             <span>Book Cab</span>
           </button>
           <button
@@ -616,20 +616,20 @@ export default function App() {
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }, 120);
             }}
-            className={`flex flex-col items-center py-1 text-[10px] font-bold transition active:scale-95 ${
-              activeTab === 'routes' ? 'text-amber-600 font-black' : 'text-slate-600 hover:text-slate-900'
+            className={`flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold transition active:scale-95 whitespace-nowrap ${
+              activeTab === 'routes' ? 'text-amber-600 font-black' : 'text-slate-700 hover:text-slate-950'
             }`}
           >
-            <MapPin className="w-4 h-4 mb-0.5" />
+            <MapPin className="w-4 h-4 mb-0.5 shrink-0" />
             <span>Routes</span>
           </button>
           <button
             onClick={() => setActiveTab('rides')}
-            className={`flex flex-col items-center py-1 text-[10px] font-bold transition active:scale-95 ${
-              activeTab === 'rides' ? 'text-amber-600 font-black' : 'text-slate-600 hover:text-slate-900'
+            className={`flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold transition active:scale-95 whitespace-nowrap ${
+              activeTab === 'rides' ? 'text-amber-600 font-black' : 'text-slate-700 hover:text-slate-950'
             }`}
           >
-            <Clock className="w-4 h-4 mb-0.5" />
+            <Clock className="w-4 h-4 mb-0.5 shrink-0" />
             <span>Rides</span>
           </button>
 
@@ -637,12 +637,12 @@ export default function App() {
           {currentUser ? (
             <button
               onClick={() => setIsCustomerProfileOpen(true)}
-              className="flex flex-col items-center py-1 text-[10px] font-bold text-amber-700 transition active:scale-95"
+              className="flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold text-amber-700 transition active:scale-95 whitespace-nowrap"
             >
-              <div className="w-4 h-4 mb-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center">
+              <div className="w-4 h-4 mb-0.5 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center shrink-0">
                 {currentUser.name.charAt(0).toUpperCase()}
               </div>
-              <span className="truncate max-w-[50px]">{currentUser.name.split(' ')[0]}</span>
+              <span className="truncate max-w-[54px]">{currentUser.name.split(' ')[0]}</span>
             </button>
           ) : (
             <button
@@ -650,19 +650,19 @@ export default function App() {
                 setAuthPrompt('');
                 setIsAuthModalOpen(true);
               }}
-              className="flex flex-col items-center py-1 text-[10px] font-black text-slate-950 bg-amber-100/90 rounded-lg transition active:scale-95"
+              className="flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-black text-slate-950 bg-amber-100/90 rounded-lg transition active:scale-95 whitespace-nowrap"
             >
-              <User className="w-4 h-4 mb-0.5 text-slate-950" />
+              <User className="w-4 h-4 mb-0.5 text-slate-950 shrink-0" />
               <span>Login</span>
             </button>
           )}
 
           <button
             onClick={() => setIsAdminPinModalOpen(true)}
-            className="flex flex-col items-center py-1 text-[10px] font-bold text-slate-600 hover:text-amber-700 transition active:scale-95"
+            className="flex flex-col items-center justify-center py-1 text-[10px] leading-tight font-bold text-slate-700 hover:text-amber-700 transition active:scale-95 whitespace-nowrap"
           >
-            <Shield className="w-4 h-4 mb-0.5 text-amber-600" />
-            <span>Owner Control</span>
+            <Shield className="w-4 h-4 mb-0.5 text-amber-600 shrink-0" />
+            <span>Owner</span>
           </button>
         </div>
       </nav>
