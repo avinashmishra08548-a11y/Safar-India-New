@@ -33,6 +33,8 @@ import { CabBazarAdvantages } from './components/CabBazarAdvantages';
 import { CustomerReviews } from './components/CustomerReviews';
 import { FaqSection } from './components/FaqSection';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
+import { DriverPartnerSection } from './components/DriverPartnerSection';
+import { DriverPartnerModal } from './components/DriverPartnerModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
 
@@ -50,6 +52,8 @@ export default function App() {
     }
   });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isDriverPartnerOpen, setIsDriverPartnerOpen] = useState(false);
+  const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
 
   // Booking Engine form states
   const [tripType, setTripType] = useState<TripType>('oneway');
@@ -282,6 +286,7 @@ export default function App() {
         }}
         activeNavTab={activeTab}
         onOpenAdmin={() => setIsAdminPinModalOpen(true)}
+        onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -358,6 +363,10 @@ export default function App() {
                       distanceKm={distanceKm}
                       travelDuration={travelDuration}
                       isExactOlaDistance={isExactOlaDistance}
+                      customerMobile={customerMobile}
+                      setCustomerMobile={setCustomerMobile}
+                      currentUser={currentUser}
+                      onLoginSuccess={handleLoginSuccess}
                       onExploreCabs={scrollToAvailableCabs}
                     />
                   </div>
@@ -437,6 +446,7 @@ export default function App() {
                 returnDate={returnDate}
                 localPackageId={localPackageId}
                 includeTolls={includeTolls}
+                travelDuration={travelDuration}
                 onSelectCab={handleSelectCab}
               />
             </div>
@@ -454,6 +464,11 @@ export default function App() {
             {/* VERIFIED CUSTOMER REVIEWS */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <CustomerReviews />
+            </div>
+
+            {/* DRIVER / VENDOR PARTNER SECTION */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <DriverPartnerSection onOpenPartnerModal={() => setIsDriverPartnerOpen(true)} />
             </div>
 
             {/* FAQS & BILLING RULES */}
@@ -523,8 +538,24 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Footer with Owner Portal link */}
-      <Footer onOpenAdmin={() => setIsAdminPinModalOpen(true)} />
+      {/* Footer with Owner Portal link & Driver Partner */}
+      <Footer 
+        onOpenAdmin={() => setIsAdminPinModalOpen(true)}
+        onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
+        onSelectRoute={(from, to) => {
+          setTripType('oneway');
+          setPickupCity(from);
+          setDropCity(to);
+          setActiveTab('booking');
+          window.scrollTo({ top: 350, behavior: 'smooth' });
+        }}
+      />
+
+      {/* Driver / Vendor Partner Registration Modal */}
+      <DriverPartnerModal
+        isOpen={isDriverPartnerOpen}
+        onClose={() => setIsDriverPartnerOpen(false)}
+      />
 
       {/* Booking Drawer / Traveler Details Modal */}
       {selectedCabForCheckout && (

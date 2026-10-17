@@ -56,11 +56,13 @@ export interface BookingRecord {
 }
 
 export interface CustomerUser {
+  id?: string;
   name: string;
   phone: string;
   email?: string;
   gstNumber?: string;
   companyName?: string;
+  createdAt?: string;
 }
 
 export interface CityData {
