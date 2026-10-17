@@ -46,14 +46,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-[1000] bg-white border-b border-slate-200 p-0 m-0">
-      {/* 1. Top Black Status Bar (height: 24px, #000000 bg, #ffffff centered 12px text) */}
+      {/* 1. Prominent Thicker Top Black Status Bar */}
       <div className="top-black-status-bar">
         SafarIndiaCabs
       </div>
 
-      {/* 2. Main Header Directly Below Black Bar (Zero Unwanted White Gap) */}
-      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-1.5 sm:gap-4 h-14 sm:h-16">
+      {/* 2. Main Header Pushed Slightly Downwards for Vertical Breathing Space */}
+      <div className="main-header-bar max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 h-14 sm:h-16">
           
           {/* BRAND LOGO: SAFAR.INDIA.CABS - TRAVEL SMART */}
           <button 

@@ -586,15 +586,15 @@ export default function App() {
         href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20want%20to%20book%20a%20cab%20urgently"
         target="_blank"
         rel="noreferrer"
-        className="fixed bottom-[118px] sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black p-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all group"
+        className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black p-3.5 rounded-full shadow-2xl flex items-center gap-2 hover:scale-105 transition-all group"
         title="Chat on WhatsApp (+91 7710080992)"
       >
         <MessageSquare className="w-5 h-5 text-slate-950" />
         <span className="hidden sm:inline text-xs tracking-tight">Quick WhatsApp Booking</span>
       </a>
 
-      {/* Mobile Bottom Navigation Bar: Floats strictly at bottom: 55px above AppsGeyser Ad Banner */}
-      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[55px] left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-1.5 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+      {/* Mobile Bottom Navigation Bar: Fixed completely at the bottom of the viewport (bottom: 0) */}
+      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <div className="grid grid-cols-5 text-center items-center gap-0.5">
           <button
             onClick={() => {

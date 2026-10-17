@@ -17,29 +17,31 @@ html, body {
   padding: 0 !important;
 }
 
-/* 1. Top Black Status Bar (height: 24px, #000000 bg, #ffffff centered 12px text) */
+/* 1. Thicker, Prominent Top Black Status Bar - Pushed slightly down with generous height & padding */
 .top-black-status-bar {
-  height: 24px !important;
-  min-height: 24px !important;
-  max-height: 24px !important;
   width: 100% !important;
+  min-height: 42px !important;
   background: #000000 !important;
   background-color: #000000 !important;
   color: #ffffff !important;
   text-align: center !important;
-  font-size: 12px !important;
-  line-height: 24px !important;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding-top: max(14px, env(safe-area-inset-top, 14px)) !important;
+  padding-bottom: 10px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
   display: flex;
   align-items: center;
   justify-content: center;
   user-select: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
-/* 2. Header & Top Padding Fix - Directly below the Black Status Bar with zero white gap */
+/* 2. Header & Top Breathing Space - Pushes main header slightly downwards below the black bar */
 header {
   position: sticky !important;
   top: 0 !important;
@@ -49,30 +51,35 @@ header {
   background-color: #ffffff !important;
 }
 
-/* 3. Extra Bottom Margin so page & footer content isn't covered by Bottom Nav + Ad Banner */
+.main-header-bar {
+  padding-top: 8px !important;
+  padding-bottom: 6px !important;
+}
+
+/* 3. Bottom Spacing so page & footer content isn't covered by the fixed bottom bar */
 main, #app-content, body {
-  padding-bottom: 125px !important;
+  padding-bottom: 85px !important;
 }
 
 footer {
-  padding-bottom: 130px !important;
+  padding-bottom: 95px !important;
 }
 
-/* 4. Bottom Navigation Bar - Float strictly ABOVE AppsGeyser Ad Banner (bottom: 55px !important) */
+/* 4. Bottom Navigation Bar (Book Cab, Routes, Rides, Login, Owner) Fixed Completely at Bottom (bottom: 0) */
 nav.fixed-bottom, 
 .bottom-nav, 
 footer nav,
 div[class*="bottom-nav"] {
   position: fixed !important;
-  bottom: 55px !important;
+  bottom: 0 !important;
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
   z-index: 99999 !important;
   background: #ffffff !important;
   border-top: 1px solid #e5e7eb !important;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+  padding-top: 8px !important;
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px)) !important;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
 }
 
