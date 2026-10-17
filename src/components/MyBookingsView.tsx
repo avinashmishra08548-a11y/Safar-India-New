@@ -59,7 +59,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
       `Advance Paid: ${formatINR(b.advancePaid)}\n` +
       `Balance Due to Driver: ${formatINR(b.balanceDue)}\n` +
       `Status: ${b.status.toUpperCase()}`;
-    window.open(`https://wa.me/917710080992?text=${encodeURIComponent(text)}`, '_blank');
+    window.location.href = `https://wa.me/917710080992?text=${encodeURIComponent(text)}`;
   };
 
   // PRIVACY GATE: If not logged in, enforce authentication

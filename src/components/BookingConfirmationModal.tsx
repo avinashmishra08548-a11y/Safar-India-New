@@ -55,7 +55,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
       `_Driver & Cab details will be sent 2 hours before pickup._`;
 
     const encoded = encodeURIComponent(text);
-    window.open(`https://wa.me/917710080992?text=${encoded}`, '_blank');
+    window.location.href = `https://wa.me/917710080992?text=${encoded}`;
   };
 
   return (

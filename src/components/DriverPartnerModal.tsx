@@ -82,7 +82,7 @@ export const DriverPartnerModal: React.FC<DriverPartnerModalProps> = ({ isOpen, 
       `*Commercial Permit (AITP):* ${hasCommercialPermit ? 'Yes' : 'In Process'}\n\n` +
       `_I want to join as a driver partner and start taking outstation trips with Safar India Cabs._`;
 
-    window.open(`https://wa.me/917710080992?text=${encodeURIComponent(text)}`, '_blank');
+    window.location.href = `https://wa.me/917710080992?text=${encodeURIComponent(text)}`;
   };
 
   return (

@@ -766,20 +766,27 @@ export default function App() {
 
       </main>
 
-      {/* Floating 24/7 WhatsApp Quick Help Button (Green Circle on Bottom Right) */}
+      {/* Floating 24/7 WhatsApp Quick Help Button (Universal WhatsApp Deep Link) */}
       <a
-        href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20want%20to%20book%20a%20cab%20urgently"
+        href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance"
         target="_blank"
-        rel="noreferrer"
-        className="fixed bottom-[104px] sm:bottom-6 right-4 sm:right-6 z-40 bg-[#10B981] hover:bg-emerald-500 text-white font-black w-13 h-13 sm:w-auto sm:h-auto sm:px-4 sm:py-3.5 rounded-full shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all group"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          // Ensure direct navigation in Android WebView / AppsGeyser so Normal or Business WhatsApp opens directly
+          if (/; wv\)|AppsGeyser|WebView/i.test(navigator.userAgent)) {
+            e.preventDefault();
+            window.location.href = 'https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance';
+          }
+        }}
+        className="fixed bottom-[114px] sm:bottom-6 right-4 sm:right-6 z-[999998] bg-[#10B981] hover:bg-emerald-500 text-white font-black w-13 h-13 sm:w-auto sm:h-auto sm:px-4 sm:py-3.5 rounded-full shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all group"
         title="Chat on WhatsApp (+91 7710080992)"
       >
         <MessageSquare className="w-6 h-6 text-white stroke-[2.2]" />
         <span className="hidden sm:inline text-xs tracking-tight">Quick WhatsApp Booking</span>
       </a>
 
-      {/* Mobile Bottom Navigation Bar: Positioned at bottom: 40px comfortably above the 50px AppsGeyser Ad Banner */}
-      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[40px] left-0 right-0 w-full bg-white border-t border-slate-200 z-[99999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      {/* Mobile Bottom Navigation Bar: bottom: calc(env(safe-area-inset-bottom) + 50px) !important; z-index: 999999 !important; */}
+      <nav className="fixed-bottom bottom-nav sm:hidden fixed left-0 right-0 w-full bg-white border-t border-slate-200 z-[999999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         <div className="grid grid-cols-5 text-center items-center gap-1">
           <button
             type="button"

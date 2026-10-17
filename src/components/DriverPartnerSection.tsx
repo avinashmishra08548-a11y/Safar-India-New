@@ -78,13 +78,19 @@ export const DriverPartnerSection: React.FC<DriverPartnerSectionProps> = ({ onOp
               </button>
 
               <a
-                href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20want%20to%20join%20as%20a%20driver%20vendor%20partner"
+                href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  if (/; wv\)|AppsGeyser|WebView/i.test(navigator.userAgent)) {
+                    e.preventDefault();
+                    window.location.href = 'https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance';
+                  }
+                }}
                 className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl border border-slate-300 transition flex items-center gap-2"
               >
                 <Phone className="w-4 h-4 text-emerald-600" />
-                <span>Call Onboarding (+91 77100 80992)</span>
+                <span>WhatsApp Helpdesk (+91 77100 80992)</span>
               </a>
             </div>
 

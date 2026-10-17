@@ -299,9 +299,15 @@ export const Header: React.FC<HeaderProps> = ({
               </a>
 
               <a
-                href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20assistance"
+                href="https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  if (/; wv\)|AppsGeyser|WebView/i.test(navigator.userAgent)) {
+                    e.preventDefault();
+                    window.location.href = 'https://wa.me/917710080992?text=Hello%20Safar%20India%20Cabs,%20I%20need%20cab%20booking%20assistance';
+                  }
+                }}
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm"
               >
                 <MessageSquare className="w-4 h-4 fill-current" />
