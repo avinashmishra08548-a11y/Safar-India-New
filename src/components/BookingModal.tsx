@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { CabVehicle, CustomerUser, TripType, BookingRecord } from '../types';
 import { formatINR, FareCalculationResult } from '../utils/fareCalculator';
-import { sendBookingConfirmationSms, sanitize10DigitPhone } from '../utils/smsService';
+import { sendDualBookingNotifications, sanitize10DigitPhone } from '../utils/smsService';
 import { launchRazorpayStandardCheckout } from '../utils/razorpayService';
 
 interface BookingModalProps {
@@ -182,11 +182,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             : `Razorpay Dynamic UPI (${paymentId}) - 100% Full Fare`
         };
 
-        // 3. Trigger instant SMS confirmation via Fast2SMS
+        // 2 & 3. Automated Dual SMS Notification System (Customer Confirmation + Admin Fleet Alert)
+        // Dispatches in parallel without requiring any manual action from the customer
         try {
-          await sendBookingConfirmationSms(cleanPhone, confirmedBooking);
+          await sendDualBookingNotifications(confirmedBooking);
         } catch (smsError) {
-          console.warn('Fast2SMS booking confirmation dispatch notice:', smsError);
+          console.warn('Fast2SMS automated dual notification notice:', smsError);
         }
 
         setIsProcessing(false);

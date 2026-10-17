@@ -87,10 +87,17 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               Booking Ref #{booking.id}
             </h3>
 
-            {/* Fast2SMS Instant Confirmation Live Notice */}
-            <div className="mt-2.5 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center justify-center gap-2">
-              <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Instant SMS confirmation sent to <strong className="font-mono font-bold">+91 {booking.customerPhone}</strong> via Fast2SMS</span>
+            {/* Fast2SMS Automated Dual SMS Live Notice */}
+            <div className="mt-2.5 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 space-y-1">
+              <div className="flex items-center justify-center gap-1.5 font-bold">
+                <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Automated Fast2SMS Notifications Dispatched</span>
+              </div>
+              <div className="text-[11px] text-emerald-800 flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
+                <span>✓ Confirmation to: <strong className="font-mono font-bold">+91 {booking.customerPhone}</strong></span>
+                <span className="text-emerald-400">•</span>
+                <span>✓ Alert to Admin Fleet: <strong className="font-mono font-bold">+91 7710080992</strong></span>
+              </div>
             </div>
 
             {/* Razorpay Transaction ID Tag */}
