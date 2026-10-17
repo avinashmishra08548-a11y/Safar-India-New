@@ -395,6 +395,8 @@ export async function sendBookingConfirmationSms(
     totalFare?: number;
     advancePaid: number;
     balanceDue: number;
+    paidAmount?: number;
+    balanceAmount?: number;
     transactionId?: string;
   }
 ): Promise<SmsResult> {
@@ -402,24 +404,16 @@ export async function sendBookingConfirmationSms(
   const travelDate = `${booking.pickupDate} at ${booking.pickupTime}`;
   const cabClass = booking.cabClass || booking.cabName || 'Commercial Cab';
   const totalFare = booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
+  const advance = booking.paidAmount ?? booking.advancePaid ?? 0;
+  const balance = booking.balanceAmount ?? booking.balanceDue ?? 0;
   
-  // Exact Clean Multiline Template:
-  // SAFAR INDIA CABS — BOOKING CONFIRMED
-  // Booking ID: {bookingId}
-  // Date/Time: {travelDateTime}
-  // Pickup: {pickup}
-  // Drop: {drop}
-  // Cab Class: {cabClass}
-  // Total Fare: ₹{totalFare}
-  // Advance Received: ₹{verifiedAdvance}
-  // Balance Payable: ₹{balance}
-  // Helpline: +917710080992
-  const confirmationMessage = `SAFAR INDIA CABS — BOOKING CONFIRMED\nBooking ID: ${booking.id}\nDate/Time: ${travelDate}\nPickup: ${booking.pickupCity}\nDrop: ${booking.dropCity}\nCab Class: ${cabClass}\nTotal Fare: ₹${totalFare}\nAdvance Received: ₹${booking.advancePaid}\nBalance Payable: ₹${booking.balanceDue}\nHelpline: +917710080992`;
+  // STAGE 1 - Customer Booking Confirmation Template:
+  const confirmationMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
   return sendRawFast2Sms(cleanPhone, confirmationMessage);
 }
 
 /**
- * AUTOMATED DUAL SMS / NOTIFICATION SYSTEM
+ * AUTOMATED DUAL SMS / NOTIFICATION SYSTEM (STAGE 1)
  * 
  * Triggers TWO separate alerts immediately and automatically after Razorpay payment verification:
  * 1. Customer Confirmation SMS (Clean & structured template, NO OTP)
@@ -443,6 +437,8 @@ export async function sendDualBookingNotifications(booking: {
   totalFare?: number;
   advancePaid: number;
   balanceDue: number;
+  paidAmount?: number;
+  balanceAmount?: number;
   transactionId?: string;
 }): Promise<DualSmsResult> {
   const cleanCustomerPhone = sanitize10DigitPhone(booking.customerPhone);
@@ -450,6 +446,8 @@ export async function sendDualBookingNotifications(booking: {
   const travelDate = `${booking.pickupDate} at ${booking.pickupTime}`;
   const cabClass = booking.cabClass || booking.cabName || 'Commercial Cab';
   const totalFare = booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
+  const advance = booking.paidAmount ?? booking.advancePaid ?? 0;
+  const balance = booking.balanceAmount ?? booking.balanceDue ?? 0;
 
   // STEP 1: Attempt backend API request (/api/send-booking-sms or /api/booking-notifications)
   for (const endpoint of ['/api/send-booking-sms', '/api/booking-notifications']) {
@@ -464,8 +462,10 @@ export async function sendDualBookingNotifications(booking: {
             ...booking,
             cabClass,
             totalFare,
-            verifiedAdvance: booking.advancePaid,
-            balance: booking.balanceDue,
+            paidAmount: advance,
+            balanceAmount: balance,
+            verifiedAdvance: advance,
+            balance: balance,
             travelDateTime: travelDate
           }
         })
@@ -500,9 +500,9 @@ export async function sendDualBookingNotifications(booking: {
   }
 
   // STEP 2: Direct Failover Gateway (dispatches both SMS messages in parallel using exact clean templates)
-  const customerMessage = `SAFAR INDIA CABS — BOOKING CONFIRMED\nBooking ID: ${booking.id}\nDate/Time: ${travelDate}\nPickup: ${booking.pickupCity}\nDrop: ${booking.dropCity}\nCab Class: ${cabClass}\nTotal Fare: ₹${totalFare}\nAdvance Received: ₹${booking.advancePaid}\nBalance Payable: ₹${booking.balanceDue}\nHelpline: +917710080992`;
+  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
 
-  const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\nBooking ID: ${booking.id}\nCustomer Name: ${booking.customerName}\nPhone: +91${cleanCustomerPhone}\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nCab: ${cabClass}\nDate/Time: ${travelDate}\nAdvance Paid: ₹${booking.advancePaid}\nBalance Due: ₹${booking.balanceDue}`;
+  const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${booking.id}\nCustomer: ${booking.customerName}\nPhone: +91${cleanCustomerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDate}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advance}\nBalance Due: ₹${balance}`;
 
   const [customerResult, adminResult] = await Promise.allSettled([
     sendRawFast2Sms(cleanCustomerPhone, customerMessage),
@@ -536,24 +536,20 @@ export async function sendDualBookingNotifications(booking: {
 }
 
 /**
- * AUTOMATED DRIVER ASSIGNMENT NOTIFICATION (Fast2SMS)
- * 
- * Template:
- * 🚗 SAFAR INDIA CABS — DRIVER ASSIGNED
- * Booking ID: {bookingId}
- * Driver Name: {driverName}
- * Driver Phone: {driverPhone}
- * Vehicle: {vehicleModel} ({registrationNumber})
- * Pickup: {pickup}
- * Date/Time: {travelDateTime}
- * Helpline: +917710080992
+ * AUTOMATED DRIVER ASSIGNMENT NOTIFICATIONS (STAGE 2)
+ * Dispatches BOTH:
+ * 1. Pickup Alert SMS to Driver
+ * 2. Driver Details SMS to Customer
  */
 export async function sendDriverAssignmentSms(params: {
   customerPhone: string;
+  customerName?: string;
   bookingId: string;
   pickup: string;
   drop: string;
   travelDate: string;
+  cabClass?: string;
+  balanceAmount?: number;
   driverName: string;
   driverPhone: string;
   vehicleModel: string;
@@ -561,8 +557,9 @@ export async function sendDriverAssignmentSms(params: {
 }): Promise<SmsResult> {
   const cleanCustomerPhone = sanitize10DigitPhone(params.customerPhone);
   const cleanDriverPhone = sanitize10DigitPhone(params.driverPhone);
-
-  const message = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\nBooking ID: ${params.bookingId}\nDriver Name: ${params.driverName}\nDriver Phone: ${cleanDriverPhone || params.driverPhone}\nVehicle: ${params.vehicleModel} (${params.vehicleNo})\nPickup: ${params.pickup}\nDate/Time: ${params.travelDate}\nHelpline: +917710080992`;
+  const customerName = params.customerName || 'Passenger';
+  const cabClass = params.cabClass || 'Commercial Cab';
+  const balance = params.balanceAmount ?? 0;
 
   // 1. Try backend API endpoints (/api/assign-driver and /api/send-driver-sms)
   for (const endpoint of ['/api/assign-driver', '/api/send-driver-sms']) {
@@ -576,6 +573,9 @@ export async function sendDriverAssignmentSms(params: {
           ...params,
           customerPhone: cleanCustomerPhone,
           driverPhone: cleanDriverPhone,
+          customerName,
+          cabClass,
+          balanceAmount: balance,
           registrationNumber: params.vehicleNo,
           travelDateTime: params.travelDate
         })
@@ -585,9 +585,9 @@ export async function sendDriverAssignmentSms(params: {
         if (data && data.success) {
           return {
             success: true,
-            message: `Driver details SMS dispatched to +91 ${cleanCustomerPhone} via Fast2SMS`,
+            message: `Dual driver & customer SMS dispatched via Fast2SMS`,
             endpointUsed: endpoint,
-            numbersSent: cleanCustomerPhone,
+            numbersSent: `${cleanCustomerPhone}, ${cleanDriverPhone}`,
             statusCode: 200
           };
         }
@@ -597,8 +597,21 @@ export async function sendDriverAssignmentSms(params: {
     }
   }
 
-  // 2. Direct Fast2SMS failover
-  return sendRawFast2Sms(cleanCustomerPhone, message);
+  // 2. Direct Fast2SMS failovers in parallel:
+  // Driver Pickup Alert
+  const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${params.bookingId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${params.pickup}\nDrop: ${params.drop}\nDate/Time: ${params.travelDate}\nCab: ${cabClass}\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
+  // Customer Driver Details
+  const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${params.bookingId}\nRoute: ${params.pickup} to ${params.drop}\nDate/Time: ${params.travelDate}\n\nDriver Name: ${params.driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : params.driverPhone}\nVehicle: ${params.vehicleModel} (${params.vehicleNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
+
+  const dispatches = [
+    sendRawFast2Sms(cleanCustomerPhone, customerMessage)
+  ];
+  if (cleanDriverPhone && cleanDriverPhone.length === 10) {
+    dispatches.push(sendRawFast2Sms(cleanDriverPhone, driverMessage));
+  }
+  const results = await Promise.allSettled(dispatches);
+  const custRes = results[0]?.status === 'fulfilled' ? results[0].value : { success: false, message: 'Customer dispatch failed' };
+  return custRes as SmsResult;
 }
 
 /**

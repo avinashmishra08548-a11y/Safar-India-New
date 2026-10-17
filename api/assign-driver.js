@@ -85,11 +85,16 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     const {
       customerPhone,
+      customerName = 'Passenger',
       bookingId,
       pickup,
       drop,
       travelDate,
       travelDateTime,
+      cabClass,
+      cabName,
+      balanceAmount,
+      balanceDue,
       driverName,
       driverPhone,
       vehicleModel,
@@ -103,31 +108,46 @@ export default async function handler(req, res) {
     }
 
     const cleanDriverPhone = sanitize10Digit(driverPhone);
-    const vehicle = vehicleModel || 'Cab';
+    const vehicle = vehicleModel || cabName || 'Cab';
     const regNo = (registrationNumber || vehicleNo || 'Assigned').toUpperCase();
     const dateFormatted = travelDateTime || travelDate || 'Scheduled Time';
+    const cab = cabClass || cabName || 'Commercial Cab';
+    const balance = balanceAmount ?? balanceDue ?? 0;
 
     const apiKey = process.env.FAST2SMS_API_KEY || DEFAULT_KEY;
 
-    // Exact Clean Template:
-    // 🚗 SAFAR INDIA CABS — DRIVER ASSIGNED
-    // Booking ID: {bookingId}
-    // Driver Name: {driverName}
-    // Driver Phone: {driverPhone}
-    // Vehicle: {vehicleModel} ({registrationNumber})
-    // Pickup: {pickup}
-    // Date/Time: {travelDateTime}
-    // Helpline: +917710080992
-    const message = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\nBooking ID: ${bookingId}\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone || driverPhone}\nVehicle: ${vehicle} (${regNo})\nPickup: ${pickup}\nDate/Time: ${dateFormatted}\nHelpline: +917710080992`;
+    // 1. Send Pickup Alert SMS to DRIVER:
+    const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${bookingId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${pickup}\nDrop: ${drop}\nDate/Time: ${dateFormatted}\nCab: ${cab}\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
 
-    const dispatchResult = await dispatchFast2Sms(cleanCustomerPhone, message, apiKey);
+    // 2. Send Driver Details SMS to CUSTOMER:
+    const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${bookingId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${dateFormatted}\n\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : driverPhone}\nVehicle: ${vehicle} (${regNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
+
+    // Dispatch both SMS messages in parallel
+    const dispatches = [
+      dispatchFast2Sms(cleanCustomerPhone, customerMessage, apiKey)
+    ];
+
+    if (cleanDriverPhone && cleanDriverPhone.length === 10) {
+      dispatches.push(dispatchFast2Sms(cleanDriverPhone, driverMessage, apiKey));
+    }
+
+    const results = await Promise.allSettled(dispatches);
+    const customerResult = results[0]?.status === 'fulfilled' ? results[0].value : { success: false };
+    const driverResult = results[1]?.status === 'fulfilled' ? results[1].value : { success: false };
 
     return res.status(200).json({
-      success: dispatchResult.success,
+      success: customerResult.success || driverResult.success,
       bookingId,
-      customerPhone: cleanCustomerPhone,
-      driverName,
-      details: dispatchResult
+      customer: {
+        phone: cleanCustomerPhone,
+        dispatched: customerResult.success,
+        details: customerResult
+      },
+      driver: {
+        phone: cleanDriverPhone,
+        dispatched: driverResult.success,
+        details: driverResult
+      }
     });
   } catch (err) {
     console.error('Error in /api/assign-driver:', err);

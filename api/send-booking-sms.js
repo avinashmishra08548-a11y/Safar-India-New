@@ -98,15 +98,15 @@ export default async function handler(req, res) {
 
     const cabClass = booking.cabClass || booking.cabName || 'Commercial Cab';
     const totalFare = booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
-    const verifiedAdvance = booking.verifiedAdvance ?? booking.advancePaid ?? 0;
-    const balance = booking.balance ?? booking.balanceDue ?? 0;
+    const verifiedAdvance = booking.paidAmount ?? booking.verifiedAdvance ?? booking.advancePaid ?? 0;
+    const balance = booking.balanceAmount ?? booking.balance ?? booking.balanceDue ?? 0;
     const travelDateTime = booking.travelDateTime || `${booking.pickupDate} at ${booking.pickupTime}`;
 
-    // 1. Customer Confirmation SMS (Clean, structured, NO OTP)
-    const customerMessage = `SAFAR INDIA CABS — BOOKING CONFIRMED\nBooking ID: ${booking.id}\nDate/Time: ${travelDateTime}\nPickup: ${booking.pickupCity}\nDrop: ${booking.dropCity}\nCab Class: ${cabClass}\nTotal Fare: ₹${totalFare}\nAdvance Received: ₹${verifiedAdvance}\nBalance Payable: ₹${balance}\nHelpline: +917710080992`;
+    // 1. Send Booking Confirmation SMS to CUSTOMER:
+    const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${verifiedAdvance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
 
-    // 2. Admin Alert SMS Template (Instant alert to +91 7710080992)
-    const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\nBooking ID: ${booking.id}\nCustomer Name: ${booking.customerName}\nPhone: +91${customerPhone}\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nCab: ${cabClass}\nDate/Time: ${travelDateTime}\nAdvance Paid: ₹${verifiedAdvance}\nBalance Due: ₹${balance}`;
+    // 2. Send Instant New Booking Alert SMS to ADMIN (+917710080992):
+    const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${booking.id}\nCustomer: ${booking.customerName}\nPhone: +91${customerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${verifiedAdvance}\nBalance Due: ₹${balance}`;
 
     // Execute both SMS dispatches in parallel
     const [customerRes, adminRes] = await Promise.allSettled([

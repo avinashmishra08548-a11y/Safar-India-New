@@ -204,15 +204,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       vehicleModel
     });
 
-    // 2. Trigger automatic Fast2SMS request to customer phone with exact clean template
+    // 2. Trigger automatic Fast2SMS dual dispatch: Driver Pickup Duty Alert & Customer Driver Details
     const travelDate = `${b.pickupDate} at ${b.pickupTime}`;
     try {
       await sendDriverAssignmentSms({
         customerPhone: b.customerPhone,
+        customerName: b.customerName,
         bookingId: b.id,
         pickup: b.pickupCity,
         drop: b.dropCity,
         travelDate,
+        cabClass: b.cabName,
+        balanceAmount: b.balanceDue,
         driverName: driverName.trim(),
         driverPhone: cleanDriverPhone,
         vehicleModel,
@@ -223,7 +226,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     setIsSendingDriverSms(false);
-    setDriverSmsSuccessNotice(`Driver details saved & SMS sent to customer (+91 ${b.customerPhone})!`);
+    setDriverSmsSuccessNotice(`Driver assigned! Automated SMS alerts sent to Driver (+91 ${cleanDriverPhone}) and Customer (+91 ${b.customerPhone})!`);
 
     setTimeout(() => {
       setDriverSmsSuccessNotice('');
@@ -232,7 +235,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setDriverPhone('');
       setDriverVehicleModel('');
       setDriverCarPlate('');
-    }, 2000);
+    }, 2500);
   };
 
   const handleUpdatePin = (e: React.FormEvent) => {
@@ -1339,7 +1342,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <span>Automated Fast2SMS Dispatch</span>
                 </div>
                 <p className="text-slate-300 text-[10px] leading-relaxed">
-                  Clicking below will automatically dispatch the Driver Details SMS to customer (+91 {selectedBookingForDriver.customerPhone}) via Fast2SMS gateway.
+                  Clicking below will automatically dispatch the <strong>Driver Details SMS</strong> to customer (+91 {selectedBookingForDriver.customerPhone}) AND the <strong>Pickup Duty Alert</strong> to driver (+91 {driverPhone || 'Driver'}) via Fast2SMS gateway.
                 </p>
               </div>
 
