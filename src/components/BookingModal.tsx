@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { CabVehicle, CustomerUser, TripType, BookingRecord } from '../types';
 import { formatINR, FareCalculationResult } from '../utils/fareCalculator';
-import { sendOtpSms, getFast2SmsApiKey } from '../utils/smsService';
+import { sendOtpSms, getFast2SmsApiKey, sanitize10DigitPhone, FAST2SMS_ENDPOINT, FAST2SMS_ROUTE } from '../utils/smsService';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -160,9 +160,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setErrorMessage('Please enter traveler full name');
       return;
     }
-    const cleanPhone = customerPhone.replace(/\D/g, '');
-    if (!customerPhone.trim() || cleanPhone.length < 10) {
-      setErrorMessage('Please enter a valid 10-digit mobile number');
+    const cleanPhone = sanitize10DigitPhone(customerPhone);
+    if (!customerPhone.trim() || cleanPhone.length !== 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210)');
       return;
     }
     if (!pickupAddress.trim()) {
@@ -249,7 +249,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const handleResendBookingOtp = async () => {
-    const cleanPhone = customerPhone.replace(/\D/g, '');
+    const cleanPhone = sanitize10DigitPhone(customerPhone);
     setIsSendingOtp(true);
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
@@ -316,13 +316,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             {/* Fast2SMS Gateway Status Notice */}
             <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1.5 text-[11px]">
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-slate-400">
+                <span className="flex items-center gap-1.5 text-slate-300 font-semibold">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Fast2SMS Complete API Route</span>
+                  <span>Fast2SMS route: '{FAST2SMS_ROUTE}'</span>
                 </span>
                 <span className="font-mono text-emerald-400 text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                  KEY: ...Vxcz
+                  endpoint: /dev/bulkV2
                 </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500">
+                <span>Numbers format: 10-digit ({sanitize10DigitPhone(customerPhone)})</span>
+                <span className="font-mono text-slate-400">Auth: 6B8s...Vxcz</span>
               </div>
               {otpNotice && (
                 <p className="text-slate-400 text-[10px] leading-tight">

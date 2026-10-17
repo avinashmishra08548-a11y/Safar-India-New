@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
-import { getFast2SmsApiKey, setFast2SmsApiKey, verifyFast2SmsKey } from '../utils/smsService';
+import { getFast2SmsApiKey, setFast2SmsApiKey, verifyFast2SmsKey, FAST2SMS_ENDPOINT, FAST2SMS_ROUTE, sanitize10DigitPhone } from '../utils/smsService';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -217,9 +217,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleTestFast2Sms = async () => {
-    if (!fast2smsKey.trim() || !testPhone.trim()) return;
+    const cleanPhone = sanitize10DigitPhone(testPhone);
+    if (!fast2smsKey.trim() || !cleanPhone || cleanPhone.length !== 10) {
+      setTestStatus({ running: false, ok: false, message: 'Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210)' });
+      return;
+    }
     setTestStatus({ running: true });
-    const res = await verifyFast2SmsKey(fast2smsKey.trim(), testPhone.trim());
+    const res = await verifyFast2SmsKey(fast2smsKey.trim(), cleanPhone);
     setTestStatus({ running: false, ok: res.ok, message: res.info });
   };
 
@@ -606,6 +610,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </p>
                 </div>
               </form>
+
+              {/* Technical Specifications Card */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">API Endpoint</span>
+                  <span className="font-mono text-emerald-400 font-bold break-all">{FAST2SMS_ENDPOINT}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Active Route</span>
+                  <span className="font-mono text-amber-400 font-bold">route: '{FAST2SMS_ROUTE}'</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Phone Sanitization</span>
+                  <span className="text-slate-300 font-medium">Strict 10-digit without +91</span>
+                </div>
+              </div>
 
               {/* Test Live SMS Tool */}
               <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">

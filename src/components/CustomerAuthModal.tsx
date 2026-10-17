@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Smartphone, CheckCircle, ShieldCheck, RefreshCw, MessageSquare, Radio, Loader2 } from 'lucide-react';
+import { X, Smartphone, CheckCircle, ShieldCheck, RefreshCw, MessageSquare, Radio, Loader2, Sparkles } from 'lucide-react';
 import { CustomerUser } from '../types';
-import { sendOtpSms, getFast2SmsApiKey } from '../utils/smsService';
+import { sendOtpSms, getFast2SmsApiKey, sanitize10DigitPhone, FAST2SMS_ENDPOINT, FAST2SMS_ROUTE } from '../utils/smsService';
 
 interface CustomerAuthModalProps {
   isOpen: boolean;
@@ -30,7 +30,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
   // Auto-fill existing customer if phone is already registered
   const handlePhoneChange = (inputPhone: string) => {
-    const clean = inputPhone.replace(/\D/g, '');
+    const clean = sanitize10DigitPhone(inputPhone);
     setPhone(clean);
     if (clean.length === 10) {
       try {
@@ -49,8 +49,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone || phone.length < 10) {
-      setErrorMsg('Please enter a valid 10-digit mobile number');
+    const cleanPhone = sanitize10DigitPhone(phone);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setErrorMsg('Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210)');
       return;
     }
     if (!name.trim()) {
@@ -64,8 +65,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
 
-    // Call Fast2SMS Gateway
-    const res = await sendOtpSms(phone, newOtp);
+    // Call Fast2SMS Gateway (route: 'otp', endpoint: https://www.fast2sms.com/dev/bulkV2, 10 digits without +91)
+    const res = await sendOtpSms(cleanPhone, newOtp);
     setIsSending(false);
     setSmsDeliveryInfo(res.message);
 
@@ -86,12 +87,13 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
   const handleResend = async () => {
     if (resendSeconds > 0 || isSending) return;
+    const cleanPhone = sanitize10DigitPhone(phone);
     setIsSending(true);
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     setGeneratedOtp(newOtp);
     setOtp('');
 
-    const res = await sendOtpSms(phone, newOtp);
+    const res = await sendOtpSms(cleanPhone, newOtp);
     setIsSending(false);
     setSmsDeliveryInfo(res.message);
 
@@ -102,13 +104,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const handleVerifyOtp = (e: React.FormEvent) => {
     e.preventDefault();
     if (otp !== generatedOtp) {
-      setErrorMsg('Invalid verification code! Please enter the code sent to your phone.');
+      setErrorMsg('Invalid verification code! Please enter the code sent to your phone or click Auto-fill.');
       return;
     }
 
+    const cleanPhone = sanitize10DigitPhone(phone);
     const user: CustomerUser = {
       name: name.trim(),
-      phone: phone.trim(),
+      phone: cleanPhone,
       email: email.trim() || undefined
     };
 
@@ -221,9 +224,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500">
                 <span className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Fast2SMS Live Gateway Connected
+                  Fast2SMS Route: 'otp' Active
                 </span>
-                <span className="font-mono text-slate-400">Key: 6B8s...PIMq</span>
+                <span className="font-mono text-emerald-400">...Vxcz (10-digit)</span>
               </div>
 
               <button
