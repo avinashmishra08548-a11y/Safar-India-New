@@ -53,6 +53,11 @@ export interface BookingRecord {
   status: 'confirmed' | 'completed' | 'cancelled';
   createdAt: string;
   notes?: string;
+  driverName?: string;
+  driverPhone?: string;
+  driverVehicleModel?: string;
+  driverVehicleNo?: string;
+  driverAssignedAt?: string;
 }
 
 export interface CustomerUser {

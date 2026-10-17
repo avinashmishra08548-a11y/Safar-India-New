@@ -505,3 +505,59 @@ export async function sendDualBookingNotifications(booking: {
     adminSms
   };
 }
+
+/**
+ * AUTOMATED DRIVER ASSIGNMENT NOTIFICATION (Fast2SMS)
+ * 
+ * Template:
+ * "🚗 SAFAR INDIA CABS - DRIVER DETAILS ASSIGNED\n\nBooking ID: {bookingId}\nRoute: {pickup} to {drop}\nDate/Time: {travelDate}\n\nDriver Name: {driverName}\nPhone: {driverPhone}\nVehicle: {vehicleModel} ({vehicleNo})\n\nDriver will contact you before pickup. For support, call +917710080992."
+ */
+export async function sendDriverAssignmentSms(params: {
+  customerPhone: string;
+  bookingId: string;
+  pickup: string;
+  drop: string;
+  travelDate: string;
+  driverName: string;
+  driverPhone: string;
+  vehicleModel: string;
+  vehicleNo: string;
+}): Promise<SmsResult> {
+  const cleanCustomerPhone = sanitize10DigitPhone(params.customerPhone);
+  const cleanDriverPhone = sanitize10DigitPhone(params.driverPhone);
+
+  const message = `🚗 SAFAR INDIA CABS - DRIVER DETAILS ASSIGNED\n\nBooking ID: ${params.bookingId}\nRoute: ${params.pickup} to ${params.drop}\nDate/Time: ${params.travelDate}\n\nDriver Name: ${params.driverName}\nPhone: ${cleanDriverPhone || params.driverPhone}\nVehicle: ${params.vehicleModel} (${params.vehicleNo})\n\nDriver will contact you before pickup. For support, call +917710080992.`;
+
+  // 1. Try backend API (/api/send-driver-sms)
+  try {
+    const apiRes = await fetch('/api/send-driver-sms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ...params,
+        customerPhone: cleanCustomerPhone,
+        driverPhone: cleanDriverPhone
+      })
+    });
+    if (apiRes.ok) {
+      const data = await apiRes.json().catch(() => null);
+      if (data && data.success) {
+        return {
+          success: true,
+          message: `Driver details SMS dispatched to +91 ${cleanCustomerPhone} via Fast2SMS`,
+          endpointUsed: '/api/send-driver-sms',
+          numbersSent: cleanCustomerPhone,
+          statusCode: 200
+        };
+      }
+    }
+  } catch (e) {
+    console.info('Backend /api/send-driver-sms notice, using direct gateway fallback:', e);
+  }
+
+  // 2. Direct Fast2SMS failover
+  return sendRawFast2Sms(cleanCustomerPhone, message);
+}
+

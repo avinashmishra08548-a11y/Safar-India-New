@@ -269,18 +269,36 @@ export default function App() {
   const handleUpdateBookingStatusByAdmin = (
     bookingId: string, 
     status: 'confirmed' | 'completed' | 'cancelled',
-    driverInfo?: { name: string; phone: string; carPlate: string }
+    driverInfo?: { name: string; phone: string; carPlate: string; vehicleModel?: string }
   ) => {
     setAllBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
         return {
           ...b,
           status,
-          notes: driverInfo ? `Driver: ${driverInfo.name} (${driverInfo.phone}) | Plate: ${driverInfo.carPlate}` : b.notes
+          driverName: driverInfo?.name || b.driverName,
+          driverPhone: driverInfo?.phone || b.driverPhone,
+          driverVehicleModel: driverInfo?.vehicleModel || b.driverVehicleModel,
+          driverVehicleNo: driverInfo?.carPlate || b.driverVehicleNo,
+          driverAssignedAt: driverInfo ? new Date().toISOString() : b.driverAssignedAt,
+          notes: driverInfo 
+            ? `Driver: ${driverInfo.name} (${driverInfo.phone}) | ${driverInfo.vehicleModel || 'Cab'} (${driverInfo.carPlate})` 
+            : b.notes
         };
       }
       return b;
     }));
+  };
+
+  const handleClearDemoBookings = () => {
+    setAllBookings(prev => {
+      // Remove mock/demo bookings without genuine transaction IDs
+      const filtered = prev.filter(b => b.transactionId && !b.id.includes('DEMO') && !b.id.includes('TEST'));
+      try {
+        localStorage.setItem('safar_bookings', JSON.stringify(filtered));
+      } catch {}
+      return filtered;
+    });
   };
 
   const handleOpenAvailableCabs = () => {
@@ -795,6 +813,7 @@ export default function App() {
         bookings={allBookings}
         onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
         onChangePin={handleChangeOwnerPin}
+        onClearDemoBookings={handleClearDemoBookings}
       />
 
     </div>

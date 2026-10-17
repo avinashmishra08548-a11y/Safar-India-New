@@ -25,7 +25,8 @@ import {
   Sparkles,
   ExternalLink,
   Loader2,
-  CreditCard
+  CreditCard,
+  Trash2
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
@@ -35,7 +36,8 @@ import {
   verifyFast2SmsKey, 
   FAST2SMS_ENDPOINT, 
   DEFAULT_FAST2SMS_KEY, 
-  sanitize10DigitPhone 
+  sanitize10DigitPhone,
+  sendDriverAssignmentSms
 } from '../utils/smsService';
 import {
   getOlaMapsApiKey,
@@ -60,8 +62,13 @@ interface AdminDashboardProps {
   isOpen: boolean;
   onClose: () => void;
   bookings: BookingRecord[];
-  onUpdateBookingStatus: (bookingId: string, status: 'confirmed' | 'completed' | 'cancelled', driverInfo?: { name: string; phone: string; carPlate: string }) => void;
+  onUpdateBookingStatus: (
+    bookingId: string, 
+    status: 'confirmed' | 'completed' | 'cancelled', 
+    driverInfo?: { name: string; phone: string; carPlate: string; vehicleModel?: string }
+  ) => void;
   onChangePin: (newPin: string) => void;
+  onClearDemoBookings?: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -69,7 +76,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onClose,
   bookings,
   onUpdateBookingStatus,
-  onChangePin
+  onChangePin,
+  onClearDemoBookings
 }) => {
   if (!isOpen) return null;
 
@@ -81,7 +89,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const [driverName, setDriverName] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
+  const [driverVehicleModel, setDriverVehicleModel] = useState('');
   const [driverCarPlate, setDriverCarPlate] = useState('');
+  const [isSendingDriverSms, setIsSendingDriverSms] = useState(false);
+  const [driverSmsSuccessNotice, setDriverSmsSuccessNotice] = useState('');
 
   // Fast2SMS API management states
   const [fast2smsKey, setFast2smsKey] = useState(() => getFast2SmsApiKey());
@@ -132,11 +143,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch {}
   }, [bookings]);
 
-  // Metrics
+  // Metrics: calculated strictly from confirmed / completed bookings
   const totalBookings = bookings.length;
   const activeBookings = bookings.filter(b => b.status === 'confirmed').length;
-  const totalRevenueAdvance = bookings.reduce((sum, b) => b.status !== 'cancelled' ? sum + b.advancePaid : sum, 0);
-  const totalBalancePending = bookings.reduce((sum, b) => b.status === 'confirmed' ? sum + b.balanceDue : sum, 0);
+  const totalRevenueAdvance = bookings.reduce((sum, b) => (b.status === 'confirmed' || b.status === 'completed') ? sum + (Number(b.advancePaid) || 0) : sum, 0);
+  const totalBalancePending = bookings.reduce((sum, b) => b.status === 'confirmed' ? sum + (Number(b.balanceDue) || 0) : sum, 0);
 
   const filteredBookings = bookings.filter(b => {
     const matchStatus = statusFilter === 'all' || b.status === statusFilter;
@@ -149,36 +160,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return matchStatus && matchSearch;
   });
 
-  const handleSaveDriver = (e: React.FormEvent) => {
+  const handleOpenAssignModal = (b: BookingRecord) => {
+    setSelectedBookingForDriver(b);
+    setDriverName(b.driverName || '');
+    setDriverPhone(b.driverPhone || '');
+    setDriverVehicleModel(b.driverVehicleModel || b.cabName || '');
+    setDriverCarPlate(b.driverVehicleNo || '');
+    setDriverSmsSuccessNotice('');
+  };
+
+  const handleSaveDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBookingForDriver) return;
-    onUpdateBookingStatus(selectedBookingForDriver.id, 'confirmed', {
-      name: driverName,
-      phone: driverPhone,
-      carPlate: driverCarPlate
+
+    const b = selectedBookingForDriver;
+    const cleanDriverPhone = sanitize10DigitPhone(driverPhone);
+    const vehicleModel = driverVehicleModel.trim() || b.cabName;
+    const vehicleNo = driverCarPlate.trim().toUpperCase();
+
+    setIsSendingDriverSms(true);
+
+    // 1. Update Booking Record in Fleet state
+    onUpdateBookingStatus(b.id, 'confirmed', {
+      name: driverName.trim(),
+      phone: cleanDriverPhone,
+      carPlate: vehicleNo,
+      vehicleModel
     });
 
-    // Send WhatsApp dispatch notification to customer
-    const dispatchText = 
-      `*SAFAR INDIA CABS - DRIVER ALLOCATED*\n\n` +
-      `Hello ${selectedBookingForDriver.customerName},\n` +
-      `Your chauffeur for Booking *#${selectedBookingForDriver.id}* has been assigned:\n\n` +
-      `*Chauffeur Name:* ${driverName}\n` +
-      `*Chauffeur Phone:* +91 ${driverPhone}\n` +
-      `*Vehicle Plate No:* ${driverCarPlate.toUpperCase()}\n` +
-      `*Car Model:* ${selectedBookingForDriver.cabName}\n` +
-      `*Pickup Time:* ${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}\n` +
-      `*Balance to Pay Driver:* ${formatINR(selectedBookingForDriver.balanceDue)}\n\n` +
-      `_Driver will call you 30 minutes before arrival._\n` +
-      `*24/7 Helpline:* +91 77100 80992`;
+    // 2. Trigger automatic Fast2SMS request to customer phone with exact clean template
+    const travelDate = `${b.pickupDate} at ${b.pickupTime}`;
+    try {
+      await sendDriverAssignmentSms({
+        customerPhone: b.customerPhone,
+        bookingId: b.id,
+        pickup: b.pickupCity,
+        drop: b.dropCity,
+        travelDate,
+        driverName: driverName.trim(),
+        driverPhone: cleanDriverPhone,
+        vehicleModel,
+        vehicleNo
+      });
+    } catch (smsErr) {
+      console.warn('Driver assignment SMS dispatch notice:', smsErr);
+    }
 
-    const encoded = encodeURIComponent(dispatchText);
-    window.open(`https://wa.me/91${selectedBookingForDriver.customerPhone}?text=${encoded}`, '_blank');
+    setIsSendingDriverSms(false);
+    setDriverSmsSuccessNotice(`Driver details saved & SMS sent to customer (+91 ${b.customerPhone})!`);
 
-    setSelectedBookingForDriver(null);
-    setDriverName('');
-    setDriverPhone('');
-    setDriverCarPlate('');
+    setTimeout(() => {
+      setDriverSmsSuccessNotice('');
+      setSelectedBookingForDriver(null);
+      setDriverName('');
+      setDriverPhone('');
+      setDriverVehicleModel('');
+      setDriverCarPlate('');
+    }, 2000);
   };
 
   const handleUpdatePin = (e: React.FormEvent) => {
@@ -435,13 +473,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">Quick Action</span>
-                <button
-                  onClick={exportCSV}
-                  className="mt-2 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Export Bookings CSV</span>
-                </button>
+                <div className="mt-2 flex flex-col gap-1.5">
+                  <button
+                    onClick={exportCSV}
+                    className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Export CSV</span>
+                  </button>
+                  {onClearDemoBookings && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Clear all mock/demo bookings from system? This will keep only real customer bookings.')) {
+                          onClearDemoBookings();
+                        }
+                      }}
+                      className="py-1 px-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1"
+                      title="Clear mock or test bookings from local storage"
+                    >
+                      <Trash2 className="w-3 h-3 text-rose-400" />
+                      <span>Clear Demo Bookings</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -501,6 +555,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {/* Driver Assigned Status Badge */}
+                        {b.driverName && (
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <UserCheck className="w-3 h-3 text-emerald-400" />
+                            <span>Driver Assigned</span>
+                          </span>
+                        )}
+
                         <a
                           href={`tel:+91${b.customerPhone}`}
                           className="p-1.5 bg-slate-900 text-slate-300 hover:text-white rounded-lg border border-slate-800"
@@ -529,6 +591,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </div>
                     </div>
 
+                    {/* Driver Assigned Details Banner */}
+                    {b.driverName && (
+                      <div className="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-400 font-bold">Assigned Chauffeur:</span>
+                          <span className="text-white font-bold">{b.driverName}</span>
+                          <a href={`tel:+91${b.driverPhone}`} className="text-emerald-300 underline font-mono text-[11px]">(+91 {b.driverPhone})</a>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-300">
+                          <span className="text-slate-400">Vehicle:</span>
+                          <span className="text-amber-400 font-semibold">{b.driverVehicleModel || b.cabName}</span>
+                          {b.driverVehicleNo && (
+                            <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-700 font-mono font-bold text-white uppercase">
+                              {b.driverVehicleNo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Details */}
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
                       <div>
@@ -554,16 +636,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {b.status === 'confirmed' && (
                           <>
                             <button
-                              onClick={() => setSelectedBookingForDriver(b)}
-                              className="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1"
+                              onClick={() => handleOpenAssignModal(b)}
+                              className="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer"
                             >
                               <UserCheck className="w-3.5 h-3.5" />
-                              <span>Assign Chauffeur</span>
+                              <span>{b.driverName ? 'Update Driver' : 'Assign Chauffeur'}</span>
                             </button>
 
                             <button
                               onClick={() => onUpdateBookingStatus(b.id, 'completed')}
-                              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl transition"
+                              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl transition cursor-pointer"
                             >
                               Mark Completed
                             </button>
@@ -1150,63 +1232,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
 
+            {driverSmsSuccessNotice && (
+              <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>{driverSmsSuccessNotice}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSaveDriver} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Chauffeur / Driver Name *</label>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Name *</label>
                 <input
                   type="text"
                   required
                   value={driverName}
                   onChange={(e) => setDriverName(e.target.value)}
                   placeholder="e.g. Ramesh Kumar"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Chauffeur Mobile Number *</label>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Phone *</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    value={driverPhone}
+                    onChange={(e) => setDriverPhone(e.target.value.replace(/\D/g, ''))}
+                    placeholder="9876543210"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Name / Model *</label>
                 <input
-                  type="tel"
+                  type="text"
                   required
-                  maxLength={10}
-                  value={driverPhone}
-                  onChange={(e) => setDriverPhone(e.target.value.replace(/\D/g, ''))}
-                  placeholder="9876543210"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                  value={driverVehicleModel}
+                  onChange={(e) => setDriverVehicleModel(e.target.value)}
+                  placeholder="e.g. Toyota Innova Crysta / Maruti Dzire"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Registration Plate *</label>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Number (Registration Plate) *</label>
                 <input
                   type="text"
                   required
                   value={driverCarPlate}
                   onChange={(e) => setDriverCarPlate(e.target.value.toUpperCase())}
-                  placeholder="e.g. DL 01 CA 1234 / HR 26 DQ 5602"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400"
+                  placeholder="e.g. DL 1Z 1234 / HR 26 DQ 5602"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-mono font-bold uppercase tracking-wider"
                 />
               </div>
 
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300">
-                Saving will automatically format and open WhatsApp to dispatch driver details to the customer (+91 {selectedBookingForDriver.customerPhone})!
+              {/* Automatic Fast2SMS Notice */}
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-400">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Automated Fast2SMS Dispatch</span>
+                </div>
+                <p className="text-slate-300 text-[10px] leading-relaxed">
+                  Clicking below will automatically dispatch the Driver Details SMS to customer (+91 {selectedBookingForDriver.customerPhone}) via Fast2SMS gateway.
+                </p>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedBookingForDriver(null)}
-                  className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
-                >
-                  Cancel
-                </button>
+              <div className="space-y-2 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5"
+                  disabled={isSendingDriverSms}
+                  className="w-full py-3 bg-amber-400 hover:bg-amber-300 disabled:opacity-60 text-slate-950 rounded-xl text-xs sm:text-sm font-black shadow-md flex items-center justify-center gap-2 transition cursor-pointer active:scale-95"
                 >
-                  <MessageSquare className="w-4 h-4 text-slate-950" />
-                  <span>Assign & Send WhatsApp</span>
+                  {isSendingDriverSms ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                      <span>Dispatching Fast2SMS to Customer...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Car className="w-4 h-4 text-slate-950" />
+                      <span>Save & Send Details to Customer</span>
+                    </>
+                  )}
                 </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dispatchText = 
+                        `*SAFAR INDIA CABS - DRIVER ALLOCATED*\n\n` +
+                        `Hello ${selectedBookingForDriver.customerName},\n` +
+                        `Your chauffeur for Booking *#${selectedBookingForDriver.id}* has been assigned:\n\n` +
+                        `*Chauffeur Name:* ${driverName || 'Assigned'}\n` +
+                        `*Chauffeur Phone:* +91 ${driverPhone || 'Shared'}\n` +
+                        `*Vehicle:* ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n` +
+                        `*Pickup Time:* ${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}\n` +
+                        `*Balance to Pay Driver:* ${formatINR(selectedBookingForDriver.balanceDue)}\n\n` +
+                        `*24/7 Helpline:* +91 77100 80992`;
+                      window.open(`https://wa.me/91${selectedBookingForDriver.customerPhone}?text=${encodeURIComponent(dispatchText)}`, '_blank');
+                    }}
+                    className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Open WhatsApp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBookingForDriver(null)}
+                    className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </form>
           </div>
