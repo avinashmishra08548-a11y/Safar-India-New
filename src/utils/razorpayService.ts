@@ -1,25 +1,31 @@
 /**
  * Razorpay Standard Checkout Service for Safar India Cabs
- * 
- * Supports:
- * - Force Razorpay UPI Method, UPI App Intent (upi://pay?...) & Dynamic UPI QR Code at topmost position
- * - Interactive UPI & Payment Method Selection (Paytm, PhonePe, Google Pay, BHIM UPI, Cards/NetBanking)
- * - WebView upi:// Deep-Link Intent Handling + Instant Dynamic QR Code Fallback
- * - Razorpay Modal / Iframe container styling fix so it always floats above bottom ad banners
+ *
+ * Enforces:
+ * - Direct UPI Apps (Google Pay, PhonePe, Paytm, BHIM) & Live Dynamic QR Code at topmost position
+ * - Exact `upi_block` display configuration with `apps: ['google_pay', 'phonepe', 'paytm', 'bhim']`
+ *   and `flows: ['qr', 'intent', 'collect']`
+ * - `prefill.method: 'upi'` and `image: '/logo.png'` so UPI Apps & Scan QR render first in Android WebView
+ * - Razorpay Modal / Iframe container styling so QR code renders clearly above bottom ad banners
  */
 
 export const DEFAULT_RAZORPAY_KEY = 'rzp_test_1DP5mmOlF5G5ag';
 
-export type PreferredPaymentMethod = 'paytm' | 'phonepe' | 'gpay' | 'bhim' | 'card_netbanking';
+export type PreferredPaymentMethod = 'qr' | 'paytm' | 'phonepe' | 'gpay' | 'bhim' | 'card_netbanking';
 
 /**
  * Retrieve public Razorpay Key ID
  */
 export function getRazorpayKeyId(): string {
   try {
-    const envKey = (import.meta as any).env?.VITE_RAZORPAY_KEY_ID;
-    if (envKey && typeof envKey === 'string' && envKey.trim().startsWith('rzp_')) {
-      return envKey.trim();
+    const viteEnvKey = (import.meta as any).env?.VITE_RAZORPAY_KEY_ID;
+    if (viteEnvKey && typeof viteEnvKey === 'string' && viteEnvKey.trim().startsWith('rzp_')) {
+      return viteEnvKey.trim();
+    }
+    const nextPublicKey =
+      typeof process !== 'undefined' && (process as any).env?.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    if (nextPublicKey && typeof nextPublicKey === 'string' && nextPublicKey.trim().startsWith('rzp_')) {
+      return nextPublicKey.trim();
     }
     const saved = localStorage.getItem('safar_razorpay_key');
     if (saved && saved.trim().startsWith('rzp_')) {
@@ -94,21 +100,22 @@ export function loadRazorpayScript(): Promise<boolean> {
 
 /**
  * Ensure Razorpay iframe/modal container stays above bottom ad banner and bottom nav
+ * and gives full vertical room for the Live Dynamic QR Code scan-and-pay screen
  */
 function applyRazorpayModalOverlapFix(): void {
   const adjustContainer = () => {
     const containers = document.querySelectorAll<HTMLElement>('.razorpay-container');
     containers.forEach((container) => {
       container.style.setProperty('z-index', '2147483647', 'important');
-      container.style.setProperty('padding-bottom', '60px', 'important');
+      container.style.setProperty('padding-bottom', '56px', 'important');
       container.style.setProperty('box-sizing', 'border-box', 'important');
     });
 
     const frames = document.querySelectorAll<HTMLElement>('.razorpay-checkout-frame, .razorpay-container iframe');
     frames.forEach((frame) => {
       frame.style.setProperty('z-index', '2147483647', 'important');
-      frame.style.setProperty('max-height', 'calc(100% - 60px)', 'important');
-      frame.style.setProperty('margin-bottom', '55px', 'important');
+      frame.style.setProperty('max-height', 'calc(100% - 56px)', 'important');
+      frame.style.setProperty('margin-bottom', '52px', 'important');
     });
   };
 
@@ -136,133 +143,110 @@ export interface RazorpayCheckoutOptions {
 }
 
 /**
- * Open official Razorpay Standard Checkout Modal with Forced UPI Block (Intent + QR + Collect)
+ * Open official Razorpay Standard Checkout Modal with Enforced UPI Apps & Live Dynamic QR Code
  */
-export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOptions): Promise<void> {
+export async function launchRazorpayStandardCheckout(checkoutParams: RazorpayCheckoutOptions): Promise<void> {
   const isLoaded = await loadRazorpayScript();
   const Razorpay = (window as any).Razorpay;
 
   if (!isLoaded || !Razorpay) {
-    if (options.onError) {
-      options.onError('Payment Gateway SDK is loading. Please check your internet connection and try again.');
+    if (checkoutParams.onError) {
+      checkoutParams.onError('Payment Gateway SDK is loading. Please check your internet connection and try again.');
     }
     return;
   }
 
   const keyId = getRazorpayKeyId();
-  const amountInPaise = Math.round(options.amountInRupees * 100);
-  const paymentTypeLabel = options.paymentMode === 'advance_20' ? '20% Advance Booking Deposit' : '100% Full Fare';
-  const cleanPhone = (options.customerPhone || '').replace(/\D/g, '').slice(-10);
+  const amountInPaise = Math.round(checkoutParams.amountInRupees * 100);
+  const customerName = checkoutParams.customerName;
+  const customerPhone = (checkoutParams.customerPhone || '').replace(/\D/g, '').slice(-10);
+  const customerEmail = checkoutParams.customerEmail || 'booking@safarindiacabs.in';
 
-  const isCardOrNetbanking = options.preferredMethod === 'card_netbanking';
-  const selectedMethod = isCardOrNetbanking ? 'card' : 'upi';
-
-  const methodPreferenceLabel: Record<PreferredPaymentMethod, string> = {
-    paytm: 'Paytm UPI / QR',
-    phonepe: 'PhonePe UPI / QR',
-    gpay: 'Google Pay UPI / QR',
-    bhim: 'BHIM UPI / QR',
-    card_netbanking: 'Cards / NetBanking'
-  };
-
-  const selectedMethodName = options.preferredMethod
-    ? methodPreferenceLabel[options.preferredMethod]
-    : 'Pay via UPI / QR Code';
-
-  const rzpOptions: any = {
+  const options: any = {
     key: keyId,
     amount: amountInPaise,
     currency: 'INR',
     name: 'Safar India Cabs',
-    description:
-      options.paymentMode === 'advance_20'
-        ? 'Cab Booking Advance'
-        : `${options.cabName} · ${options.pickupCity} to ${options.dropCity}`,
-    image: 'https://cdn-icons-png.flaticon.com/512/3214/3214739.png',
+    description: 'Advance Cab Booking Payment',
+    image: '/logo.png', // App logo
     config: {
       display: {
         blocks: {
-          upi: {
-            name: 'Pay via UPI / QR Code',
+          upi_block: {
+            name: 'Pay via UPI Apps or Scan QR',
             instruments: [
               {
                 method: 'upi',
-                flows: ['intent', 'qr', 'collect'],
                 apps: ['google_pay', 'phonepe', 'paytm', 'bhim']
+              },
+              {
+                method: 'upi',
+                flows: ['qr', 'intent', 'collect']
               }
-            ]
-          },
-          banks: {
-            name: 'Cards & NetBanking',
-            instruments: [
-              { method: 'card' },
-              { method: 'netbanking' },
-              { method: 'wallet' }
             ]
           }
         },
-        sequence: isCardOrNetbanking ? ['block.banks', 'block.upi'] : ['block.upi', 'block.banks'],
+        sequence: ['block.upi_block'],
         preferences: {
           show_default_blocks: true
         }
       }
     },
     prefill: {
-      contact: cleanPhone,
-      name: options.customerName,
-      email: options.customerEmail || 'booking@safarindiacabs.in',
-      method: selectedMethod
+      name: customerName,
+      contact: customerPhone,
+      email: customerEmail,
+      method: 'upi'
     },
     notes: {
-      booking_id: options.bookingId,
-      route: `${options.pickupCity} -> ${options.dropCity}`,
-      pickup_date: options.pickupDate,
-      payment_mode: paymentTypeLabel,
-      preferred_gateway_option: selectedMethodName,
-      amount_payable: `INR ${options.amountInRupees}`,
-      customer_contact: cleanPhone
+      booking_id: checkoutParams.bookingId,
+      route: `${checkoutParams.pickupCity} -> ${checkoutParams.dropCity}`,
+      pickup_date: checkoutParams.pickupDate,
+      amount_payable: `INR ${checkoutParams.amountInRupees}`,
+      customer_contact: customerPhone
     },
     theme: {
-      color: '#F59E0B' // Safar India Cabs Amber Accent
+      color: '#F59E0B'
     },
     modal: {
       confirm_close: true,
       backdropclose: false,
       animation: true,
       ondismiss: function () {
-        if (options.onDismiss) {
-          options.onDismiss();
+        console.log('Checkout modal closed');
+        if (checkoutParams.onDismiss) {
+          checkoutParams.onDismiss();
         }
       }
     },
     handler: function (response: any) {
       if (!response || !response.razorpay_payment_id || typeof response.razorpay_payment_id !== 'string') {
-        if (options.onError) {
-          options.onError('Payment verification failed. No valid transaction ID was returned by the gateway.');
+        if (checkoutParams.onError) {
+          checkoutParams.onError('Payment verification failed. No valid transaction ID was returned by the gateway.');
         }
         return;
       }
 
       const paymentId = response.razorpay_payment_id;
       if (!paymentId.startsWith('pay_')) {
-        if (options.onError) {
-          options.onError('Invalid payment reference returned by gateway.');
+        if (checkoutParams.onError) {
+          checkoutParams.onError('Invalid payment reference returned by gateway.');
         }
         return;
       }
 
-      options.onSuccess(paymentId);
+      checkoutParams.onSuccess(paymentId);
     }
   };
 
   try {
-    const rzp = new Razorpay(rzpOptions);
+    const rzp = new Razorpay(options);
 
     rzp.on('payment.failed', function (errResp: any) {
       console.warn('Razorpay payment failed or declined:', errResp);
       const reason = errResp?.error?.description || errResp?.error?.reason || 'Payment was declined or cancelled.';
-      if (options.onError) {
-        options.onError(reason);
+      if (checkoutParams.onError) {
+        checkoutParams.onError(reason);
       }
     });
 
@@ -270,8 +254,8 @@ export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOp
     applyRazorpayModalOverlapFix();
   } catch (err: any) {
     console.warn('Razorpay initialization exception:', err);
-    if (options.onError) {
-      options.onError(err?.message || 'Could not launch payment gateway. Please verify your connection.');
+    if (checkoutParams.onError) {
+      checkoutParams.onError(err?.message || 'Could not launch payment gateway. Please verify your connection.');
     }
   }
 }

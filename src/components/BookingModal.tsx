@@ -3,9 +3,7 @@ import {
   X, 
   ShieldCheck, 
   CreditCard, 
-  FileText, 
   CheckCircle,
-  AlertCircle,
   Car,
   QrCode,
   Loader2,
@@ -40,11 +38,13 @@ const PAYMENT_GATEWAY_METHODS: {
   label: string;
   dotColor: string;
   isCard?: boolean;
+  isQr?: boolean;
 }[] = [
-  { id: 'paytm', label: 'Paytm', dotColor: 'bg-sky-500' },
-  { id: 'phonepe', label: 'PhonePe', dotColor: 'bg-purple-600' },
+  { id: 'qr', label: 'Scan UPI QR', dotColor: 'bg-amber-500', isQr: true },
   { id: 'gpay', label: 'Google Pay', dotColor: 'bg-emerald-500' },
-  { id: 'bhim', label: 'BHIM UPI', dotColor: 'bg-amber-500' },
+  { id: 'phonepe', label: 'PhonePe', dotColor: 'bg-purple-600' },
+  { id: 'paytm', label: 'Paytm', dotColor: 'bg-sky-500' },
+  { id: 'bhim', label: 'BHIM UPI', dotColor: 'bg-orange-500' },
   { id: 'card_netbanking', label: 'All Cards / NetBanking', dotColor: 'bg-slate-700', isCard: true },
 ];
 
@@ -83,12 +83,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   // Payment choice: 20% advance or 100% full
   const [paymentMode, setPaymentMode] = useState<'advance_20' | 'full'>('advance_20');
-  const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('gpay');
+  const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('qr');
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   const payableNowAmount = paymentMode === 'advance_20' ? fareDetails.advanceFare : fareDetails.totalFare;
   const balanceDueAmount = paymentMode === 'advance_20' ? fareDetails.balanceDue : 0;
+
+  // Dynamic UPI URI & Live QR Code URL for instant Scan-and-Pay in Android WebView
+  const upiUri = `upi://pay?pa=safarindiacabs@icici&pn=${encodeURIComponent(
+    'Safar India Cabs'
+  )}&am=${payableNowAmount}&cu=INR&tn=${encodeURIComponent(
+    `Cab Booking Advance (${pickupCity} to ${dropCity})`
+  )}`;
+  const dynamicQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(
+    upiUri
+  )}`;
 
   // Connect Pay & Confirm and interactive UPI method buttons directly to Razorpay Standard Checkout modal
   const handlePayAndConfirm = async (overrideMethod?: PreferredPaymentMethod) => {
@@ -122,7 +132,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     setIsProcessing(true);
 
     const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
-    const methodLabel = methodObj ? methodObj.label : 'Dynamic UPI';
+    const methodLabel = methodObj ? methodObj.label : 'Dynamic UPI / QR';
 
     const bookingId = 'SIC-' + Math.floor(100000 + Math.random() * 900000);
     const bookingDraft: BookingRecord = {
@@ -184,7 +194,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       }
     } catch {}
 
-    // Open Razorpay Standard Checkout modal
+    // Open Razorpay Standard Checkout modal with enforced UPI Apps + Dynamic QR Code
     launchRazorpayStandardCheckout({
       amountInRupees: payableNowAmount,
       bookingId,
@@ -227,6 +237,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       }
     });
   };
+
+  const isUpiOrQrSelected = selectedGatewayMethod !== 'card_netbanking';
 
   return (
     <div
@@ -467,11 +479,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         <div className="space-y-3.5 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              3. Choose Payment Method
+              3. Pay via UPI Apps or Scan QR
             </h4>
             <span className="text-[11px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
               <QrCode className="w-3 h-3 text-amber-600" />
-              <span>Dynamic UPI / QR Enabled</span>
+              <span>Dynamic UPI / QR Active</span>
             </span>
           </div>
 
@@ -513,20 +525,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* 3. Interactive UPI & Payment Method Selector (Tap to Select & Launch Razorpay Checkout) */}
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2.5">
+          {/* 3. Interactive UPI Apps & Live Dynamic QR Code Selector */}
+          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-800 flex items-center gap-1.5">
                 <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>Select Instant UPI or Payment Option:</span>
+                <span>Pay via UPI Apps or Scan Dynamic QR:</span>
               </span>
               <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-emerald-600" />
-                <span>Verified Gateway</span>
+                <span>Instant Verification</span>
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:flex-wrap text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               {PAYMENT_GATEWAY_METHODS.map((method) => {
                 const isSelected = selectedGatewayMethod === method.id;
                 return (
@@ -534,22 +546,25 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     key={method.id}
                     type="button"
                     disabled={isProcessing}
-                    onClick={() => handlePayAndConfirm(method.id)}
-                    className={`px-3 py-2 rounded-xl font-extrabold transition-all flex items-center justify-between sm:justify-start gap-2 cursor-pointer active:scale-95 ${
-                      method.isCard ? 'col-span-2 sm:col-span-1' : ''
-                    } ${
+                    onClick={() => {
+                      setSelectedGatewayMethod(method.id);
+                      handlePayAndConfirm(method.id);
+                    }}
+                    className={`px-3 py-2.5 rounded-xl font-extrabold transition-all flex items-center justify-between gap-1.5 cursor-pointer active:scale-95 ${
                       isSelected
                         ? 'bg-amber-400/20 border-2 border-amber-500 text-slate-950 shadow-xs ring-2 ring-amber-400/30'
                         : 'bg-white border border-slate-200 hover:border-amber-400 text-slate-800 shadow-2xs'
                     }`}
                   >
-                    <span className="flex items-center gap-1.5">
-                      {method.isCard ? (
+                    <span className="flex items-center gap-1.5 truncate">
+                      {method.isQr ? (
+                        <QrCode className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      ) : method.isCard ? (
                         <CreditCard className="w-3.5 h-3.5 text-slate-700 shrink-0" />
                       ) : (
                         <span className={`w-2.5 h-2.5 rounded-full ${method.dotColor} shrink-0`} />
                       )}
-                      <span>{method.label}</span>
+                      <span className="truncate">{method.label}</span>
                     </span>
                     {isSelected && (
                       <CheckCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
@@ -559,8 +574,54 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               })}
             </div>
 
+            {/* Live Dynamic QR Code Scan-and-Pay Display for Android WebView & All UPI Apps */}
+            {isUpiOrQrSelected && (
+              <div className="bg-white border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center gap-4 shadow-2xs">
+                <div
+                  onClick={() => handlePayAndConfirm('qr')}
+                  className="p-2 bg-white border-2 border-amber-400 rounded-2xl shadow-xs shrink-0 cursor-pointer flex flex-col items-center"
+                  title="Tap to open Razorpay Live Dynamic QR & UPI Checkout"
+                >
+                  <img
+                    src={dynamicQrImageUrl}
+                    alt={`Scan UPI QR Code to Pay ${formatINR(payableNowAmount)}`}
+                    className="w-36 h-36 sm:w-40 sm:h-40 object-contain rounded-lg"
+                  />
+                  <span className="mt-1 text-[10px] font-extrabold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                    <QrCode className="w-3 h-3" />
+                    <span>Live Dynamic QR · {formatINR(payableNowAmount)}</span>
+                  </span>
+                </div>
+
+                <div className="flex-1 space-y-2 text-center sm:text-left">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold">
+                    <QrCode className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Scan &amp; Pay with Any UPI App</span>
+                  </div>
+                  <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                    Scan this <strong className="text-slate-950">Live Dynamic QR Code</strong> using{' '}
+                    <strong className="text-slate-900">Google Pay, PhonePe, Paytm, or BHIM</strong>, or tap below to launch the Razorpay UPI &amp; QR Checkout screen.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-0.5">
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-800">
+                      Google Pay
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-purple-50 border border-purple-200 text-[10px] font-bold text-purple-800">
+                      PhonePe
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-sky-50 border border-sky-200 text-[10px] font-bold text-sky-800">
+                      Paytm
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-800">
+                      BHIM UPI
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <p className="text-[11px] text-slate-600 leading-tight pt-0.5">
-              Tap any UPI app above or click <strong className="text-slate-900">Pay &amp; Confirm</strong> below to open Razorpay Standard Checkout with <strong className="text-amber-800">{PAYMENT_GATEWAY_METHODS.find((m) => m.id === selectedGatewayMethod)?.label}</strong>.
+              Tap any UPI option above or click <strong className="text-slate-900">Pay &amp; Confirm</strong> below to open Razorpay Checkout with <strong className="text-amber-800">Pay via UPI Apps or Scan QR</strong> at the top.
             </p>
           </div>
 
@@ -575,12 +636,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               {isProcessing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin text-slate-950" />
-                  <span>Opening Razorpay Checkout Modal...</span>
+                  <span>Opening Razorpay UPI / QR Checkout...</span>
                 </>
               ) : (
                 <>
-                  <CreditCard className="w-5 h-5 text-slate-950" />
-                  <span>Pay {formatINR(payableNowAmount)} &amp; Confirm</span>
+                  <QrCode className="w-5 h-5 text-slate-950" />
+                  <span>Pay {formatINR(payableNowAmount)} via UPI / QR &amp; Confirm</span>
                 </>
               )}
             </button>
