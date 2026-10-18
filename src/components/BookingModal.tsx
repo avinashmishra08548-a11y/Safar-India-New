@@ -219,11 +219,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       },
       onDismiss: () => {
         setIsProcessing(false);
-        setErrorMessage('Payment window was closed before completion. You can click below to try again.');
+        setErrorMessage('');
       },
       onError: (errMsg?: string) => {
         setIsProcessing(false);
-        setErrorMessage(errMsg || 'Payment was not completed. Please try again or choose another payment method.');
+        setErrorMessage(errMsg || 'Payment could not be completed. Please try again or choose another payment method.');
       }
     });
   };
@@ -267,11 +267,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </button>
         </div>
 
-        {/* Error Alert if any */}
-        {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2 font-bold">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+        {/* Clean Informational Banner (Shown by default; Error alert only if actual payment failure occurs) */}
+        {errorMessage ? (
+          <div className="p-3.5 bg-[#FEFCE8] border border-amber-300 rounded-2xl text-[#1E40AF] text-xs flex items-center gap-2.5 font-semibold shadow-2xs">
+            <span className="text-base shrink-0" aria-hidden="true">🔒</span>
             <span>{errorMessage}</span>
+          </div>
+        ) : (
+          <div className="p-3.5 bg-[#EFF6FF] border border-blue-200/90 rounded-2xl text-[#1E40AF] text-xs sm:text-[13px] flex items-center gap-2.5 font-semibold shadow-2xs">
+            <span className="text-base shrink-0" aria-hidden="true">🚖</span>
+            <span>Please complete your advance payment below to confirm your cab booking instantly.</span>
           </div>
         )}
 
