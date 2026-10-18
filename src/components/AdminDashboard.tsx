@@ -380,20 +380,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleTestRazorpay = () => {
-    setRazorpayTestStatus('Launching Razorpay Standard Checkout modal...');
+    setRazorpayTestStatus('Creating server order & launching Razorpay Standard Checkout...');
+    const testDate = new Date().toISOString().split('T')[0];
+    // Minimum 130km sedan oneway fare: base 1560 + DA 300 + tolls 208 + GST 93 = 2161 total, 20% advance = 432
     launchRazorpayStandardCheckout({
-      amountInRupees: 1, // Demo 1 INR
-      bookingId: 'SIC-TEST-' + Math.floor(1000 + Math.random() * 9000),
+      amountInRupees: 432,
+      totalFareRupees: 2161,
+      bookingId: 'SIC-' + Math.floor(100000 + Math.random() * 900000),
+      tripType: 'oneway',
+      cabId: 'sedan',
+      distanceKm: 130,
+      pickupCity: 'Delhi NCR',
+      dropCity: 'Agra',
+      pickupAddress: 'T3 IGI Airport, New Delhi',
+      pickupDate: `${testDate} at 08:00 AM`,
+      pickupDateRaw: testDate,
+      pickupTimeRaw: '08:00 AM',
+      includeTolls: true,
       customerName: 'Admin Test Traveler',
       customerPhone: testPhone || '7710080992',
       customerEmail: 'admin@safarindiacabs.in',
-      cabName: 'Sedan AC (Test Ride)',
-      pickupCity: 'Delhi NCR',
-      dropCity: 'Agra',
-      pickupDate: 'Tomorrow at 08:00 AM',
+      cabName: 'Sedan AC (Dzire / Etios)',
       paymentMode: 'advance_20',
       onSuccess: (paymentId) => {
-        setRazorpayTestStatus(`Razorpay Test Success! Payment ID: ${paymentId}`);
+        setRazorpayTestStatus(`Razorpay Order & Payment Verified! Payment ID: ${paymentId}`);
       },
       onDismiss: () => {
         setRazorpayTestStatus('Razorpay Checkout modal was dismissed by user.');

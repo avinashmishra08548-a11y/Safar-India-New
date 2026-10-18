@@ -29,6 +29,10 @@ export default defineConfig(() => {
                   handlerMod = await import('./api/verify-otp.js');
                 } else if (urlPath === '/api/bookings') {
                   handlerMod = await import('./api/bookings.js');
+                } else if (urlPath === '/api/create-order') {
+                  handlerMod = await import('./api/create-order.js');
+                } else if (urlPath === '/api/verify-payment') {
+                  handlerMod = await import('./api/verify-payment.js');
                 }
                 if (handlerMod && handlerMod.default) {
                   let body = '';

@@ -7,7 +7,8 @@ import {
   Car,
   QrCode,
   Loader2,
-  Smartphone
+  Smartphone,
+  AlertCircle
 } from 'lucide-react';
 import { CabVehicle, CustomerUser, TripType, BookingRecord } from '../types';
 import { formatINR, FareCalculationResult } from '../utils/fareCalculator';
@@ -40,7 +41,7 @@ const PAYMENT_GATEWAY_METHODS: {
   isCard?: boolean;
   isQr?: boolean;
 }[] = [
-  { id: 'qr', label: 'Scan UPI QR', dotColor: 'bg-amber-500', isQr: true },
+  { id: 'qr', label: 'UPI QR Code', dotColor: 'bg-amber-500', isQr: true },
   { id: 'gpay', label: 'Google Pay', dotColor: 'bg-emerald-500' },
   { id: 'phonepe', label: 'PhonePe', dotColor: 'bg-purple-600' },
   { id: 'paytm', label: 'Paytm', dotColor: 'bg-sky-500' },
@@ -85,44 +86,36 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [paymentMode, setPaymentMode] = useState<'advance_20' | 'full'>('advance_20');
   const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('qr');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('Creating secure payment order...');
   const [errorMessage, setErrorMessage] = useState('');
 
   const payableNowAmount = paymentMode === 'advance_20' ? fareDetails.advanceFare : fareDetails.totalFare;
   const balanceDueAmount = paymentMode === 'advance_20' ? fareDetails.balanceDue : 0;
 
-  // Dynamic UPI URI & Live QR Code URL for instant Scan-and-Pay in Android WebView
-  const upiUri = `upi://pay?pa=safarindiacabs@icici&pn=${encodeURIComponent(
-    'Safar India Cabs'
-  )}&am=${payableNowAmount}&cu=INR&tn=${encodeURIComponent(
-    `Cab Booking Advance (${pickupCity} to ${dropCity})`
-  )}`;
-  const dynamicQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(
-    upiUri
-  )}`;
-
-  // Connect Pay & Confirm and interactive UPI method buttons directly to Razorpay Standard Checkout modal
   const handlePayAndConfirm = async (overrideMethod?: PreferredPaymentMethod) => {
+    if (isProcessing) return;
+
     const activeMethod = overrideMethod || selectedGatewayMethod;
     if (overrideMethod) {
       setSelectedGatewayMethod(overrideMethod);
     }
 
     // Form validation
-    if (!customerName.trim()) {
-      setErrorMessage('Please enter traveler full name before proceeding to payment');
+    if (!customerName.trim() || customerName.trim().length < 2) {
+      setErrorMessage('Please enter traveler full name before proceeding to payment.');
       const nameInput = document.getElementById('traveler-full-name');
       if (nameInput) nameInput.focus();
       return;
     }
     const cleanPhone = sanitize10DigitPhone(customerPhone);
     if (!customerPhone.trim() || cleanPhone.length !== 10) {
-      setErrorMessage('Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210)');
+      setErrorMessage('Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210).');
       const phoneInput = document.getElementById('traveler-phone');
       if (phoneInput) phoneInput.focus();
       return;
     }
     if (!pickupAddress.trim()) {
-      setErrorMessage('Please enter complete doorstep pickup address');
+      setErrorMessage('Please enter complete doorstep pickup address.');
       const addrInput = document.getElementById('pickup-full-address');
       if (addrInput) addrInput.focus();
       return;
@@ -130,9 +123,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
     setErrorMessage('');
     setIsProcessing(true);
+    setProcessingStatus('Creating secure payment order...');
 
     const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
-    const methodLabel = methodObj ? methodObj.label : 'Dynamic UPI / QR';
+    const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
 
     const bookingId = 'SIC-' + Math.floor(100000 + Math.random() * 900000);
     const bookingDraft: BookingRecord = {
@@ -194,21 +188,35 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       }
     } catch {}
 
-    // Open Razorpay Standard Checkout modal with enforced UPI Apps + Dynamic QR Code
-    launchRazorpayStandardCheckout({
+    // Create server-side Razorpay Order, open Razorpay Standard Checkout, and verify payment on server
+    await launchRazorpayStandardCheckout({
       amountInRupees: payableNowAmount,
+      totalFareRupees: fareDetails.totalFare,
       bookingId,
+      tripType,
+      cabId: cab.id,
+      distanceKm: fareDetails.distanceKm,
+      pickupCity,
+      dropCity,
+      pickupAddress: pickupAddress.trim(),
+      pickupDate: `${pickupDate} at ${pickupTime}`,
+      pickupDateRaw: pickupDate,
+      pickupTimeRaw: pickupTime,
+      returnDateRaw: tripType === 'roundtrip' ? returnDate : undefined,
+      localPackageId,
+      includeTolls: fareDetails.tollsAndTaxes > 0,
       customerName: customerName.trim(),
       customerPhone: cleanPhone,
       customerEmail: customerEmail.trim() || undefined,
       cabName: `${cab.name} (${cab.models})`,
-      pickupCity,
-      dropCity,
-      pickupDate: `${pickupDate} at ${pickupTime}`,
       paymentMode,
       preferredMethod: activeMethod,
-      onSuccess: async (paymentId: string) => {
-        const confirmedBooking: BookingRecord = {
+      bookingDraft,
+      onStatusChange: (statusText) => {
+        setProcessingStatus(statusText);
+      },
+      onSuccess: async (paymentId: string, verifiedBooking?: BookingRecord) => {
+        const finalConfirmedBooking: BookingRecord = verifiedBooking || {
           ...bookingDraft,
           status: 'confirmed',
           transactionId: paymentId,
@@ -219,32 +227,32 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         };
 
         try {
-          await sendDualBookingNotifications(confirmedBooking);
+          await sendDualBookingNotifications(finalConfirmedBooking);
         } catch (smsError) {
           console.warn('Traccar Cloud automated dual notification notice:', smsError);
         }
 
         setIsProcessing(false);
-        onBookingSuccess(confirmedBooking);
+        onBookingSuccess(finalConfirmedBooking);
       },
       onDismiss: () => {
         setIsProcessing(false);
-        setErrorMessage('');
+        setErrorMessage('Payment checkout window was closed before completing payment. Your booking is not yet confirmed.');
       },
       onError: (errMsg?: string) => {
         setIsProcessing(false);
-        setErrorMessage(errMsg || 'Payment could not be completed. Please try again or choose another payment method.');
+        setErrorMessage(
+          errMsg || 'Payment could not be completed or verified. Please try again.'
+        );
       }
     });
   };
-
-  const isUpiOrQrSelected = selectedGatewayMethod !== 'card_netbanking';
 
   return (
     <div
       className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[1000000] flex items-start sm:items-center justify-center p-2.5 sm:p-5 overflow-y-auto"
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (e.target === e.currentTarget && !isProcessing) {
           onClose();
         }
       }}
@@ -270,19 +278,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {/* 1. Clear, Clickable Close (✕) Button on Top-Right */}
           <button
             type="button"
+            disabled={isProcessing}
             onClick={onClose}
             aria-label="Close checkout modal"
             title="Close & Return to Search"
-            className="w-10 h-10 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-800 hover:text-rose-600 border border-slate-300 flex items-center justify-center shadow-xs transition active:scale-95 shrink-0 cursor-pointer"
+            className="w-10 h-10 rounded-full bg-slate-100 hover:bg-rose-100 disabled:opacity-50 text-slate-800 hover:text-rose-600 border border-slate-300 flex items-center justify-center shadow-xs transition active:scale-95 shrink-0 cursor-pointer"
           >
             <X className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
-        {/* Clean Informational Banner (Shown by default; Error alert only if actual payment failure occurs) */}
+        {/* Clean Informational Banner (Shown by default; Error alert only if actual validation/payment issue occurs) */}
         {errorMessage ? (
-          <div className="p-3.5 bg-[#FEFCE8] border border-amber-300 rounded-2xl text-[#1E40AF] text-xs flex items-center gap-2.5 font-semibold shadow-2xs">
-            <span className="text-base shrink-0" aria-hidden="true">🔒</span>
+          <div className="p-3.5 bg-[#FEFCE8] border border-amber-300 rounded-2xl text-[#1E40AF] text-xs flex items-start gap-2.5 font-semibold shadow-2xs">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
         ) : (
@@ -479,18 +488,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         <div className="space-y-3.5 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              3. Pay via UPI Apps or Scan QR
+              3. Pay via Razorpay UPI / QR or Cards
             </h4>
             <span className="text-[11px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
               <QrCode className="w-3 h-3 text-amber-600" />
-              <span>Dynamic UPI / QR Active</span>
+              <span>Order-Verified Gateway</span>
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* 20% Advance */}
             <div
-              onClick={() => setPaymentMode('advance_20')}
+              onClick={() => !isProcessing && setPaymentMode('advance_20')}
               className={`p-3.5 rounded-2xl border cursor-pointer transition ${
                 paymentMode === 'advance_20'
                   ? 'border-amber-400 bg-amber-50/70 shadow-xs ring-2 ring-amber-400/40'
@@ -508,7 +517,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
             {/* 100% Full Payment */}
             <div
-              onClick={() => setPaymentMode('full')}
+              onClick={() => !isProcessing && setPaymentMode('full')}
               className={`p-3.5 rounded-2xl border cursor-pointer transition ${
                 paymentMode === 'full'
                   ? 'border-amber-400 bg-amber-50/70 shadow-xs ring-2 ring-amber-400/40'
@@ -525,16 +534,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* 3. Interactive UPI Apps & Live Dynamic QR Code Selector */}
+          {/* 3. Interactive UPI Apps & Payment Method Selector */}
           <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-800 flex items-center gap-1.5">
                 <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>Pay via UPI Apps or Scan Dynamic QR:</span>
+                <span>Select Preferred Payment Option:</span>
               </span>
               <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-emerald-600" />
-                <span>Instant Verification</span>
+                <span>Server Verified</span>
               </span>
             </div>
 
@@ -574,54 +583,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               })}
             </div>
 
-            {/* Live Dynamic QR Code Scan-and-Pay Display for Android WebView & All UPI Apps */}
-            {isUpiOrQrSelected && (
-              <div className="bg-white border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center gap-4 shadow-2xs">
-                <div
-                  onClick={() => handlePayAndConfirm('qr')}
-                  className="p-2 bg-white border-2 border-amber-400 rounded-2xl shadow-xs shrink-0 cursor-pointer flex flex-col items-center"
-                  title="Tap to open Razorpay Live Dynamic QR & UPI Checkout"
-                >
-                  <img
-                    src={dynamicQrImageUrl}
-                    alt={`Scan UPI QR Code to Pay ${formatINR(payableNowAmount)}`}
-                    className="w-36 h-36 sm:w-40 sm:h-40 object-contain rounded-lg"
-                  />
-                  <span className="mt-1 text-[10px] font-extrabold text-amber-700 uppercase tracking-wider flex items-center gap-1">
-                    <QrCode className="w-3 h-3" />
-                    <span>Live Dynamic QR · {formatINR(payableNowAmount)}</span>
-                  </span>
-                </div>
-
-                <div className="flex-1 space-y-2 text-center sm:text-left">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold">
-                    <QrCode className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Scan &amp; Pay with Any UPI App</span>
-                  </div>
-                  <p className="text-xs text-slate-700 font-medium leading-relaxed">
-                    Scan this <strong className="text-slate-950">Live Dynamic QR Code</strong> using{' '}
-                    <strong className="text-slate-900">Google Pay, PhonePe, Paytm, or BHIM</strong>, or tap below to launch the Razorpay UPI &amp; QR Checkout screen.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-0.5">
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-800">
-                      Google Pay
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-purple-50 border border-purple-200 text-[10px] font-bold text-purple-800">
-                      PhonePe
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-sky-50 border border-sky-200 text-[10px] font-bold text-sky-800">
-                      Paytm
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-800">
-                      BHIM UPI
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <p className="text-[11px] text-slate-600 leading-tight pt-0.5">
-              Tap any UPI option above or click <strong className="text-slate-900">Pay &amp; Confirm</strong> below to open Razorpay Checkout with <strong className="text-amber-800">Pay via UPI Apps or Scan QR</strong> at the top.
+              Tap any option above or click <strong className="text-slate-900">Pay &amp; Confirm</strong> below to generate an official Razorpay Order and pay securely via UPI QR, UPI Intent (Google Pay, PhonePe, Paytm, BHIM), Cards, or NetBanking.
             </p>
           </div>
 
@@ -636,12 +599,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               {isProcessing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin text-slate-950" />
-                  <span>Opening Razorpay UPI / QR Checkout...</span>
+                  <span>{processingStatus}</span>
                 </>
               ) : (
                 <>
-                  <QrCode className="w-5 h-5 text-slate-950" />
-                  <span>Pay {formatINR(payableNowAmount)} via UPI / QR &amp; Confirm</span>
+                  <CreditCard className="w-5 h-5 text-slate-950" />
+                  <span>Pay {formatINR(payableNowAmount)} &amp; Confirm</span>
                 </>
               )}
             </button>
@@ -650,7 +613,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1">
             <span className="flex items-center gap-1 font-medium">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Razorpay Standard Checkout 256-Bit SSL Encrypted</span>
+              <span>Razorpay Official Order &amp; Signature Verified</span>
             </span>
             <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
               Instant SMS Confirmation

@@ -1,14 +1,156 @@
 /**
  * Vercel Serverless API Route: /api/bookings
- * 
- * Persistent Serverless Booking Repository & Single Source of Truth
- * - Filters out all static mock/demo records
- * - Tracks verified advance payments (Razorpay captured)
- * - Tracks outstanding balance payable at drop
- * - Contains real confirmed booking SIC-789940 (Total ₹1,817, Advance ₹363, Balance ₹1,454)
+ *
+ * Persistent Serverless Booking Repository & Order Association Store
+ * - Stores verified bookings and pending order-to-booking associations
+ * - Prevents duplicate payment confirmations (idempotency guard)
+ * - Contains shared server-side fare calculation matching src/utils/fareCalculator.ts
  */
 
-// In-memory persistent master registry across serverless invocations
+import crypto from 'crypto';
+
+// Fleet pricing table matching src/data/cabsFleet.ts
+export const SERVER_CABS_FLEET = {
+  hatchback: { id: 'hatchback', name: 'Hatchback AC', models: 'WagonR, Swift, Tiago or equivalent', ratePerKm: 11 },
+  sedan: { id: 'sedan', name: 'Sedan AC (Dzire / Etios)', models: 'Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura', ratePerKm: 12 },
+  exec_sedan: { id: 'exec_sedan', name: 'Executive Sedan', models: 'Honda City, Maruti Ciaz, Hyundai Verna', ratePerKm: 15 },
+  suv: { id: 'suv', name: 'SUV (Ertiga / Carens)', models: 'Maruti Ertiga, Kia Carens, Triber', ratePerKm: 16 },
+  innova: { id: 'innova', name: 'Innova Crysta Premium', models: 'Toyota Innova Crysta Luxury', ratePerKm: 21 },
+  tempo: { id: 'tempo', name: 'Tempo Traveller (12 Seater)', models: 'Force Urbania / Traveller 12-17 Seater', ratePerKm: 29 }
+};
+
+/**
+ * Compute trip fare on the server using the exact pricing rules in src/utils/fareCalculator.ts
+ */
+export function computeServerTripFare({
+  tripType,
+  cabId,
+  distanceKm,
+  pickupDate,
+  returnDate,
+  localPackageId = '8h_80k',
+  includeTolls = true
+}) {
+  const validTripTypes = ['oneway', 'roundtrip', 'local', 'airport'];
+  if (!validTripTypes.includes(tripType)) {
+    throw new Error(`Invalid tripType: ${tripType}`);
+  }
+
+  const cab = SERVER_CABS_FLEET[cabId] || SERVER_CABS_FLEET.sedan;
+  const ratePerKm = cab.ratePerKm;
+
+  const numericDistance = Number(distanceKm);
+  if (!Number.isFinite(numericDistance) || numericDistance <= 0 || numericDistance > 10000) {
+    throw new Error(`Invalid distanceKm: ${distanceKm}`);
+  }
+
+  let billedDistanceKm = Math.round(numericDistance);
+  let baseFare = 0;
+  let driverAllowance = 0;
+  let daysCount = 1;
+
+  if (tripType === 'oneway') {
+    billedDistanceKm = Math.max(130, billedDistanceKm);
+    baseFare = billedDistanceKm * ratePerKm;
+    driverAllowance = 300;
+  } else if (tripType === 'roundtrip') {
+    if (pickupDate && returnDate) {
+      const p = new Date(pickupDate).getTime();
+      const r = new Date(returnDate).getTime();
+      if (Number.isFinite(p) && Number.isFinite(r)) {
+        const diffDays = Math.ceil((r - p) / (1000 * 60 * 60 * 24));
+        daysCount = Math.max(1, diffDays + 1);
+      }
+    }
+    const minKmForDays = daysCount * 250;
+    const actualTwoWayKm = billedDistanceKm * 2;
+    billedDistanceKm = Math.max(minKmForDays, actualTwoWayKm);
+    baseFare = billedDistanceKm * ratePerKm;
+    driverAllowance = daysCount * 350;
+  } else if (tripType === 'local') {
+    if (localPackageId === '4h_40k') {
+      billedDistanceKm = 40;
+      baseFare = Math.round(40 * ratePerKm + 550);
+      driverAllowance = 150;
+    } else if (localPackageId === '12h_120k') {
+      billedDistanceKm = 120;
+      baseFare = Math.round(120 * ratePerKm + 950);
+      driverAllowance = 300;
+    } else {
+      billedDistanceKm = 80;
+      baseFare = Math.round(80 * ratePerKm + 750);
+      driverAllowance = 250;
+    }
+  } else if (tripType === 'airport') {
+    billedDistanceKm = Math.max(45, billedDistanceKm);
+    baseFare = Math.round(billedDistanceKm * ratePerKm + 450);
+    driverAllowance = 200;
+  }
+
+  let tollsAndTaxes = 0;
+  if (includeTolls) {
+    if (tripType === 'oneway') {
+      tollsAndTaxes = Math.round(billedDistanceKm * 1.6);
+    } else if (tripType === 'roundtrip') {
+      tollsAndTaxes = Math.round(billedDistanceKm * 1.4);
+    } else {
+      tollsAndTaxes = 120;
+    }
+  }
+
+  const taxableSubtotal = baseFare + driverAllowance;
+  const gstAmount = Math.round(taxableSubtotal * 0.05);
+
+  const totalFare = baseFare + driverAllowance + tollsAndTaxes + gstAmount;
+  const advanceFare = Math.round(totalFare * 0.20);
+  const balanceDue = totalFare - advanceFare;
+
+  return {
+    distanceKm: Math.round(numericDistance),
+    billedDistanceKm,
+    baseFare,
+    driverAllowance,
+    tollsAndTaxes,
+    gstAmount,
+    totalFare,
+    advanceFare,
+    balanceDue,
+    daysCount,
+    ratePerKm
+  };
+}
+
+/**
+ * Create a timing-safe HMAC verification token that binds the Razorpay order and booking parameters
+ * so verification works reliably even across serverless cold-start instances.
+ */
+export function signOrderVerificationToken(payload, secret) {
+  const canonical = [
+    payload.bookingId,
+    payload.orderId,
+    payload.amountInPaise,
+    payload.totalFare,
+    payload.advancePaid,
+    payload.balanceDue,
+    payload.paymentMode,
+    payload.customerPhone,
+    payload.tripType,
+    payload.cabId
+  ].join('|');
+
+  return crypto.createHmac('sha256', secret).update(canonical).digest('hex');
+}
+
+export function verifyOrderVerificationToken(payload, token, secret) {
+  if (!token || typeof token !== 'string') return false;
+  const expected = signOrderVerificationToken(payload, secret);
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const receivedBuf = Buffer.from(token, 'utf8');
+  if (expectedBuf.length !== receivedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, receivedBuf);
+}
+
+// In-memory persistent master registry across warm serverless invocations
 let storedBookings = [
   {
     id: 'SIC-789940',
@@ -28,8 +170,8 @@ let storedBookings = [
     tollsAndTaxes: 280,
     gstAmount: 87,
     totalFare: 1817,
-    advancePaid: 363, // Exact 20% advance captured via Razorpay
-    balanceDue: 1454, // Outstanding balance to be collected by driver
+    advancePaid: 363,
+    balanceDue: 1454,
     paymentMode: 'advance_20',
     paymentMethod: 'upi_razorpay',
     transactionId: 'pay_live_captured_789940',
@@ -42,8 +184,73 @@ let storedBookings = [
   }
 ];
 
+// Order & payment tracking maps for warm instances
+const pendingOrdersById = new Map(); // orderId -> { bookingId, amountInPaise, currency, paymentMode, fareDetails, bookingDraft, createdAt, status }
+const verifiedPaymentsById = new Map(); // paymentId -> { bookingId, orderId, verifiedAt, booking }
+const verifiedOrdersById = new Map(); // orderId -> { bookingId, paymentId, verifiedAt, booking }
+
+export function registerPendingOrderRecord(orderRecord) {
+  if (!orderRecord || !orderRecord.orderId || !orderRecord.bookingId) return;
+  pendingOrdersById.set(orderRecord.orderId, {
+    ...orderRecord,
+    status: 'created',
+    createdAt: new Date().toISOString()
+  });
+}
+
+export function getPendingOrderRecord(orderId) {
+  return pendingOrdersById.get(orderId) || null;
+}
+
+export function getVerifiedPaymentRecord(paymentId) {
+  return verifiedPaymentsById.get(paymentId) || null;
+}
+
+export function getVerifiedOrderRecord(orderId) {
+  return verifiedOrdersById.get(orderId) || null;
+}
+
+export function saveVerifiedBookingRecord({ booking, orderId, paymentId }) {
+  if (!booking || !booking.id) {
+    throw new Error('Cannot save verified booking without booking.id');
+  }
+
+  const confirmedBooking = {
+    ...booking,
+    status: 'confirmed',
+    transactionId: paymentId
+  };
+
+  const existingIdx = storedBookings.findIndex(b => b.id === confirmedBooking.id);
+  if (existingIdx >= 0) {
+    storedBookings[existingIdx] = { ...storedBookings[existingIdx], ...confirmedBooking };
+  } else {
+    storedBookings.unshift(confirmedBooking);
+  }
+
+  const record = {
+    bookingId: confirmedBooking.id,
+    orderId,
+    paymentId,
+    verifiedAt: new Date().toISOString(),
+    booking: confirmedBooking
+  };
+
+  if (paymentId) {
+    verifiedPaymentsById.set(paymentId, record);
+  }
+  if (orderId) {
+    verifiedOrdersById.set(orderId, record);
+    const pending = pendingOrdersById.get(orderId);
+    if (pending) {
+      pendingOrdersById.set(orderId, { ...pending, status: 'verified', paymentId });
+    }
+  }
+
+  return confirmedBooking;
+}
+
 export default async function handler(req, res) {
-  // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -59,7 +266,6 @@ export default async function handler(req, res) {
 
   // GET: Fetch master bookings list
   if (req.method === 'GET') {
-    // Purge any mock/demo bookings with DEMO or TEST IDs
     const cleanList = storedBookings.filter(
       b => b && !b.id.includes('DEMO') && !b.id.includes('TEST')
     );
@@ -70,7 +276,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // POST: Create or Update a booking
+  // POST: Update booking status or sync verified booking
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -102,7 +308,17 @@ export default async function handler(req, res) {
       }
 
       if (booking && booking.id) {
-        // Upsert booking
+        // Security guard: do not allow unverified bookings without a valid Razorpay payment ID to be marked confirmed
+        if (
+          booking.status === 'confirmed' &&
+          (!booking.transactionId || !String(booking.transactionId).startsWith('pay_'))
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: 'Bookings cannot be marked confirmed without a verified Razorpay payment.'
+          });
+        }
+
         const existingIdx = storedBookings.findIndex(b => b.id === booking.id);
         if (existingIdx >= 0) {
           storedBookings[existingIdx] = { ...storedBookings[existingIdx], ...booking };
