@@ -3,22 +3,17 @@
  * 
  * Supports:
  * - Dynamic Amount (20% Advance or 100% Full Fare)
- * - Explicit Dynamic UPI / QR Code option (Paytm, PhonePe, Google Pay, BHIM)
- * - Credit & Debit Cards (RuPay, Visa, Mastercard)
- * - NetBanking (All major Indian banks)
- * - Mobile Wallets (Paytm, PhonePe, Mobikwik)
- * - Seamless prefill with traveler contact & name
+ * - Interactive UPI & Payment Method Selection (Paytm, PhonePe, Google Pay, BHIM UPI, Cards/NetBanking)
+ * - Explicit Dynamic UPI / QR Code option
+ * - Razorpay Modal / Iframe container styling fix so it always floats above bottom ad banners
  */
 
 export const DEFAULT_RAZORPAY_KEY = 'rzp_test_1DP5mmOlF5G5ag';
 
+export type PreferredPaymentMethod = 'paytm' | 'phonepe' | 'gpay' | 'bhim' | 'card_netbanking';
+
 /**
  * Retrieve public Razorpay Key ID
- * Prioritizes:
- * 1. Vite Environment Variable VITE_RAZORPAY_KEY_ID
- * 2. Admin configured key stored in localStorage
- * 3. Default verified public test key
- * Note: Secret Key is NEVER stored or exposed in frontend code.
  */
 export function getRazorpayKeyId(): string {
   try {
@@ -68,6 +63,32 @@ export function loadRazorpayScript(): Promise<boolean> {
   });
 }
 
+/**
+ * Ensure Razorpay iframe/modal container stays above bottom ad banner and bottom nav
+ */
+function applyRazorpayModalOverlapFix(): void {
+  const adjustContainer = () => {
+    const containers = document.querySelectorAll<HTMLElement>('.razorpay-container');
+    containers.forEach((container) => {
+      container.style.setProperty('z-index', '2147483647', 'important');
+      container.style.setProperty('padding-bottom', '60px', 'important');
+      container.style.setProperty('box-sizing', 'border-box', 'important');
+    });
+
+    const frames = document.querySelectorAll<HTMLElement>('.razorpay-checkout-frame, .razorpay-container iframe');
+    frames.forEach((frame) => {
+      frame.style.setProperty('z-index', '2147483647', 'important');
+      frame.style.setProperty('max-height', 'calc(100% - 60px)', 'important');
+      frame.style.setProperty('margin-bottom', '55px', 'important');
+    });
+  };
+
+  adjustContainer();
+  setTimeout(adjustContainer, 150);
+  setTimeout(adjustContainer, 450);
+  setTimeout(adjustContainer, 900);
+}
+
 export interface RazorpayCheckoutOptions {
   amountInRupees: number;
   bookingId: string;
@@ -79,6 +100,7 @@ export interface RazorpayCheckoutOptions {
   dropCity: string;
   pickupDate: string;
   paymentMode: 'advance_20' | 'full';
+  preferredMethod?: PreferredPaymentMethod;
   onSuccess: (paymentId: string) => void;
   onDismiss?: () => void;
   onError?: (errMessage: string) => void;
@@ -86,15 +108,6 @@ export interface RazorpayCheckoutOptions {
 
 /**
  * Open official Razorpay Standard Checkout Modal
- * 
- * Uses standard, certified Razorpay options which automatically enable:
- * - Dynamic UPI QR Code (Paytm, PhonePe, Google Pay, BHIM)
- * - UPI App Direct Intent (Mobile 1-tap redirect)
- * - UPI Collect (Any UPI ID)
- * - Credit & Debit Cards (RuPay, Visa, Mastercard)
- * - NetBanking & Mobile Wallets
- * 
- * Prevents "Invalid UPI ID" error by letting Razorpay generate verified UPI QR codes dynamically.
  */
 export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOptions): Promise<void> {
   const isLoaded = await loadRazorpayScript();
@@ -112,6 +125,18 @@ export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOp
   const paymentTypeLabel = options.paymentMode === 'advance_20' ? '20% Advance Booking Deposit' : '100% Full Fare';
   const cleanPhone = (options.customerPhone || '').replace(/\D/g, '').slice(-10);
 
+  const methodPreferenceLabel: Record<PreferredPaymentMethod, string> = {
+    paytm: 'Paytm UPI / Wallet',
+    phonepe: 'PhonePe UPI',
+    gpay: 'Google Pay UPI',
+    bhim: 'BHIM / Any UPI ID',
+    card_netbanking: 'Cards / NetBanking'
+  };
+
+  const selectedMethodName = options.preferredMethod
+    ? methodPreferenceLabel[options.preferredMethod]
+    : 'Dynamic UPI / QR';
+
   const rzpOptions: any = {
     key: keyId,
     amount: amountInPaise,
@@ -122,13 +147,15 @@ export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOp
     prefill: {
       name: options.customerName,
       contact: cleanPhone,
-      email: options.customerEmail || 'booking@safarindiacabs.in'
+      email: options.customerEmail || 'booking@safarindiacabs.in',
+      ...(options.preferredMethod === 'card_netbanking' ? {} : { method: 'upi' })
     },
     notes: {
       booking_id: options.bookingId,
       route: `${options.pickupCity} -> ${options.dropCity}`,
       pickup_date: options.pickupDate,
       payment_mode: paymentTypeLabel,
+      preferred_gateway_option: selectedMethodName,
       amount_payable: `INR ${options.amountInRupees}`,
       customer_contact: cleanPhone
     },
@@ -177,6 +204,7 @@ export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOp
     });
 
     rzp.open();
+    applyRazorpayModalOverlapFix();
   } catch (err: any) {
     console.warn('Razorpay initialization exception:', err);
     if (options.onError) {

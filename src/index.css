@@ -39,7 +39,30 @@ footer {
   padding-bottom: 140px !important;
 }
 
-/* 3. Floating WhatsApp Chat Button Position (Well above Bottom Nav & Ads) */
+/* 3. Booking / Checkout Modal Bottom Padding so yellow 'Pay & Confirm' button stays safely above bottom bar/ads */
+.booking-modal-container {
+  padding-bottom: 130px !important;
+}
+
+/* 4. Razorpay Modal / Iframe Overlap Fix so it displays cleanly above bottom Ad Banner */
+.razorpay-container {
+  z-index: 2147483647 !important;
+  padding-bottom: 60px !important;
+  box-sizing: border-box !important;
+}
+
+.razorpay-backdrop {
+  z-index: 2147483646 !important;
+}
+
+.razorpay-checkout-frame,
+.razorpay-container iframe {
+  z-index: 2147483647 !important;
+  max-height: calc(100% - 60px) !important;
+  margin-bottom: 55px !important;
+}
+
+/* 5. Floating WhatsApp Chat Button Position (Well above Bottom Nav & Ads) */
 .whatsapp-float,
 div[class*="whatsapp"] {
   position: fixed !important;
@@ -48,7 +71,7 @@ div[class*="whatsapp"] {
   z-index: 9999 !important;
 }
 
-/* 4. Bottom Navigation Bar Fixed Position above Ads */
+/* 6. Bottom Navigation Bar Fixed Position above Ads */
 nav.fixed-bottom, 
 .bottom-nav, 
 footer nav,

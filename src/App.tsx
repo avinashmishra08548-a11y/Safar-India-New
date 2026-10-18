@@ -967,17 +967,26 @@ export default function App() {
 
       {/* Available Cabs Selection Modal */}
       {isCabsModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="bg-[#F8FAFC] border border-slate-200 rounded-3xl max-w-4xl w-full p-4 sm:p-6 space-y-4 shadow-2xl relative my-6 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3 sticky top-0 bg-[#F8FAFC] z-10 pt-1">
+        <div
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[1000000] flex items-start sm:items-center justify-center p-2.5 sm:p-6 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsCabsModalOpen(false);
+            }
+          }}
+        >
+          <div className="booking-modal-container bg-[#F8FAFC] border border-slate-200 rounded-3xl max-w-4xl w-full p-4 sm:p-6 pb-[130px] space-y-4 shadow-2xl relative my-2 sm:my-6 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3 sticky top-0 bg-[#F8FAFC]/95 backdrop-blur-md z-20 pt-1">
               <div>
-                <h3 className="text-lg font-black text-slate-950">Available Cabs & Fares</h3>
+                <h3 className="text-lg font-black text-slate-950">Available Cabs &amp; Fares</h3>
                 <p className="text-xs text-slate-500">Select your preferred vehicle for {pickupCity} to {dropCity}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCabsModalOpen(false)}
-                className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 transition"
+                aria-label="Close cab selection modal"
+                title="Close & Return to Search"
+                className="w-10 h-10 rounded-full bg-white hover:bg-rose-50 border border-slate-300 text-slate-800 hover:text-rose-600 font-bold flex items-center justify-center shadow-xs transition active:scale-95 cursor-pointer"
               >
                 ✕
               </button>

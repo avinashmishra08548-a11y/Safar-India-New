@@ -59,15 +59,25 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl my-auto p-5 sm:p-7 shadow-2xl relative space-y-5 animate-in fade-in zoom-in-95">
+    <div
+      className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-[1000000] flex items-start sm:items-center justify-center p-2.5 sm:p-5 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="booking-modal-container bg-white border border-slate-200 rounded-3xl w-full max-w-xl my-2 sm:my-auto p-5 sm:p-7 pb-[130px] shadow-2xl relative space-y-5 animate-in fade-in zoom-in-95">
         
-        {/* Close Button */}
+        {/* Prominent Top-Right Close (✕) Button */}
         <button
+          type="button"
           onClick={onClose}
-          className="no-print absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-2 rounded-xl bg-slate-100 transition"
+          aria-label="Close booking voucher"
+          title="Close & Return to Home"
+          className="no-print absolute top-4 right-4 w-10 h-10 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-800 hover:text-rose-600 border border-slate-300 flex items-center justify-center shadow-xs transition active:scale-95 cursor-pointer z-20"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5 stroke-[2.5]" />
         </button>
 
         {/* Printable Area */}
