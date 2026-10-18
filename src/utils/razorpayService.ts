@@ -2,9 +2,9 @@
  * Razorpay Standard Checkout Service for Safar India Cabs
  * 
  * Supports:
- * - Dynamic Amount (20% Advance or 100% Full Fare)
+ * - Force Razorpay UPI Method, UPI App Intent (upi://pay?...) & Dynamic UPI QR Code at topmost position
  * - Interactive UPI & Payment Method Selection (Paytm, PhonePe, Google Pay, BHIM UPI, Cards/NetBanking)
- * - Explicit Dynamic UPI / QR Code option
+ * - WebView upi:// Deep-Link Intent Handling + Instant Dynamic QR Code Fallback
  * - Razorpay Modal / Iframe container styling fix so it always floats above bottom ad banners
  */
 
@@ -40,9 +40,38 @@ export function setRazorpayKeyId(key: string): void {
 }
 
 /**
+ * Ensure upi:// and UPI app deep links (tez://, phonepe://, paytmmp://, bhim://)
+ * work smoothly inside Android WebView / AppsGeyser
+ */
+let upiDeepLinkListenerRegistered = false;
+export function registerWebViewUpiDeepLinkSupport(): void {
+  if (typeof window === 'undefined' || upiDeepLinkListenerRegistered) return;
+  upiDeepLinkListenerRegistered = true;
+
+  document.addEventListener(
+    'click',
+    (e) => {
+      const target = (e.target as HTMLElement)?.closest?.('a');
+      if (!target) return;
+      const href = target.getAttribute('href') || '';
+      if (/^(upi|tez|gpay|phonepe|paytmmp|bhim|intent):\/\//i.test(href)) {
+        e.preventDefault();
+        try {
+          window.open(href, '_system') || (window.location.href = href);
+        } catch {
+          window.location.href = href;
+        }
+      }
+    },
+    true
+  );
+}
+
+/**
  * Ensure Razorpay checkout.js script is loaded in document
  */
 export function loadRazorpayScript(): Promise<boolean> {
+  registerWebViewUpiDeepLinkSupport();
   return new Promise((resolve) => {
     if ((window as any).Razorpay) {
       return resolve(true);
@@ -107,7 +136,7 @@ export interface RazorpayCheckoutOptions {
 }
 
 /**
- * Open official Razorpay Standard Checkout Modal
+ * Open official Razorpay Standard Checkout Modal with Forced UPI Block (Intent + QR + Collect)
  */
 export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOptions): Promise<void> {
   const isLoaded = await loadRazorpayScript();
@@ -125,30 +154,64 @@ export async function launchRazorpayStandardCheckout(options: RazorpayCheckoutOp
   const paymentTypeLabel = options.paymentMode === 'advance_20' ? '20% Advance Booking Deposit' : '100% Full Fare';
   const cleanPhone = (options.customerPhone || '').replace(/\D/g, '').slice(-10);
 
+  const isCardOrNetbanking = options.preferredMethod === 'card_netbanking';
+  const selectedMethod = isCardOrNetbanking ? 'card' : 'upi';
+
   const methodPreferenceLabel: Record<PreferredPaymentMethod, string> = {
-    paytm: 'Paytm UPI / Wallet',
-    phonepe: 'PhonePe UPI',
-    gpay: 'Google Pay UPI',
-    bhim: 'BHIM / Any UPI ID',
+    paytm: 'Paytm UPI / QR',
+    phonepe: 'PhonePe UPI / QR',
+    gpay: 'Google Pay UPI / QR',
+    bhim: 'BHIM UPI / QR',
     card_netbanking: 'Cards / NetBanking'
   };
 
   const selectedMethodName = options.preferredMethod
     ? methodPreferenceLabel[options.preferredMethod]
-    : 'Dynamic UPI / QR';
+    : 'Pay via UPI / QR Code';
 
   const rzpOptions: any = {
     key: keyId,
     amount: amountInPaise,
     currency: 'INR',
     name: 'Safar India Cabs',
-    description: `${options.cabName} · ${options.pickupCity} to ${options.dropCity} (${paymentTypeLabel})`,
+    description:
+      options.paymentMode === 'advance_20'
+        ? 'Cab Booking Advance'
+        : `${options.cabName} · ${options.pickupCity} to ${options.dropCity}`,
     image: 'https://cdn-icons-png.flaticon.com/512/3214/3214739.png',
+    config: {
+      display: {
+        blocks: {
+          upi: {
+            name: 'Pay via UPI / QR Code',
+            instruments: [
+              {
+                method: 'upi',
+                flows: ['intent', 'qr', 'collect'],
+                apps: ['google_pay', 'phonepe', 'paytm', 'bhim']
+              }
+            ]
+          },
+          banks: {
+            name: 'Cards & NetBanking',
+            instruments: [
+              { method: 'card' },
+              { method: 'netbanking' },
+              { method: 'wallet' }
+            ]
+          }
+        },
+        sequence: isCardOrNetbanking ? ['block.banks', 'block.upi'] : ['block.upi', 'block.banks'],
+        preferences: {
+          show_default_blocks: true
+        }
+      }
+    },
     prefill: {
-      name: options.customerName,
       contact: cleanPhone,
+      name: options.customerName,
       email: options.customerEmail || 'booking@safarindiacabs.in',
-      ...(options.preferredMethod === 'card_netbanking' ? {} : { method: 'upi' })
+      method: selectedMethod
     },
     notes: {
       booking_id: options.bookingId,
