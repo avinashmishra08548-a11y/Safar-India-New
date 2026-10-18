@@ -14,7 +14,11 @@ import { BookingRecord, CabCategoryId, TripType } from '../types';
 
 function cleanClientKey(val: unknown): string {
   if (!val || typeof val !== 'string') return '';
-  return val.trim().replace(/^['"]+|['"]+$/g, '').trim();
+  return val
+    .replace(/[\u0000-\u001F\u007F-\u009F\u00A0\u1680\u180E\u2000-\u200F\u2028-\u202F\u205F-\u206F\u3000\uFEFF]/g, '')
+    .replace(/\s+/g, '')
+    .replace(/['"`“”‘’]+/g, '')
+    .trim();
 }
 
 export const DEFAULT_RAZORPAY_KEY = cleanClientKey(
@@ -345,14 +349,17 @@ export async function launchRazorpayStandardCheckout(
       return;
     }
 
-    // Ensure frontend public key ID (if configured via VITE_RAZORPAY_KEY_ID) matches server key ID
+    // Always use the normalized server key ID that created the order so Checkout matches order_id
     const viteKeyId = cleanClientKey((import.meta as any).env?.VITE_RAZORPAY_KEY_ID);
-    const serverKeyId = cleanClientKey(orderData.keyId);
+    const serverKeyId = cleanClientKey(orderData.keyId) || viteKeyId;
     if (viteKeyId && serverKeyId && viteKeyId !== serverKeyId) {
-      checkoutParams.onError?.(
-        'Key mismatch: Frontend VITE_RAZORPAY_KEY_ID does not match server RAZORPAY_KEY_ID. Ensure both variables in Vercel use the same key and redeploy.'
+      console.warn(
+        '[Razorpay Checkout] Frontend VITE_RAZORPAY_KEY_ID differs from server keyId; using server keyId that created the order:',
+        {
+          serverKeyPrefix: serverKeyId.slice(0, 9),
+          viteKeyPrefix: viteKeyId.slice(0, 9)
+        }
       );
-      return;
     }
 
     const customerPhone = (checkoutParams.customerPhone || '')

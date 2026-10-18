@@ -11,9 +11,9 @@
  */
 
 import {
-  cleanEnvVar,
   computeServerTripFare,
   registerPendingOrderRecord,
+  resolveNormalizedRazorpayCredentials,
   signOrderVerificationToken
 } from './bookings.js';
 import { sanitize10Digit } from './send-sms.js';
@@ -42,47 +42,71 @@ export default async function handler(req, res) {
     });
   }
 
-  const serverKeyId = cleanEnvVar(process.env.RAZORPAY_KEY_ID);
-  const vitePublicKeyId = cleanEnvVar(process.env.VITE_RAZORPAY_KEY_ID);
-  const keyId = serverKeyId || vitePublicKeyId;
-  const keySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET);
+  // Normalize RAZORPAY_KEY_ID, VITE_RAZORPAY_KEY_ID (automatic fallback), and RAZORPAY_KEY_SECRET
+  const {
+    keyId,
+    keySecret,
+    serverKeyId,
+    vitePublicKeyId,
+    keySource,
+    diagnostics
+  } = resolveNormalizedRazorpayCredentials(process.env);
 
-  // Safe diagnostic check for server environment variables
-  if (!keyId || !keySecret) {
-    console.error('[/api/create-order] Missing server Razorpay credentials:', {
-      hasRazorpayKeyId: Boolean(serverKeyId),
-      hasViteRazorpayKeyId: Boolean(vitePublicKeyId),
-      hasRazorpayKeySecret: Boolean(keySecret)
-    });
+  // Detailed sanitized console log for key format prefix & environment diagnostics
+  console.log('[/api/create-order] Key & Environment Diagnostics (sanitized):', diagnostics);
+
+  if (!serverKeyId && vitePublicKeyId) {
+    console.warn(
+      '[/api/create-order] RAZORPAY_KEY_ID is not set; automatically falling back to VITE_RAZORPAY_KEY_ID:',
+      {
+        fallbackKeyPrefix: diagnostics.keyPrefix,
+        fallbackKeyMasked: diagnostics.keyMaskedPreview,
+        keyMode: diagnostics.keyMode
+      }
+    );
+  }
+
+  // Explicit error handling when both RAZORPAY_KEY_ID and fallback VITE_RAZORPAY_KEY_ID are missing
+  if (!keyId) {
+    console.error('[/api/create-order] Missing Razorpay Key ID (neither RAZORPAY_KEY_ID nor VITE_RAZORPAY_KEY_ID is set):', diagnostics);
     return res.status(500).json({
       success: false,
-      errorCode: 'MISSING_SERVER_CREDENTIALS',
+      errorCode: 'MISSING_RAZORPAY_KEY_ID',
       error:
-        'Razorpay server credentials are not configured. Ensure RAZORPAY_KEY_ID, VITE_RAZORPAY_KEY_ID, and RAZORPAY_KEY_SECRET are set in Vercel Environment Variables and redeploy.'
+        'Razorpay Key ID is missing on the server. Set RAZORPAY_KEY_ID (or VITE_RAZORPAY_KEY_ID) in Vercel Environment Variables and redeploy.'
+    });
+  }
+
+  // Explicit error handling when RAZORPAY_KEY_SECRET is missing
+  if (!keySecret) {
+    console.error('[/api/create-order] Missing RAZORPAY_KEY_SECRET:', diagnostics);
+    return res.status(500).json({
+      success: false,
+      errorCode: 'MISSING_RAZORPAY_KEY_SECRET',
+      error:
+        'Razorpay Key Secret (RAZORPAY_KEY_SECRET) is missing on the server. Add RAZORPAY_KEY_SECRET in Vercel Environment Variables and redeploy.'
     });
   }
 
   if (!keyId.startsWith('rzp_live_') && !keyId.startsWith('rzp_test_')) {
-    console.error('[/api/create-order] Invalid RAZORPAY_KEY_ID prefix:', {
-      keyPrefix: keyId.slice(0, 8)
+    console.error('[/api/create-order] Invalid Razorpay Key ID format prefix:', {
+      keySource,
+      keyPrefix: keyId.slice(0, 9),
+      keyLength: keyId.length
     });
     return res.status(500).json({
       success: false,
       errorCode: 'INVALID_KEY_FORMAT',
-      error: 'Server RAZORPAY_KEY_ID has an invalid format (must start with rzp_live_ or rzp_test_).'
+      error: `Razorpay Key ID from ${keySource} has an invalid format prefix ("${keyId.slice(0, 9)}"). It must start with "rzp_live_" or "rzp_test_".`
     });
   }
 
   if (serverKeyId && vitePublicKeyId && serverKeyId !== vitePublicKeyId) {
-    console.error('[/api/create-order] Key mismatch between RAZORPAY_KEY_ID and VITE_RAZORPAY_KEY_ID:', {
-      serverKeyMode: serverKeyId.startsWith('rzp_live_') ? 'live' : 'test',
-      viteKeyMode: vitePublicKeyId.startsWith('rzp_live_') ? 'live' : 'test'
-    });
-    return res.status(500).json({
-      success: false,
-      errorCode: 'KEY_MISMATCH',
-      error:
-        'Configuration mismatch: VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_ID in Vercel do not match. Set both to the exact same Key ID and redeploy.'
+    console.warn('[/api/create-order] Notice: RAZORPAY_KEY_ID and VITE_RAZORPAY_KEY_ID differ; using resolved server keyId for order creation and checkout:', {
+      resolvedKeySource: keySource,
+      resolvedKeyPrefix: diagnostics.keyPrefix,
+      serverKeyPrefix: serverKeyId.slice(0, 9),
+      viteKeyPrefix: vitePublicKeyId.slice(0, 9)
     });
   }
 
@@ -118,7 +142,10 @@ export default async function handler(req, res) {
       includeTolls: Boolean(includeTolls),
       clientExpectedAmountRupees,
       clientTotalFareRupees,
-      keyMode: keyId.startsWith('rzp_live_') ? 'live' : 'test'
+      keySource,
+      keyPrefix: diagnostics.keyPrefix,
+      keyMaskedPreview: diagnostics.keyMaskedPreview,
+      keyMode: diagnostics.keyMode
     });
 
     // 1. Validate required booking fields

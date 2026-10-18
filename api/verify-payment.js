@@ -12,10 +12,10 @@
 
 import crypto from 'crypto';
 import {
-  cleanEnvVar,
   getPendingOrderRecord,
   getVerifiedOrderRecord,
   getVerifiedPaymentRecord,
+  resolveNormalizedRazorpayCredentials,
   saveVerifiedBookingRecord,
   verifyOrderVerificationToken
 } from './bookings.js';
@@ -63,14 +63,14 @@ export default async function handler(req, res) {
     });
   }
 
-  const keyId = cleanEnvVar(process.env.RAZORPAY_KEY_ID) || cleanEnvVar(process.env.VITE_RAZORPAY_KEY_ID);
-  const keySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET);
+  const { keyId, keySecret, diagnostics } = resolveNormalizedRazorpayCredentials(process.env);
+  console.log('[/api/verify-payment] Key & Environment Diagnostics (sanitized):', diagnostics);
 
   if (!keyId || !keySecret) {
-    console.error('[/api/verify-payment] Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET.');
+    console.error('[/api/verify-payment] Missing Razorpay credentials:', diagnostics);
     return res.status(500).json({
       success: false,
-      error: 'Payment verification server credentials are not configured.'
+      error: 'Payment verification server credentials (RAZORPAY_KEY_ID / VITE_RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET) are not configured.'
     });
   }
 

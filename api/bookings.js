@@ -25,11 +25,90 @@ export const SERVER_CABS_FLEET = {
 };
 
 /**
- * Strip accidental surrounding quotes and whitespace from environment variables
+ * Strip all whitespace, invisible Unicode characters (zero-width spaces, BOM, non-breaking spaces,
+ * directional marks, control characters), and accidental surrounding quotes from credentials/env vars.
  */
 export function cleanEnvVar(val) {
   if (!val || typeof val !== 'string') return '';
-  return val.trim().replace(/^['"]+|['"]+$/g, '').trim();
+  return val
+    .replace(/[\u0000-\u001F\u007F-\u009F\u00A0\u1680\u180E\u2000-\u200F\u2028-\u202F\u205F-\u206F\u3000\uFEFF]/g, '')
+    .replace(/\s+/g, '')
+    .replace(/['"`“”‘’]+/g, '')
+    .trim();
+}
+
+/**
+ * Resolve and normalize Razorpay credentials with automatic fallback from RAZORPAY_KEY_ID to VITE_RAZORPAY_KEY_ID
+ * and sanitized diagnostic metadata for console logging.
+ */
+export function resolveNormalizedRazorpayCredentials(env = process.env) {
+  const rawServerKeyId = typeof env?.RAZORPAY_KEY_ID === 'string' ? env.RAZORPAY_KEY_ID : '';
+  const rawViteKeyId = typeof env?.VITE_RAZORPAY_KEY_ID === 'string' ? env.VITE_RAZORPAY_KEY_ID : '';
+  const rawKeySecret = typeof env?.RAZORPAY_KEY_SECRET === 'string' ? env.RAZORPAY_KEY_SECRET : '';
+
+  const serverKeyId = cleanEnvVar(rawServerKeyId);
+  const vitePublicKeyId = cleanEnvVar(rawViteKeyId);
+  const keySecret = cleanEnvVar(rawKeySecret);
+
+  const serverKeyIsValidFormat =
+    serverKeyId.startsWith('rzp_live_') || serverKeyId.startsWith('rzp_test_');
+  const viteKeyIsValidFormat =
+    vitePublicKeyId.startsWith('rzp_live_') || vitePublicKeyId.startsWith('rzp_test_');
+
+  let keyId = '';
+  let keySource = 'none';
+
+  if (serverKeyId && (serverKeyIsValidFormat || !viteKeyIsValidFormat)) {
+    keyId = serverKeyId;
+    keySource = 'RAZORPAY_KEY_ID';
+  } else if (vitePublicKeyId) {
+    keyId = vitePublicKeyId;
+    keySource = serverKeyId
+      ? 'VITE_RAZORPAY_KEY_ID (fallback_from_invalid_RAZORPAY_KEY_ID)'
+      : 'VITE_RAZORPAY_KEY_ID (fallback_from_missing_RAZORPAY_KEY_ID)';
+  }
+
+  const keyPrefix = keyId
+    ? keyId.slice(0, 9) // e.g. 'rzp_live_' or 'rzp_test_'
+    : 'MISSING';
+  const keyMaskedPreview =
+    keyId.length >= 13
+      ? `${keyId.slice(0, 9)}***${keyId.slice(-4)}`
+      : keyId
+      ? `${keyId.slice(0, 5)}***`
+      : 'MISSING';
+  const keyMode = keyId.startsWith('rzp_live_')
+    ? 'live'
+    : keyId.startsWith('rzp_test_')
+    ? 'test'
+    : keyId
+    ? 'invalid_prefix'
+    : 'missing';
+
+  return {
+    keyId,
+    keySecret,
+    serverKeyId,
+    vitePublicKeyId,
+    keySource,
+    diagnostics: {
+      keySource,
+      keyPrefix,
+      keyMaskedPreview,
+      keyMode,
+      keyLength: keyId.length,
+      hasRazorpayKeyIdEnv: Boolean(serverKeyId),
+      hasViteRazorpayKeyIdEnv: Boolean(vitePublicKeyId),
+      usedFallbackToViteKey: keySource.startsWith('VITE_RAZORPAY_KEY_ID'),
+      keyHadHiddenOrWhitespaceChars:
+        (Boolean(rawServerKeyId) && rawServerKeyId !== serverKeyId) ||
+        (Boolean(rawViteKeyId) && rawViteKeyId !== vitePublicKeyId),
+      hasRazorpayKeySecretEnv: Boolean(keySecret),
+      secretLength: keySecret.length,
+      secretHadHiddenOrWhitespaceChars:
+        Boolean(rawKeySecret) && rawKeySecret !== keySecret
+    }
+  };
 }
 
 /**
