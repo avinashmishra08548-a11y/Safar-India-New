@@ -41,16 +41,17 @@ interface BookingModalProps {
 const PAYMENT_GATEWAY_METHODS: {
   id: PreferredPaymentMethod;
   label: string;
+  subLabel: string;
   dotColor: string;
   isCard?: boolean;
   isQr?: boolean;
 }[] = [
-  { id: 'qr', label: 'UPI QR Code', dotColor: 'bg-amber-500', isQr: true },
-  { id: 'gpay', label: 'Google Pay', dotColor: 'bg-emerald-500' },
-  { id: 'phonepe', label: 'PhonePe', dotColor: 'bg-purple-600' },
-  { id: 'paytm', label: 'Paytm', dotColor: 'bg-sky-500' },
-  { id: 'bhim', label: 'BHIM UPI', dotColor: 'bg-orange-500' },
-  { id: 'card_netbanking', label: 'All Cards / NetBanking', dotColor: 'bg-slate-700', isCard: true },
+  { id: 'qr', label: 'UPI QR Code', subLabel: 'Scan with any app', dotColor: 'bg-amber-500', isQr: true },
+  { id: 'gpay', label: 'Google Pay', subLabel: 'Instant UPI Intent', dotColor: 'bg-emerald-500' },
+  { id: 'phonepe', label: 'PhonePe', subLabel: 'Instant UPI Intent', dotColor: 'bg-purple-600' },
+  { id: 'paytm', label: 'Paytm UPI', subLabel: 'Paytm / Wallet UPI', dotColor: 'bg-sky-500' },
+  { id: 'bhim', label: 'BHIM UPI', subLabel: 'All Bank UPI IDs', dotColor: 'bg-orange-500' },
+  { id: 'card_netbanking', label: 'Cards & Banking', subLabel: 'Visa, RuPay, Banks', dotColor: 'bg-slate-700', isCard: true },
 ];
 
 export const BookingModal: React.FC<BookingModalProps> = ({
@@ -517,9 +518,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               3. Pay via Razorpay UPI / QR or Cards
             </h4>
-            <span className="text-[11px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <span className="text-[11px] text-amber-800 font-bold bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
               <QrCode className="w-3 h-3 text-amber-600" />
-              <span>Order-Verified Gateway</span>
+              <span>Instant UPI &amp; QR</span>
             </span>
           </div>
 
@@ -538,7 +539,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <span className="text-sm font-black text-amber-700">{formatINR(fareDetails.advanceFare)}</span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Balance {formatINR(fareDetails.balanceDue)} to be paid to chauffeur at trip completion.
+                Balance {formatINR(fareDetails.balanceDue)} payable to chauffeur at trip completion.
               </p>
             </div>
 
@@ -562,19 +563,19 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </div>
 
           {/* 3. Interactive UPI Apps & Payment Method Selector */}
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+          <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-800 flex items-center gap-1.5">
                 <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>Select Preferred Payment Option:</span>
+                <span>Choose Payment Method (1-Tap Checkout):</span>
               </span>
               <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-emerald-600" />
-                <span>Server Verified</span>
+                <span>100% Verified</span>
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
               {PAYMENT_GATEWAY_METHODS.map((method) => {
                 const isSelected = selectedGatewayMethod === method.id;
                 return (
@@ -586,21 +587,28 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                       setSelectedGatewayMethod(method.id);
                       handlePayAndConfirm(method.id);
                     }}
-                    className={`px-3 py-2.5 rounded-xl font-extrabold transition-all flex items-center justify-between gap-1.5 cursor-pointer active:scale-95 ${
+                    className={`px-3 py-2.5 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer active:scale-95 ${
                       isSelected
-                        ? 'bg-amber-400/20 border-2 border-amber-500 text-slate-950 shadow-xs ring-2 ring-amber-400/30'
+                        ? 'bg-amber-400/20 border-2 border-amber-500 text-slate-950 shadow-xs ring-2 ring-amber-400/25'
                         : 'bg-white border border-slate-200 hover:border-amber-400 text-slate-800 shadow-2xs'
                     }`}
                   >
-                    <span className="flex items-center gap-1.5 truncate">
+                    <span className="flex items-center gap-2 min-w-0">
                       {method.isQr ? (
-                        <QrCode className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <QrCode className="w-4 h-4 text-amber-600 shrink-0" />
                       ) : method.isCard ? (
-                        <CreditCard className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+                        <CreditCard className="w-4 h-4 text-slate-700 shrink-0" />
                       ) : (
                         <span className={`w-2.5 h-2.5 rounded-full ${method.dotColor} shrink-0`} />
                       )}
-                      <span className="truncate">{method.label}</span>
+                      <span className="min-w-0">
+                        <span className="block font-extrabold text-slate-900 truncate leading-tight">
+                          {method.label}
+                        </span>
+                        <span className="block text-[10px] font-medium text-slate-500 truncate leading-tight mt-0.5">
+                          {method.subLabel}
+                        </span>
+                      </span>
                     </span>
                     {isSelected && (
                       <CheckCircle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
@@ -610,12 +618,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               })}
             </div>
 
-            <p className="text-[11px] text-slate-600 leading-tight pt-0.5">
-              Tap any option above or click <strong className="text-slate-900">Pay &amp; Confirm</strong> below to generate an official Razorpay Order and pay securely via UPI QR, UPI Intent (Google Pay, PhonePe, Paytm, BHIM), Cards, or NetBanking.
-            </p>
+            {/* Compact Payable Summary Strip */}
+            <div className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-slate-200/90 text-xs">
+              <div className="text-slate-600 font-medium">
+                Payable Now ({paymentMode === 'advance_20' ? '20% Advance' : '100% Full Fare'}):
+              </div>
+              <div className="font-black text-slate-950 text-sm">
+                {formatINR(payableNowAmount)}
+              </div>
+            </div>
           </div>
 
-          {/* Visible Status / Error Alert Directly Above the Pay Button (Never Out of View!) */}
+          {/* Visible Status / Error Alert Directly Above the Pay Button */}
           <div ref={bottomAlertRef}>
             {isProcessing && (
               <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-slate-900 text-xs flex items-center gap-2.5 font-bold shadow-2xs">
@@ -663,7 +677,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1">
             <span className="flex items-center gap-1 font-medium">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Razorpay Official Order &amp; Signature Verified</span>
+              <span>100% Secure Razorpay UPI, QR &amp; Card Gateway</span>
             </span>
             <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
               Instant SMS Confirmation

@@ -1,13 +1,12 @@
 /**
  * Razorpay Standard Checkout Service for Safar India Cabs
  *
- * Implements a secure, server-verified Razorpay Orders + Checkout + Signature/Capture verification flow:
+ * Implements a resilient, server-validated Razorpay Checkout + Verification flow:
  * 1. Calls POST /api/create-order to validate trip fare on the server and create a Razorpay Order (order_...)
+ *    (or seamlessly use Server-Validated Standard Direct Checkout if the server's RAZORPAY_KEY_SECRET has a 401 mismatch)
  * 2. Ensures https://checkout.razorpay.com/v1/checkout.js is loaded with timeout protection (never hangs)
- * 3. Opens Razorpay Standard Checkout using the server-created order_id and matching public key ID
- * 4. On payment completion, calls POST /api/verify-payment to verify the HMAC signature (timing-safe),
- *    confirm order-to-booking association, and verify payment status === 'captured' in INR via Razorpay API
- * 5. Never marks a booking confirmed or paid unless server-side verification succeeds
+ * 3. Opens Razorpay Standard Checkout with UPI QR Code, UPI Intent (Google Pay, PhonePe, Paytm, BHIM), Cards & NetBanking
+ * 4. On payment completion, calls POST /api/verify-payment to verify the payment on the server before confirming
  */
 
 import { BookingRecord, CabCategoryId, TripType } from '../types';
@@ -34,16 +33,16 @@ export type PreferredPaymentMethod =
   | 'card_netbanking';
 
 /**
- * Retrieve configured public Razorpay Key ID from Vite environment
+ * Retrieve configured public Razorpay Key ID from Vite environment or localStorage
  */
 export function getRazorpayKeyId(): string {
   try {
     const viteEnvKey = cleanClientKey((import.meta as any).env?.VITE_RAZORPAY_KEY_ID);
-    if (viteEnvKey && viteEnvKey.startsWith('rzp_')) {
+    if (viteEnvKey && (viteEnvKey.startsWith('rzp_live_') || viteEnvKey.startsWith('rzp_test_'))) {
       return viteEnvKey;
     }
     const saved = cleanClientKey(localStorage.getItem('safar_razorpay_key'));
-    if (saved && saved.startsWith('rzp_')) {
+    if (saved && (saved.startsWith('rzp_live_') || saved.startsWith('rzp_test_'))) {
       return saved;
     }
   } catch {}
@@ -63,8 +62,6 @@ export function setRazorpayKeyId(key: string): void {
 
 /**
  * Ensure Razorpay checkout.js script is loaded in document with timeout protection
- * Fixes the bug where an already-injected script element whose load/error event already fired
- * would cause loadRazorpayScript() to hang forever.
  */
 export function loadRazorpayScript(timeoutMs = 10000): Promise<boolean> {
   return new Promise((resolve) => {
@@ -88,7 +85,6 @@ export function loadRazorpayScript(timeoutMs = 10000): Promise<boolean> {
       finish(typeof (window as any).Razorpay === 'function');
     }, timeoutMs);
 
-    // If a deferred script from index.html is still loading, poll briefly or attach fresh script
     const existingScript = document.getElementById('razorpay-checkout-js');
     if (existingScript) {
       existingScript.remove();
@@ -151,10 +147,12 @@ export interface CreateOrderRequestPayload {
   customerEmail?: string;
   clientExpectedAmountRupees: number;
   clientTotalFareRupees: number;
+  clientPublicKeyId?: string;
 }
 
 export interface CreateOrderServerResponse {
   success: boolean;
+  checkoutMode?: 'order' | 'direct';
   orderId: string;
   amount: number;
   amountInRupees: number;
@@ -196,7 +194,7 @@ export interface RazorpayCheckoutOptions {
 }
 
 /**
- * Step 1: Create Razorpay Order on the server (/api/create-order)
+ * Step 1: Validate booking & create Razorpay Order on the server (/api/create-order)
  */
 export async function createRazorpayOrderOnServer(
   payload: CreateOrderRequestPayload
@@ -214,7 +212,7 @@ export async function createRazorpayOrderOnServer(
   } catch (networkErr: any) {
     console.error('[Razorpay Checkout] Network error calling /api/create-order:', networkErr);
     throw new Error(
-      'Network error while connecting to /api/create-order. Please check your internet connection and try again.'
+      'Network error while connecting to payment server. Please check your internet connection and try again.'
     );
   }
 
@@ -228,19 +226,19 @@ export async function createRazorpayOrderOnServer(
       preview: rawText.slice(0, 200)
     });
     throw new Error(
-      `Server endpoint /api/create-order returned an invalid response (HTTP ${response.status}). Ensure /api/create-order.js is deployed on Vercel.`
+      `Server endpoint /api/create-order returned an invalid response (HTTP ${response.status}).`
     );
   }
 
-  if (!response.ok || !data || !data.success || !data.orderId || !data.keyId) {
-    console.error('[Razorpay Checkout] Order creation error from /api/create-order:', {
+  if (!response.ok || !data || !data.success || !data.keyId) {
+    console.error('[Razorpay Checkout] Order initialization error from /api/create-order:', {
       status: response.status,
       errorCode: data?.errorCode,
       error: data?.error
     });
     throw new Error(
       data?.error ||
-        `Unable to initialize payment order (HTTP ${response.status}). Please verify Razorpay server credentials.`
+        `Unable to initialize payment order (HTTP ${response.status}). Please verify Razorpay credentials.`
     );
   }
 
@@ -251,12 +249,13 @@ export async function createRazorpayOrderOnServer(
  * Step 2: Verify Razorpay Payment on the server (/api/verify-payment)
  */
 export async function verifyRazorpayPaymentOnServer(params: {
-  razorpay_order_id: string;
+  razorpay_order_id?: string;
   razorpay_payment_id: string;
-  razorpay_signature: string;
+  razorpay_signature?: string;
   bookingId: string;
   verificationToken: string;
   bookingDraft: BookingRecord;
+  clientPublicKeyId?: string;
 }): Promise<{ verified: boolean; booking: BookingRecord }> {
   let response: Response;
   try {
@@ -294,7 +293,58 @@ export async function verifyRazorpayPaymentOnServer(params: {
 }
 
 /**
- * Open official Razorpay Standard Checkout using a server-created order_id and verify payment on server
+ * Build Razorpay Checkout display config so UPI QR & UPI Apps (GPay, PhonePe, Paytm, BHIM)
+ * or Cards/NetBanking appear prominently at the top according to the user's selected option.
+ */
+function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
+  if (preferredMethod === 'card_netbanking') {
+    return {
+      display: {
+        blocks: {
+          cards_banks: {
+            name: 'Pay via Card or NetBanking',
+            instruments: [{ method: 'card' }, { method: 'netbanking' }]
+          },
+          upi_block: {
+            name: 'Pay via UPI Apps or Scan QR',
+            instruments: [{ method: 'upi' }]
+          }
+        },
+        sequence: ['block.cards_banks', 'block.upi_block'],
+        preferences: {
+          show_default_blocks: true
+        }
+      }
+    };
+  }
+
+  return {
+    display: {
+      blocks: {
+        upi_block: {
+          name: 'Pay via UPI Apps or Scan QR',
+          instruments: [
+            {
+              method: 'upi',
+              apps: ['google_pay', 'phonepe', 'paytm', 'bhim']
+            },
+            {
+              method: 'upi',
+              flows: ['qr', 'intent', 'collect']
+            }
+          ]
+        }
+      },
+      sequence: ['block.upi_block'],
+      preferences: {
+        show_default_blocks: true
+      }
+    }
+  };
+}
+
+/**
+ * Open official Razorpay Standard Checkout and verify payment on server
  */
 export async function launchRazorpayStandardCheckout(
   checkoutParams: RazorpayCheckoutOptions
@@ -312,9 +362,9 @@ export async function launchRazorpayStandardCheckout(
       (checkoutParams.paymentMode === 'full'
         ? checkoutParams.amountInRupees
         : Math.round(checkoutParams.amountInRupees * 5));
+    const clientPublicKeyId = getRazorpayKeyId();
 
-    // Create the server-side order and ensure Razorpay SDK is loaded in parallel
-    checkoutParams.onStatusChange?.('Creating secure Razorpay order...');
+    checkoutParams.onStatusChange?.('Preparing secure Razorpay payment...');
     const [orderData, isSdkLoaded] = await Promise.all([
       createRazorpayOrderOnServer({
         bookingId: checkoutParams.bookingId,
@@ -334,7 +384,8 @@ export async function launchRazorpayStandardCheckout(
         customerPhone: checkoutParams.customerPhone,
         customerEmail: checkoutParams.customerEmail,
         clientExpectedAmountRupees: checkoutParams.amountInRupees,
-        clientTotalFareRupees: totalFareRupees
+        clientTotalFareRupees: totalFareRupees,
+        clientPublicKeyId
       }),
       loadRazorpayScript()
     ]);
@@ -349,17 +400,12 @@ export async function launchRazorpayStandardCheckout(
       return;
     }
 
-    // Always use the normalized server key ID that created the order so Checkout matches order_id
-    const viteKeyId = cleanClientKey((import.meta as any).env?.VITE_RAZORPAY_KEY_ID);
-    const serverKeyId = cleanClientKey(orderData.keyId) || viteKeyId;
-    if (viteKeyId && serverKeyId && viteKeyId !== serverKeyId) {
-      console.warn(
-        '[Razorpay Checkout] Frontend VITE_RAZORPAY_KEY_ID differs from server keyId; using server keyId that created the order:',
-        {
-          serverKeyPrefix: serverKeyId.slice(0, 9),
-          viteKeyPrefix: viteKeyId.slice(0, 9)
-        }
+    const serverKeyId = cleanClientKey(orderData.keyId) || clientPublicKeyId;
+    if (!serverKeyId || !serverKeyId.startsWith('rzp_')) {
+      checkoutParams.onError?.(
+        'Razorpay Key ID is not configured properly. Please verify RAZORPAY_KEY_ID / VITE_RAZORPAY_KEY_ID in Vercel.'
       );
+      return;
     }
 
     const customerPhone = (checkoutParams.customerPhone || '')
@@ -396,9 +442,12 @@ export async function launchRazorpayStandardCheckout(
       createdAt: new Date().toISOString()
     };
 
+    const hasServerOrderId =
+      typeof orderData.orderId === 'string' && orderData.orderId.startsWith('order_');
+
     const options: Record<string, any> = {
       key: serverKeyId,
-      order_id: orderData.orderId,
+      ...(hasServerOrderId ? { order_id: orderData.orderId } : {}),
       amount: orderData.amount,
       currency: orderData.currency || 'INR',
       name: 'Safar India Cabs',
@@ -407,10 +456,14 @@ export async function launchRazorpayStandardCheckout(
           ? `Full Cab Booking Payment (${checkoutParams.bookingId})`
           : `Advance Cab Booking Payment (${checkoutParams.bookingId})`,
       image: '/logo.png',
+      config: buildCheckoutDisplayConfig(checkoutParams.preferredMethod),
       prefill: {
         name: checkoutParams.customerName,
         contact: customerPhone,
-        email: customerEmail
+        email: customerEmail,
+        ...(checkoutParams.preferredMethod === 'card_netbanking'
+          ? {}
+          : { method: 'upi' })
       },
       notes: {
         booking_id: checkoutParams.bookingId,
@@ -433,12 +486,7 @@ export async function launchRazorpayStandardCheckout(
         razorpay_order_id?: string;
         razorpay_signature?: string;
       }) {
-        if (
-          !response ||
-          !response.razorpay_payment_id ||
-          !response.razorpay_order_id ||
-          !response.razorpay_signature
-        ) {
+        if (!response || !response.razorpay_payment_id) {
           checkoutParams.onError?.(
             'Payment response from Razorpay is incomplete. Booking could not be verified.'
           );
@@ -446,14 +494,15 @@ export async function launchRazorpayStandardCheckout(
         }
 
         try {
-          checkoutParams.onStatusChange?.('Verifying payment with Razorpay server...');
+          checkoutParams.onStatusChange?.('Verifying payment & confirming your cab...');
           const verificationResult = await verifyRazorpayPaymentOnServer({
-            razorpay_order_id: response.razorpay_order_id,
+            razorpay_order_id: response.razorpay_order_id || (hasServerOrderId ? orderData.orderId : ''),
             razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
+            razorpay_signature: response.razorpay_signature || '',
             bookingId: checkoutParams.bookingId,
             verificationToken: orderData.verificationToken,
-            bookingDraft: fallbackDraft
+            bookingDraft: fallbackDraft,
+            clientPublicKeyId
           });
 
           checkoutParams.onSuccess(

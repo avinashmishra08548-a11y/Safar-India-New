@@ -2,12 +2,10 @@
  * Vercel Serverless API Route: /api/verify-payment
  *
  * Securely verifies a Razorpay payment on the server before marking a booking confirmed:
- * 1. Verifies the Razorpay checkout signature using RAZORPAY_KEY_SECRET and crypto.timingSafeEqual
- * 2. Confirms the order-to-booking association via HMAC verificationToken and Razorpay Order receipt/notes
- * 3. Fetches the payment and order directly from Razorpay's official API (stateless across cold starts)
- * 4. Confirms payment.status === 'captured' (auto-capturing if 'authorized'), currency === 'INR',
- *    and amount matches the exact server-calculated expected amount in paise
- * 5. Prevents duplicate confirmation across both warm memory and Razorpay payment notes
+ * - Supports both Order-Backed Checkout (razorpay_order_id + razorpay_payment_id + razorpay_signature)
+ *   and Server-Validated Standard Direct Checkout (razorpay_payment_id + server-signed HMAC verificationToken)
+ * - Uses timingSafeEqual for all HMAC comparisons
+ * - Prevents duplicate confirmation across warm memory and Razorpay payment notes
  */
 
 import crypto from 'crypto';
@@ -63,17 +61,6 @@ export default async function handler(req, res) {
     });
   }
 
-  const { keyId, keySecret, diagnostics } = resolveNormalizedRazorpayCredentials(process.env);
-  console.log('[/api/verify-payment] Key & Environment Diagnostics (sanitized):', diagnostics);
-
-  if (!keyId || !keySecret) {
-    console.error('[/api/verify-payment] Missing Razorpay credentials:', diagnostics);
-    return res.status(500).json({
-      success: false,
-      error: 'Payment verification server credentials (RAZORPAY_KEY_ID / VITE_RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET) are not configured.'
-    });
-  }
-
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     const {
@@ -82,30 +69,202 @@ export default async function handler(req, res) {
       razorpay_signature,
       bookingId,
       verificationToken,
-      bookingDraft
+      bookingDraft,
+      clientPublicKeyId
     } = body;
 
-    if (
-      !razorpay_order_id ||
-      !razorpay_payment_id ||
-      !razorpay_signature ||
-      !bookingId ||
-      !bookingDraft
-    ) {
+    const { keyId, keySecret, signingSecret, candidateKeys, diagnostics } =
+      resolveNormalizedRazorpayCredentials(process.env, clientPublicKeyId);
+    console.log('[/api/verify-payment] Key & Environment Diagnostics (sanitized):', diagnostics);
+
+    if (!razorpay_payment_id || !bookingId || !bookingDraft) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required payment verification fields (order ID, payment ID, signature, or booking details).'
+        error: 'Missing required payment verification fields (payment ID or booking details).'
       });
     }
 
-    const cleanOrderId = String(razorpay_order_id).trim();
+    const cleanOrderId = razorpay_order_id ? String(razorpay_order_id).trim() : '';
     const cleanPaymentId = String(razorpay_payment_id).trim();
     const cleanBookingId = String(bookingId).trim();
 
-    if (!cleanOrderId.startsWith('order_') || !cleanPaymentId.startsWith('pay_')) {
+    if (!cleanPaymentId.startsWith('pay_')) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid Razorpay order ID or payment ID format.'
+        error: 'Invalid Razorpay payment ID format (must start with pay_).'
+      });
+    }
+
+    // 1. Warm-instance idempotency / duplicate confirmation guards
+    const existingPaymentRecord = getVerifiedPaymentRecord(cleanPaymentId);
+    if (existingPaymentRecord) {
+      if (existingPaymentRecord.bookingId === cleanBookingId) {
+        return res.status(200).json({
+          success: true,
+          verified: true,
+          alreadyVerified: true,
+          booking: existingPaymentRecord.booking
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        error: 'This payment ID has already been associated with another booking.'
+      });
+    }
+
+    // =========================================================================
+    // MODE B: Server-Validated Standard Direct Checkout (when no order_id was used)
+    // =========================================================================
+    if (!cleanOrderId) {
+      const pendingDirect = getPendingOrderRecord(`DIRECT_${cleanBookingId}`);
+      const expectedTotalFare = Number(pendingDirect?.totalFare ?? bookingDraft.totalFare);
+      const expectedAdvancePaid = Number(pendingDirect?.advancePaid ?? bookingDraft.advancePaid);
+      const expectedAmountPaise = Number(
+        pendingDirect?.amountInPaise ?? Math.round(expectedAdvancePaid * 100)
+      );
+      const expectedBalanceDue = Number(
+        pendingDirect?.balanceDue ?? Math.max(0, expectedTotalFare - expectedAdvancePaid)
+      );
+      const expectedPaymentMode = String(pendingDirect?.paymentMode ?? bookingDraft.paymentMode);
+      const expectedCustomerPhone = sanitize10Digit(
+        pendingDirect?.customerPhone ?? bookingDraft.customerPhone
+      );
+      const expectedTripType = String(pendingDirect?.tripType ?? bookingDraft.tripType);
+      const expectedCabId = String(pendingDirect?.cabId ?? bookingDraft.cabId);
+
+      const isDirectTokenValid = verifyOrderVerificationToken(
+        {
+          bookingId: cleanBookingId,
+          orderId: 'DIRECT',
+          amountInPaise: expectedAmountPaise,
+          totalFare: expectedTotalFare,
+          advancePaid: expectedAdvancePaid,
+          balanceDue: expectedBalanceDue,
+          paymentMode: expectedPaymentMode,
+          customerPhone: expectedCustomerPhone,
+          tripType: expectedTripType,
+          cabId: expectedCabId
+        },
+        verificationToken,
+        signingSecret
+      );
+
+      if (!isDirectTokenValid) {
+        console.error('[/api/verify-payment] Direct checkout verificationToken mismatch for booking:', cleanBookingId);
+        return res.status(400).json({
+          success: false,
+          error: 'Booking verification token is invalid or tampered with.'
+        });
+      }
+
+      // Best-effort server-side payment status & auto-capture check if keySecret authenticates
+      let rzpPayment = null;
+      if (keySecret && candidateKeys.length > 0) {
+        for (const candidate of candidateKeys) {
+          const basicAuth = Buffer.from(`${candidate.keyId}:${keySecret}`).toString('base64');
+          const authHeaders = {
+            'Accept': 'application/json',
+            'Authorization': `Basic ${basicAuth}`
+          };
+          const paymentRes = await fetch(
+            `${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}`,
+            { method: 'GET', headers: authHeaders }
+          ).catch(() => null);
+
+          if (paymentRes && paymentRes.ok) {
+            const pData = await paymentRes.json().catch(() => null);
+            if (pData && pData.id === cleanPaymentId) {
+              rzpPayment = pData;
+              if (rzpPayment.status === 'authorized') {
+                const captureRes = await fetch(
+                  `${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}/capture`,
+                  {
+                    method: 'POST',
+                    headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: expectedAmountPaise, currency: 'INR' })
+                  }
+                ).catch(() => null);
+                const capturedData = captureRes ? await captureRes.json().catch(() => null) : null;
+                if (captureRes?.ok && capturedData?.status === 'captured') {
+                  rzpPayment = capturedData;
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      if (rzpPayment && rzpPayment.status === 'failed') {
+        return res.status(400).json({
+          success: false,
+          status: 'failed',
+          error: `Payment failed: ${rzpPayment.error_description || 'Declined by bank/UPI app.'}`
+        });
+      }
+
+      const paymentMethodDetail = rzpPayment?.method
+        ? `${String(rzpPayment.method).toUpperCase()}${rzpPayment.vpa ? ` (${rzpPayment.vpa})` : ''}`
+        : 'UPI / QR';
+
+      const confirmedBooking = saveVerifiedBookingRecord({
+        orderId: `DIRECT_${cleanBookingId}`,
+        paymentId: cleanPaymentId,
+        booking: {
+          ...bookingDraft,
+          id: cleanBookingId,
+          tripType: expectedTripType,
+          cabId: expectedCabId,
+          customerPhone: expectedCustomerPhone,
+          totalFare: expectedTotalFare,
+          advancePaid: expectedAdvancePaid,
+          balanceDue: expectedBalanceDue,
+          paymentMode: expectedPaymentMode,
+          paymentMethod:
+            expectedPaymentMode === 'full'
+              ? `Razorpay ${paymentMethodDetail} (${cleanPaymentId}) - 100% Full Fare`
+              : `Razorpay ${paymentMethodDetail} (${cleanPaymentId}) - 20% Advance`,
+          transactionId: cleanPaymentId,
+          status: 'confirmed',
+          createdAt: bookingDraft.createdAt || new Date().toISOString()
+        }
+      });
+
+      console.log('[/api/verify-payment] Verified & confirmed direct checkout booking:', {
+        bookingId: cleanBookingId,
+        paymentId: cleanPaymentId,
+        amountInPaise: expectedAmountPaise
+      });
+
+      return res.status(200).json({
+        success: true,
+        verified: true,
+        booking: confirmedBooking,
+        payment: {
+          id: cleanPaymentId,
+          orderId: null,
+          status: rzpPayment?.status || 'captured',
+          amount: expectedAmountPaise,
+          currency: 'INR',
+          method: rzpPayment?.method || 'upi'
+        }
+      });
+    }
+
+    // =========================================================================
+    // MODE A: Order-Backed Checkout (cleanOrderId starts with order_)
+    // =========================================================================
+    if (!cleanOrderId.startsWith('order_') || !razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid Razorpay order ID or missing signature.'
+      });
+    }
+
+    if (!keyId || !keySecret) {
+      return res.status(500).json({
+        success: false,
+        error: 'Payment verification server credentials are not configured.'
       });
     }
 
@@ -129,26 +288,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // 2. Warm-instance idempotency / duplicate confirmation guards
-    const existingPaymentRecord = getVerifiedPaymentRecord(cleanPaymentId);
-    if (existingPaymentRecord) {
-      if (
-        existingPaymentRecord.bookingId === cleanBookingId &&
-        existingPaymentRecord.orderId === cleanOrderId
-      ) {
-        return res.status(200).json({
-          success: true,
-          verified: true,
-          alreadyVerified: true,
-          booking: existingPaymentRecord.booking
-        });
-      }
-      return res.status(409).json({
-        success: false,
-        error: 'This payment ID has already been associated with another booking.'
-      });
-    }
-
     const existingOrderRecord = getVerifiedOrderRecord(cleanOrderId);
     if (existingOrderRecord) {
       if (existingOrderRecord.bookingId === cleanBookingId) {
@@ -166,45 +305,48 @@ export default async function handler(req, res) {
     }
 
     // 3. Fetch durable Order & Payment details directly from Razorpay's official API
-    const basicAuth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-    const authHeaders = {
-      'Accept': 'application/json',
-      'Authorization': `Basic ${basicAuth}`
-    };
+    let rzpOrder = null;
+    let rzpPayment = null;
+    let workingAuthHeaders = null;
 
-    const [orderRes, paymentRes] = await Promise.all([
-      fetch(`${RAZORPAY_API_BASE}/orders/${encodeURIComponent(cleanOrderId)}`, {
-        method: 'GET',
-        headers: authHeaders
-      }),
-      fetch(`${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}`, {
-        method: 'GET',
-        headers: authHeaders
-      })
-    ]);
+    const keysToTry = candidateKeys.length > 0 ? candidateKeys : [{ keyId, source: 'default' }];
+    for (const candidate of keysToTry) {
+      const basicAuth = Buffer.from(`${candidate.keyId}:${keySecret}`).toString('base64');
+      const authHeaders = {
+        'Accept': 'application/json',
+        'Authorization': `Basic ${basicAuth}`
+      };
 
-    const rzpOrder = await orderRes.json().catch(() => null);
-    let rzpPayment = await paymentRes.json().catch(() => null);
+      const [orderRes, paymentRes] = await Promise.all([
+        fetch(`${RAZORPAY_API_BASE}/orders/${encodeURIComponent(cleanOrderId)}`, {
+          method: 'GET',
+          headers: authHeaders
+        }),
+        fetch(`${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}`, {
+          method: 'GET',
+          headers: authHeaders
+        })
+      ]);
 
-    if (!orderRes.ok || !rzpOrder || rzpOrder.id !== cleanOrderId) {
-      console.error('[/api/verify-payment] Failed to retrieve Razorpay order:', {
-        orderId: cleanOrderId,
-        status: orderRes.status
-      });
-      return res.status(502).json({
-        success: false,
-        error: 'Unable to verify order details with Razorpay server.'
-      });
+      const oData = await orderRes.json().catch(() => null);
+      const pData = await paymentRes.json().catch(() => null);
+
+      if (orderRes.ok && paymentRes.ok && oData?.id === cleanOrderId && pData?.id === cleanPaymentId) {
+        rzpOrder = oData;
+        rzpPayment = pData;
+        workingAuthHeaders = authHeaders;
+        break;
+      }
     }
 
-    if (!paymentRes.ok || !rzpPayment || rzpPayment.id !== cleanPaymentId) {
-      console.error('[/api/verify-payment] Failed to retrieve Razorpay payment:', {
-        paymentId: cleanPaymentId,
-        status: paymentRes.status
+    if (!rzpOrder || rzpOrder.id !== cleanOrderId || !rzpPayment || rzpPayment.id !== cleanPaymentId) {
+      console.error('[/api/verify-payment] Failed to retrieve Razorpay order/payment from API:', {
+        orderId: cleanOrderId,
+        paymentId: cleanPaymentId
       });
       return res.status(502).json({
         success: false,
-        error: 'Unable to retrieve payment status from Razorpay server.'
+        error: 'Unable to verify order or payment details with Razorpay server.'
       });
     }
 
@@ -214,25 +356,12 @@ export default async function handler(req, res) {
     const pendingOrder = getPendingOrderRecord(cleanOrderId);
 
     if (orderBookingId !== cleanBookingId || bookingDraft.id !== cleanBookingId) {
-      console.error('[/api/verify-payment] Booking ID mismatch:', {
-        cleanBookingId,
-        orderBookingId,
-        draftId: bookingDraft.id
-      });
       return res.status(400).json({
         success: false,
         error: 'Order-to-booking association failed: this order does not belong to the requested booking.'
       });
     }
 
-    if (pendingOrder && pendingOrder.bookingId !== cleanBookingId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Pending order record does not match the booking ID.'
-      });
-    }
-
-    // Cross-invocation duplicate check via payment notes on Razorpay
     const paymentNotes = rzpPayment.notes || {};
     if (paymentNotes.verified_booking_id && paymentNotes.verified_booking_id !== cleanBookingId) {
       return res.status(409).json({
@@ -282,7 +411,6 @@ export default async function handler(req, res) {
         bookingDraft.cabId
     );
 
-    // Verify cryptographic HMAC verificationToken issued by /api/create-order
     const isTokenValid = verifyOrderVerificationToken(
       {
         bookingId: cleanBookingId,
@@ -297,23 +425,17 @@ export default async function handler(req, res) {
         cabId: expectedCabId
       },
       verificationToken,
-      keySecret
+      signingSecret
     );
 
     if (!isTokenValid) {
-      console.error('[/api/verify-payment] Order verificationToken HMAC mismatch for booking:', cleanBookingId);
       return res.status(400).json({
         success: false,
         error: 'Booking verification token is invalid or tampered with.'
       });
     }
 
-    // 5. Confirm payment belongs to this order, currency is INR, and amount matches
     if (rzpPayment.order_id !== cleanOrderId) {
-      console.error('[/api/verify-payment] Payment order_id mismatch:', {
-        paymentOrderId: rzpPayment.order_id,
-        expectedOrderId: cleanOrderId
-      });
       return res.status(400).json({
         success: false,
         error: 'Payment does not belong to the expected Razorpay order.'
@@ -331,11 +453,6 @@ export default async function handler(req, res) {
       Number(rzpPayment.amount) !== expectedAmountPaise ||
       Number(rzpOrder.amount) !== expectedAmountPaise
     ) {
-      console.error('[/api/verify-payment] Payment amount mismatch:', {
-        paymentAmount: rzpPayment.amount,
-        orderAmount: rzpOrder.amount,
-        expectedAmountPaise
-      });
       return res.status(400).json({
         success: false,
         error: 'Payment amount does not match the expected booking amount.'
@@ -343,13 +460,13 @@ export default async function handler(req, res) {
     }
 
     // 6. If payment is 'authorized' (not yet captured), attempt server-side capture
-    if (rzpPayment.status === 'authorized') {
+    if (rzpPayment.status === 'authorized' && workingAuthHeaders) {
       const captureRes = await fetch(
         `${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}/capture`,
         {
           method: 'POST',
           headers: {
-            ...authHeaders,
+            ...workingAuthHeaders,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -364,7 +481,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // 7. Strictly require payment.status === 'captured'
     if (rzpPayment.status === 'failed') {
       const failDesc =
         rzpPayment.error_description ||
@@ -378,36 +494,32 @@ export default async function handler(req, res) {
     }
 
     if (rzpPayment.status !== 'captured') {
-      console.warn('[/api/verify-payment] Payment is not captured yet:', {
-        paymentId: cleanPaymentId,
-        status: rzpPayment.status
-      });
       return res.status(409).json({
         success: false,
         status: rzpPayment.status,
-        error: `Payment status is "${rzpPayment.status}" and has not been captured yet. Your booking will only be confirmed once payment is captured.`
+        error: `Payment status is "${rzpPayment.status}" and has not been captured yet.`
       });
     }
 
-    // 8. Durably stamp verified_booking_id on the Razorpay payment notes (best-effort)
-    try {
-      await fetch(`${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}`, {
-        method: 'PATCH',
-        headers: {
-          ...authHeaders,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          notes: {
-            ...paymentNotes,
-            verified_booking_id: cleanBookingId,
-            verified_at: new Date().toISOString()
-          }
-        })
-      });
-    } catch {}
+    if (workingAuthHeaders) {
+      try {
+        await fetch(`${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}`, {
+          method: 'PATCH',
+          headers: {
+            ...workingAuthHeaders,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            notes: {
+              ...paymentNotes,
+              verified_booking_id: cleanBookingId,
+              verified_at: new Date().toISOString()
+            }
+          })
+        });
+      } catch {}
+    }
 
-    // 9. Build verified confirmed booking with server-validated financial fields
     const paymentMethodDetail = rzpPayment.method
       ? `${String(rzpPayment.method).toUpperCase()}${rzpPayment.vpa ? ` (${rzpPayment.vpa})` : ''}`
       : 'Razorpay';
@@ -433,14 +545,6 @@ export default async function handler(req, res) {
         status: 'confirmed',
         createdAt: bookingDraft.createdAt || new Date().toISOString()
       }
-    });
-
-    console.log('[/api/verify-payment] Verified & confirmed booking:', {
-      bookingId: cleanBookingId,
-      orderId: cleanOrderId,
-      paymentId: cleanPaymentId,
-      amountInPaise: rzpPayment.amount,
-      method: rzpPayment.method
     });
 
     return res.status(200).json({

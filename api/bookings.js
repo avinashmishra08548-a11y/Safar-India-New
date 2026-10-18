@@ -38,39 +38,63 @@ export function cleanEnvVar(val) {
 }
 
 /**
- * Resolve and normalize Razorpay credentials with automatic fallback from RAZORPAY_KEY_ID to VITE_RAZORPAY_KEY_ID
- * and sanitized diagnostic metadata for console logging.
+ * Resolve and normalize Razorpay credentials with automatic fallback across RAZORPAY_KEY_ID,
+ * VITE_RAZORPAY_KEY_ID, NEXT_PUBLIC_RAZORPAY_KEY_ID, and optional clientPublicKeyId.
  */
-export function resolveNormalizedRazorpayCredentials(env = process.env) {
+export function resolveNormalizedRazorpayCredentials(env = process.env, clientPublicKeyId = '') {
   const rawServerKeyId = typeof env?.RAZORPAY_KEY_ID === 'string' ? env.RAZORPAY_KEY_ID : '';
   const rawViteKeyId = typeof env?.VITE_RAZORPAY_KEY_ID === 'string' ? env.VITE_RAZORPAY_KEY_ID : '';
+  const rawNextKeyId =
+    typeof env?.NEXT_PUBLIC_RAZORPAY_KEY_ID === 'string' ? env.NEXT_PUBLIC_RAZORPAY_KEY_ID : '';
   const rawKeySecret = typeof env?.RAZORPAY_KEY_SECRET === 'string' ? env.RAZORPAY_KEY_SECRET : '';
 
   const serverKeyId = cleanEnvVar(rawServerKeyId);
-  const vitePublicKeyId = cleanEnvVar(rawViteKeyId);
+  const vitePublicKeyId = cleanEnvVar(rawViteKeyId) || cleanEnvVar(rawNextKeyId);
+  const normalizedClientKeyId = cleanEnvVar(clientPublicKeyId);
   const keySecret = cleanEnvVar(rawKeySecret);
 
-  const serverKeyIsValidFormat =
-    serverKeyId.startsWith('rzp_live_') || serverKeyId.startsWith('rzp_test_');
-  const viteKeyIsValidFormat =
-    vitePublicKeyId.startsWith('rzp_live_') || vitePublicKeyId.startsWith('rzp_test_');
+  const isValidKeyFormat = (k) =>
+    Boolean(k) && (k.startsWith('rzp_live_') || k.startsWith('rzp_test_'));
+
+  // Build ordered list of unique valid-format candidate Key IDs to try against Razorpay API
+  const candidateKeys = [];
+  const addCandidate = (k, source) => {
+    if (isValidKeyFormat(k) && !candidateKeys.some((item) => item.keyId === k)) {
+      candidateKeys.push({ keyId: k, source });
+    }
+  };
+
+  addCandidate(serverKeyId, 'RAZORPAY_KEY_ID');
+  addCandidate(vitePublicKeyId, 'VITE_RAZORPAY_KEY_ID');
+  addCandidate(normalizedClientKeyId, 'client_VITE_RAZORPAY_KEY_ID');
 
   let keyId = '';
   let keySource = 'none';
 
-  if (serverKeyId && (serverKeyIsValidFormat || !viteKeyIsValidFormat)) {
+  if (candidateKeys.length > 0) {
+    keyId = candidateKeys[0].keyId;
+    keySource =
+      candidateKeys[0].source === 'RAZORPAY_KEY_ID'
+        ? 'RAZORPAY_KEY_ID'
+        : `${candidateKeys[0].source} (fallback)`;
+  } else if (serverKeyId) {
     keyId = serverKeyId;
     keySource = 'RAZORPAY_KEY_ID';
   } else if (vitePublicKeyId) {
     keyId = vitePublicKeyId;
-    keySource = serverKeyId
-      ? 'VITE_RAZORPAY_KEY_ID (fallback_from_invalid_RAZORPAY_KEY_ID)'
-      : 'VITE_RAZORPAY_KEY_ID (fallback_from_missing_RAZORPAY_KEY_ID)';
+    keySource = 'VITE_RAZORPAY_KEY_ID (fallback)';
+  } else if (normalizedClientKeyId) {
+    keyId = normalizedClientKeyId;
+    keySource = 'client_VITE_RAZORPAY_KEY_ID (fallback)';
   }
 
-  const keyPrefix = keyId
-    ? keyId.slice(0, 9) // e.g. 'rzp_live_' or 'rzp_test_'
-    : 'MISSING';
+  // Deterministic HMAC signing secret for order/direct verification tokens
+  const signingSecret =
+    keySecret ||
+    cleanEnvVar(env?.OTP_SECRET) ||
+    (keyId ? `safar_token_secret_${keyId}` : 'safar_default_token_secret');
+
+  const keyPrefix = keyId ? keyId.slice(0, 9) : 'MISSING';
   const keyMaskedPreview =
     keyId.length >= 13
       ? `${keyId.slice(0, 9)}***${keyId.slice(-4)}`
@@ -88,8 +112,10 @@ export function resolveNormalizedRazorpayCredentials(env = process.env) {
   return {
     keyId,
     keySecret,
+    signingSecret,
     serverKeyId,
     vitePublicKeyId,
+    candidateKeys,
     keySource,
     diagnostics: {
       keySource,
@@ -97,9 +123,10 @@ export function resolveNormalizedRazorpayCredentials(env = process.env) {
       keyMaskedPreview,
       keyMode,
       keyLength: keyId.length,
+      candidateKeysCount: candidateKeys.length,
       hasRazorpayKeyIdEnv: Boolean(serverKeyId),
       hasViteRazorpayKeyIdEnv: Boolean(vitePublicKeyId),
-      usedFallbackToViteKey: keySource.startsWith('VITE_RAZORPAY_KEY_ID'),
+      usedFallbackToViteKey: keySource.includes('VITE_RAZORPAY_KEY_ID'),
       keyHadHiddenOrWhitespaceChars:
         (Boolean(rawServerKeyId) && rawServerKeyId !== serverKeyId) ||
         (Boolean(rawViteKeyId) && rawViteKeyId !== vitePublicKeyId),
