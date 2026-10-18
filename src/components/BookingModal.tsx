@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   ShieldCheck, 
@@ -13,7 +13,11 @@ import {
 import { CabVehicle, CustomerUser, TripType, BookingRecord } from '../types';
 import { formatINR, FareCalculationResult } from '../utils/fareCalculator';
 import { sendDualBookingNotifications, sanitize10DigitPhone } from '../utils/smsService';
-import { launchRazorpayStandardCheckout, PreferredPaymentMethod } from '../utils/razorpayService';
+import {
+  launchRazorpayStandardCheckout,
+  loadRazorpayScript,
+  PreferredPaymentMethod
+} from '../utils/razorpayService';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -86,8 +90,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [paymentMode, setPaymentMode] = useState<'advance_20' | 'full'>('advance_20');
   const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('qr');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState('Creating secure payment order...');
+  const [processingStatus, setProcessingStatus] = useState('Creating secure Razorpay order...');
   const [errorMessage, setErrorMessage] = useState('');
+
+  const bottomAlertRef = useRef<HTMLDivElement | null>(null);
+
+  // Pre-warm Razorpay Checkout SDK as soon as BookingModal opens
+  useEffect(() => {
+    loadRazorpayScript().catch(() => {});
+  }, []);
+
+  // Whenever an error occurs, make sure the error alert right above the Pay button is scrolled into view
+  useEffect(() => {
+    if (errorMessage && bottomAlertRef.current) {
+      bottomAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [errorMessage]);
 
   const payableNowAmount = paymentMode === 'advance_20' ? fareDetails.advanceFare : fareDetails.totalFare;
   const balanceDueAmount = paymentMode === 'advance_20' ? fareDetails.balanceDue : 0;
@@ -100,9 +118,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setSelectedGatewayMethod(overrideMethod);
     }
 
-    // Form validation
+    // Form validation with immediate visible error feedback both at top and right above Pay button
     if (!customerName.trim() || customerName.trim().length < 2) {
-      setErrorMessage('Please enter traveler full name before proceeding to payment.');
+      setErrorMessage('Please enter passenger Full Name (at least 2 characters) before proceeding to payment.');
       const nameInput = document.getElementById('traveler-full-name');
       if (nameInput) nameInput.focus();
       return;
@@ -115,7 +133,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       return;
     }
     if (!pickupAddress.trim()) {
-      setErrorMessage('Please enter complete doorstep pickup address.');
+      setErrorMessage('Please enter your complete doorstep pickup address.');
       const addrInput = document.getElementById('pickup-full-address');
       if (addrInput) addrInput.focus();
       return;
@@ -123,7 +141,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
     setErrorMessage('');
     setIsProcessing(true);
-    setProcessingStatus('Creating secure payment order...');
+    setProcessingStatus('Creating secure Razorpay order...');
 
     const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
     const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
@@ -288,10 +306,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </button>
         </div>
 
-        {/* Clean Informational Banner (Shown by default; Error alert only if actual validation/payment issue occurs) */}
+        {/* Clean Informational Banner at Top */}
         {errorMessage ? (
-          <div className="p-3.5 bg-[#FEFCE8] border border-amber-300 rounded-2xl text-[#1E40AF] text-xs flex items-start gap-2.5 font-semibold shadow-2xs">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl text-rose-900 text-xs flex items-start gap-2.5 font-semibold shadow-2xs">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
         ) : (
@@ -339,7 +357,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 required
                 aria-label="Traveler Full Name"
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+                onChange={(e) => {
+                  setCustomerName(e.target.value);
+                  if (errorMessage) setErrorMessage('');
+                }}
                 placeholder="e.g. Rahul Sharma"
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 text-xs font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
               />
@@ -362,7 +383,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   maxLength={10}
                   aria-label="Traveler 10-digit mobile number"
                   value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => {
+                    setCustomerPhone(e.target.value.replace(/\D/g, ''));
+                    if (errorMessage) setErrorMessage('');
+                  }}
                   placeholder="9876543210"
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-11 pr-3 py-2.5 text-slate-900 text-xs font-mono font-bold focus:outline-none focus:border-amber-500 focus:bg-white"
                 />
@@ -402,7 +426,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 required
                 aria-label="Complete Doorstep Pickup Address"
                 value={pickupAddress}
-                onChange={(e) => setPickupAddress(e.target.value)}
+                onChange={(e) => {
+                  setPickupAddress(e.target.value);
+                  if (errorMessage) setErrorMessage('');
+                }}
                 placeholder="House/Office No., Street, Sector, Society Name"
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 text-xs font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
               />
@@ -586,6 +613,29 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <p className="text-[11px] text-slate-600 leading-tight pt-0.5">
               Tap any option above or click <strong className="text-slate-900">Pay &amp; Confirm</strong> below to generate an official Razorpay Order and pay securely via UPI QR, UPI Intent (Google Pay, PhonePe, Paytm, BHIM), Cards, or NetBanking.
             </p>
+          </div>
+
+          {/* Visible Status / Error Alert Directly Above the Pay Button (Never Out of View!) */}
+          <div ref={bottomAlertRef}>
+            {isProcessing && (
+              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-slate-900 text-xs flex items-center gap-2.5 font-bold shadow-2xs">
+                <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                <span>{processingStatus}</span>
+              </div>
+            )}
+
+            {!isProcessing && errorMessage && (
+              <div
+                role="alert"
+                className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-900 text-xs flex items-start gap-2.5 font-bold shadow-xs"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-extrabold text-rose-800">Payment Action Notice</div>
+                  <div className="leading-relaxed">{errorMessage}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Primary Action Button: Pay & Confirm -> Razorpay Standard Checkout */}

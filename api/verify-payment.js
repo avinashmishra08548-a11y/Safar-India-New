@@ -4,14 +4,15 @@
  * Securely verifies a Razorpay payment on the server before marking a booking confirmed:
  * 1. Verifies the Razorpay checkout signature using RAZORPAY_KEY_SECRET and crypto.timingSafeEqual
  * 2. Confirms the order-to-booking association via HMAC verificationToken and Razorpay Order receipt/notes
- * 3. Fetches the payment and order directly from Razorpay's official API
+ * 3. Fetches the payment and order directly from Razorpay's official API (stateless across cold starts)
  * 4. Confirms payment.status === 'captured' (auto-capturing if 'authorized'), currency === 'INR',
  *    and amount matches the exact server-calculated expected amount in paise
- * 5. Prevents duplicate confirmation and handles failed, pending, and repeated requests safely
+ * 5. Prevents duplicate confirmation across both warm memory and Razorpay payment notes
  */
 
 import crypto from 'crypto';
 import {
+  cleanEnvVar,
   getPendingOrderRecord,
   getVerifiedOrderRecord,
   getVerifiedPaymentRecord,
@@ -62,8 +63,8 @@ export default async function handler(req, res) {
     });
   }
 
-  const keyId = (process.env.RAZORPAY_KEY_ID || '').trim();
-  const keySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+  const keyId = cleanEnvVar(process.env.RAZORPAY_KEY_ID) || cleanEnvVar(process.env.VITE_RAZORPAY_KEY_ID);
+  const keySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET);
 
   if (!keyId || !keySecret) {
     console.error('[/api/verify-payment] Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET.');
@@ -74,7 +75,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     const {
       razorpay_order_id,
       razorpay_payment_id,
@@ -82,7 +83,7 @@ export default async function handler(req, res) {
       bookingId,
       verificationToken,
       bookingDraft
-    } = body || {};
+    } = body;
 
     if (
       !razorpay_order_id ||
@@ -128,7 +129,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 2. Check idempotency / duplicate confirmation guards
+    // 2. Warm-instance idempotency / duplicate confirmation guards
     const existingPaymentRecord = getVerifiedPaymentRecord(cleanPaymentId);
     if (existingPaymentRecord) {
       if (
@@ -164,7 +165,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 3. Fetch Order & Payment details directly from Razorpay's official API
+    // 3. Fetch durable Order & Payment details directly from Razorpay's official API
     const basicAuth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
     const authHeaders = {
       'Accept': 'application/json',
@@ -207,7 +208,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 4. Confirm order-to-booking association
+    // 4. Confirm order-to-booking association from Razorpay's durable Order receipt & notes
     const orderNotes = rzpOrder.notes || {};
     const orderBookingId = rzpOrder.receipt || orderNotes.booking_id;
     const pendingOrder = getPendingOrderRecord(cleanOrderId);
@@ -228,6 +229,15 @@ export default async function handler(req, res) {
       return res.status(400).json({
         success: false,
         error: 'Pending order record does not match the booking ID.'
+      });
+    }
+
+    // Cross-invocation duplicate check via payment notes on Razorpay
+    const paymentNotes = rzpPayment.notes || {};
+    if (paymentNotes.verified_booking_id && paymentNotes.verified_booking_id !== cleanBookingId) {
+      return res.status(409).json({
+        success: false,
+        error: 'This payment has already been verified for another booking.'
       });
     }
 
@@ -379,7 +389,25 @@ export default async function handler(req, res) {
       });
     }
 
-    // 8. Build verified confirmed booking with server-validated financial fields
+    // 8. Durably stamp verified_booking_id on the Razorpay payment notes (best-effort)
+    try {
+      await fetch(`${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}`, {
+        method: 'PATCH',
+        headers: {
+          ...authHeaders,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          notes: {
+            ...paymentNotes,
+            verified_booking_id: cleanBookingId,
+            verified_at: new Date().toISOString()
+          }
+        })
+      });
+    } catch {}
+
+    // 9. Build verified confirmed booking with server-validated financial fields
     const paymentMethodDetail = rzpPayment.method
       ? `${String(rzpPayment.method).toUpperCase()}${rzpPayment.vpa ? ` (${rzpPayment.vpa})` : ''}`
       : 'Razorpay';

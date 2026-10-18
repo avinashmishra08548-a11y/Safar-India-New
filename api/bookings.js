@@ -1,10 +1,15 @@
 /**
  * Vercel Serverless API Route: /api/bookings
  *
- * Persistent Serverless Booking Repository & Order Association Store
- * - Stores verified bookings and pending order-to-booking associations
- * - Prevents duplicate payment confirmations (idempotency guard)
- * - Contains shared server-side fare calculation matching src/utils/fareCalculator.ts
+ * Booking Repository & Server-Side Fare / Token Utilities
+ *
+ * IMPORTANT NOTE ON SERVERLESS STORAGE:
+ * - `storedBookings`, `pendingOrdersById`, `verifiedPaymentsById`, and `verifiedOrdersById`
+ *   are in-memory structures that only persist within a warm Vercel lambda instance.
+ * - Therefore, `/api/create-order` and `/api/verify-payment` DO NOT rely solely on in-memory
+ *   Maps across invocations. Instead, they persist booking metadata directly inside Razorpay's
+ *   durable Order `receipt` and `notes` via the Razorpay Orders API and verify a timing-safe
+ *   HMAC-SHA256 `verificationToken` signed with `RAZORPAY_KEY_SECRET`.
  */
 
 import crypto from 'crypto';
@@ -18,6 +23,14 @@ export const SERVER_CABS_FLEET = {
   innova: { id: 'innova', name: 'Innova Crysta Premium', models: 'Toyota Innova Crysta Luxury', ratePerKm: 21 },
   tempo: { id: 'tempo', name: 'Tempo Traveller (12 Seater)', models: 'Force Urbania / Traveller 12-17 Seater', ratePerKm: 29 }
 };
+
+/**
+ * Strip accidental surrounding quotes and whitespace from environment variables
+ */
+export function cleanEnvVar(val) {
+  if (!val || typeof val !== 'string') return '';
+  return val.trim().replace(/^['"]+|['"]+$/g, '').trim();
+}
 
 /**
  * Compute trip fare on the server using the exact pricing rules in src/utils/fareCalculator.ts
@@ -39,18 +52,19 @@ export function computeServerTripFare({
   const cab = SERVER_CABS_FLEET[cabId] || SERVER_CABS_FLEET.sedan;
   const ratePerKm = cab.ratePerKm;
 
-  const numericDistance = Number(distanceKm);
-  if (!Number.isFinite(numericDistance) || numericDistance <= 0 || numericDistance > 10000) {
+  const parsedDistance = Number(distanceKm ?? 0);
+  if (!Number.isFinite(parsedDistance) || parsedDistance < 0 || parsedDistance > 15000) {
     throw new Error(`Invalid distanceKm: ${distanceKm}`);
   }
 
-  let billedDistanceKm = Math.round(numericDistance);
+  let billedDistanceKm = parsedDistance;
   let baseFare = 0;
   let driverAllowance = 0;
   let daysCount = 1;
 
   if (tripType === 'oneway') {
-    billedDistanceKm = Math.max(130, billedDistanceKm);
+    // Standard intercity rule: minimum 130 km billing (matches src/utils/fareCalculator.ts line 47)
+    billedDistanceKm = Math.max(130, parsedDistance);
     baseFare = billedDistanceKm * ratePerKm;
     driverAllowance = 300;
   } else if (tripType === 'roundtrip') {
@@ -63,7 +77,7 @@ export function computeServerTripFare({
       }
     }
     const minKmForDays = daysCount * 250;
-    const actualTwoWayKm = billedDistanceKm * 2;
+    const actualTwoWayKm = parsedDistance * 2;
     billedDistanceKm = Math.max(minKmForDays, actualTwoWayKm);
     baseFare = billedDistanceKm * ratePerKm;
     driverAllowance = daysCount * 350;
@@ -82,7 +96,7 @@ export function computeServerTripFare({
       driverAllowance = 250;
     }
   } else if (tripType === 'airport') {
-    billedDistanceKm = Math.max(45, billedDistanceKm);
+    billedDistanceKm = Math.max(45, parsedDistance);
     baseFare = Math.round(billedDistanceKm * ratePerKm + 450);
     driverAllowance = 200;
   }
@@ -106,7 +120,7 @@ export function computeServerTripFare({
   const balanceDue = totalFare - advanceFare;
 
   return {
-    distanceKm: Math.round(numericDistance),
+    distanceKm: parsedDistance,
     billedDistanceKm,
     baseFare,
     driverAllowance,
@@ -122,7 +136,7 @@ export function computeServerTripFare({
 
 /**
  * Create a timing-safe HMAC verification token that binds the Razorpay order and booking parameters
- * so verification works reliably even across serverless cold-start instances.
+ * so verification works reliably across separate Vercel serverless invocations.
  */
 export function signOrderVerificationToken(payload, secret) {
   const canonical = [
@@ -142,15 +156,15 @@ export function signOrderVerificationToken(payload, secret) {
 }
 
 export function verifyOrderVerificationToken(payload, token, secret) {
-  if (!token || typeof token !== 'string') return false;
+  if (!token || typeof token !== 'string' || !secret) return false;
   const expected = signOrderVerificationToken(payload, secret);
   const expectedBuf = Buffer.from(expected, 'utf8');
-  const receivedBuf = Buffer.from(token, 'utf8');
+  const receivedBuf = Buffer.from(token.trim(), 'utf8');
   if (expectedBuf.length !== receivedBuf.length) return false;
   return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }
 
-// In-memory persistent master registry across warm serverless invocations
+// In-memory cache for warm serverless invocations
 let storedBookings = [
   {
     id: 'SIC-789940',
@@ -184,10 +198,9 @@ let storedBookings = [
   }
 ];
 
-// Order & payment tracking maps for warm instances
-const pendingOrdersById = new Map(); // orderId -> { bookingId, amountInPaise, currency, paymentMode, fareDetails, bookingDraft, createdAt, status }
-const verifiedPaymentsById = new Map(); // paymentId -> { bookingId, orderId, verifiedAt, booking }
-const verifiedOrdersById = new Map(); // orderId -> { bookingId, paymentId, verifiedAt, booking }
+const pendingOrdersById = new Map();
+const verifiedPaymentsById = new Map();
+const verifiedOrdersById = new Map();
 
 export function registerPendingOrderRecord(orderRecord) {
   if (!orderRecord || !orderRecord.orderId || !orderRecord.bookingId) return;
@@ -264,7 +277,6 @@ export default async function handler(req, res) {
     return;
   }
 
-  // GET: Fetch master bookings list
   if (req.method === 'GET') {
     const cleanList = storedBookings.filter(
       b => b && !b.id.includes('DEMO') && !b.id.includes('TEST')
@@ -276,7 +288,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // POST: Update booking status or sync verified booking
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -308,7 +319,6 @@ export default async function handler(req, res) {
       }
 
       if (booking && booking.id) {
-        // Security guard: do not allow unverified bookings without a valid Razorpay payment ID to be marked confirmed
         if (
           booking.status === 'confirmed' &&
           (!booking.transactionId || !String(booking.transactionId).startsWith('pay_'))

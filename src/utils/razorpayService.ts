@@ -3,16 +3,23 @@
  *
  * Implements a secure, server-verified Razorpay Orders + Checkout + Signature/Capture verification flow:
  * 1. Calls POST /api/create-order to validate trip fare on the server and create a Razorpay Order (order_...)
- * 2. Opens Razorpay Standard Checkout using the server-created order_id and matching public key ID
- * 3. On payment completion, calls POST /api/verify-payment to verify the HMAC signature (timing-safe),
+ * 2. Ensures https://checkout.razorpay.com/v1/checkout.js is loaded with timeout protection (never hangs)
+ * 3. Opens Razorpay Standard Checkout using the server-created order_id and matching public key ID
+ * 4. On payment completion, calls POST /api/verify-payment to verify the HMAC signature (timing-safe),
  *    confirm order-to-booking association, and verify payment status === 'captured' in INR via Razorpay API
- * 4. Never marks a booking confirmed or paid unless server-side verification succeeds
+ * 5. Never marks a booking confirmed or paid unless server-side verification succeeds
  */
 
 import { BookingRecord, CabCategoryId, TripType } from '../types';
 
-export const DEFAULT_RAZORPAY_KEY =
-  ((import.meta as any).env?.VITE_RAZORPAY_KEY_ID || '').trim();
+function cleanClientKey(val: unknown): string {
+  if (!val || typeof val !== 'string') return '';
+  return val.trim().replace(/^['"]+|['"]+$/g, '').trim();
+}
+
+export const DEFAULT_RAZORPAY_KEY = cleanClientKey(
+  (import.meta as any).env?.VITE_RAZORPAY_KEY_ID
+);
 
 export type PreferredPaymentMethod =
   | 'qr'
@@ -27,13 +34,13 @@ export type PreferredPaymentMethod =
  */
 export function getRazorpayKeyId(): string {
   try {
-    const viteEnvKey = (import.meta as any).env?.VITE_RAZORPAY_KEY_ID;
-    if (viteEnvKey && typeof viteEnvKey === 'string' && viteEnvKey.trim().startsWith('rzp_')) {
-      return viteEnvKey.trim();
+    const viteEnvKey = cleanClientKey((import.meta as any).env?.VITE_RAZORPAY_KEY_ID);
+    if (viteEnvKey && viteEnvKey.startsWith('rzp_')) {
+      return viteEnvKey;
     }
-    const saved = localStorage.getItem('safar_razorpay_key');
-    if (saved && saved.trim().startsWith('rzp_')) {
-      return saved.trim();
+    const saved = cleanClientKey(localStorage.getItem('safar_razorpay_key'));
+    if (saved && saved.startsWith('rzp_')) {
+      return saved;
     }
   } catch {}
   return '';
@@ -41,8 +48,9 @@ export function getRazorpayKeyId(): string {
 
 export function setRazorpayKeyId(key: string): void {
   try {
-    if (key && key.trim().startsWith('rzp_')) {
-      localStorage.setItem('safar_razorpay_key', key.trim());
+    const cleaned = cleanClientKey(key);
+    if (cleaned && cleaned.startsWith('rzp_')) {
+      localStorage.setItem('safar_razorpay_key', cleaned);
     } else {
       localStorage.removeItem('safar_razorpay_key');
     }
@@ -50,25 +58,44 @@ export function setRazorpayKeyId(key: string): void {
 }
 
 /**
- * Ensure Razorpay checkout.js script is loaded in document
+ * Ensure Razorpay checkout.js script is loaded in document with timeout protection
+ * Fixes the bug where an already-injected script element whose load/error event already fired
+ * would cause loadRazorpayScript() to hang forever.
  */
-export function loadRazorpayScript(): Promise<boolean> {
+export function loadRazorpayScript(timeoutMs = 10000): Promise<boolean> {
   return new Promise((resolve) => {
-    if (typeof window !== 'undefined' && (window as any).Razorpay) {
+    if (typeof window === 'undefined') {
+      return resolve(false);
+    }
+    if (typeof (window as any).Razorpay === 'function') {
       return resolve(true);
     }
+
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(ok);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      finish(typeof (window as any).Razorpay === 'function');
+    }, timeoutMs);
+
+    // If a deferred script from index.html is still loading, poll briefly or attach fresh script
     const existingScript = document.getElementById('razorpay-checkout-js');
     if (existingScript) {
-      existingScript.addEventListener('load', () => resolve(true));
-      existingScript.addEventListener('error', () => resolve(false));
-      return;
+      existingScript.remove();
     }
+
     const script = document.createElement('script');
     script.id = 'razorpay-checkout-js';
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
+    script.onload = () => finish(typeof (window as any).Razorpay === 'function');
+    script.onerror = () => finish(false);
     document.body.appendChild(script);
   });
 }
@@ -131,6 +158,7 @@ export interface CreateOrderServerResponse {
   keyId: string;
   bookingId: string;
   verificationToken: string;
+  errorCode?: string;
   error?: string;
 }
 
@@ -146,7 +174,6 @@ export interface RazorpayCheckoutOptions {
   pickupDate: string;
   paymentMode: 'advance_20' | 'full';
   preferredMethod?: PreferredPaymentMethod;
-  // Server order validation & booking verification fields
   tripType?: TripType;
   cabId?: CabCategoryId;
   distanceKm?: number;
@@ -175,21 +202,41 @@ export async function createRazorpayOrderOnServer(
     response = await fetch('/api/create-order', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(payload)
     });
-  } catch {
+  } catch (networkErr: any) {
+    console.error('[Razorpay Checkout] Network error calling /api/create-order:', networkErr);
     throw new Error(
-      'Network error while connecting to the payment server. Please check your internet connection and try again.'
+      'Network error while connecting to /api/create-order. Please check your internet connection and try again.'
     );
   }
 
-  const data = await response.json().catch(() => null);
+  const rawText = await response.text().catch(() => '');
+  let data: any = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    console.error('[Razorpay Checkout] Non-JSON response from /api/create-order:', {
+      status: response.status,
+      preview: rawText.slice(0, 200)
+    });
+    throw new Error(
+      `Server endpoint /api/create-order returned an invalid response (HTTP ${response.status}). Ensure /api/create-order.js is deployed on Vercel.`
+    );
+  }
+
   if (!response.ok || !data || !data.success || !data.orderId || !data.keyId) {
+    console.error('[Razorpay Checkout] Order creation error from /api/create-order:', {
+      status: response.status,
+      errorCode: data?.errorCode,
+      error: data?.error
+    });
     throw new Error(
       data?.error ||
-        `Unable to initialize payment order (HTTP ${response.status}). Please try again.`
+        `Unable to initialize payment order (HTTP ${response.status}). Please verify Razorpay server credentials.`
     );
   }
 
@@ -212,11 +259,13 @@ export async function verifyRazorpayPaymentOnServer(params: {
     response = await fetch('/api/verify-payment', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(params)
     });
-  } catch {
+  } catch (networkErr: any) {
+    console.error('[Razorpay Checkout] Network error calling /api/verify-payment:', networkErr);
     throw new Error(
       'Network error while verifying payment with the server. If money was debited, please contact support with your UPI reference.'
     );
@@ -224,6 +273,10 @@ export async function verifyRazorpayPaymentOnServer(params: {
 
   const data = await response.json().catch(() => null);
   if (!response.ok || !data || !data.success || !data.verified || !data.booking) {
+    console.error('[Razorpay Checkout] Verification failed on /api/verify-payment:', {
+      status: response.status,
+      error: data?.error
+    });
     throw new Error(
       data?.error ||
         `Payment verification failed on server (HTTP ${response.status}). Booking could not be confirmed.`
@@ -243,21 +296,9 @@ export async function launchRazorpayStandardCheckout(
   checkoutParams: RazorpayCheckoutOptions
 ): Promise<void> {
   try {
-    checkoutParams.onStatusChange?.('Loading Razorpay secure checkout...');
-    const isLoaded = await loadRazorpayScript();
-    const Razorpay = typeof window !== 'undefined' ? (window as any).Razorpay : null;
-
-    if (!isLoaded || !Razorpay) {
-      checkoutParams.onError?.(
-        'Unable to load Razorpay Checkout SDK. Please check your internet connection and disable any ad-blockers.'
-      );
-      return;
-    }
-
-    // Build server order request using actual trip parameters
     const tripType: TripType = checkoutParams.tripType || 'oneway';
     const cabId: CabCategoryId = checkoutParams.cabId || 'sedan';
-    const distanceKm = checkoutParams.distanceKm ?? 230;
+    const distanceKm = checkoutParams.distanceKm ?? 130;
     const pickupDateRaw =
       checkoutParams.pickupDateRaw || new Date().toISOString().split('T')[0];
     const pickupTimeRaw = checkoutParams.pickupTimeRaw || '08:00 AM';
@@ -268,33 +309,48 @@ export async function launchRazorpayStandardCheckout(
         ? checkoutParams.amountInRupees
         : Math.round(checkoutParams.amountInRupees * 5));
 
-    checkoutParams.onStatusChange?.('Creating secure payment order...');
-    const orderData = await createRazorpayOrderOnServer({
-      bookingId: checkoutParams.bookingId,
-      tripType,
-      cabId,
-      distanceKm,
-      pickupCity: checkoutParams.pickupCity,
-      dropCity: checkoutParams.dropCity,
-      pickupAddress: checkoutParams.pickupAddress || checkoutParams.pickupCity,
-      pickupDate: pickupDateRaw,
-      pickupTime: pickupTimeRaw,
-      returnDate: checkoutParams.returnDateRaw,
-      localPackageId: checkoutParams.localPackageId || '8h_80k',
-      includeTolls,
-      paymentMode: checkoutParams.paymentMode,
-      customerName: checkoutParams.customerName,
-      customerPhone: checkoutParams.customerPhone,
-      customerEmail: checkoutParams.customerEmail,
-      clientExpectedAmountRupees: checkoutParams.amountInRupees,
-      clientTotalFareRupees: totalFareRupees
-    });
+    // Create the server-side order and ensure Razorpay SDK is loaded in parallel
+    checkoutParams.onStatusChange?.('Creating secure Razorpay order...');
+    const [orderData, isSdkLoaded] = await Promise.all([
+      createRazorpayOrderOnServer({
+        bookingId: checkoutParams.bookingId,
+        tripType,
+        cabId,
+        distanceKm,
+        pickupCity: checkoutParams.pickupCity,
+        dropCity: checkoutParams.dropCity,
+        pickupAddress: checkoutParams.pickupAddress || checkoutParams.pickupCity,
+        pickupDate: pickupDateRaw,
+        pickupTime: pickupTimeRaw,
+        returnDate: checkoutParams.returnDateRaw,
+        localPackageId: checkoutParams.localPackageId || '8h_80k',
+        includeTolls,
+        paymentMode: checkoutParams.paymentMode,
+        customerName: checkoutParams.customerName,
+        customerPhone: checkoutParams.customerPhone,
+        customerEmail: checkoutParams.customerEmail,
+        clientExpectedAmountRupees: checkoutParams.amountInRupees,
+        clientTotalFareRupees: totalFareRupees
+      }),
+      loadRazorpayScript()
+    ]);
+
+    const RazorpayConstructor =
+      typeof window !== 'undefined' ? (window as any).Razorpay : null;
+
+    if (!isSdkLoaded || typeof RazorpayConstructor !== 'function') {
+      checkoutParams.onError?.(
+        'Unable to load Razorpay Checkout SDK (https://checkout.razorpay.com/v1/checkout.js). Please check your internet connection or ad-blocker.'
+      );
+      return;
+    }
 
     // Ensure frontend public key ID (if configured via VITE_RAZORPAY_KEY_ID) matches server key ID
-    const viteKeyId = ((import.meta as any).env?.VITE_RAZORPAY_KEY_ID || '').trim();
-    if (viteKeyId && viteKeyId !== orderData.keyId) {
+    const viteKeyId = cleanClientKey((import.meta as any).env?.VITE_RAZORPAY_KEY_ID);
+    const serverKeyId = cleanClientKey(orderData.keyId);
+    if (viteKeyId && serverKeyId && viteKeyId !== serverKeyId) {
       checkoutParams.onError?.(
-        'Payment configuration error: Frontend VITE_RAZORPAY_KEY_ID does not match server RAZORPAY_KEY_ID. Please ensure both environment variables use the same Razorpay key.'
+        'Key mismatch: Frontend VITE_RAZORPAY_KEY_ID does not match server RAZORPAY_KEY_ID. Ensure both variables in Vercel use the same key and redeploy.'
       );
       return;
     }
@@ -334,7 +390,7 @@ export async function launchRazorpayStandardCheckout(
     };
 
     const options: Record<string, any> = {
-      key: orderData.keyId,
+      key: serverKeyId,
       order_id: orderData.orderId,
       amount: orderData.amount,
       currency: orderData.currency || 'INR',
@@ -406,7 +462,7 @@ export async function launchRazorpayStandardCheckout(
       }
     };
 
-    const rzp = new Razorpay(options);
+    const rzp = new RazorpayConstructor(options);
 
     rzp.on('payment.failed', function (errResp: any) {
       const errObj = errResp?.error || {};
@@ -417,10 +473,11 @@ export async function launchRazorpayStandardCheckout(
       checkoutParams.onError?.(reason);
     });
 
-    checkoutParams.onStatusChange?.('Waiting for payment in Razorpay checkout...');
+    checkoutParams.onStatusChange?.('Opening Razorpay Checkout...');
     rzp.open();
     applyRazorpayModalOverlapFix();
   } catch (err: any) {
+    console.error('[Razorpay Checkout] Exception in launchRazorpayStandardCheckout:', err);
     checkoutParams.onError?.(
       err?.message || 'Unable to start Razorpay checkout. Please try again.'
     );

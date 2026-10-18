@@ -7,10 +7,11 @@
  * - Never trusts a price supplied only by the browser
  * - Uses INR and the exact amount in paise
  * - Associates the Razorpay Order with the booking via receipt, notes, and HMAC token
- * - Returns only the order ID and public key ID needed by Razorpay Standard Checkout
+ * - Includes safe diagnostic logging (never logs secrets or full customer PII)
  */
 
 import {
+  cleanEnvVar,
   computeServerTripFare,
   registerPendingOrderRecord,
   signOrderVerificationToken
@@ -36,41 +37,57 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({
       success: false,
+      errorCode: 'METHOD_NOT_ALLOWED',
       error: 'Method Not Allowed. Use POST.'
     });
   }
 
-  const keyId = (process.env.RAZORPAY_KEY_ID || '').trim();
-  const keySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
-  const vitePublicKeyId = (process.env.VITE_RAZORPAY_KEY_ID || '').trim();
+  const serverKeyId = cleanEnvVar(process.env.RAZORPAY_KEY_ID);
+  const vitePublicKeyId = cleanEnvVar(process.env.VITE_RAZORPAY_KEY_ID);
+  const keyId = serverKeyId || vitePublicKeyId;
+  const keySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET);
 
+  // Safe diagnostic check for server environment variables
   if (!keyId || !keySecret) {
-    console.error('[/api/create-order] Missing RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET environment variables.');
+    console.error('[/api/create-order] Missing server Razorpay credentials:', {
+      hasRazorpayKeyId: Boolean(serverKeyId),
+      hasViteRazorpayKeyId: Boolean(vitePublicKeyId),
+      hasRazorpayKeySecret: Boolean(keySecret)
+    });
     return res.status(500).json({
       success: false,
-      error: 'Payment gateway server credentials (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) are not configured on the server.'
+      errorCode: 'MISSING_SERVER_CREDENTIALS',
+      error:
+        'Razorpay server credentials are not configured. Ensure RAZORPAY_KEY_ID, VITE_RAZORPAY_KEY_ID, and RAZORPAY_KEY_SECRET are set in Vercel Environment Variables and redeploy.'
     });
   }
 
   if (!keyId.startsWith('rzp_live_') && !keyId.startsWith('rzp_test_')) {
-    console.error('[/api/create-order] Invalid RAZORPAY_KEY_ID format.');
+    console.error('[/api/create-order] Invalid RAZORPAY_KEY_ID prefix:', {
+      keyPrefix: keyId.slice(0, 8)
+    });
     return res.status(500).json({
       success: false,
-      error: 'Server RAZORPAY_KEY_ID has an invalid format.'
+      errorCode: 'INVALID_KEY_FORMAT',
+      error: 'Server RAZORPAY_KEY_ID has an invalid format (must start with rzp_live_ or rzp_test_).'
     });
   }
 
-  // Ensure VITE_RAZORPAY_KEY_ID (if set in environment) matches RAZORPAY_KEY_ID
-  if (vitePublicKeyId && vitePublicKeyId !== keyId) {
-    console.error('[/api/create-order] Key mismatch: VITE_RAZORPAY_KEY_ID does not match RAZORPAY_KEY_ID.');
+  if (serverKeyId && vitePublicKeyId && serverKeyId !== vitePublicKeyId) {
+    console.error('[/api/create-order] Key mismatch between RAZORPAY_KEY_ID and VITE_RAZORPAY_KEY_ID:', {
+      serverKeyMode: serverKeyId.startsWith('rzp_live_') ? 'live' : 'test',
+      viteKeyMode: vitePublicKeyId.startsWith('rzp_live_') ? 'live' : 'test'
+    });
     return res.status(500).json({
       success: false,
-      error: 'Configuration mismatch: VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_ID must match on the server.'
+      errorCode: 'KEY_MISMATCH',
+      error:
+        'Configuration mismatch: VITE_RAZORPAY_KEY_ID and RAZORPAY_KEY_ID in Vercel do not match. Set both to the exact same Key ID and redeploy.'
     });
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
     const {
       bookingId,
       tripType,
@@ -90,20 +107,34 @@ export default async function handler(req, res) {
       customerEmail,
       clientExpectedAmountRupees,
       clientTotalFareRupees
-    } = body || {};
+    } = body;
+
+    console.log('[/api/create-order] Incoming order request:', {
+      bookingId,
+      tripType,
+      cabId,
+      distanceKm,
+      paymentMode,
+      includeTolls: Boolean(includeTolls),
+      clientExpectedAmountRupees,
+      clientTotalFareRupees,
+      keyMode: keyId.startsWith('rzp_live_') ? 'live' : 'test'
+    });
 
     // 1. Validate required booking fields
     if (!bookingId || typeof bookingId !== 'string' || !bookingId.trim().startsWith('SIC-')) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid or missing bookingId.'
+        errorCode: 'INVALID_BOOKING_ID',
+        error: 'Invalid or missing booking reference ID.'
       });
     }
 
     if (!customerName || typeof customerName !== 'string' || customerName.trim().length < 2) {
       return res.status(400).json({
         success: false,
-        error: 'Valid passenger full name is required.'
+        errorCode: 'INVALID_CUSTOMER_NAME',
+        error: 'Please enter passenger full name (at least 2 characters).'
       });
     }
 
@@ -111,20 +142,23 @@ export default async function handler(req, res) {
     if (!cleanPhone || cleanPhone.length !== 10) {
       return res.status(400).json({
         success: false,
-        error: 'Valid 10-digit Indian mobile number is required.'
+        errorCode: 'INVALID_CUSTOMER_PHONE',
+        error: 'Please enter a valid 10-digit Indian mobile number.'
       });
     }
 
-    if (!pickupCity || ! pickupAddress || !pickupDate || !pickupTime) {
+    if (!pickupCity || !pickupAddress || !pickupDate || !pickupTime) {
       return res.status(400).json({
         success: false,
-        error: 'Complete pickup city, doorstep address, date, and time are required.'
+        errorCode: 'MISSING_PICKUP_DETAILS',
+        error: 'Complete pickup city, doorstep pickup address, pickup date, and time are required.'
       });
     }
 
     if (paymentMode !== 'advance_20' && paymentMode !== 'full') {
       return res.status(400).json({
         success: false,
+        errorCode: 'INVALID_PAYMENT_MODE',
         error: 'Invalid paymentMode. Must be "advance_20" or "full".'
       });
     }
@@ -142,8 +176,16 @@ export default async function handler(req, res) {
         includeTolls: Boolean(includeTolls)
       });
     } catch (fareErr) {
+      console.error('[/api/create-order] Fare calculation error:', {
+        bookingId,
+        tripType,
+        cabId,
+        distanceKm,
+        message: fareErr?.message
+      });
       return res.status(400).json({
         success: false,
+        errorCode: 'FARE_CALCULATION_ERROR',
         error: fareErr?.message || 'Invalid trip parameters for fare calculation.'
       });
     }
@@ -153,10 +195,10 @@ export default async function handler(req, res) {
     const serverBalanceDueRupees =
       paymentMode === 'full' ? 0 : serverFare.balanceDue;
 
-    // Reject if the client supplied a tampered total fare or payable amount
+    // Validate client-supplied fare against server-computed fare
     if (
       clientTotalFareRupees !== undefined &&
-      Math.abs(Number(clientTotalFareRupees) - serverFare.totalFare) > 1
+      Math.abs(Number(clientTotalFareRupees) - serverFare.totalFare) > 2
     ) {
       console.warn('[/api/create-order] Client totalFare mismatch:', {
         bookingId,
@@ -165,13 +207,14 @@ export default async function handler(req, res) {
       });
       return res.status(400).json({
         success: false,
-        error: 'Fare validation failed: total fare does not match server pricing rules.'
+        errorCode: 'TOTAL_FARE_MISMATCH',
+        error: `Fare validation failed: browser total fare (₹${clientTotalFareRupees}) does not match server fare (₹${serverFare.totalFare}).`
       });
     }
 
     if (
       clientExpectedAmountRupees !== undefined &&
-      Math.abs(Number(clientExpectedAmountRupees) - serverPayableRupees) > 1
+      Math.abs(Number(clientExpectedAmountRupees) - serverPayableRupees) > 2
     ) {
       console.warn('[/api/create-order] Client payable amount mismatch:', {
         bookingId,
@@ -180,7 +223,8 @@ export default async function handler(req, res) {
       });
       return res.status(400).json({
         success: false,
-        error: 'Fare validation failed: payable amount does not match server pricing rules.'
+        errorCode: 'PAYABLE_AMOUNT_MISMATCH',
+        error: `Fare validation failed: browser payable amount (₹${clientExpectedAmountRupees}) does not match server amount (₹${serverPayableRupees}).`
       });
     }
 
@@ -188,6 +232,7 @@ export default async function handler(req, res) {
     if (!Number.isInteger(amountInPaise) || amountInPaise < 100) {
       return res.status(400).json({
         success: false,
+        errorCode: 'AMOUNT_TOO_LOW',
         error: 'Invalid order amount. Minimum order amount is ₹1 (100 paise).'
       });
     }
@@ -235,10 +280,12 @@ export default async function handler(req, res) {
         status: rzpResponse.status,
         bookingId,
         mode: keyId.startsWith('rzp_live_') ? 'live' : 'test',
+        errorCode: rzpData?.error?.code,
         errorDescription: gatewayDesc
       });
       return res.status(502).json({
         success: false,
+        errorCode: rzpData?.error?.code || 'RAZORPAY_ORDER_API_ERROR',
         error: `Unable to create payment order with Razorpay: ${gatewayDesc}`
       });
     }
@@ -267,7 +314,7 @@ export default async function handler(req, res) {
       fareDetails: serverFare
     });
 
-    console.log('[/api/create-order] Created Razorpay order:', {
+    console.log('[/api/create-order] Successfully created Razorpay order:', {
       orderId: rzpData.id,
       bookingId: bookingId.trim(),
       amountInPaise: rzpData.amount,
@@ -297,10 +344,13 @@ export default async function handler(req, res) {
       }
     });
   } catch (err) {
-    console.error('[/api/create-order] Unexpected server error:', err?.message || err);
+    console.error('[/api/create-order] Unexpected server exception:', {
+      message: err?.message || String(err)
+    });
     return res.status(500).json({
       success: false,
-      error: 'Internal server error while creating payment order. Please try again.'
+      errorCode: 'INTERNAL_SERVER_ERROR',
+      error: `Internal server error while creating payment order: ${err?.message || 'Unknown error'}`
     });
   }
 }
