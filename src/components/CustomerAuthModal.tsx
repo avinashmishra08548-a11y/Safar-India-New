@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Smartphone, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
+import { X, Smartphone, CheckCircle, Loader2, RefreshCw, MessageSquare } from 'lucide-react';
 import { CustomerUser } from '../types';
-import { requestServerOtp, verifyServerOtp, sanitize10DigitPhone } from '../utils/smsService';
+import {
+  requestServerOtp,
+  verifyServerOtp,
+  sanitize10DigitPhone,
+  retriggerWhatsAppOtpFromToken
+} from '../utils/smsService';
+import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
 
 interface CustomerAuthModalProps {
   isOpen: boolean;
@@ -41,8 +47,24 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     return () => clearTimeout(timer);
   }, [resendSeconds]);
 
+  // Automatically re-push WhatsApp OTP when user returns to tab/app after activating WhatsApp chat window
+  useEffect(() => {
+    if (step !== 'otp' || !otpToken || !phone) return;
+    const handleFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') {
+        retriggerWhatsAppOtpFromToken(phone, otpToken).catch(() => {});
+      }
+    };
+    window.addEventListener('focus', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+    return () => {
+      window.removeEventListener('focus', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+    };
+  }, [step, otpToken, phone]);
+
   const handlePhoneChange = (val: string) => {
-    const clean = val.replace(/\D/g, '');
+    const clean = sanitize10DigitPhone(val);
     setPhone(clean);
     setErrorMsg('');
   };
@@ -62,7 +84,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     setIsSending(true);
     setErrorMsg('');
 
-    // Secure server-side OTP request
+    // Secure server-side + client-side dual WhatsApp & SMS OTP dispatch
     const res = await requestServerOtp(cleanPhone);
     setIsSending(false);
 
@@ -71,12 +93,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
       setFailedAttempts(0);
       setOtp('');
-      setSmsDeliveryInfo(res.message || 'Verification OTP has been dispatched to your mobile number');
+      setSmsDeliveryInfo(res.message || `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`);
       setShowOtpToast(true);
       setStep('otp');
-      setResendSeconds(30);
+      setResendSeconds(25);
+      // Ensure client-side Meta WhatsApp Cloud API call is also fired for 100% delivery
+      retriggerWhatsAppOtpFromToken(cleanPhone, res.token).catch(() => {});
     } else {
-      setErrorMsg(res.message || 'Unable to dispatch SMS. Please try again.');
+      setErrorMsg(res.message || 'Unable to dispatch OTP. Please try again.');
     }
   };
 
@@ -94,12 +118,28 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
       setFailedAttempts(0);
       setOtp('');
-      setSmsDeliveryInfo('A fresh verification OTP has been sent to your phone');
+      setSmsDeliveryInfo(`Fresh OTP dispatched to WhatsApp & SMS on +91 ${cleanPhone}`);
       setShowOtpToast(true);
-      setResendSeconds(30);
+      setResendSeconds(25);
+      retriggerWhatsAppOtpFromToken(cleanPhone, res.token).catch(() => {});
     } else {
-      setErrorMsg(res.message || 'Unable to resend SMS. Please wait.');
+      setErrorMsg(res.message || 'Unable to resend OTP. Please wait.');
     }
+  };
+
+  const handleInstantWhatsAppWindowSync = (e: React.MouseEvent<HTMLElement>) => {
+    const cleanPhone = sanitize10DigitPhone(phone);
+    triggerWhatsAppDeepLink(
+      e,
+      `Hi SafarIndiaCabs, please send my login OTP for +91 ${cleanPhone}`
+    );
+    // Re-dispatch the active OTP on WhatsApp after 2.5s and 5s so as soon as their greeting hits Meta, the OTP lands in their WhatsApp chat
+    setTimeout(() => {
+      retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {});
+    }, 2500);
+    setTimeout(() => {
+      retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {});
+    }, 5500);
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
@@ -124,16 +164,15 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     setErrorMsg('');
 
     const cleanPhone = sanitize10DigitPhone(phone);
-    // Server-side verification
     const verifyRes = await verifyServerOtp(cleanPhone, otp, otpToken);
     setIsVerifying(false);
 
     if (!verifyRes.success) {
-      setFailedAttempts(prev => prev + 1);
+      setFailedAttempts((prev) => prev + 1);
       const remaining = 4 - failedAttempts;
       setErrorMsg(
-        remaining > 0 
-          ? `Incorrect verification code. Please check your SMS. (${remaining} attempts remaining)`
+        remaining > 0
+          ? `Incorrect verification code. Please check your WhatsApp or SMS. (${remaining} attempts remaining)`
           : 'Too many incorrect attempts. Please request a new code.'
       );
       return;
@@ -145,11 +184,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       email: email.trim() || undefined
     };
 
-    // Save in persistent customer registry
     try {
       const raw = localStorage.getItem('safar_registered_customers');
       let list: CustomerUser[] = raw ? JSON.parse(raw) : [];
-      list = list.filter(u => u.phone !== user.phone);
+      list = list.filter((u) => u.phone !== user.phone);
       list.push({
         ...user,
         registrationDate: new Date().toISOString()
@@ -164,7 +202,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95">
-        
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl bg-slate-100 transition"
@@ -177,8 +214,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl shadow-sm flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4">
             <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
             <div className="text-xs">
-              <span className="font-extrabold block">WhatsApp & SMS OTP Sent!</span>
-              <span>Verification code sent to your WhatsApp & SMS on <strong className="font-mono text-xs">+91 {phone}</strong>.</span>
+              <span className="font-extrabold block">WhatsApp &amp; SMS OTP Dispatched!</span>
+              <span>
+                Verification code sent to your WhatsApp &amp; SMS on{' '}
+                <strong className="font-mono text-xs">+91 {phone}</strong>.
+              </span>
             </div>
           </div>
         )}
@@ -190,10 +230,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 <Smartphone className="w-6 h-6 text-amber-600" />
               </div>
               <h3 className="text-base font-extrabold text-slate-900">
-                Customer WhatsApp & Mobile Login
+                Customer WhatsApp &amp; Mobile Login
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Login via instant WhatsApp & SMS OTP to receive live booking & driver updates
+                Login via instant WhatsApp &amp; SMS OTP to receive live booking &amp; driver updates
               </p>
             </div>
 
@@ -221,6 +261,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   </span>
                   <input
                     type="tel"
+                    inputMode="numeric"
                     required
                     maxLength={10}
                     value={phone}
@@ -263,39 +304,40 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   WhatsApp Cloud API + SMS OTP Active
                 </span>
-                <span className="font-mono text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">Instant OTP</span>
+                <span className="font-mono text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
+                  Instant OTP
+                </span>
               </div>
 
               <button
                 type="submit"
                 disabled={isSending}
-                className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2 active:scale-95"
+                className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm transition flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 {isSending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                    <span>Sending WhatsApp & SMS OTP...</span>
+                    <span>Sending WhatsApp &amp; SMS OTP...</span>
                   </>
                 ) : (
-                  <span>Send WhatsApp & SMS OTP</span>
+                  <span>Send WhatsApp &amp; SMS OTP</span>
                 )}
               </button>
             </form>
           </div>
         ) : (
           <div>
-            <div className="text-center mb-5">
+            <div className="text-center mb-4">
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-2 border border-emerald-200">
                 <CheckCircle className="w-6 h-6 text-emerald-600" />
               </div>
-              <h3 className="text-base font-extrabold text-slate-900">
-                Enter Verification Code
-              </h3>
+              <h3 className="text-base font-extrabold text-slate-900">Enter Verification Code</h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Sent to WhatsApp & SMS on <span className="text-amber-700 font-bold">+91 {phone}</span>
+                Sent to WhatsApp &amp; SMS on{' '}
+                <span className="text-amber-700 font-bold">+91 {phone}</span>
               </p>
               {smsDeliveryInfo && (
-                <div className="mt-1.5 max-w-[290px] mx-auto p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-medium">
+                <div className="mt-1.5 max-w-[300px] mx-auto p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-medium">
                   {smsDeliveryInfo}
                 </div>
               )}
@@ -307,10 +349,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               </div>
             )}
 
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <form onSubmit={handleVerifyOtp} className="space-y-3.5">
               <div className="flex flex-col items-center gap-2">
                 <input
                   type="text"
+                  inputMode="numeric"
                   maxLength={4}
                   autoFocus
                   value={otp}
@@ -323,11 +366,26 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 </p>
               </div>
 
+              {/* 1-Tap Instant WhatsApp Chat Sync for First-Time WhatsApp Numbers */}
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-2.5 text-center space-y-1.5">
+                <p className="text-[10px] text-slate-600 font-medium leading-snug">
+                  First time logging in on WhatsApp? Tap below to receive OTP instantly on your WhatsApp:
+                </p>
+                <button
+                  type="button"
+                  onClick={handleInstantWhatsAppWindowSync}
+                  className="w-full py-2 px-3 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-white" />
+                  <span>Get OTP on WhatsApp Chat Instantly</span>
+                </button>
+              </div>
+
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <button
                   type="button"
                   onClick={() => setStep('phone')}
-                  className="hover:text-slate-900 font-medium"
+                  className="hover:text-slate-900 font-medium cursor-pointer"
                 >
                   Change Number
                 </button>
@@ -335,8 +393,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   type="button"
                   disabled={resendSeconds > 0}
                   onClick={handleResend}
-                  className={`flex items-center gap-1 font-bold ${
-                    resendSeconds > 0 ? 'text-slate-400 cursor-not-allowed' : 'text-amber-700 hover:text-amber-800'
+                  className={`flex items-center gap-1 font-bold cursor-pointer ${
+                    resendSeconds > 0
+                      ? 'text-slate-400 cursor-not-allowed'
+                      : 'text-amber-700 hover:text-amber-800'
                   }`}
                 >
                   <RefreshCw className="w-3 h-3" />
@@ -347,7 +407,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               <button
                 type="submit"
                 disabled={isVerifying}
-                className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm transition active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isVerifying ? (
                   <>
@@ -355,13 +415,12 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                     <span>Verifying Secure Code...</span>
                   </>
                 ) : (
-                  <span>Verify & Continue</span>
+                  <span>Verify &amp; Continue</span>
                 )}
               </button>
             </form>
           </div>
         )}
-
       </div>
     </div>
   );

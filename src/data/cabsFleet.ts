@@ -20,7 +20,7 @@ export const CABS_FLEET: CabVehicle[] = [
     features: ['Chilled Air Conditioning', 'Zero Night Charges', 'Verified Commercial Driver', 'Sanitized Cabin'],
     popular: false,
     image: heroCabsImg,
-    description: 'CabBazar budget-friendly compact AC cab. Ideal for solo travelers, couples, or short intercity drops.'
+    description: 'SafarIndiaCabs budget-friendly compact AC cab. Ideal for solo travelers, couples, or short intercity drops.'
   },
   {
     id: 'sedan',

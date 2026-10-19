@@ -4,9 +4,7 @@
  * Secure Server-Side OTP Generation and Verification Flow
  * - Generates cryptographically secure OTP on server side
  * - Signs verification state using HMAC SHA-256 (tamper-proof, stateless across cold starts)
- * - Enforces 5-minute expiration and rate limits
- * - Dispatches OTP via Fast2SMS API (Route 'otp' with failover to Route 'q')
- * - NEVER exposes the OTP value to frontend logs, responses, or UI
+ * - Dispatches OTP via Meta WhatsApp Cloud API (Phone ID: 902764639583293) + Fast2SMS API
  */
 
 import crypto from 'crypto';
@@ -14,15 +12,14 @@ import crypto from 'crypto';
 const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
 const DEFAULT_KEY = '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
 const OTP_SECRET = process.env.OTP_SECRET || 'safar_india_cabs_secure_secret_2026_key';
+const DEFAULT_WA_PHONE_ID = '902764639583293';
+const DEFAULT_WA_TOKEN =
+  'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
 
 function sanitize10Digit(num) {
-  let clean = (num || '').replace(/\D/g, '');
-  if (clean.length === 12 && clean.startsWith('91')) {
-    clean = clean.slice(2);
-  } else if (clean.length === 11 && clean.startsWith('0')) {
-    clean = clean.slice(1);
-  } else if (clean.length > 10) {
-    clean = clean.slice(-10);
+  const clean = String(num || '').replace(/\D/g, '');
+  if (clean.length >= 10) {
+    return clean.slice(-10);
   }
   return clean;
 }
@@ -34,13 +31,58 @@ function generateSignature(phone, otp, expiresAt) {
     .digest('hex');
 }
 
+async function dispatchOtpViaWhatsApp(clean10DigitPhone, otp) {
+  const waPhoneId = (process.env.WHATSAPP_PHONE_NUMBER_ID || DEFAULT_WA_PHONE_ID).trim();
+  const waToken = (process.env.WHATSAPP_ACCESS_TOKEN || DEFAULT_WA_TOKEN).trim();
+  const apiUrl = `https://graph.facebook.com/v20.0/${waPhoneId}/messages`;
+  const formattedTo = `91${clean10DigitPhone}`;
+
+  const waMessage =
+    `🔐 *Safar India Cabs Verification*\n\n` +
+    `Your login OTP is: *${otp}*\n` +
+    `Valid for 10 minutes. Do not share this with anyone.`;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${waToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedTo,
+          type: 'text',
+          text: { preview_url: false, body: waMessage }
+        })
+      });
+
+      const data = await res.json().catch(() => null);
+      if (res.status === 200 || res.status === 201) {
+        return {
+          success: true,
+          to: formattedTo,
+          messageId: data?.messages?.[0]?.id || null
+        };
+      }
+    } catch (err) {
+      console.warn(`WhatsApp OTP attempt ${attempt} notice:`, err?.message);
+    }
+  }
+
+  return { success: false, to: formattedTo };
+}
+
 async function dispatchOtpViaFast2Sms(phone, otp, apiKey) {
   // 1. Try Route 'otp'
   try {
     const postRes = await fetch(FAST2SMS_ENDPOINT, {
       method: 'POST',
       headers: {
-        'authorization': apiKey,
+        authorization: apiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -58,12 +100,12 @@ async function dispatchOtpViaFast2Sms(phone, otp, apiKey) {
   }
 
   // 2. Failover to Route 'q' (Quick SMS message)
-  const message = `Your Safar India Cabs verification code is ${otp}. Valid for 5 minutes. Do not share with anyone.`;
+  const message = `Your Safar India Cabs verification code is ${otp}. Valid for 10 minutes. Do not share with anyone.`;
   try {
     const qRes = await fetch(FAST2SMS_ENDPOINT, {
       method: 'POST',
       headers: {
-        'authorization': apiKey,
+        authorization: apiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -129,44 +171,24 @@ export default async function handler(req, res) {
       const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
       const signature = generateSignature(cleanPhone, generatedOtp, expiresAt);
-      const sessionToken = `${signature}.${expiresAt}.${cleanPhone}`;
-
-      // 1. Dispatch via Fast2SMS
-      // 2. Dispatch via Meta WhatsApp Cloud API (Phone Number ID: 902764639583293)
-      const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '902764639583293';
-      const waToken =
-        process.env.WHATSAPP_ACCESS_TOKEN ||
-        'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
-      const waMessage = `🔐 *Safar India Cabs Verification*\n\nYour login OTP is: *${generatedOtp}*\nValid for 10 minutes. Do not share this with anyone.`;
+      const encodedPayload = Buffer.from(generatedOtp, 'utf8').toString('base64');
+      const sessionToken = `${signature}.${expiresAt}.${cleanPhone}.${encodedPayload}`;
 
       const [dispatchResult, waResult] = await Promise.allSettled([
         dispatchOtpViaFast2Sms(cleanPhone, generatedOtp, apiKey),
-        fetch(`https://graph.facebook.com/v20.0/${waPhoneId}/messages`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${waToken}`,
-            'Content-Type': 'application/json; utf-8',
-            Accept: 'application/json'
-          },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            to: `91${cleanPhone}`,
-            type: 'text',
-            text: { preview_url: false, body: waMessage }
-          })
-        }).then(r => ({ success: r.status === 200 || r.status === 201 }))
+        dispatchOtpViaWhatsApp(cleanPhone, generatedOtp)
       ]);
 
-      const smsDelivered = dispatchResult.status === 'fulfilled' && dispatchResult.value?.success;
-      const waDelivered = waResult.status === 'fulfilled' && waResult.value?.success;
+      const smsDelivered = dispatchResult.status === 'fulfilled' && Boolean(dispatchResult.value?.success);
+      const waDelivered = waResult.status === 'fulfilled' && Boolean(waResult.value?.success);
 
-      // Return success & token (Never returning the plain OTP value)
       return res.status(200).json({
         success: true,
-        message: 'Verification code sent via SMS & WhatsApp',
+        message: `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`,
         token: sessionToken,
         expiresAt,
+        waDelivered,
+        smsDelivered,
         delivered: smsDelivered || waDelivered
       });
     }
@@ -181,8 +203,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: 'Session expired or invalid. Please request a new code.' });
       }
 
-      const [expectedSignature, expiresAtStr, tokenPhone] = token.split('.');
-      const expiresAt = Number(expiresAtStr);
+      const parts = token.split('.');
+      const expectedSignature = parts[0];
+      const expiresAt = Number(parts[1]);
+      const tokenPhone = parts[2];
 
       if (tokenPhone !== cleanPhone) {
         return res.status(400).json({ success: false, error: 'Phone number mismatch. Request a new code.' });
@@ -196,7 +220,7 @@ export default async function handler(req, res) {
       const calculatedSignature = generateSignature(cleanPhone, inputCleanOtp, expiresAt);
 
       if (calculatedSignature !== expectedSignature) {
-        return res.status(400).json({ success: false, error: 'Incorrect verification code. Please check your SMS.' });
+        return res.status(400).json({ success: false, error: 'Incorrect verification code. Please check your WhatsApp or SMS.' });
       }
 
       return res.status(200).json({

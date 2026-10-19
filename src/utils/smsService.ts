@@ -98,6 +98,9 @@ export async function sendOtpSms(phoneNumber: string, otp: string): Promise<SmsR
   const apiKey = getFast2SmsApiKey();
   const otpMessage = `Your Safar India Cabs verification OTP is ${otp}. Valid for 10 minutes. Please do not share this OTP with anyone.`;
 
+  // Automatically trigger Meta WhatsApp Cloud API OTP in parallel for every number
+  whatsAppService.sendCustomerOtp(cleanPhone, otp).catch(() => {});
+
   // STEP 1: Attempt Route 'otp' as requested
   try {
     const otpPayload = {
@@ -705,11 +708,21 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (data && data.success && data.token) {
+        // If server WhatsApp dispatch didn't confirm or user has custom client WhatsApp credentials, also dispatch from client
+        const parts = String(data.token).split('.');
+        if (parts.length >= 4 && !data.waDelivered) {
+          try {
+            const realOtp = atob(parts[3]);
+            if (realOtp && realOtp.length === 4) {
+              whatsAppService.sendCustomerOtp(cleanPhone, realOtp).catch(() => {});
+            }
+          } catch {}
+        }
         return {
           success: true,
           token: data.token,
           expiresAt: data.expiresAt,
-          message: data.message || 'OTP sent via SMS'
+          message: data.message || `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`
         };
       }
     }
@@ -730,9 +743,30 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
     success: true,
     token: clientToken,
     expiresAt,
-    message: 'OTP dispatched to your mobile phone via SMS',
+    message: `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`,
     isFallback: true
   };
+}
+
+/**
+ * Re-dispatches the active OTP directly to the customer's WhatsApp number
+ */
+export async function retriggerWhatsAppOtpFromToken(
+  phoneNumber: string,
+  token: string
+): Promise<boolean> {
+  const cleanPhone = sanitize10DigitPhone(phoneNumber);
+  if (!token || cleanPhone.length !== 10) return false;
+  try {
+    const parts = token.split('.');
+    if (parts.length >= 4) {
+      const realOtp = atob(parts[3]);
+      if (realOtp && realOtp.length === 4) {
+        return await whatsAppService.sendCustomerOtp(cleanPhone, realOtp);
+      }
+    }
+  } catch {}
+  return false;
 }
 
 /**

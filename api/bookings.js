@@ -167,20 +167,20 @@ const SERVER_EXPRESSWAY_TOLLS = {
 
 const SERVER_CITY_STATE_KEYWORDS = [
   { keywords: ['delhi', 'newdelhi', 'burari', 'dwarka', 'rohini', 'connaught', 'igi', 'aerocity', 'saket', 'vasantkunj', 'karolbagh', 'lajpat'], state: 'Delhi' },
-  { keywords: ['noida', 'greaternoida', 'ghaziabad', 'agra', 'lucknow', 'varanasi', 'ayodhya', 'mathura', 'vrindavan', 'prayagraj', 'allahabad', 'kanpur', 'meerut', 'gorakhpur', 'bareilly', 'aligarh', 'jhansi', 'moradabad', 'uttarpradesh'], state: 'Uttar Pradesh' },
-  { keywords: ['gurgaon', 'gurugram', 'faridabad', 'panipat', 'ambala', 'karnal', 'sonipat', 'rohtak', 'hisar', 'kurukshetra', 'haryana'], state: 'Haryana' },
-  { keywords: ['jaipur', 'udaipur', 'jodhpur', 'ajmer', 'pushkar', 'jaisalmer', 'bikaner', 'kota', 'mountabu', 'alwar', 'bharatpur', 'khatushyam', 'salasar', 'rajasthan'], state: 'Rajasthan' },
-  { keywords: ['chandigarh', 'amritsar', 'ludhiana', 'jalandhar', 'patiala', 'bathinda', 'mohali', 'zirakpur', 'pathankot', 'punjab'], state: 'Punjab' },
-  { keywords: ['shimla', 'manali', 'dharamshala', 'mcleodganj', 'dalhousie', 'kasauli', 'kullu', 'solan', 'spiti', 'kasol', 'himachal'], state: 'Himachal Pradesh' },
-  { keywords: ['dehradun', 'haridwar', 'rishikesh', 'nainital', 'mussoorie', 'haldwani', 'roorkee', 'jimcorbett', 'corbett', 'kedarnath', 'badrinath', 'almora', 'ranikhet', 'uttarakhand'], state: 'Uttarakhand' },
+  { keywords: ['noida', 'greaternoida', 'ghaziabad', 'agra', 'lucknow', 'varanasi', 'ayodhya', 'mathura', 'vrindavan', 'prayagraj', 'allahabad', 'kanpur', 'meerut', 'gorakhpur', 'bareilly', 'aligarh', 'jhansi', 'moradabad', 'muzaffarnagar', 'saharanpur', 'uttarpradesh'], state: 'Uttar Pradesh' },
+  { keywords: ['gurgaon', 'gurugram', 'faridabad', 'panipat', 'ambala', 'karnal', 'sonipat', 'rohtak', 'hisar', 'kurukshetra', 'rewari', 'palwal', 'panchkula', 'haryana'], state: 'Haryana' },
+  { keywords: ['jaipur', 'udaipur', 'jodhpur', 'ajmer', 'pushkar', 'jaisalmer', 'bikaner', 'kota', 'mountabu', 'alwar', 'bharatpur', 'khatushyam', 'salasar', 'neemrana', 'rajasthan'], state: 'Rajasthan' },
+  { keywords: ['chandigarh', 'amritsar', 'ludhiana', 'jalandhar', 'patiala', 'bathinda', 'mohali', 'zirakpur', 'pathankot', 'ropar', 'kiratpur', 'punjab'], state: 'Punjab' },
+  { keywords: ['shimla', 'manali', 'dharamshala', 'mcleodganj', 'dalhousie', 'kasauli', 'kullu', 'solan', 'spiti', 'kasol', 'chamba', 'khajjiar', 'mandi', 'bilaspurhp', 'himachal'], state: 'Himachal Pradesh' },
+  { keywords: ['dehradun', 'haridwar', 'rishikesh', 'nainital', 'mussoorie', 'haldwani', 'roorkee', 'jimcorbett', 'corbett', 'kedarnath', 'badrinath', 'almora', 'ranikhet', 'gangotri', 'yamunotri', 'lansdowne', 'auil', 'auli', 'uttarakhand', 'uttrakhand'], state: 'Uttarakhand' },
   { keywords: ['mumbai', 'pune', 'lonavala', 'khandala', 'mahabaleshwar', 'shirdi', 'nashik', 'nagpur', 'aurangabad', 'sambhajinagar', 'thane', 'navimumbai', 'andheri', 'bandra', 'dadar', 'borivali', 'kalyan', 'kolhapur', 'solapur', 'maharashtra'], state: 'Maharashtra' },
   { keywords: ['goa', 'panaji', 'margao', 'calangute', 'baga', 'dabolim', 'mopa', 'vasco'], state: 'Goa' },
-  { keywords: ['ahmedabad', 'surat', 'vadodara', 'rajkot', 'dwarka', 'somnath', 'bhuj', 'kutch', 'gandhinagar', 'statueofunity', 'kevadia', 'vapi', 'valsad', 'gujarat'], state: 'Gujarat' },
+  { keywords: ['ahmedabad', 'surat', 'vadodara', 'rajkot', 'somnath', 'bhuj', 'kutch', 'gandhinagar', 'statueofunity', 'kevadia', 'vapi', 'valsad', 'gujarat'], state: 'Gujarat' },
   { keywords: ['bangalore', 'bengaluru', 'mysore', 'mysuru', 'coorg', 'madikeri', 'mangalore', 'hubli', 'belgaum', 'chikmagalur', 'hampi', 'udupi', 'gokarna', 'kempegowda', 'whitefield', 'electroniccity', 'karnataka'], state: 'Karnataka' },
-  { keywords: ['chennai', 'coimbatore', 'madurai', 'ooty', 'kodaikanal', 'rameswaram', 'kanyakumari', 'vellore', 'salem', 'trichy', 'thanjavur', 'mahabalipuram', 'tamilnadu'], state: 'Tamil Nadu' },
+  { keywords: ['chennai', 'coimbatore', 'madurai', 'ooty', 'kodaikanal', 'rameswaram', 'kanyakumari', 'vellore', 'salem', 'trichy', 'thanjavur', 'mahabalipuram', 'hosur', 'tamilnadu'], state: 'Tamil Nadu' },
   { keywords: ['pondicherry', 'puducherry'], state: 'Puducherry' },
   { keywords: ['hyderabad', 'secunderabad', 'warangal', 'gachibowli', 'hitec', 'shamshabad', 'telangana'], state: 'Telangana' },
-  { keywords: ['tirupati', 'visakhapatnam', 'vizag', 'vijayawada', 'guntur', 'nellore', 'kurnool', 'andhrapradesh'], state: 'Andhra Pradesh' },
+  { keywords: ['tirupati', 'visakhapatnam', 'vizag', 'vijayawada', 'guntur', 'nellore', 'kurnool', 'chittoor', 'andhrapradesh'], state: 'Andhra Pradesh' },
   { keywords: ['kochi', 'cochin', 'munnar', 'thiruvananthapuram', 'trivandrum', 'alleppey', 'alappuzha', 'wayanad', 'kozhikode', 'calicut', 'thekkady', 'kovalam', 'kerala'], state: 'Kerala' },
   { keywords: ['indore', 'bhopal', 'ujjain', 'omkareshwar', 'gwalior', 'jabalpur', 'khajuraho', 'pachmarhi', 'sanchi', 'madhyapradesh'], state: 'Madhya Pradesh' },
   { keywords: ['kolkata', 'howrah', 'darjeeling', 'siliguri', 'digha', 'durgapur', 'asansol', 'westbengal'], state: 'West Bengal' },
@@ -197,8 +197,92 @@ const SERVER_HILL_STATION_KEYWORDS = [
   'kasauli', 'kullu', 'kasol', 'spiti', 'ooty', 'kodaikanal', 'munnar', 'wayanad',
   'coorg', 'madikeri', 'chikmagalur', 'mahabaleshwar', 'lonavala', 'khandala',
   'mountabu', 'pachmarhi', 'darjeeling', 'gangtok', 'shillong', 'gulmarg', 'pahalgam',
-  'sonamarg', 'leh', 'ladakh', 'almora', 'ranikhet', 'badrinath', 'kedarnath', 'rishikesh'
+  'sonamarg', 'leh', 'ladakh', 'almora', 'ranikhet', 'badrinath', 'kedarnath', 'rishikesh',
+  'lansdowne', 'auli', 'gangotri', 'yamunotri', 'khajjiar'
 ];
+
+const SERVER_PUNJAB_TRANSIT_HIMACHAL_CITIES = [
+  'manali', 'kullu', 'kasol', 'spiti', 'dharamshala', 'mcleodganj', 'dalhousie', 'chamba', 'khajjiar', 'mandi'
+];
+
+const SERVER_EXPLICIT_HIGHWAY_STATE_CORRIDORS = {
+  'Delhi|Uttarakhand': ['Delhi', 'Uttar Pradesh', 'Uttarakhand'],
+  'Uttarakhand|Delhi': ['Uttarakhand', 'Uttar Pradesh', 'Delhi'],
+  'Delhi|Himachal Pradesh': ['Delhi', 'Haryana', 'Himachal Pradesh'],
+  'Himachal Pradesh|Delhi': ['Himachal Pradesh', 'Haryana', 'Delhi'],
+  'Delhi|Punjab': ['Delhi', 'Haryana', 'Punjab'],
+  'Punjab|Delhi': ['Punjab', 'Haryana', 'Delhi'],
+  'Delhi|Jammu & Kashmir': ['Delhi', 'Haryana', 'Punjab', 'Jammu & Kashmir'],
+  'Jammu & Kashmir|Delhi': ['Jammu & Kashmir', 'Punjab', 'Haryana', 'Delhi'],
+  'Delhi|Rajasthan': ['Delhi', 'Haryana', 'Rajasthan'],
+  'Rajasthan|Delhi': ['Rajasthan', 'Haryana', 'Delhi'],
+  'Delhi|Madhya Pradesh': ['Delhi', 'Uttar Pradesh', 'Madhya Pradesh'],
+  'Madhya Pradesh|Delhi': ['Madhya Pradesh', 'Uttar Pradesh', 'Delhi'],
+  'Delhi|Bihar': ['Delhi', 'Uttar Pradesh', 'Bihar'],
+  'Bihar|Delhi': ['Bihar', 'Uttar Pradesh', 'Delhi'],
+  'Haryana|Uttarakhand': ['Haryana', 'Delhi', 'Uttar Pradesh', 'Uttarakhand'],
+  'Uttarakhand|Haryana': ['Uttarakhand', 'Uttar Pradesh', 'Delhi', 'Haryana'],
+  'Uttar Pradesh|Himachal Pradesh': ['Uttar Pradesh', 'Delhi', 'Haryana', 'Himachal Pradesh'],
+  'Himachal Pradesh|Uttar Pradesh': ['Himachal Pradesh', 'Haryana', 'Delhi', 'Uttar Pradesh'],
+  'Uttar Pradesh|Punjab': ['Uttar Pradesh', 'Delhi', 'Haryana', 'Punjab'],
+  'Punjab|Uttar Pradesh': ['Punjab', 'Haryana', 'Delhi', 'Uttar Pradesh'],
+  'Maharashtra|Goa': ['Maharashtra', 'Karnataka', 'Goa'],
+  'Goa|Maharashtra': ['Goa', 'Karnataka', 'Maharashtra']
+};
+
+const SERVER_INDIA_STATE_ADJACENCY = {
+  'Delhi': ['Uttar Pradesh', 'Haryana'],
+  'Haryana': ['Delhi', 'Punjab', 'Himachal Pradesh', 'Rajasthan', 'Uttar Pradesh'],
+  'Punjab': ['Haryana', 'Himachal Pradesh', 'Jammu & Kashmir', 'Rajasthan'],
+  'Himachal Pradesh': ['Haryana', 'Punjab', 'Uttarakhand', 'Jammu & Kashmir'],
+  'Jammu & Kashmir': ['Punjab', 'Himachal Pradesh'],
+  'Uttarakhand': ['Uttar Pradesh', 'Himachal Pradesh'],
+  'Uttar Pradesh': ['Delhi', 'Uttarakhand', 'Haryana', 'Rajasthan', 'Madhya Pradesh', 'Bihar', 'Jharkhand', 'Chhattisgarh'],
+  'Rajasthan': ['Haryana', 'Punjab', 'Uttar Pradesh', 'Madhya Pradesh', 'Gujarat'],
+  'Gujarat': ['Rajasthan', 'Madhya Pradesh', 'Maharashtra'],
+  'Madhya Pradesh': ['Uttar Pradesh', 'Rajasthan', 'Gujarat', 'Maharashtra', 'Chhattisgarh'],
+  'Maharashtra': ['Gujarat', 'Madhya Pradesh', 'Chhattisgarh', 'Telangana', 'Karnataka', 'Goa'],
+  'Goa': ['Maharashtra', 'Karnataka'],
+  'Karnataka': ['Maharashtra', 'Goa', 'Telangana', 'Andhra Pradesh', 'Tamil Nadu', 'Kerala'],
+  'Kerala': ['Karnataka', 'Tamil Nadu'],
+  'Tamil Nadu': ['Karnataka', 'Kerala', 'Andhra Pradesh', 'Puducherry'],
+  'Puducherry': ['Tamil Nadu'],
+  'Andhra Pradesh': ['Tamil Nadu', 'Karnataka', 'Telangana', 'Odisha', 'Chhattisgarh'],
+  'Telangana': ['Maharashtra', 'Karnataka', 'Andhra Pradesh', 'Chhattisgarh'],
+  'Chhattisgarh': ['Madhya Pradesh', 'Uttar Pradesh', 'Jharkhand', 'Odisha', 'Telangana', 'Maharashtra'],
+  'Odisha': ['West Bengal', 'Jharkhand', 'Chhattisgarh', 'Andhra Pradesh'],
+  'Bihar': ['Uttar Pradesh', 'Jharkhand', 'West Bengal'],
+  'Jharkhand': ['Bihar', 'Uttar Pradesh', 'Chhattisgarh', 'Odisha', 'West Bengal'],
+  'West Bengal': ['Bihar', 'Jharkhand', 'Odisha', 'North East'],
+  'North East': ['West Bengal']
+};
+
+const SERVER_STATE_PERMIT_BASE_RATES_SEDAN = {
+  'Uttar Pradesh': { tax: 250, desc: 'UP State Entry Permit Tax' },
+  'Uttarakhand': { tax: 300, desc: 'Uttarakhand State Permit & Green Cess' },
+  'Haryana': { tax: 200, desc: 'Haryana State Border Permit Tax' },
+  'Punjab': { tax: 250, desc: 'Punjab State Entry Permit Tax' },
+  'Himachal Pradesh': { tax: 320, desc: 'Himachal State Permit & Green Tax' },
+  'Rajasthan': { tax: 280, desc: 'Rajasthan State Border Permit Tax' },
+  'Delhi': { tax: 200, desc: 'Delhi MCD Commercial Entry Toll' },
+  'Jammu & Kashmir': { tax: 350, desc: 'J&K Lakhanpur Entry Permit Tax' },
+  'Madhya Pradesh': { tax: 250, desc: 'MP State Border Permit Tax' },
+  'Maharashtra': { tax: 280, desc: 'Maharashtra RTO Border Permit' },
+  'Goa': { tax: 350, desc: 'Goa State Entry & Green Cess' },
+  'Gujarat': { tax: 280, desc: 'Gujarat RTO Checkpost Permit' },
+  'Karnataka': { tax: 300, desc: 'Karnataka State Entry Permit' },
+  'Tamil Nadu': { tax: 280, desc: 'Tamil Nadu Border Checkpost Permit' },
+  'Kerala': { tax: 320, desc: 'Kerala Walayar/Muthanga State Permit' },
+  'Puducherry': { tax: 180, desc: 'Puducherry Entry Permit Tax' },
+  'Andhra Pradesh': { tax: 280, desc: 'Andhra Pradesh Border Permit' },
+  'Telangana': { tax: 280, desc: 'Telangana RTO Entry Permit' },
+  'Bihar': { tax: 250, desc: 'Bihar State Entry Permit Tax' },
+  'Jharkhand': { tax: 250, desc: 'Jharkhand Border Permit Tax' },
+  'West Bengal': { tax: 280, desc: 'West Bengal State Entry Permit' },
+  'Odisha': { tax: 250, desc: 'Odisha State Border Permit' },
+  'Chhattisgarh': { tax: 250, desc: 'Chhattisgarh Border Permit' },
+  'North East': { tax: 350, desc: 'North-East Inter-State Entry Permit' }
+};
 
 function normalizeServerRouteToken(str) {
   return String(str || '').toLowerCase().replace(/[^a-z]/g, '');
@@ -218,6 +302,97 @@ function detectServerLocationState(locationStr, fallbackState = 'Delhi') {
 function isServerHillStationRoute(pickupCity, dropCity) {
   const combined = normalizeServerRouteToken(pickupCity) + ' ' + normalizeServerRouteToken(dropCity);
   return SERVER_HILL_STATION_KEYWORDS.some((kw) => combined.includes(kw));
+}
+
+function computeServerMultiStateRouteCorridor(originState, destState, pickupCity = '', dropCity = '') {
+  if (!originState || !destState) return [originState || 'Delhi'];
+  if (originState === destState) return [originState];
+
+  const combinedCities = normalizeServerRouteToken(pickupCity) + ' ' + normalizeServerRouteToken(dropCity);
+
+  if (
+    (originState === 'Delhi' || originState === 'Haryana' || originState === 'Uttar Pradesh') &&
+    destState === 'Himachal Pradesh' &&
+    SERVER_PUNJAB_TRANSIT_HIMACHAL_CITIES.some((city) => combinedCities.includes(city))
+  ) {
+    if (originState === 'Uttar Pradesh') return ['Uttar Pradesh', 'Delhi', 'Haryana', 'Punjab', 'Himachal Pradesh'];
+    if (originState === 'Delhi') return ['Delhi', 'Haryana', 'Punjab', 'Himachal Pradesh'];
+    return ['Haryana', 'Punjab', 'Himachal Pradesh'];
+  }
+
+  if (
+    destState === 'Delhi' &&
+    originState === 'Himachal Pradesh' &&
+    SERVER_PUNJAB_TRANSIT_HIMACHAL_CITIES.some((city) => combinedCities.includes(city))
+  ) {
+    return ['Himachal Pradesh', 'Punjab', 'Haryana', 'Delhi'];
+  }
+
+  if (
+    originState === 'Uttar Pradesh' &&
+    destState === 'Rajasthan' &&
+    (combinedCities.includes('noida') || combinedCities.includes('ghaziabad') || combinedCities.includes('meerut'))
+  ) {
+    return ['Uttar Pradesh', 'Delhi', 'Haryana', 'Rajasthan'];
+  }
+
+  const pairKey = `${originState}|${destState}`;
+  if (SERVER_EXPLICIT_HIGHWAY_STATE_CORRIDORS[pairKey]) {
+    return SERVER_EXPLICIT_HIGHWAY_STATE_CORRIDORS[pairKey];
+  }
+
+  const queue = [[originState]];
+  const visited = new Set([originState]);
+
+  while (queue.length > 0) {
+    const path = queue.shift();
+    const current = path[path.length - 1];
+    if (current === destState) return path;
+    const neighbors = SERVER_INDIA_STATE_ADJACENCY[current] || [];
+    for (const nextState of neighbors) {
+      if (!visited.has(nextState)) {
+        visited.add(nextState);
+        queue.push([...path, nextState]);
+      }
+    }
+  }
+
+  return [originState, destState];
+}
+
+function computeServerMultiStatePermitBreakdown(originState, destState, pickupCity = '', dropCity = '', cabId = 'sedan') {
+  const stateRoutePath = computeServerMultiStateRouteCorridor(originState, destState, pickupCity, dropCity);
+  if (stateRoutePath.length <= 1) {
+    return { stateRoutePath, statePermitBreakdown: [], totalStatePermitTax: 0 };
+  }
+
+  const vehiclePermitMultiplier =
+    cabId === 'hatchback'
+      ? 0.85
+      : cabId === 'sedan'
+      ? 1.0
+      : cabId === 'exec_sedan'
+      ? 1.15
+      : cabId === 'suv'
+      ? 1.45
+      : cabId === 'innova'
+      ? 1.75
+      : 2.65;
+
+  const statesEntered = stateRoutePath.slice(1);
+  const breakdown = statesEntered.map((stateName, idx) => {
+    const isFinalDest = idx === statesEntered.length - 1;
+    const role = isFinalDest ? 'destination' : 'transit';
+    const baseInfo = SERVER_STATE_PERMIT_BASE_RATES_SEDAN[stateName] || { tax: 280, desc: `${stateName} State Entry Permit` };
+    const taxAmount = Math.round((baseInfo.tax * vehiclePermitMultiplier) / 10) * 10;
+    const label = role === 'transit'
+      ? `${stateName} (En-Route Transit State Permit)`
+      : `${stateName} (Destination State Entry Permit)`;
+    return { state: stateName, role, label, taxAmount };
+  });
+
+  const totalStatePermitTax = breakdown.reduce((sum, item) => sum + item.taxAmount, 0);
+  return { stateRoutePath, statePermitBreakdown: breakdown, totalStatePermitTax };
 }
 
 function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230, cabId = 'sedan') {
@@ -468,15 +643,27 @@ export function computeServerTripFare({
 
   let highwayToll = 0;
   let statePermitTax = 0;
+  let stateRoutePath = [originState];
+  let statePermitBreakdown = [];
 
   if (tripType === 'oneway') {
     const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, billedDistanceKm, cabId);
     highwayToll = tollInfo.baseTollOneWay;
-    statePermitTax = isInterState ? statePermitBase : 0;
+    if (isInterState) {
+      const permitInfo = computeServerMultiStatePermitBreakdown(originState, destState, pickupCity, dropCity, cabId);
+      stateRoutePath = permitInfo.stateRoutePath;
+      statePermitBreakdown = permitInfo.statePermitBreakdown;
+      statePermitTax = permitInfo.totalStatePermitTax;
+    }
   } else if (tripType === 'roundtrip') {
     const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, Math.round(billedDistanceKm / 2), cabId);
     highwayToll = Math.round(tollInfo.baseTollOneWay * 1.85);
-    statePermitTax = isInterState ? statePermitBase : 0;
+    if (isInterState) {
+      const permitInfo = computeServerMultiStatePermitBreakdown(originState, destState, pickupCity, dropCity, cabId);
+      stateRoutePath = permitInfo.stateRoutePath;
+      statePermitBreakdown = permitInfo.statePermitBreakdown;
+      statePermitTax = permitInfo.totalStatePermitTax;
+    }
   } else if (tripType === 'airport') {
     highwayToll = 120;
     statePermitTax = 0;

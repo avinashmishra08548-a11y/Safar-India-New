@@ -60,7 +60,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
     }
   };
 
-  // Sample route calculation using Sedan to display route-level highway & state tax intelligence in header
+  // Sample route calculation using Sedan to display route-level highway & multi-state tax intelligence in header
   const sampleRouteFare = computeTripFare({
     tripType,
     cabId: 'sedan',
@@ -106,7 +106,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
   return (
     <div className="space-y-5" id="available-cabs-section">
-      {/* 1. CABBAZAR ROUTE INTELLIGENCE & TOLL MODE BAR */}
+      {/* 1. SAFARINDIACABS ROUTE INTELLIGENCE & TOLL MODE BAR */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start sm:items-center gap-3">
@@ -122,7 +122,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>
                     {tripType === 'oneway'
-                      ? 'CabBazar Zero Return Fare (Save up to 42%)'
+                      ? 'SafarIndiaCabs Zero Return Fare (Save up to 42%)'
                       : tripType === 'roundtrip'
                       ? `Round Trip (${sampleRouteFare.daysCount} Day${sampleRouteFare.daysCount > 1 ? 's' : ''} · Min 250 KM/Day)`
                       : 'All-Inclusive City Package'}
@@ -137,7 +137,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
                 {sampleRouteFare.isInterState ? (
                   <span className="bg-amber-50 text-amber-900 font-semibold px-2.5 py-0.5 rounded-md border border-amber-200">
-                    🛂 {sampleRouteFare.originState} ➔ {sampleRouteFare.destState} Border Permit
+                    🛂 {sampleRouteFare.stateRoutePath.join(' ➔ ')} ({sampleRouteFare.statePermitBreakdown.length} State Permit{sampleRouteFare.statePermitBreakdown.length > 1 ? 's' : ''} Auto-Included)
                   </span>
                 ) : (
                   tripType !== 'local' && (
@@ -163,12 +163,12 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           </div>
         </div>
 
-        {/* CabBazar Style Pricing Mode Switcher: All-Inclusive vs Base Fare (Tolls at Actuals) */}
+        {/* SafarIndiaCabs Pricing Mode Switcher: All-Inclusive vs Base Fare (Tolls at Actuals) */}
         {tripType !== 'local' && (
           <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <Receipt className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Select CabBazar Toll &amp; State Tax Fare Mode:</span>
+              <span>Select SafarIndiaCabs Toll &amp; State Tax Fare Mode:</span>
             </div>
             <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
@@ -199,7 +199,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         )}
       </div>
 
-      {/* 2. CABBAZAR-STYLE TRANSPARENT CAB CARDS */}
+      {/* 2. SAFARINDIACABS TRANSPARENT CAB CARDS */}
       <div className="space-y-4">
         {CABS_FLEET.map((cab) => {
           const fare = computeTripFare({
@@ -231,7 +231,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               )}
 
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                {/* Left Side: Vehicle Name, Models, Seats/Bags Badges & CabBazar 4-Pillar Fare Specs */}
+                {/* Left Side: Vehicle Name, Models, Seats/Bags Badges & SafarIndiaCabs 4-Pillar Fare Specs */}
                 <div className="space-y-3 flex-1">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -274,7 +274,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                     </button>
                   </div>
 
-                  {/* CabBazar Signature Spec Grid: Included Km | Extra Fare/Km | Driver Charges | Night & Toll */}
+                  {/* SafarIndiaCabs Signature Spec Grid: Included Km | Extra Fare/Km | Driver Charges | Night & Toll */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                     <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
                       <span className="text-[10px] text-slate-500 font-semibold block">Included Km</span>
@@ -298,7 +298,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                      <span className="text-[10px] text-slate-500 font-semibold block">Toll &amp; State Tax</span>
+                      <span className="text-[10px] text-slate-500 font-semibold block">
+                        Toll &amp; {fare.statePermitBreakdown.length > 0 ? `${fare.statePermitBreakdown.length} State Permit${fare.statePermitBreakdown.length > 1 ? 's' : ''}` : 'State Tax'}
+                      </span>
                       {effectiveIncludeTolls ? (
                         <span className="text-xs font-extrabold text-emerald-700">
                           Included ({formatINR(fare.tollsAndTaxes)})
@@ -349,7 +351,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         })}
       </div>
 
-      {/* 3. CABBAZAR DETAILED FARE BREAKUP & INCLUSIONS MODAL */}
+      {/* 3. SAFARINDIACABS DETAILED FARE BREAKUP & INCLUSIONS MODAL */}
       {selectedCabForInfo && (
         <div
           className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -361,7 +363,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <span className="text-[10px] uppercase tracking-wider font-black text-amber-600 block">
-                  CabBazar Transparent Fare Sheet
+                  SafarIndiaCabs Transparent Fare Sheet
                 </span>
                 <h4 className="text-base font-extrabold text-[#0F172A]">
                   {selectedCabForInfo.cab.name}
@@ -379,7 +381,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               </button>
             </div>
 
-            {/* Itemized CabBazar Fare Components */}
+            {/* Itemized SafarIndiaCabs Fare Components */}
             <div className="space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
               <div className="flex justify-between py-1 border-b border-slate-200/60">
                 <span className="text-slate-600">
@@ -423,23 +425,42 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 </span>
                 <span className="font-mono font-bold text-[#0F172A]">
                   {effectiveIncludeTolls
-                    ? formatINR(selectedCabForInfo.fare.highwayToll)
+                    ? `${formatINR(selectedCabForInfo.fare.highwayToll)} (Included)`
                     : `At Actuals (Est. ${formatINR(selectedCabForInfo.fare.highwayToll)})`}
                 </span>
               </div>
 
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-600">
-                  State Border Entry Permit ({selectedCabForInfo.fare.originState} ➔{' '}
-                  {selectedCabForInfo.fare.destState}):
-                </span>
-                <span className="font-mono font-bold text-[#0F172A]">
-                  {selectedCabForInfo.fare.statePermitTax === 0
-                    ? '₹0 (Same State)'
-                    : effectiveIncludeTolls
-                    ? formatINR(selectedCabForInfo.fare.statePermitTax)
-                    : `At Actuals (Est. ${formatINR(selectedCabForInfo.fare.statePermitTax)})`}
-                </span>
+              {/* Multi-State En-Route & Destination Permit Tax Breakdown */}
+              <div className="py-1.5 border-b border-slate-200/60 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-700 font-bold">
+                    State Border Entry Permits ({selectedCabForInfo.fare.stateRoutePath.join(' ➔ ')}):
+                  </span>
+                  <span className="font-mono font-bold text-[#0F172A]">
+                    {selectedCabForInfo.fare.statePermitTax === 0
+                      ? '₹0 (Same State)'
+                      : effectiveIncludeTolls
+                      ? `${formatINR(selectedCabForInfo.fare.statePermitTax)} (Included)`
+                      : `At Actuals (Est. ${formatINR(selectedCabForInfo.fare.statePermitTax)})`}
+                  </span>
+                </div>
+
+                {selectedCabForInfo.fare.statePermitBreakdown.length > 0 && (
+                  <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-2.5 space-y-1">
+                    {selectedCabForInfo.fare.statePermitBreakdown.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-700 font-medium">
+                          • {item.label}:
+                        </span>
+                        <span className="font-mono font-bold text-emerald-800">
+                          {effectiveIncludeTolls
+                            ? `${formatINR(item.taxAmount)} (Auto-Deducted ✓)`
+                            : formatINR(item.taxAmount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-between py-1 border-b border-slate-200/60">
@@ -475,7 +496,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3 text-xs space-y-1">
               <div className="font-bold text-slate-900 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-blue-600" />
-                <span>CabBazar Extra Usage Policy</span>
+                <span>SafarIndiaCabs Extra Usage Policy</span>
               </div>
               <p className="text-[11px] text-slate-600">
                 • Extra distance beyond <strong>{selectedCabForInfo.fare.billedDistanceKm} KM</strong> is

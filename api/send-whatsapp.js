@@ -12,14 +12,14 @@ const DEFAULT_ACCESS_TOKEN =
   'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
 
 export function formatWhatsAppPhone(phone) {
-  let cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
-  if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
-    cleanPhone = cleanPhone.slice(1);
+  const digits = String(phone || '').replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  // Always extract the core 10-digit Indian mobile number and prefix with 91
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  if (last10.length === 10) {
+    return '91' + last10;
   }
-  if (!cleanPhone.startsWith('91') && cleanPhone.length === 10) {
-    cleanPhone = '91' + cleanPhone;
-  }
-  return cleanPhone;
+  return digits;
 }
 
 export async function sendWhatsAppCloudMessage(
@@ -29,7 +29,7 @@ export async function sendWhatsAppCloudMessage(
   customAccessToken
 ) {
   const formattedTo = formatWhatsAppPhone(recipientPhone);
-  if (!formattedTo || formattedTo.length < 10) {
+  if (!formattedTo || formattedTo.length < 12) {
     return { success: false, error: 'Invalid recipient phone number' };
   }
 
@@ -49,44 +49,50 @@ export async function sendWhatsAppCloudMessage(
     }
   };
 
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${activeToken}`,
-        'Content-Type': 'application/json; utf-8',
-        Accept: 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-    const data = await response.json().catch(() => null);
-    if (response.status === 200 || response.status === 201) {
-      return {
-        success: true,
-        status: response.status,
-        to: formattedTo,
-        phoneNumberId: activePhoneId,
-        data
-      };
-    } else {
-      return {
+      const data = await response.json().catch(() => null);
+      if (response.status === 200 || response.status === 201) {
+        return {
+          success: true,
+          status: response.status,
+          to: formattedTo,
+          phoneNumberId: activePhoneId,
+          messageId: data?.messages?.[0]?.id || null,
+          data
+        };
+      } else {
+        lastError = {
+          success: false,
+          status: response.status,
+          to: formattedTo,
+          phoneNumberId: activePhoneId,
+          error: data?.error?.message || `HTTP Error Code: ${response.status}`,
+          data
+        };
+      }
+    } catch (err) {
+      lastError = {
         success: false,
-        status: response.status,
         to: formattedTo,
         phoneNumberId: activePhoneId,
-        error: data?.error?.message || `HTTP Error Code: ${response.status}`,
-        data
+        error: err?.message || 'Network or Exception Error'
       };
     }
-  } catch (err) {
-    return {
-      success: false,
-      to: formattedTo,
-      phoneNumberId: activePhoneId,
-      error: err?.message || 'Network or Exception Error'
-    };
   }
+
+  return lastError || { success: false, to: formattedTo, error: 'WhatsApp dispatch failed' };
 }
 
 export default async function handler(req, res) {

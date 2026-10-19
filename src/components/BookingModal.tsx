@@ -355,7 +355,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </div>
         )}
 
-        {/* Itinerary & CabBazar Fare Snapshot */}
+        {/* Itinerary & SafarIndiaCabs Fare Snapshot */}
         <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-3 text-xs">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
@@ -378,7 +378,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Transparent CabBazar Itemized Pill Strip */}
+          {/* Transparent SafarIndiaCabs Itemized Pill Strip */}
           <div className="pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
             <span>
               Base + Bata: <strong>{formatINR(activeFare.baseFare + activeFare.driverAllowance)}</strong>
@@ -389,11 +389,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </span>
             <span>·</span>
             <span>
-              Toll &amp; State Tax:{' '}
+              FASTag Toll:{' '}
               <strong className={includeTollsState ? 'text-emerald-700' : 'text-amber-700'}>
                 {includeTollsState
-                  ? `Included (${formatINR(activeFare.tollsAndTaxes)})`
-                  : `Extra at Plaza (Est. ${formatINR(activeFare.estimatedTollsAndTaxes)})`}
+                  ? `${formatINR(activeFare.highwayToll)} (Included)`
+                  : `Est. ${formatINR(activeFare.highwayToll)}`}
               </strong>
             </span>
             <span>·</span>
@@ -401,6 +401,35 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               5% GST: <strong>{formatINR(activeFare.gstAmount)}</strong>
             </span>
           </div>
+
+          {/* Itemized Multi-State Permit Tax Strip (Shows intermediate states like UP on Delhi->Mussoorie) */}
+          {activeFare.statePermitBreakdown.length > 0 && (
+            <div className="pt-2 border-t border-slate-200/80 space-y-1">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-slate-800">
+                  🛂 State Border Permits ({activeFare.stateRoutePath.join(' ➔ ')}):
+                </span>
+                <span className={`font-mono font-bold ${includeTollsState ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {includeTollsState
+                    ? `${formatINR(activeFare.statePermitTax)} (Auto-Included ✓)`
+                    : `${formatINR(activeFare.statePermitTax)} (At Border)`}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {activeFare.statePermitBreakdown.map((perm, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded-md text-[10px] font-bold"
+                  >
+                    <span>
+                      {perm.state} ({perm.role === 'transit' ? 'Transit State' : 'Destination State'}):
+                    </span>
+                    <span className="font-mono text-emerald-800">{formatINR(perm.taxAmount)}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Form Fields: Traveler & Address */}
@@ -573,10 +602,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             )}
           </div>
-          {/* CabBazar Optional Add-Ons & Toll Inclusion Toggle */}
+          {/* SafarIndiaCabs Optional Add-Ons & Toll Inclusion Toggle */}
           <div className="pt-2 space-y-2.5">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              CabBazar Toll Option &amp; Optional Trip Add-Ons
+              SafarIndiaCabs Toll Option &amp; Optional Trip Add-Ons
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
               {tripType !== 'local' && (

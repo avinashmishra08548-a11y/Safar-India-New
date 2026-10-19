@@ -62,16 +62,15 @@ export class WhatsAppService {
   public static readonly ACCESS_TOKEN = DEFAULT_WHATSAPP_ACCESS_TOKEN;
   public static readonly API_URL = `https://graph.facebook.com/v20.0/${WhatsAppService.PHONE_NUMBER_ID}/messages`;
 
-  // Common method to format and clean phone numbers (e.g., adds 91 for India)
+  // Common method to format and clean phone numbers (always 91 + 10-digit Indian mobile number)
   public formatPhoneNumber(phone: string): string {
-    let cleanPhone = (phone || '').replace(/[^0-9]/g, '');
-    if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
-      cleanPhone = cleanPhone.slice(1);
+    const digits = (phone || '').replace(/[^0-9]/g, '');
+    if (!digits) return '';
+    const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+    if (last10.length === 10) {
+      return '91' + last10;
     }
-    if (!cleanPhone.startsWith('91') && cleanPhone.length === 10) {
-      cleanPhone = '91' + cleanPhone;
-    }
-    return cleanPhone;
+    return digits;
   }
 
   /**
@@ -301,44 +300,50 @@ export class WhatsAppService {
       // Fall through to direct Meta Graph API call
     }
 
-    // 2. Direct Meta WhatsApp Cloud API request
-    try {
-      const payload = {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: formattedPhone,
-        type: 'text',
-        text: {
-          preview_url: false,
-          body: messageText
-        }
-      };
-
-      const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${activeToken}`,
-          'Content-Type': 'application/json; utf-8',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.status === 200 || res.status === 201) {
-        callback?.onSuccess('Message Sent Successfully');
-        return true;
-      } else {
-        const errData = await res.json().catch(() => null);
-        const err = new Error(errData?.error?.message || `HTTP Error Code: ${res.status}`);
-        callback?.onError(err);
-        return false;
+    // 2. Direct Meta WhatsApp Cloud API request with retry
+    const payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: formattedPhone,
+      type: 'text',
+      text: {
+        preview_url: false,
+        body: messageText
       }
-    } catch (e) {
-      const err = e instanceof Error ? e : new Error(String(e));
-      callback?.onError(err);
-      return false;
+    };
+
+    const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.status === 200 || res.status === 201) {
+          callback?.onSuccess('Message Sent Successfully');
+          return true;
+        } else if (attempt === 2) {
+          const errData = await res.json().catch(() => null);
+          const err = new Error(errData?.error?.message || `HTTP Error Code: ${res.status}`);
+          callback?.onError(err);
+          return false;
+        }
+      } catch (e) {
+        if (attempt === 2) {
+          const err = e instanceof Error ? e : new Error(String(e));
+          callback?.onError(err);
+          return false;
+        }
+      }
     }
+    return false;
   }
 }
 
