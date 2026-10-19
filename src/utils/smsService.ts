@@ -515,7 +515,16 @@ export async function sendDualBookingNotifications(booking: {
       booking.id,
       booking.pickupCity,
       booking.dropCity,
-      totalFare
+      totalFare,
+      {
+        customerName: booking.customerName,
+        pickupAddress: booking.pickupAddress,
+        dropAddress: booking.dropAddress,
+        travelDateTime: travelDate,
+        cabClass,
+        paidAmount: advance,
+        balanceAmount: balance
+      }
     ),
     whatsAppService.sendNewBookingAlertToAdmin(
       adminPhone,
@@ -523,7 +532,15 @@ export async function sendDualBookingNotifications(booking: {
       booking.customerName,
       cleanCustomerPhone,
       booking.pickupCity,
-      booking.dropCity
+      booking.dropCity,
+      {
+        pickupAddress: booking.pickupAddress,
+        travelDateTime: travelDate,
+        cabClass,
+        totalFare,
+        paidAmount: advance,
+        balanceAmount: balance
+      }
     )
   ]);
 
@@ -556,8 +573,8 @@ export async function sendDualBookingNotifications(booking: {
 /**
  * AUTOMATED DRIVER ASSIGNMENT NOTIFICATIONS (STAGE 2)
  * Dispatches BOTH:
- * 1. Pickup Alert SMS to Driver
- * 2. Driver Details SMS to Customer
+ * 1. Pickup Alert SMS & WhatsApp to Driver
+ * 2. Driver Details SMS & WhatsApp to Customer
  */
 export async function sendDriverAssignmentSms(params: {
   customerPhone: string;
@@ -603,7 +620,7 @@ export async function sendDriverAssignmentSms(params: {
         if (data && data.success) {
           return {
             success: true,
-            message: `Dual driver & customer SMS dispatched via Fast2SMS`,
+            message: `Dual driver & customer WhatsApp + SMS dispatched`,
             endpointUsed: endpoint,
             numbersSent: `${cleanCustomerPhone}, ${cleanDriverPhone}`,
             statusCode: 200
@@ -615,7 +632,7 @@ export async function sendDriverAssignmentSms(params: {
     }
   }
 
-  // 2. Direct Fast2SMS failovers in parallel:
+  // 2. Direct Fast2SMS & Meta WhatsApp Cloud API failovers in parallel:
   // Driver Pickup Alert
   const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${params.bookingId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${params.pickup}\nDrop: ${params.drop}\nDate/Time: ${params.travelDate}\nCab: ${cabClass}\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
   // Customer Driver Details
@@ -628,7 +645,15 @@ export async function sendDriverAssignmentSms(params: {
       params.driverName,
       cleanDriverPhone || params.driverPhone,
       params.vehicleModel,
-      params.vehicleNo
+      params.vehicleNo,
+      {
+        bookingId: params.bookingId,
+        customerName,
+        pickup: params.pickup,
+        drop: params.drop,
+        travelDateTime: params.travelDate,
+        balanceAmount: balance
+      }
     )
   ];
   if (cleanDriverPhone && cleanDriverPhone.length === 10) {
@@ -641,7 +666,14 @@ export async function sendDriverAssignmentSms(params: {
         customerName,
         cleanCustomerPhone,
         params.pickup,
-        params.drop
+        params.drop,
+        {
+          travelDateTime: params.travelDate,
+          cabClass,
+          vehicleModel: params.vehicleModel,
+          vehicleNumber: params.vehicleNo,
+          balanceAmount: balance
+        }
       )
     );
   }

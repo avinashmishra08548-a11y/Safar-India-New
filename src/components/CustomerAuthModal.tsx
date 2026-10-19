@@ -172,13 +172,13 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Live SMS status toast */}
+        {/* Live WhatsApp & SMS status toast */}
         {showOtpToast && (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-3 rounded-2xl shadow-sm flex items-start gap-2.5 animate-in fade-in slide-in-from-top-4">
             <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
             <div className="text-xs">
-              <span className="font-extrabold block">Live SMS Dispatched!</span>
-              <span>Traccar Cloud OTP sent to <strong className="font-mono text-xs">+91 {phone}</strong>.</span>
+              <span className="font-extrabold block">WhatsApp & SMS OTP Sent!</span>
+              <span>Verification code sent to your WhatsApp & SMS on <strong className="font-mono text-xs">+91 {phone}</strong>.</span>
             </div>
           </div>
         )}
@@ -190,10 +190,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 <Smartphone className="w-6 h-6 text-amber-600" />
               </div>
               <h3 className="text-base font-extrabold text-slate-900">
-                Customer Account
+                Customer WhatsApp & Mobile Login
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Login with mobile number to sync your rides & bills
+                Login via instant WhatsApp & SMS OTP to receive live booking & driver updates
               </p>
             </div>
 
@@ -213,7 +213,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <form onSubmit={handleSendOtp} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Mobile Number *
+                  WhatsApp / Mobile Number *
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-400 font-bold">
@@ -261,9 +261,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500 font-medium">
                 <span className="flex items-center gap-1 text-emerald-700">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Traccar Cloud SMS Gateway Active
+                  WhatsApp Cloud API + SMS OTP Active
                 </span>
-                <span className="font-mono text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">Direct SIM</span>
+                <span className="font-mono text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">Instant OTP</span>
               </div>
 
               <button
@@ -274,10 +274,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 {isSending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                    <span>Connecting Traccar SMS Gateway...</span>
+                    <span>Sending WhatsApp & SMS OTP...</span>
                   </>
                 ) : (
-                  <span>Send Verification Code</span>
+                  <span>Send WhatsApp & SMS OTP</span>
                 )}
               </button>
             </form>
@@ -292,7 +292,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 Enter Verification Code
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Sent to <span className="text-amber-700 font-bold">+91 {phone}</span>
+                Sent to WhatsApp & SMS on <span className="text-amber-700 font-bold">+91 {phone}</span>
               </p>
               {smsDeliveryInfo && (
                 <div className="mt-1.5 max-w-[290px] mx-auto p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 font-medium">
@@ -319,7 +319,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   className="w-36 text-center tracking-[0.5em] text-xl font-black bg-slate-50 border border-slate-300 rounded-2xl py-3 text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white font-mono"
                 />
                 <p className="text-[11px] text-slate-500 text-center font-medium">
-                  Enter the 4-digit code received via SMS
+                  Enter the 4-digit OTP received on your WhatsApp or SMS
                 </p>
               </div>
 

@@ -6,11 +6,10 @@
  * Endpoint: https://graph.facebook.com/v20.0/902764639583293/messages
  */
 
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '902764639583293';
-const ACCESS_TOKEN =
+const DEFAULT_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '902764639583293';
+const DEFAULT_ACCESS_TOKEN =
   process.env.WHATSAPP_ACCESS_TOKEN ||
   'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
-const API_URL = `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`;
 
 export function formatWhatsAppPhone(phone) {
   let cleanPhone = String(phone || '').replace(/[^0-9]/g, '');
@@ -23,11 +22,21 @@ export function formatWhatsAppPhone(phone) {
   return cleanPhone;
 }
 
-export async function sendWhatsAppCloudMessage(recipientPhone, messageText) {
+export async function sendWhatsAppCloudMessage(
+  recipientPhone,
+  messageText,
+  customPhoneId,
+  customAccessToken
+) {
   const formattedTo = formatWhatsAppPhone(recipientPhone);
   if (!formattedTo || formattedTo.length < 10) {
     return { success: false, error: 'Invalid recipient phone number' };
   }
+
+  const activePhoneId = (customPhoneId && String(customPhoneId).trim()) || DEFAULT_PHONE_NUMBER_ID;
+  const activeToken =
+    (customAccessToken && String(customAccessToken).trim()) || DEFAULT_ACCESS_TOKEN;
+  const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -41,10 +50,10 @@ export async function sendWhatsAppCloudMessage(recipientPhone, messageText) {
   };
 
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${ACCESS_TOKEN}`,
+        Authorization: `Bearer ${activeToken}`,
         'Content-Type': 'application/json; utf-8',
         Accept: 'application/json'
       },
@@ -57,6 +66,7 @@ export async function sendWhatsAppCloudMessage(recipientPhone, messageText) {
         success: true,
         status: response.status,
         to: formattedTo,
+        phoneNumberId: activePhoneId,
         data
       };
     } else {
@@ -64,6 +74,7 @@ export async function sendWhatsAppCloudMessage(recipientPhone, messageText) {
         success: false,
         status: response.status,
         to: formattedTo,
+        phoneNumberId: activePhoneId,
         error: data?.error?.message || `HTTP Error Code: ${response.status}`,
         data
       };
@@ -72,6 +83,7 @@ export async function sendWhatsAppCloudMessage(recipientPhone, messageText) {
     return {
       success: false,
       to: formattedTo,
+      phoneNumberId: activePhoneId,
       error: err?.message || 'Network or Exception Error'
     };
   }
@@ -97,13 +109,18 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const { recipientPhone, messageText } = body || {};
+    const { recipientPhone, messageText, phoneNumberId, accessToken } = body || {};
 
     if (!recipientPhone || !messageText) {
       return res.status(400).json({ error: 'recipientPhone and messageText are required' });
     }
 
-    const result = await sendWhatsAppCloudMessage(recipientPhone, messageText);
+    const result = await sendWhatsAppCloudMessage(
+      recipientPhone,
+      messageText,
+      phoneNumberId,
+      accessToken
+    );
     return res.status(result.success ? 200 : 502).json(result);
   } catch (err) {
     return res.status(500).json({

@@ -62,6 +62,14 @@ import {
   DEFAULT_RAZORPAY_KEY,
   launchRazorpayStandardCheckout
 } from '../utils/razorpayService';
+import {
+  DEFAULT_WHATSAPP_PHONE_ID,
+  DEFAULT_WHATSAPP_ACCESS_TOKEN,
+  getWhatsAppPhoneId,
+  getWhatsAppAccessToken,
+  setWhatsAppConfig,
+  whatsAppService
+} from '../utils/whatsappService';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -124,6 +132,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [razorpayKey, setRazorpayKey] = useState(() => getRazorpayKeyId());
   const [razorpaySaveMsg, setRazorpaySaveMsg] = useState('');
   const [razorpayTestStatus, setRazorpayTestStatus] = useState<string>('');
+
+  // Meta WhatsApp Cloud API states
+  const [waPhoneId, setWaPhoneId] = useState(() => getWhatsAppPhoneId());
+  const [waAccessToken, setWaAccessToken] = useState(() => getWhatsAppAccessToken());
+  const [waSaveMsg, setWaSaveMsg] = useState('');
+  const [waTestPhone, setWaTestPhone] = useState('7710080992');
+  const [waTestStatus, setWaTestStatus] = useState<{ running: boolean; ok?: boolean; message?: string }>({ running: false });
 
   // Change PIN states
   const [newPin, setNewPin] = useState('');
@@ -239,7 +254,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     setIsSendingDriverSms(false);
-    setDriverSmsSuccessNotice(`Driver assigned! Automated SMS alerts sent to Driver (+91 ${cleanDriverPhone}) and Customer (+91 ${b.customerPhone})!`);
+    setDriverSmsSuccessNotice(`Driver assigned! Automated WhatsApp & SMS alerts sent to Driver (+91 ${cleanDriverPhone}) and Customer (+91 ${b.customerPhone})!`);
 
     setTimeout(() => {
       setDriverSmsSuccessNotice('');
@@ -438,6 +453,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setOlaTestStatus({ running: true });
     const res = await testOlaMapsCredentials(olaApiKey, olaClientId, olaClientSecret);
     setOlaTestStatus({ running: false, ok: res.ok, message: res.message });
+  };
+
+  const handleSaveWhatsAppConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    setWhatsAppConfig(waPhoneId, waAccessToken);
+    setWaSaveMsg('Meta WhatsApp Cloud API credentials saved & active across Login OTP, Booking Confirmation & Driver Assignment!');
+    setTimeout(() => setWaSaveMsg(''), 4000);
+  };
+
+  const handleResetWhatsAppConfig = () => {
+    setWaPhoneId(DEFAULT_WHATSAPP_PHONE_ID);
+    setWaAccessToken(DEFAULT_WHATSAPP_ACCESS_TOKEN);
+    setWhatsAppConfig(DEFAULT_WHATSAPP_PHONE_ID, DEFAULT_WHATSAPP_ACCESS_TOKEN);
+    setWaSaveMsg('Reset to verified Safar India Cabs WhatsApp Phone Number ID (902764639583293) & Permanent Token.');
+    setTimeout(() => setWaSaveMsg(''), 4000);
+  };
+
+  const handleTestWhatsAppMessage = async () => {
+    const clean = sanitize10DigitPhone(waTestPhone);
+    if (clean.length !== 10) {
+      setWaTestStatus({ running: false, ok: false, message: 'Please enter a valid 10-digit WhatsApp mobile number.' });
+      return;
+    }
+    setWaTestStatus({ running: true });
+    setWhatsAppConfig(waPhoneId, waAccessToken);
+    let errText = '';
+    const sent = await whatsAppService.sendTextMessage(
+      clean,
+      `✅ *Safar India Cabs - WhatsApp Cloud API Live Test*\n\nPhone Number ID: *${waPhoneId}*\nStatus: *Active & Verified*\n\nAll 5 Automated WhatsApp Flows are ready:\n1️⃣ Customer Login OTP\n2️⃣ Customer Booking Confirmation\n3️⃣ Admin New Booking Alert\n4️⃣ Driver Partner Pickup Duty Alert\n5️⃣ Customer Driver & Vehicle Details`,
+      {
+        onSuccess: () => {},
+        onError: (err) => {
+          errText = err.message;
+        }
+      }
+    );
+    setWaTestStatus({
+      running: false,
+      ok: sent,
+      message: sent
+        ? `Success! Live WhatsApp message dispatched to +91 ${clean} via Meta Graph API v20.0 (Phone ID: ${waPhoneId}).`
+        : `WhatsApp API Notice: ${errText || 'Check Meta Cloud API recipient test whitelist or token.'}`
+    });
   };
 
   return (
@@ -915,10 +973,128 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="text-[10px] text-slate-400">Generates instant digital invoice voucher</div>
                 </div>
                 <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Traccar Cloud SMS</span>
-                  <span className="text-emerald-400 font-bold">Instant SMS Triggered</span>
-                  <div className="text-[10px] text-slate-400">Sends SMS to customer & admin mobile</div>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Dual WhatsApp + SMS</span>
+                  <span className="text-emerald-400 font-bold">Instant WhatsApp & SMS Triggered</span>
+                  <div className="text-[10px] text-slate-400">Sends WhatsApp & SMS to customer & admin</div>
                 </div>
+              </div>
+            </div>
+
+            {/* Meta WhatsApp Cloud API Official Verified Panel */}
+            <div className="bg-slate-950 p-5 rounded-3xl border border-emerald-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">Meta WhatsApp Cloud API (5-Stage Automated Workflow)</h4>
+                    <p className="text-xs text-slate-400">1. Customer OTP Login · 2. Booking Confirmation · 3. Admin Alert · 4. Driver Duty Alert · 5. Driver Details to Customer</p>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
+                  Verified ID: {waPhoneId}
+                </span>
+              </div>
+
+              {waSaveMsg && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
+                  {waSaveMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveWhatsAppConfig} className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-1">
+                      WhatsApp Phone Number ID
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={waPhoneId}
+                      onChange={(e) => setWaPhoneId(e.target.value)}
+                      placeholder="902764639583293"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-1">
+                      Permanent Meta Access Token
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={waAccessToken}
+                      onChange={(e) => setWaAccessToken(e.target.value)}
+                      placeholder="EAAQJwftBnh4BSwB6..."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow transition"
+                  >
+                    Save WhatsApp Credentials
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetWhatsAppConfig}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-slate-700 transition"
+                  >
+                    Reset Official Token & Phone ID
+                  </button>
+                </div>
+              </form>
+
+              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-white block">Test Live Meta WhatsApp Cloud API Dispatch</span>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      maxLength={10}
+                      value={waTestPhone}
+                      onChange={(e) => setWaTestPhone(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Enter WhatsApp number to test"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={waTestStatus.running}
+                    onClick={handleTestWhatsAppMessage}
+                    className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 disabled:opacity-50 text-emerald-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                  >
+                    {waTestStatus.running ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sending WhatsApp...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Send Test WhatsApp</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {waTestStatus.message && (
+                  <div className={`p-3 rounded-xl text-xs font-medium ${
+                    waTestStatus.ok
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                  }`}>
+                    {waTestStatus.message}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1403,14 +1579,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              {/* Automatic Traccar Cloud SMS Notice */}
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300 space-y-1">
-                <div className="font-bold flex items-center gap-1.5 text-amber-400">
+              {/* Automatic WhatsApp Cloud API + SMS Notice */}
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-[11px] text-emerald-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-emerald-400">
                   <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Automated Traccar Cloud SMS Dispatch</span>
+                  <span>Automated WhatsApp Cloud API + SMS Dual Dispatch</span>
                 </div>
                 <p className="text-slate-300 text-[10px] leading-relaxed">
-                  Clicking below will automatically dispatch the <strong>Driver Details SMS</strong> to customer (+91 {selectedBookingForDriver.customerPhone}) AND the <strong>Pickup Duty Alert</strong> to driver (+91 {driverPhone || 'Driver'}) via Traccar Cloud Gateway.
+                  Clicking below will automatically send on <strong>WhatsApp & SMS</strong>:<br />
+                  1️⃣ <strong>Driver (+91 {driverPhone || 'Driver'})</strong>: <em>"SafarIndiaCabs Driver Partner {driverName || 'Driver'}, your Pickup is confirmed! Please timely complete the trip"</em> + full trip details.<br />
+                  2️⃣ <strong>Customer (+91 {selectedBookingForDriver.customerPhone})</strong>: Complete Driver Name, Phone, Vehicle Model & Number ({driverCarPlate || 'Reg No'}).
                 </p>
               </div>
 
@@ -1423,35 +1601,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {isSendingDriverSms ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                      <span>Dispatching SMS via Traccar Gateway...</span>
+                      <span>Sending WhatsApp & SMS to Driver & Customer...</span>
                     </>
                   ) : (
                     <>
                       <Car className="w-4 h-4 text-slate-950" />
-                      <span>Save & Send Details to Customer</span>
+                      <span>Assign Driver & Send WhatsApp + SMS</span>
                     </>
                   )}
                 </button>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => {
+                      const cleanId = String(selectedBookingForDriver.id).replace(/^#/, '');
+                      const driverDispatchText =
+                        `🚖 *SafarIndiaCabs Driver Partner ${driverName || 'Partner'}*\n\n` +
+                        `Your Pickup is confirmed! Please timely complete the trip.\n\n` +
+                        `📋 *Complete Trip Info:*\n` +
+                        `• Booking ID: *#${cleanId}*\n` +
+                        `• Customer Name: *${selectedBookingForDriver.customerName}*\n` +
+                        `• Customer Mobile: *+91 ${selectedBookingForDriver.customerPhone}*\n` +
+                        `• Pickup Location: *${selectedBookingForDriver.pickupCity}*\n` +
+                        `• Drop Location: *${selectedBookingForDriver.dropCity}*\n` +
+                        `• Pickup Date & Time: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n` +
+                        `• Assigned Vehicle: *${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Assigned'})*\n` +
+                        `• Collect Balance at Drop: *₹${selectedBookingForDriver.balanceDue}*\n\n` +
+                        `Please contact the customer promptly. Drive safely!`;
+                      const targetPhone = sanitize10DigitPhone(driverPhone);
+                      if (targetPhone.length === 10) {
+                        window.open(`https://wa.me/91${targetPhone}?text=${encodeURIComponent(driverDispatchText)}`, '_blank');
+                      }
+                    }}
+                    className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>WhatsApp Driver</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cleanId = String(selectedBookingForDriver.id).replace(/^#/, '');
                       const dispatchText = 
-                        `🚗 *SAFAR INDIA CABS — DRIVER ASSIGNED*\n\n` +
-                        `Booking ID: ${selectedBookingForDriver.id}\n` +
-                        `Driver Name: ${driverName || 'Assigned'}\n` +
-                        `Driver Phone: +91 ${driverPhone || 'Shared'}\n` +
-                        `Vehicle: ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n` +
-                        `Pickup: ${selectedBookingForDriver.pickupCity}\n` +
-                        `Date/Time: ${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}\n` +
-                        `Helpline: +917710080992`;
+                        `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\n` +
+                        `Hello *${selectedBookingForDriver.customerName}*, your ride is ready. Here are your complete driver & vehicle details:\n\n` +
+                        `👨‍✈️ *Driver Name:* ${driverName || 'Assigned'}\n` +
+                        `📞 *Driver Contact:* +91 ${driverPhone || 'Shared'}\n` +
+                        `🚙 *Vehicle Model:* ${driverVehicleModel || selectedBookingForDriver.cabName}\n` +
+                        `🔢 *Vehicle Number:* ${driverCarPlate || 'Allocated'}\n\n` +
+                        `📋 *Trip Details:*\n` +
+                        `• Booking ID: *#${cleanId}*\n` +
+                        `• Route: *${selectedBookingForDriver.pickupCity}* ➔ *${selectedBookingForDriver.dropCity}*\n` +
+                        `• Date & Time: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n` +
+                        `• Balance Payable: *₹${selectedBookingForDriver.balanceDue}*\n\n` +
+                        `📞 24/7 Helpline: +91 7710080992`;
                       window.open(`https://wa.me/91${selectedBookingForDriver.customerPhone}?text=${encodeURIComponent(dispatchText)}`, '_blank');
                     }}
                     className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
                   >
                     <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Open WhatsApp</span>
+                    <span>WhatsApp Customer</span>
                   </button>
 
                   <button

@@ -129,24 +129,38 @@ export default async function handler(req, res) {
       'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
     const waApiUrl = `https://graph.facebook.com/v20.0/${waPhoneId}/messages`;
 
+    const cleanId = String(bookingId).replace(/^#/, '');
+
     const waCustomerMessage =
-      `🚗 *Driver Assigned! - Safar India Cabs*\n\n` +
-      `Your ride is ready. Here are your driver details:\n\n` +
-      `👨✈️ Driver Name: ${driverName}\n` +
-      `📞 Contact: ${cleanDriverPhone || driverPhone}\n` +
-      `🚙 Vehicle: ${vehicle} (${regNo})\n\n` +
-      `Have a safe and happy journey with Safar India Cabs!`;
+      `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\n` +
+      `Hello *${customerName}*, your ride is ready. Here are your complete driver & vehicle details:\n\n` +
+      `👨‍✈️ *Driver Name:* ${driverName}\n` +
+      `📞 *Driver Contact:* +91 ${cleanDriverPhone || driverPhone}\n` +
+      `🚙 *Vehicle Model:* ${vehicle}\n` +
+      `🔢 *Vehicle Number:* ${regNo}\n\n` +
+      `📋 *Trip Details:*\n` +
+      `• Booking ID: *#${cleanId}*\n` +
+      `• Route: *${pickup}* ➔ *${drop}*\n` +
+      `• Date & Time: *${dateFormatted}*\n` +
+      `• Balance Payable: *₹${balance}*\n\n` +
+      `Your driver partner will contact you shortly before pickup.\n` +
+      `📞 24/7 Helpline: +91 7710080992\n` +
+      `Have a safe and happy journey with *Safar India Cabs*!`;
 
     const waDriverMessage =
-      `🚖 *New Trip Assigned - Safar India Cabs*\n\n` +
-      `Hello ${driverName},\n` +
-      `Your pickup is confirmed! Please complete the trip timely.\n\n` +
-      `📋 *Trip Info:* \n` +
-      `• Booking ID: #${String(bookingId).replace(/^#/, '')}\n` +
-      `• Customer: ${customerName} (${cleanCustomerPhone})\n` +
-      `• Pickup Location: ${pickup}\n` +
-      `• Drop Location: ${drop}\n\n` +
-      `Drive safely!`;
+      `🚖 *SafarIndiaCabs Driver Partner ${driverName}*\n\n` +
+      `Your Pickup is confirmed! Please timely complete the trip.\n\n` +
+      `📋 *Complete Trip Info:*\n` +
+      `• Booking ID: *#${cleanId}*\n` +
+      `• Customer Name: *${customerName}*\n` +
+      `• Customer Mobile: *+91 ${cleanCustomerPhone}*\n` +
+      `• Pickup Location: *${pickup}*\n` +
+      `• Drop Location: *${drop}*\n` +
+      `• Pickup Date & Time: *${dateFormatted}*\n` +
+      `• Assigned Vehicle: *${vehicle} (${regNo})*\n` +
+      `• Collect Balance at Drop: *₹${balance}*\n\n` +
+      `Please contact the customer promptly and reach pickup on time. Drive safely!\n` +
+      `📞 Dispatch Helpline: +91 7710080992`;
 
     const sendWa = (toPhone, bodyText) =>
       fetch(waApiUrl, {

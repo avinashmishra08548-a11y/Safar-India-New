@@ -115,21 +115,40 @@ export default async function handler(req, res) {
       'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
     const waApiUrl = `https://graph.facebook.com/v20.0/${waPhoneId}/messages`;
 
+    const cleanId = String(booking.id).replace(/^#/, '');
+    const addressLine = booking.pickupAddress ? `🏠 Pickup Address: ${booking.pickupAddress}\n` : '';
+
     const waCustomerMessage =
       `✅ *Booking Confirmed - Safar India Cabs*\n\n` +
-      `Booking ID: #${String(booking.id).replace(/^#/, '')}\n` +
-      `📍 Pickup: ${booking.pickupCity}\n` +
-      `🏁 Drop: ${booking.dropCity}\n` +
-      `💰 Fare: ₹${totalFare}\n\n` +
-      `Driver and vehicle details will be shared shortly. Thank you for choosing us!`;
+      `Hello *${booking.customerName || 'Traveler'}*, your cab booking is confirmed!\n\n` +
+      `📋 *Complete Booking Details:*\n` +
+      `• Booking ID: *#${cleanId}*\n` +
+      `📍 Pickup: *${booking.pickupCity}*\n` +
+      `🏁 Drop: *${booking.dropCity}*\n` +
+      `🗓️ Date & Time: *${travelDateTime}*\n` +
+      `🚕 Cab Category: *${cabClass}*\n` +
+      addressLine +
+      `\n💰 *Fare Breakdown:*\n` +
+      `• Total Fare: *₹${totalFare}*\n` +
+      `✅ Advance Paid: *₹${verifiedAdvance}*\n` +
+      `💵 Balance Payable at Trip: *₹${balance}*\n\n` +
+      `🚗 Driver and vehicle details will be shared on your WhatsApp shortly before pickup.\n` +
+      `📞 24/7 Helpline: +91 7710080992\n` +
+      `Thank you for choosing *Safar India Cabs*!`;
 
     const waAdminMessage =
       `🚨 *New Booking Alert! (Safar India Cabs)*\n\n` +
-      `Booking ID: #${String(booking.id).replace(/^#/, '')}\n` +
-      `👤 Customer: ${booking.customerName} (${customerPhone})\n` +
-      `📍 Pickup: ${booking.pickupCity}\n` +
-      `🏁 Drop: ${booking.dropCity}\n\n` +
-      `Please assign a driver from the Owner Panel immediately.`;
+      `Booking ID: *#${cleanId}*\n` +
+      `👤 Customer: *${booking.customerName}* (+91 ${customerPhone})\n` +
+      `📍 Pickup: *${booking.pickupCity}*\n` +
+      `🏁 Drop: *${booking.dropCity}*\n` +
+      addressLine +
+      `🗓️ Date & Time: *${travelDateTime}*\n` +
+      `🚕 Cab Booked: *${cabClass}*\n` +
+      `💰 Total Fare: *₹${totalFare}*\n` +
+      `✅ Advance Paid: *₹${verifiedAdvance}*\n` +
+      `💵 Balance Due: *₹${balance}*\n\n` +
+      `⚡ Booking has been updated in the Owner Panel. Please assign a driver from the Owner Panel immediately.`;
 
     const sendWa = (toPhone, bodyText) =>
       fetch(waApiUrl, {
