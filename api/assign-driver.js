@@ -1,18 +1,75 @@
 /**
  * Vercel Serverless API Route: /api/assign-driver
  * 
- * Automated Driver / Vehicle Assignment & Reassignment Notification via Traccar Local Service + Cloud Fallback
+ * Automated Driver / Vehicle Assignment & Reassignment Notification to Customer Phone via Fast2SMS
  */
 
-import { dispatchTraccarSms, sanitize10Digit } from './send-sms.js';
+const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
+const DEFAULT_KEY = '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
+
+function sanitize10Digit(num) {
+  let clean = (num || '').replace(/\D/g, '');
+  if (clean.length === 12 && clean.startsWith('91')) {
+    clean = clean.slice(2);
+  } else if (clean.length === 11 && clean.startsWith('0')) {
+    clean = clean.slice(1);
+  } else if (clean.length > 10) {
+    clean = clean.slice(-10);
+  }
+  return clean;
+}
+
+async function dispatchFast2Sms(phone, message, apiKey) {
+  const cleanPhone = sanitize10Digit(phone);
+  if (cleanPhone.length !== 10) {
+    return { success: false, reason: 'Invalid 10-digit number' };
+  }
+
+  // 1. Try POST with route 'q' (Direct wallet balance)
+  try {
+    const postRes = await fetch(FAST2SMS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'authorization': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        route: 'q',
+        message,
+        numbers: cleanPhone
+      })
+    });
+    const data = await postRes.json().catch(() => null);
+    if (data && (data.return === true || data.status_code === 200)) {
+      return { success: true, method: 'POST', data };
+    }
+  } catch (err) {
+    console.warn(`Fast2SMS POST to ${cleanPhone} notice:`, err?.message);
+  }
+
+  // 2. Fallback GET
+  try {
+    const getUrl = `${FAST2SMS_ENDPOINT}?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodeURIComponent(message)}&language=english&flash=0&numbers=${cleanPhone}`;
+    const getRes = await fetch(getUrl, { method: 'GET' });
+    const getData = await getRes.json().catch(() => null);
+    return {
+      success: getData?.return === true || getData?.status_code === 200,
+      method: 'GET',
+      data: getData
+    };
+  } catch (err) {
+    return { success: false, error: err?.message };
+  }
+}
 
 export default async function handler(req, res) {
+  // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
 
   if (req.method === 'OPTIONS') {
@@ -42,11 +99,7 @@ export default async function handler(req, res) {
       driverPhone,
       vehicleModel,
       vehicleNo,
-      registrationNumber,
-      localEndpoint,
-      localToken,
-      cloudToken,
-      token
+      registrationNumber
     } = body || {};
 
     const cleanCustomerPhone = sanitize10Digit(customerPhone);
@@ -61,38 +114,87 @@ export default async function handler(req, res) {
     const cab = cabClass || cabName || 'Commercial Cab';
     const balance = balanceAmount ?? balanceDue ?? 0;
 
+    const apiKey = process.env.FAST2SMS_API_KEY || DEFAULT_KEY;
+
     // 1. Send Pickup Alert SMS to DRIVER:
     const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${bookingId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${pickup}\nDrop: ${drop}\nDate/Time: ${dateFormatted}\nCab: ${cab}\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
 
     // 2. Send Driver Details SMS to CUSTOMER:
     const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${bookingId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${dateFormatted}\n\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : driverPhone}\nVehicle: ${vehicle} (${regNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
 
-    const smsOpts = { localEndpoint, localToken, cloudToken: cloudToken || token };
+    // Meta WhatsApp Cloud API templates (4️⃣ Trip Details to Driver & 5️⃣ Driver Details to Customer)
+    const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '902764639583293';
+    const waToken =
+      process.env.WHATSAPP_ACCESS_TOKEN ||
+      'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
+    const waApiUrl = `https://graph.facebook.com/v20.0/${waPhoneId}/messages`;
 
+    const waCustomerMessage =
+      `🚗 *Driver Assigned! - Safar India Cabs*\n\n` +
+      `Your ride is ready. Here are your driver details:\n\n` +
+      `👨✈️ Driver Name: ${driverName}\n` +
+      `📞 Contact: ${cleanDriverPhone || driverPhone}\n` +
+      `🚙 Vehicle: ${vehicle} (${regNo})\n\n` +
+      `Have a safe and happy journey with Safar India Cabs!`;
+
+    const waDriverMessage =
+      `🚖 *New Trip Assigned - Safar India Cabs*\n\n` +
+      `Hello ${driverName},\n` +
+      `Your pickup is confirmed! Please complete the trip timely.\n\n` +
+      `📋 *Trip Info:* \n` +
+      `• Booking ID: #${String(bookingId).replace(/^#/, '')}\n` +
+      `• Customer: ${customerName} (${cleanCustomerPhone})\n` +
+      `• Pickup Location: ${pickup}\n` +
+      `• Drop Location: ${drop}\n\n` +
+      `Drive safely!`;
+
+    const sendWa = (toPhone, bodyText) =>
+      fetch(waApiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${waToken}`,
+          'Content-Type': 'application/json; utf-8',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: `91${toPhone}`,
+          type: 'text',
+          text: { preview_url: false, body: bodyText }
+        })
+      }).then(r => ({ success: r.status === 200 || r.status === 201 }));
+
+    // Dispatch both SMS and WhatsApp messages in parallel
     const dispatches = [
-      dispatchTraccarSms(cleanCustomerPhone, customerMessage, smsOpts)
+      dispatchFast2Sms(cleanCustomerPhone, customerMessage, apiKey),
+      sendWa(cleanCustomerPhone, waCustomerMessage)
     ];
 
     if (cleanDriverPhone && cleanDriverPhone.length === 10) {
-      dispatches.push(dispatchTraccarSms(cleanDriverPhone, driverMessage, smsOpts));
+      dispatches.push(dispatchFast2Sms(cleanDriverPhone, driverMessage, apiKey));
+      dispatches.push(sendWa(cleanDriverPhone, waDriverMessage));
     }
 
     const results = await Promise.allSettled(dispatches);
     const customerResult = results[0]?.status === 'fulfilled' ? results[0].value : { success: false };
-    const driverResult = results[1]?.status === 'fulfilled' ? results[1].value : { success: false };
+    const waCustomerResult = results[1]?.status === 'fulfilled' ? results[1].value : { success: false };
+    const driverResult = results[2]?.status === 'fulfilled' ? results[2].value : { success: false };
+    const waDriverResult = results[3]?.status === 'fulfilled' ? results[3].value : { success: false };
 
     return res.status(200).json({
-      success: customerResult.success || driverResult.success,
+      success: customerResult.success || waCustomerResult.success || driverResult.success || waDriverResult.success,
       bookingId,
-      error: !customerResult.success ? customerResult.error : undefined,
       customer: {
         phone: cleanCustomerPhone,
-        dispatched: customerResult.success,
+        dispatched: customerResult.success || waCustomerResult.success,
+        whatsappDispatched: waCustomerResult.success,
         details: customerResult
       },
       driver: {
         phone: cleanDriverPhone,
-        dispatched: driverResult.success,
+        dispatched: driverResult.success || waDriverResult.success,
+        whatsappDispatched: waDriverResult.success,
         details: driverResult
       }
     });
