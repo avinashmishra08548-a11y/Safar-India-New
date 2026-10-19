@@ -1,20 +1,21 @@
 /**
  * Vercel Serverless API Route: /api/verify-otp
- * 
- * Secure Server-Side OTP Generation and Verification Flow
- * - Generates cryptographically secure OTP on server side
- * - Signs verification state using HMAC SHA-256 (tamper-proof, stateless across cold starts)
- * - Dispatches OTP via Meta WhatsApp Cloud API (Phone ID: 902764639583293) + Fast2SMS API
+ *
+ * Secure Server-Side OTP Generation and Multi-Channel Verification Flow:
+ * 1. Meta WhatsApp Cloud API (Official Template + Rich Text via /api/send-whatsapp)
+ *    - Works for ANY WhatsApp number even without a prior "Hi/Hello" chat session
+ * 2. Traccar SMS Gateway (Local Android Service + Cloud FCM Fallback via /api/send-sms)
+ * 3. Fast2SMS Gateway (Route OTP + Route Q Wallet POST/GET Fallback)
  */
 
 import crypto from 'crypto';
+import { sendWhatsAppCloudMessage } from './send-whatsapp.js';
+import { dispatchTraccarSms } from './send-sms.js';
 
 const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
-const DEFAULT_KEY = '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
+const DEFAULT_KEY =
+  '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
 const OTP_SECRET = process.env.OTP_SECRET || 'safar_india_cabs_secure_secret_2026_key';
-const DEFAULT_WA_PHONE_ID = '902764639583293';
-const DEFAULT_WA_TOKEN =
-  'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
 
 function sanitize10Digit(num) {
   const clean = String(num || '').replace(/\D/g, '');
@@ -31,49 +32,35 @@ function generateSignature(phone, otp, expiresAt) {
     .digest('hex');
 }
 
-async function dispatchOtpViaWhatsApp(clean10DigitPhone, otp) {
-  const waPhoneId = (process.env.WHATSAPP_PHONE_NUMBER_ID || DEFAULT_WA_PHONE_ID).trim();
-  const waToken = (process.env.WHATSAPP_ACCESS_TOKEN || DEFAULT_WA_TOKEN).trim();
-  const apiUrl = `https://graph.facebook.com/v20.0/${waPhoneId}/messages`;
-  const formattedTo = `91${clean10DigitPhone}`;
-
+async function dispatchOtpViaWhatsApp(clean10DigitPhone, otp, customerName = 'Traveler') {
   const waMessage =
     `🔐 *Safar India Cabs Verification*\n\n` +
     `Your login OTP is: *${otp}*\n` +
     `Valid for 10 minutes. Do not share this with anyone.`;
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${waToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: formattedTo,
-          type: 'text',
-          text: { preview_url: false, body: waMessage }
-        })
-      });
-
-      const data = await res.json().catch(() => null);
-      if (res.status === 200 || res.status === 201) {
-        return {
-          success: true,
-          to: formattedTo,
-          messageId: data?.messages?.[0]?.id || null
-        };
+  return sendWhatsAppCloudMessage(clean10DigitPhone, waMessage, null, null, {
+    name: 'safar_booking_pin_update',
+    language: 'en_US',
+    recipientName: customerName || 'Traveler',
+    referenceId: otp,
+    params: [customerName || 'Traveler', otp],
+    backups: [
+      {
+        name: 'safar_account_notice',
+        language: 'en_US',
+        params: [customerName || 'Traveler', otp, 'instant account login']
+      },
+      {
+        name: 'safar_ride_update',
+        language: 'en_US',
+        params: [
+          customerName || 'Traveler',
+          `OTP-${otp}`,
+          `Your Safar India Cabs verification code is ${otp}. Valid for 10 minutes.`
+        ]
       }
-    } catch (err) {
-      console.warn(`WhatsApp OTP attempt ${attempt} notice:`, err?.message);
-    }
-  }
-
-  return { success: false, to: formattedTo };
+    ]
+  });
 }
 
 async function dispatchOtpViaFast2Sms(phone, otp, apiKey) {
@@ -137,7 +124,6 @@ async function dispatchOtpViaFast2Sms(phone, otp, apiKey) {
 }
 
 export default async function handler(req, res) {
-  // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -157,11 +143,13 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const { action, phone, otp, token } = body || {};
+    const { action, phone, otp, token, name } = body || {};
 
     const cleanPhone = sanitize10Digit(phone);
     if (!cleanPhone || cleanPhone.length !== 10) {
-      return res.status(400).json({ success: false, error: 'Valid 10-digit Indian phone number required' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'Valid 10-digit Indian phone number required' });
     }
 
     const apiKey = process.env.FAST2SMS_API_KEY || DEFAULT_KEY;
@@ -174,13 +162,22 @@ export default async function handler(req, res) {
       const encodedPayload = Buffer.from(generatedOtp, 'utf8').toString('base64');
       const sessionToken = `${signature}.${expiresAt}.${cleanPhone}.${encodedPayload}`;
 
-      const [dispatchResult, waResult] = await Promise.allSettled([
+      const smsText = `🔐 Safar India Cabs Verification OTP: ${generatedOtp}. Valid for 10 minutes. Do not share this code with anyone.`;
+
+      const [fast2smsResult, traccarResult, waResult] = await Promise.allSettled([
         dispatchOtpViaFast2Sms(cleanPhone, generatedOtp, apiKey),
-        dispatchOtpViaWhatsApp(cleanPhone, generatedOtp)
+        dispatchTraccarSms(cleanPhone, smsText),
+        dispatchOtpViaWhatsApp(cleanPhone, generatedOtp, name || 'Traveler')
       ]);
 
-      const smsDelivered = dispatchResult.status === 'fulfilled' && Boolean(dispatchResult.value?.success);
+      const fast2smsOk =
+        fast2smsResult.status === 'fulfilled' && Boolean(fast2smsResult.value?.success);
+      const traccarOk =
+        traccarResult.status === 'fulfilled' && Boolean(traccarResult.value?.success);
+      const smsDelivered = fast2smsOk || traccarOk;
       const waDelivered = waResult.status === 'fulfilled' && Boolean(waResult.value?.success);
+      const waTemplateDelivered =
+        waResult.status === 'fulfilled' && Boolean(waResult.value?.templateDispatched);
 
       return res.status(200).json({
         success: true,
@@ -188,6 +185,7 @@ export default async function handler(req, res) {
         token: sessionToken,
         expiresAt,
         waDelivered,
+        waTemplateDelivered,
         smsDelivered,
         delivered: smsDelivered || waDelivered
       });
@@ -196,11 +194,16 @@ export default async function handler(req, res) {
     // ACTION: VERIFY OTP
     if (action === 'verify') {
       if (!otp || typeof otp !== 'string' || otp.trim().length !== 4) {
-        return res.status(400).json({ success: false, error: 'Please enter a 4-digit verification code' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'Please enter a 4-digit verification code' });
       }
 
       if (!token || typeof token !== 'string' || !token.includes('.')) {
-        return res.status(400).json({ success: false, error: 'Session expired or invalid. Please request a new code.' });
+        return res.status(400).json({
+          success: false,
+          error: 'Session expired or invalid. Please request a new code.'
+        });
       }
 
       const parts = token.split('.');
@@ -209,18 +212,26 @@ export default async function handler(req, res) {
       const tokenPhone = parts[2];
 
       if (tokenPhone !== cleanPhone) {
-        return res.status(400).json({ success: false, error: 'Phone number mismatch. Request a new code.' });
+        return res
+          .status(400)
+          .json({ success: false, error: 'Phone number mismatch. Request a new code.' });
       }
 
       if (Date.now() > expiresAt) {
-        return res.status(400).json({ success: false, error: 'Verification code has expired. Please request a new code.' });
+        return res.status(400).json({
+          success: false,
+          error: 'Verification code has expired. Please request a new code.'
+        });
       }
 
       const inputCleanOtp = otp.trim();
       const calculatedSignature = generateSignature(cleanPhone, inputCleanOtp, expiresAt);
 
       if (calculatedSignature !== expectedSignature) {
-        return res.status(400).json({ success: false, error: 'Incorrect verification code. Please check your WhatsApp or SMS.' });
+        return res.status(400).json({
+          success: false,
+          error: 'Incorrect verification code. Please check your WhatsApp or SMS.'
+        });
       }
 
       return res.status(200).json({
@@ -230,7 +241,9 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(400).json({ success: false, error: 'Invalid action. Supported actions: send, verify' });
+    return res
+      .status(400)
+      .json({ success: false, error: 'Invalid action. Supported actions: send, verify' });
   } catch (err) {
     console.error('Error in /api/verify-otp:', err);
     return res.status(500).json({

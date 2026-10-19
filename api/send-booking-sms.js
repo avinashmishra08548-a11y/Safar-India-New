@@ -1,14 +1,18 @@
 /**
  * Vercel Serverless API Route: /api/send-booking-sms
- * 
- * Automated Dual Fast2SMS Dispatch with Professional Clean Templates:
- * 1. Customer Booking Confirmation SMS
- * 2. Instant Admin New Booking Alert SMS (+91 7710080992)
+ *
+ * Automated Dual Booking Notification System:
+ * 1. Customer Booking Confirmation (WhatsApp Template + Rich Text + Traccar SMS + Fast2SMS)
+ * 2. Instant Admin New Booking Alert (+91 7710080992)
  */
+
+import { sendWhatsAppCloudMessage } from './send-whatsapp.js';
+import { dispatchTraccarSms } from './send-sms.js';
 
 export const ADMIN_PHONE_NUMBER = '7710080992';
 const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
-const DEFAULT_KEY = '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
+const DEFAULT_KEY =
+  '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
 
 function sanitize10Digit(num) {
   let clean = (num || '').replace(/\D/g, '');
@@ -33,7 +37,7 @@ async function dispatchFast2Sms(phone, message, apiKey) {
     const postRes = await fetch(FAST2SMS_ENDPOINT, {
       method: 'POST',
       headers: {
-        'authorization': apiKey,
+        authorization: apiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -66,7 +70,6 @@ async function dispatchFast2Sms(phone, message, apiKey) {
 }
 
 export default async function handler(req, res) {
-  // CORS configuration
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -97,30 +100,27 @@ export default async function handler(req, res) {
     const adminPhone = ADMIN_PHONE_NUMBER;
 
     const cabClass = booking.cabClass || booking.cabName || 'Commercial Cab';
-    const totalFare = booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
-    const verifiedAdvance = booking.paidAmount ?? booking.verifiedAdvance ?? booking.advancePaid ?? 0;
+    const totalFare =
+      booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
+    const verifiedAdvance =
+      booking.paidAmount ?? booking.verifiedAdvance ?? booking.advancePaid ?? 0;
     const balance = booking.balanceAmount ?? booking.balance ?? booking.balanceDue ?? 0;
-    const travelDateTime = booking.travelDateTime || `${booking.pickupDate} at ${booking.pickupTime}`;
-
-    // 1. Send Booking Confirmation SMS to CUSTOMER:
-    const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${verifiedAdvance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
-
-    // 2. Send Instant New Booking Alert SMS to ADMIN (+917710080992):
-    const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${booking.id}\nCustomer: ${booking.customerName}\nPhone: +91${customerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${verifiedAdvance}\nBalance Due: ₹${balance}`;
-
-    // Execute both Fast2SMS and Meta WhatsApp Cloud API dispatches in parallel
-    const waPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || '902764639583293';
-    const waToken =
-      process.env.WHATSAPP_ACCESS_TOKEN ||
-      'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
-    const waApiUrl = `https://graph.facebook.com/v20.0/${waPhoneId}/messages`;
-
+    const travelDateTime =
+      booking.travelDateTime || `${booking.pickupDate} at ${booking.pickupTime}`;
     const cleanId = String(booking.id).replace(/^#/, '');
+    const customerName = booking.customerName || 'Traveler';
+
+    // 1. SMS Templates
+    const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: #${cleanId}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${verifiedAdvance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
+
+    const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: #${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${verifiedAdvance}\nBalance Due: ₹${balance}`;
+
+    // 2. WhatsApp Rich Text Templates
     const addressLine = booking.pickupAddress ? `🏠 Pickup Address: ${booking.pickupAddress}\n` : '';
 
     const waCustomerMessage =
       `✅ *Booking Confirmed - Safar India Cabs*\n\n` +
-      `Hello *${booking.customerName || 'Traveler'}*, your cab booking is confirmed!\n\n` +
+      `Hello *${customerName}*, your cab booking is confirmed!\n\n` +
       `📋 *Complete Booking Details:*\n` +
       `• Booking ID: *#${cleanId}*\n` +
       `📍 Pickup: *${booking.pickupCity}*\n` +
@@ -139,7 +139,7 @@ export default async function handler(req, res) {
     const waAdminMessage =
       `🚨 *New Booking Alert! (Safar India Cabs)*\n\n` +
       `Booking ID: *#${cleanId}*\n` +
-      `👤 Customer: *${booking.customerName}* (+91 ${customerPhone})\n` +
+      `👤 Customer: *${customerName}* (+91 ${customerPhone})\n` +
       `📍 Pickup: *${booking.pickupCity}*\n` +
       `🏁 Drop: *${booking.dropCity}*\n` +
       addressLine +
@@ -150,50 +150,111 @@ export default async function handler(req, res) {
       `💵 Balance Due: *₹${balance}*\n\n` +
       `⚡ Booking has been updated in the Owner Panel. Please assign a driver from the Owner Panel immediately.`;
 
-    const sendWa = (toPhone, bodyText) =>
-      fetch(waApiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${waToken}`,
-          'Content-Type': 'application/json; utf-8',
-          Accept: 'application/json'
+    // 3. Official Meta WhatsApp Template Configurations
+    const customerTemplateConfig = {
+      name: 'safar_booking_confirmed_v1',
+      language: 'en_US',
+      recipientName: customerName,
+      referenceId: cleanId,
+      params: [
+        customerName,
+        cleanId,
+        booking.pickupCity,
+        booking.dropCity,
+        travelDateTime,
+        cabClass,
+        String(totalFare),
+        String(verifiedAdvance),
+        String(balance)
+      ],
+      backups: [
+        {
+          name: 'safar_lib_order_confirmed',
+          language: 'en_US',
+          params: [
+            customerName,
+            `#${cleanId} (${booking.pickupCity} to ${booking.dropCity} on ${travelDateTime}, Cab: ${cabClass})`
+          ]
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: `91${toPhone}`,
-          type: 'text',
-          text: { preview_url: false, body: bodyText }
-        })
-      }).then(r => ({ success: r.status === 200 || r.status === 201 }));
+        {
+          name: 'safar_ride_update',
+          language: 'en_US',
+          params: [
+            customerName,
+            cleanId,
+            `Route: ${booking.pickupCity} to ${booking.dropCity} on ${travelDateTime} | Cab: ${cabClass} | Total: Rs. ${totalFare} (Paid: Rs. ${verifiedAdvance}, Balance: Rs. ${balance})`
+          ]
+        }
+      ]
+    };
 
-    const [customerRes, adminRes, waCustomerRes, waAdminRes] = await Promise.allSettled([
+    const adminTemplateConfig = {
+      name: 'safar_admin_booking_alert_v1',
+      language: 'en_US',
+      recipientName: 'Fleet Admin',
+      referenceId: cleanId,
+      params: [
+        cleanId,
+        customerName,
+        `+91 ${customerPhone}`,
+        booking.pickupCity,
+        booking.dropCity,
+        travelDateTime,
+        cabClass,
+        String(totalFare),
+        String(verifiedAdvance),
+        String(balance)
+      ]
+    };
+
+    const [
+      custFast2Sms,
+      custTraccar,
+      admFast2Sms,
+      admTraccar,
+      waCustomerRes,
+      waAdminRes
+    ] = await Promise.allSettled([
       dispatchFast2Sms(customerPhone, customerMessage, apiKey),
+      dispatchTraccarSms(customerPhone, customerMessage),
       dispatchFast2Sms(adminPhone, adminMessage, apiKey),
-      sendWa(customerPhone, waCustomerMessage),
-      sendWa(adminPhone, waAdminMessage)
+      dispatchTraccarSms(adminPhone, adminMessage),
+      sendWhatsAppCloudMessage(
+        customerPhone,
+        waCustomerMessage,
+        null,
+        null,
+        customerTemplateConfig
+      ),
+      sendWhatsAppCloudMessage(adminPhone, waAdminMessage, null, null, adminTemplateConfig)
     ]);
 
-    const customerResult = customerRes.status === 'fulfilled' ? customerRes.value : { success: false };
-    const adminResult = adminRes.status === 'fulfilled' ? adminRes.value : { success: false };
-    const waCustOk = waCustomerRes.status === 'fulfilled' && waCustomerRes.value?.success;
-    const waAdmOk = waAdminRes.status === 'fulfilled' && waAdminRes.value?.success;
+    const customerSmsOk =
+      (custFast2Sms.status === 'fulfilled' && Boolean(custFast2Sms.value?.success)) ||
+      (custTraccar.status === 'fulfilled' && Boolean(custTraccar.value?.success));
+    const adminSmsOk =
+      (admFast2Sms.status === 'fulfilled' && Boolean(admFast2Sms.value?.success)) ||
+      (admTraccar.status === 'fulfilled' && Boolean(admTraccar.value?.success));
+    const waCustOk =
+      waCustomerRes.status === 'fulfilled' && Boolean(waCustomerRes.value?.success);
+    const waAdmOk = waAdminRes.status === 'fulfilled' && Boolean(waAdminRes.value?.success);
 
     return res.status(200).json({
       success: true,
-      message: 'Dual Fast2SMS & Meta WhatsApp Cloud API notifications processed',
+      message:
+        'Multi-channel Meta WhatsApp (Template + Text), Traccar SMS & Fast2SMS notifications processed',
       bookingId: booking.id,
       customer: {
         phone: customerPhone,
-        dispatched: customerResult.success || waCustOk,
-        whatsappDispatched: waCustOk,
-        details: customerResult
+        dispatched: customerSmsOk || waCustOk,
+        smsDispatched: customerSmsOk,
+        whatsappDispatched: waCustOk
       },
       admin: {
         phone: adminPhone,
-        dispatched: adminResult.success || waAdmOk,
-        whatsappDispatched: waAdmOk,
-        details: adminResult
+        dispatched: adminSmsOk || waAdmOk,
+        smsDispatched: adminSmsOk,
+        whatsappDispatched: waAdmOk
       }
     });
   } catch (err) {
