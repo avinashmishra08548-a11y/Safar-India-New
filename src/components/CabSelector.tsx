@@ -4,17 +4,14 @@ import {
   Briefcase, 
   Snowflake, 
   CheckCircle2, 
-  Info, 
   ChevronRight, 
   Sparkles,
   Navigation,
-  ShieldCheck,
   Receipt,
-  Mountain,
-  X
+  Mountain
 } from 'lucide-react';
 import { CabVehicle, TripType } from '../types';
-import { CABS_FLEET, INCLUSIONS_EXCLUSIONS } from '../data/cabsFleet';
+import { CABS_FLEET } from '../data/cabsFleet';
 import { computeTripFare, formatINR, FareCalculationResult } from '../utils/fareCalculator';
 
 interface CabSelectorProps {
@@ -40,23 +37,16 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
   pickupDate,
   returnDate,
   localPackageId,
-  includeTolls,
   onToggleIncludeTolls,
   onSelectCab
 }) => {
-  const [localIncludeTolls, setLocalIncludeTolls] = useState<boolean>(includeTolls);
-  const [selectedCabForInfo, setSelectedCabForInfo] = useState<{
-    cab: CabVehicle;
-    fare: FareCalculationResult;
-  } | null>(null);
+  // Both modes include Toll + State Tax automatically; mode tab switches between Best Price summary and Base Fare + Toll + State Tax view
+  const [selectedFareOption, setSelectedFareOption] = useState<'best_price' | 'base_plus_toll_state'>('best_price');
 
-  const effectiveIncludeTolls =
-    onToggleIncludeTolls !== undefined ? includeTolls : localIncludeTolls;
-
-  const handleTollModeChange = (val: boolean) => {
-    setLocalIncludeTolls(val);
+  const handleSelectFareOption = (mode: 'best_price' | 'base_plus_toll_state') => {
+    setSelectedFareOption(mode);
     if (onToggleIncludeTolls) {
-      onToggleIncludeTolls(val);
+      onToggleIncludeTolls(true);
     }
   };
 
@@ -70,7 +60,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
     pickupDate,
     returnDate,
     localPackageId,
-    includeTolls: effectiveIncludeTolls
+    includeTolls: true
   });
 
   const getCategoryTitle = (cab: CabVehicle) => {
@@ -163,21 +153,21 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           </div>
         </div>
 
-        {/* SafarIndiaCabs Pricing Mode Switcher: All-Inclusive vs Base Fare (Tolls at Actuals) */}
+        {/* SafarIndiaCabs Fare Options: Best Price (Toll + State Tax Included) & Base Fare + Toll + State Tax */}
         {tripType !== 'local' && (
           <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <Receipt className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Select SafarIndiaCabs Toll &amp; State Tax Fare Mode:</span>
+              <span>SafarIndiaCabs All-Inclusive Fare Option:</span>
             </div>
-            <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 type="button"
-                onClick={() => handleTollModeChange(true)}
+                onClick={() => handleSelectFareOption('best_price')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  effectiveIncludeTolls
+                  selectedFareOption === 'best_price'
                     ? 'bg-[#F59E0B] text-slate-950 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    : 'text-slate-700 hover:text-slate-950'
                 }`}
               >
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
@@ -185,14 +175,15 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => handleTollModeChange(false)}
+                onClick={() => handleSelectFareOption('base_plus_toll_state')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                  !effectiveIncludeTolls
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                  selectedFareOption === 'base_plus_toll_state'
+                    ? 'bg-[#F59E0B] text-slate-950 shadow-2xs'
+                    : 'text-slate-700 hover:text-slate-950'
                 }`}
               >
-                <span>Base Fare (Pay Toll at Actuals)</span>
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Base Fare + Toll + State Tax</span>
               </button>
             </div>
           </div>
@@ -211,8 +202,10 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             pickupDate,
             returnDate,
             localPackageId,
-            includeTolls: effectiveIncludeTolls
+            includeTolls: true
           });
+
+          const baseFareWithoutTolls = Math.max(0, fare.totalFare - fare.tollsAndTaxes);
 
           return (
             <div
@@ -231,7 +224,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               )}
 
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                {/* Left Side: Vehicle Name, Models, Seats/Bags Badges & SafarIndiaCabs 4-Pillar Fare Specs */}
+                {/* Left Side: Vehicle Name, Models, Seats/Bags Badges & SafarIndiaCabs Specs */}
                 <div className="space-y-3 flex-1">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -247,7 +240,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                     </p>
                   </div>
 
-                  {/* Seats | Bags | AC | Fare Breakup Link */}
+                  {/* Seats | Bags | AC | Best Price Toll + State Tax Included Badge */}
                   <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
                     <span className="inline-flex items-center gap-1.5 font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
                       <Users className="w-3.5 h-3.5 text-slate-500" />
@@ -264,17 +257,13 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       <span>AC Cab</span>
                     </span>
 
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCabForInfo({ cab, fare })}
-                      className="text-xs text-amber-700 hover:text-amber-800 underline underline-offset-4 font-bold ml-1 inline-flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <Info className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Fare Breakup &amp; Inclusions</span>
-                    </button>
+                    <span className="inline-flex items-center gap-1 font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Best Price (Toll + State Tax Included)</span>
+                    </span>
                   </div>
 
-                  {/* SafarIndiaCabs Signature Spec Grid: Included Km | Extra Fare/Km | Driver Charges | Night & Toll */}
+                  {/* SafarIndiaCabs Signature Spec Grid: Included Km | Extra Fare/Km | Base Fare | Toll + State Tax */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                     <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
                       <span className="text-[10px] text-slate-500 font-semibold block">Included Km</span>
@@ -291,27 +280,54 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                      <span className="text-[10px] text-slate-500 font-semibold block">Driver &amp; Night</span>
-                      <span className="text-xs font-extrabold text-emerald-700">
-                        Included (₹0 Extra)
+                      <span className="text-[10px] text-slate-500 font-semibold block">Base Fare</span>
+                      <span className="text-xs font-extrabold text-slate-900">
+                        {formatINR(baseFareWithoutTolls)}
                       </span>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
                       <span className="text-[10px] text-slate-500 font-semibold block">
-                        Toll &amp; {fare.statePermitBreakdown.length > 0 ? `${fare.statePermitBreakdown.length} State Permit${fare.statePermitBreakdown.length > 1 ? 's' : ''}` : 'State Tax'}
+                        Toll + State Tax
                       </span>
-                      {effectiveIncludeTolls ? (
-                        <span className="text-xs font-extrabold text-emerald-700">
-                          Included ({formatINR(fare.tollsAndTaxes)})
-                        </span>
-                      ) : (
-                        <span className="text-xs font-extrabold text-amber-700">
-                          Extra (Est. {formatINR(fare.estimatedTollsAndTaxes)})
-                        </span>
-                      )}
+                      <span className="text-xs font-extrabold text-emerald-700">
+                        Included ({formatINR(fare.tollsAndTaxes)})
+                      </span>
                     </div>
                   </div>
+
+                  {/* Direct Base Fare + Toll + State Tax & Multi-State Permit Auto-Deduct Strip */}
+                  {tripType !== 'local' && (
+                    <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl px-3 py-2 space-y-1.5 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-extrabold text-slate-900">
+                          Base Fare ({formatINR(baseFareWithoutTolls)}) + Toll ({formatINR(fare.highwayToll)}) + State Tax ({formatINR(fare.statePermitTax)})
+                        </span>
+                        <span className="font-mono font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
+                          = {formatINR(fare.totalFare)} (All Included ✓)
+                        </span>
+                      </div>
+
+                      {fare.statePermitBreakdown.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-amber-200/60 text-[11px]">
+                          <span className="font-bold text-slate-700">
+                            🛂 State Tax Auto-Deducted ({fare.stateRoutePath.join(' ➔ ')}):
+                          </span>
+                          {fare.statePermitBreakdown.map((perm, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 bg-white border border-amber-200 text-slate-800 px-2 py-0.5 rounded-md font-bold text-[10px]"
+                            >
+                              <span>
+                                {perm.state} ({perm.role === 'transit' ? 'Transit' : 'Destination'}):
+                              </span>
+                              <span className="font-mono text-emerald-700">{formatINR(perm.taxAmount)} ✓</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Right Side: Crossed-Out MRP + Final Fare + Per KM Rate + Book Cab CTA */}
@@ -328,7 +344,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                         ₹{fare.ratePerKm}/km
                       </span>
                       <span className="text-[10px] text-slate-500 font-semibold">
-                        (Incl. 5% GST)
+                        (Toll + State Tax Incl.)
                       </span>
                     </div>
                     <div className="text-[11px] text-emerald-700 font-bold pt-0.5">
@@ -350,199 +366,6 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           );
         })}
       </div>
-
-      {/* 3. SAFARINDIACABS DETAILED FARE BREAKUP & INCLUSIONS MODAL */}
-      {selectedCabForInfo && (
-        <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedCabForInfo(null);
-          }}
-        >
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 sm:p-6 space-y-4 shadow-2xl relative animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider font-black text-amber-600 block">
-                  SafarIndiaCabs Transparent Fare Sheet
-                </span>
-                <h4 className="text-base font-extrabold text-[#0F172A]">
-                  {selectedCabForInfo.cab.name}
-                </h4>
-                <p className="text-xs text-slate-500 font-medium">
-                  {selectedCabForInfo.cab.models}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedCabForInfo(null)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl bg-slate-100 transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Itemized SafarIndiaCabs Fare Components */}
-            <div className="space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-600">
-                  Included Package Distance ({selectedCabForInfo.fare.billedDistanceKm} KM × ₹
-                  {selectedCabForInfo.fare.ratePerKm}/km):
-                </span>
-                <span className="font-mono font-bold text-[#0F172A]">
-                  {formatINR(
-                    selectedCabForInfo.fare.baseFare - selectedCabForInfo.fare.hillStationCharge
-                  )}
-                </span>
-              </div>
-
-              {selectedCabForInfo.fare.hillStationCharge > 0 && (
-                <div className="flex justify-between py-1 border-b border-slate-200/60">
-                  <span className="text-slate-600">Hill Terrain &amp; Ghat AC Allowance:</span>
-                  <span className="font-mono font-bold text-[#0F172A]">
-                    {formatINR(selectedCabForInfo.fare.hillStationCharge)}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-600">
-                  Driver Allowance / Bata ({selectedCabForInfo.fare.daysCount} Day
-                  {selectedCabForInfo.fare.daysCount > 1 ? 's' : ''}):
-                </span>
-                <span className="font-mono font-bold text-emerald-700">
-                  Included ({formatINR(selectedCabForInfo.fare.driverAllowance)})
-                </span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-600">Night Driving Charges (10 PM – 6 AM):</span>
-                <span className="font-mono font-bold text-emerald-700">₹0 (Included)</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-600">
-                  Highway FASTag Toll ({selectedCabForInfo.fare.expresswayName}):
-                </span>
-                <span className="font-mono font-bold text-[#0F172A]">
-                  {effectiveIncludeTolls
-                    ? `${formatINR(selectedCabForInfo.fare.highwayToll)} (Included)`
-                    : `At Actuals (Est. ${formatINR(selectedCabForInfo.fare.highwayToll)})`}
-                </span>
-              </div>
-
-              {/* Multi-State En-Route & Destination Permit Tax Breakdown */}
-              <div className="py-1.5 border-b border-slate-200/60 space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-700 font-bold">
-                    State Border Entry Permits ({selectedCabForInfo.fare.stateRoutePath.join(' ➔ ')}):
-                  </span>
-                  <span className="font-mono font-bold text-[#0F172A]">
-                    {selectedCabForInfo.fare.statePermitTax === 0
-                      ? '₹0 (Same State)'
-                      : effectiveIncludeTolls
-                      ? `${formatINR(selectedCabForInfo.fare.statePermitTax)} (Included)`
-                      : `At Actuals (Est. ${formatINR(selectedCabForInfo.fare.statePermitTax)})`}
-                  </span>
-                </div>
-
-                {selectedCabForInfo.fare.statePermitBreakdown.length > 0 && (
-                  <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-2.5 space-y-1">
-                    {selectedCabForInfo.fare.statePermitBreakdown.map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-[11px]">
-                        <span className="text-slate-700 font-medium">
-                          • {item.label}:
-                        </span>
-                        <span className="font-mono font-bold text-emerald-800">
-                          {effectiveIncludeTolls
-                            ? `${formatINR(item.taxAmount)} (Auto-Deducted ✓)`
-                            : formatINR(item.taxAmount)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-200/60">
-                <span className="text-slate-600">5% Commercial Transport GST:</span>
-                <span className="font-mono font-bold text-[#0F172A]">
-                  {formatINR(selectedCabForInfo.fare.gstAmount)}
-                </span>
-              </div>
-
-              <div className="flex justify-between py-1.5 pt-2 text-sm font-black border-t border-slate-300">
-                <span className="text-[#0F172A]">Total Payable Fare:</span>
-                <span className="font-mono text-amber-600 text-base">
-                  {formatINR(selectedCabForInfo.fare.totalFare)}
-                </span>
-              </div>
-
-              <div className="flex justify-between py-1.5 text-xs bg-amber-50 p-2.5 rounded-xl text-slate-900 border border-amber-200">
-                <span className="font-bold">Pay 20% Advance Now to Confirm:</span>
-                <span className="font-mono font-black text-amber-800">
-                  {formatINR(selectedCabForInfo.fare.advanceFare)}
-                </span>
-              </div>
-
-              <div className="flex justify-between py-1 text-xs px-2 text-slate-600">
-                <span>Balance Payable to Driver during Trip:</span>
-                <span className="font-mono font-bold text-[#0F172A]">
-                  {formatINR(selectedCabForInfo.fare.balanceDue)}
-                </span>
-              </div>
-            </div>
-
-            {/* Extra KM & Waiting Rules */}
-            <div className="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-3 text-xs space-y-1">
-              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-blue-600" />
-                <span>SafarIndiaCabs Extra Usage Policy</span>
-              </div>
-              <p className="text-[11px] text-slate-600">
-                • Extra distance beyond <strong>{selectedCabForInfo.fare.billedDistanceKm} KM</strong> is
-                charged at <strong>₹{selectedCabForInfo.fare.extraKmRate}/KM</strong>.
-              </p>
-              <p className="text-[11px] text-slate-600">
-                • Free pickup waiting up to 45 mins; thereafter ₹{selectedCabForInfo.fare.extraHourRate}/hr.
-              </p>
-            </div>
-
-            {/* Inclusions & Exclusions */}
-            <div className="space-y-2 text-xs text-slate-600">
-              <div className="font-bold text-[#0F172A] flex items-center gap-1 text-[11px] uppercase tracking-wider">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Inclusions &amp; Terms</span>
-              </div>
-              <ul className="space-y-1 text-[11px] text-slate-600 list-disc pl-4">
-                {INCLUSIONS_EXCLUSIONS.inclusions.map((inc, i) => (
-                  <li key={i}>{inc}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setSelectedCabForInfo(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const chosen = selectedCabForInfo;
-                  setSelectedCabForInfo(null);
-                  onSelectCab(chosen.cab, chosen.fare);
-                }}
-                className="flex-1 py-2.5 bg-[#F59E0B] hover:bg-amber-500 text-slate-950 rounded-xl text-xs font-black transition cursor-pointer"
-              >
-                Proceed to Book
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -771,10 +771,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           </div>
         ) : (
-          /* Airport details or Highway inclusions toggle */
+          /* Airport details or Highway inclusions badge */
           <div>
             <label htmlFor={activeMainCategory === 'airport' ? 'booking-airport-terminal' : 'booking-include-tolls'} className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              {activeMainCategory === 'airport' ? 'Airport Terminal / Flight No.' : 'Toll Taxes Preference'}
+              {activeMainCategory === 'airport' ? 'Airport Terminal / Flight No.' : 'Fare Mode (All-Inclusive)'}
             </label>
             {activeMainCategory === 'airport' ? (
               <input
@@ -788,17 +788,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
               />
             ) : (
-              <label htmlFor="booking-include-tolls" className="flex items-center h-[38px] px-3 bg-slate-50 rounded-xl border border-slate-300 text-xs text-slate-700 cursor-pointer hover:bg-slate-100 transition">
-                <input
-                  id="booking-include-tolls"
-                  name="includeTolls"
-                  type="checkbox"
-                  checked={includeTolls}
-                  onChange={(e) => setIncludeTolls(e.target.checked)}
-                  className="rounded border-slate-300 text-amber-500 focus:ring-amber-400 mr-2"
-                />
-                <span className="font-semibold text-slate-800">Include Highway Tolls & State Tax</span>
-              </label>
+              <div
+                id="booking-include-tolls"
+                onClick={() => setIncludeTolls(true)}
+                className="flex items-center h-[38px] px-3 bg-amber-50/80 rounded-xl border border-amber-300 text-xs text-slate-900 font-bold gap-1.5"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="truncate">Best Price (Toll + State Tax Included)</span>
+              </div>
             )}
           </div>
         )}

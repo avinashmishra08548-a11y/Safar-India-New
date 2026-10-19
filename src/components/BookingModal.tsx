@@ -87,10 +87,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [gstNumber, setGstNumber] = useState(currentUser?.gstNumber || '');
   const [gstCompanyName, setGstCompanyName] = useState(currentUser?.companyName || '');
 
-  // CabBazar Toll Mode & Optional Add-Ons
-  const [includeTollsState, setIncludeTollsState] = useState<boolean>(
-    fareDetails.tollsAndTaxes > 0
-  );
+  // SafarIndiaCabs Best Price (Toll + State Tax Included)
+  const [includeTollsState] = useState<boolean>(true);
   const [addonCarrier, setAddonCarrier] = useState(false);
   const [addonAssuredModel, setAddonAssuredModel] = useState(false);
   const [addonPet, setAddonPet] = useState(false);
@@ -378,27 +376,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Transparent SafarIndiaCabs Itemized Pill Strip */}
-          <div className="pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
-            <span>
-              Base + Bata: <strong>{formatINR(activeFare.baseFare + activeFare.driverAllowance)}</strong>
+          {/* Transparent SafarIndiaCabs Base Fare + Toll + State Tax Strip */}
+          <div className="pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-700">
+            <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+              Best Price (Toll + State Tax Included)
             </span>
-            <span>·</span>
             <span>
-              Night Fee: <strong className="text-emerald-700">₹0 (Included)</strong>
+              Base Fare: <strong>{formatINR(Math.max(0, activeFare.totalFare - activeFare.tollsAndTaxes))}</strong>
             </span>
-            <span>·</span>
+            <span>+</span>
             <span>
-              FASTag Toll:{' '}
-              <strong className={includeTollsState ? 'text-emerald-700' : 'text-amber-700'}>
-                {includeTollsState
-                  ? `${formatINR(activeFare.highwayToll)} (Included)`
-                  : `Est. ${formatINR(activeFare.highwayToll)}`}
-              </strong>
+              Toll: <strong className="text-emerald-700">{formatINR(activeFare.highwayToll)} (Included)</strong>
             </span>
-            <span>·</span>
+            <span>+</span>
             <span>
-              5% GST: <strong>{formatINR(activeFare.gstAmount)}</strong>
+              State Tax: <strong className="text-emerald-700">{formatINR(activeFare.statePermitTax)} (Included)</strong>
             </span>
           </div>
 
@@ -602,29 +594,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             )}
           </div>
-          {/* SafarIndiaCabs Optional Add-Ons & Toll Inclusion Toggle */}
+          {/* SafarIndiaCabs Optional Add-Ons & Best Price Toll + State Tax Included */}
           <div className="pt-2 space-y-2.5">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-              SafarIndiaCabs Toll Option &amp; Optional Trip Add-Ons
+              SafarIndiaCabs Fare Mode &amp; Optional Trip Add-Ons
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
               {tripType !== 'local' && (
-                <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={includeTollsState}
-                      onChange={(e) => setIncludeTollsState(e.target.checked)}
-                      className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
-                    />
-                    <span className="font-semibold text-slate-800">
-                      Include Toll &amp; State Tax
-                    </span>
+                <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70">
+                  <span className="font-bold text-emerald-950">
+                    ✓ Best Price (Toll + State Tax Included)
                   </span>
                   <span className="font-mono font-bold text-emerald-700">
-                    +{formatINR(activeFare.estimatedTollsAndTaxes)}
+                    Included ({formatINR(activeFare.tollsAndTaxes)})
                   </span>
-                </label>
+                </div>
               )}
 
               <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
