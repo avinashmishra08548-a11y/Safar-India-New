@@ -543,8 +543,72 @@ export function resolveNormalizedRazorpayCredentials(env = process.env, clientPu
   };
 }
 
+const SERVER_DAILY_ROUTE_HUB_KEYWORDS = [
+  'delhi', 'newdelhi', 'noida', 'greaternoida', 'gurgaon', 'gurugram', 'ghaziabad', 'faridabad',
+  'agra', 'mathura', 'vrindavan', 'jaipur', 'chandigarh', 'mohali', 'zirakpur', 'panchkula',
+  'ambala', 'panipat', 'karnal', 'sonipat', 'kurukshetra', 'haridwar', 'rishikesh', 'dehradun',
+  'lucknow', 'kanpur', 'ayodhya', 'varanasi', 'prayagraj', 'allahabad', 'amritsar', 'ludhiana',
+  'jalandhar', 'patiala', 'mumbai', 'navimumbai', 'thane', 'pune', 'lonavala', 'shirdi', 'nashik',
+  'ahmedabad', 'surat', 'vadodara', 'gandhinagar', 'udaipur', 'bangalore', 'bengaluru', 'mysore',
+  'mysuru', 'chennai', 'pondicherry', 'puducherry', 'hyderabad', 'secunderabad', 'tirupati',
+  'kolkata', 'howrah', 'indore', 'bhopal', 'ujjain', 'patna', 'nagpur', 'coimbatore', 'kochi'
+];
+
+function isServerDailyRouteCity(locationStr) {
+  if (!locationStr) return true;
+  const norm = normalizeServerRouteToken(locationStr);
+  if (!norm) return true;
+  return SERVER_DAILY_ROUTE_HUB_KEYWORDS.some((kw) => norm.includes(kw));
+}
+
+function computeServerLeadTimePricing(pickupDate) {
+  try {
+    const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const cleanPickup = String(pickupDate || '').trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanPickup)) {
+      return { leadTimeTier: 'tomorrow', leadTimeMultiplier: 1.0 };
+    }
+    const pickupMs = Date.parse(`${cleanPickup}T00:00:00Z`);
+    const todayMs = Date.parse(`${todayIST}T00:00:00Z`);
+    if (!Number.isFinite(pickupMs) || !Number.isFinite(todayMs)) {
+      return { leadTimeTier: 'tomorrow', leadTimeMultiplier: 1.0 };
+    }
+    const daysAhead = Math.round((pickupMs - todayMs) / 86400000);
+    if (daysAhead <= 0) {
+      return { leadTimeTier: 'same_day', leadTimeMultiplier: 1.14 };
+    }
+    if (daysAhead === 1) {
+      return { leadTimeTier: 'tomorrow', leadTimeMultiplier: 1.0 };
+    }
+    if (daysAhead >= 5) {
+      return { leadTimeTier: 'advance', leadTimeMultiplier: 0.90 };
+    }
+    return { leadTimeTier: 'advance', leadTimeMultiplier: 0.93 };
+  } catch {
+    return { leadTimeTier: 'tomorrow', leadTimeMultiplier: 1.0 };
+  }
+}
+
+function computeServerRouteTierPricing(tripType, pickupCity, dropCity) {
+  const pickupIsDaily = isServerDailyRouteCity(pickupCity);
+  if (tripType === 'local' || tripType === 'airport') {
+    if (pickupIsDaily) {
+      return { isOuterRoute: false, routeTierMultiplier: 1.0 };
+    }
+    return { isOuterRoute: true, routeTierMultiplier: 1.12 };
+  }
+  const dropIsDaily = isServerDailyRouteCity(dropCity);
+  if (pickupIsDaily && dropIsDaily) {
+    return { isOuterRoute: false, routeTierMultiplier: 1.0 };
+  }
+  if (!pickupIsDaily && !dropIsDaily) {
+    return { isOuterRoute: true, routeTierMultiplier: 1.18 };
+  }
+  return { isOuterRoute: true, routeTierMultiplier: 1.12 };
+}
+
 /**
- * Compute trip fare on the server using the exact CabBazar pricing rules in src/utils/fareCalculator.ts
+ * Compute trip fare on the server using the exact SafarIndiaCabs pricing rules in src/utils/fareCalculator.ts
  */
 export function computeServerTripFare({
   tripType,
@@ -569,9 +633,12 @@ export function computeServerTripFare({
   const oneWayRate = cab.ratePerKm;
   const roundTripRate = cab.roundTripRatePerKm || cab.ratePerKm;
   const dailyBata = cab.driverAllowancePerDay || 300;
-  const statePermitBase = cab.statePermitTax || 300;
   const hillBase = cab.hillStationCharge || 350;
   const local8HrBase = cab.local8Hr80KmFare || 1899;
+
+  const { leadTimeMultiplier } = computeServerLeadTimePricing(pickupDate);
+  const { routeTierMultiplier } = computeServerRouteTierPricing(tripType, pickupCity, dropCity);
+  const dynamicRateFactor = leadTimeMultiplier * routeTierMultiplier;
 
   const parsedDistance = Number(distanceKm ?? 0);
   if (!Number.isFinite(parsedDistance) || parsedDistance < 0 || parsedDistance > 15000) {
@@ -600,7 +667,7 @@ export function computeServerTripFare({
   if (tripType === 'oneway') {
     billedDistanceKm = Math.max(130, Math.round(parsedDistance));
     const slabFactor = billedDistanceKm <= 150 ? 1.04 : billedDistanceKm > 350 ? 0.96 : 1.0;
-    ratePerKm = Number((oneWayRate * slabFactor).toFixed(1));
+    ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
     hillStationCharge = isHillRoute ? hillBase : 0;
     baseFare = Math.round(billedDistanceKm * ratePerKm) + hillStationCharge;
     driverAllowance = dailyBata;
@@ -616,28 +683,31 @@ export function computeServerTripFare({
     const minKmForDays = daysCount * 250;
     const actualTwoWayKm = Math.round(parsedDistance * 2);
     billedDistanceKm = Math.max(minKmForDays, actualTwoWayKm);
-    ratePerKm = roundTripRate;
+    ratePerKm = Number((roundTripRate * dynamicRateFactor).toFixed(1));
     hillStationCharge = isHillRoute ? Math.round(hillBase * 1.4) : 0;
     baseFare = Math.round(billedDistanceKm * ratePerKm) + hillStationCharge;
     driverAllowance = daysCount * dailyBata;
   } else if (tripType === 'local') {
+    const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
     if (localPackageId === '4h_40k') {
       billedDistanceKm = 40;
-      baseFare = Math.round(local8HrBase * 0.66) - 150;
+      baseFare = Math.round(adjustedLocal8HrBase * 0.66) - 150;
       driverAllowance = 150;
     } else if (localPackageId === '12h_120k') {
       billedDistanceKm = 120;
-      baseFare = Math.round(local8HrBase * 1.34) - 300;
+      baseFare = Math.round(adjustedLocal8HrBase * 1.34) - 300;
       driverAllowance = 300;
     } else {
       billedDistanceKm = 80;
-      baseFare = local8HrBase - 250;
+      baseFare = adjustedLocal8HrBase - 250;
       driverAllowance = 250;
     }
+    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
   } else if (tripType === 'airport') {
     billedDistanceKm = Math.max(40, Math.round(parsedDistance));
+    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     const airportFixedPickupFee = cabId === 'tempo' ? 650 : cabId === 'innova' || cabId === 'suv' ? 450 : 350;
-    baseFare = Math.round(billedDistanceKm * oneWayRate + airportFixedPickupFee);
+    baseFare = Math.round(billedDistanceKm * ratePerKm + airportFixedPickupFee);
     driverAllowance = 200;
   }
 

@@ -771,10 +771,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           </div>
         ) : (
-          /* Airport details or Highway inclusions badge */
+          /* Airport details or Highway Toll/Tax Fare Option Toggle */
           <div>
             <label htmlFor={activeMainCategory === 'airport' ? 'booking-airport-terminal' : 'booking-include-tolls'} className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              {activeMainCategory === 'airport' ? 'Airport Terminal / Flight No.' : 'Fare Mode (All-Inclusive)'}
+              {activeMainCategory === 'airport' ? 'Airport Terminal / Flight No.' : 'Fare Option (Toll & State Tax)'}
             </label>
             {activeMainCategory === 'airport' ? (
               <input
@@ -790,11 +790,31 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             ) : (
               <div
                 id="booking-include-tolls"
-                onClick={() => setIncludeTolls(true)}
-                className="flex items-center h-[38px] px-3 bg-amber-50/80 rounded-xl border border-amber-300 text-xs text-slate-900 font-bold gap-1.5"
+                className="grid grid-cols-2 gap-1 h-[38px] p-1 bg-slate-100 rounded-xl border border-slate-300"
               >
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span className="truncate">Best Price (Toll + State Tax Included)</span>
+                <button
+                  type="button"
+                  onClick={() => setIncludeTolls(true)}
+                  className={`rounded-lg text-[10px] font-extrabold transition flex items-center justify-center gap-1 px-1.5 cursor-pointer ${
+                    includeTolls
+                      ? 'bg-[#F59E0B] text-slate-950 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-950'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3 shrink-0" />
+                  <span className="truncate">Include Toll</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIncludeTolls(false)}
+                  className={`rounded-lg text-[10px] font-extrabold transition flex items-center justify-center gap-1 px-1.5 cursor-pointer ${
+                    !includeTolls
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-950'
+                  }`}
+                >
+                  <span className="truncate">Toll Extra</span>
+                </button>
               </div>
             )}
           </div>

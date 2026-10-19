@@ -87,8 +87,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [gstNumber, setGstNumber] = useState(currentUser?.gstNumber || '');
   const [gstCompanyName, setGstCompanyName] = useState(currentUser?.companyName || '');
 
-  // SafarIndiaCabs Best Price (Toll + State Tax Included)
-  const [includeTollsState] = useState<boolean>(true);
+  // SafarIndiaCabs 2-Option Fare Mode: Include Toll + State Tax OR Toll + State Tax Extra (Alag Se)
+  const [includeTollsState, setIncludeTollsState] = useState<boolean>(
+    tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0
+  );
   const [addonCarrier, setAddonCarrier] = useState(false);
   const [addonAssuredModel, setAddonAssuredModel] = useState(false);
   const [addonPet, setAddonPet] = useState(false);
@@ -376,49 +378,34 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Transparent SafarIndiaCabs Base Fare + Toll + State Tax Strip */}
-          <div className="pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-700">
-            <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-              Best Price (Toll + State Tax Included)
-            </span>
-            <span>
-              Base Fare: <strong>{formatINR(Math.max(0, activeFare.totalFare - activeFare.tollsAndTaxes))}</strong>
-            </span>
-            <span>+</span>
-            <span>
-              Toll: <strong className="text-emerald-700">{formatINR(activeFare.highwayToll)} (Included)</strong>
-            </span>
-            <span>+</span>
-            <span>
-              State Tax: <strong className="text-emerald-700">{formatINR(activeFare.statePermitTax)} (Included)</strong>
-            </span>
-          </div>
-
-          {/* Itemized Multi-State Permit Tax Strip (Shows intermediate states like UP on Delhi->Mussoorie) */}
-          {activeFare.statePermitBreakdown.length > 0 && (
-            <div className="pt-2 border-t border-slate-200/80 space-y-1">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-slate-800">
-                  🛂 State Border Permits ({activeFare.stateRoutePath.join(' ➔ ')}):
-                </span>
-                <span className={`font-mono font-bold ${includeTollsState ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {includeTollsState
-                    ? `${formatINR(activeFare.statePermitTax)} (Auto-Included ✓)`
-                    : `${formatINR(activeFare.statePermitTax)} (At Border)`}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {activeFare.statePermitBreakdown.map((perm, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-900 px-2 py-0.5 rounded-md text-[10px] font-bold"
-                  >
-                    <span>
-                      {perm.state} ({perm.role === 'transit' ? 'Transit State' : 'Destination State'}):
-                    </span>
-                    <span className="font-mono text-emerald-800">{formatINR(perm.taxAmount)}</span>
-                  </span>
-                ))}
+          {/* Clean 2-Option Fare Mode Selector (No Toll/Tax ₹ Amount Shown) */}
+          {tripType !== 'local' && (
+            <div className="pt-2.5 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
+              <span className="font-bold text-slate-700">Select Fare Mode:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIncludeTollsState(true)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
+                    includeTollsState
+                      ? 'bg-[#F59E0B] text-slate-950 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-950'
+                  }`}
+                >
+                  <CheckCircle className="w-3 h-3 shrink-0" />
+                  <span>Best Price (Toll + State Tax Included)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIncludeTollsState(false)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
+                    !includeTollsState
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-950'
+                  }`}
+                >
+                  <span>Base Fare (Toll + State Tax Extra)</span>
+                </button>
               </div>
             </div>
           )}
@@ -594,19 +581,28 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             )}
           </div>
-          {/* SafarIndiaCabs Optional Add-Ons & Best Price Toll + State Tax Included */}
+          {/* SafarIndiaCabs Optional Add-Ons */}
           <div className="pt-2 space-y-2.5">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               SafarIndiaCabs Fare Mode &amp; Optional Trip Add-Ons
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
               {tripType !== 'local' && (
-                <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/70">
-                  <span className="font-bold text-emerald-950">
-                    ✓ Best Price (Toll + State Tax Included)
+                <div
+                  onClick={() => setIncludeTollsState(!includeTollsState)}
+                  className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition ${
+                    includeTollsState
+                      ? 'border-emerald-200 bg-emerald-50/70'
+                      : 'border-amber-200 bg-amber-50/70'
+                  }`}
+                >
+                  <span className={`font-bold ${includeTollsState ? 'text-emerald-950' : 'text-amber-950'}`}>
+                    {includeTollsState
+                      ? '✓ Best Price (Toll + State Tax Included)'
+                      : '• Base Fare (Toll + State Tax Extra)'}
                   </span>
-                  <span className="font-mono font-bold text-emerald-700">
-                    Included ({formatINR(activeFare.tollsAndTaxes)})
+                  <span className={`font-bold text-[11px] ${includeTollsState ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {includeTollsState ? 'Included ✓' : 'Alag Se'}
                   </span>
                 </div>
               )}
