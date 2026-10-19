@@ -68,20 +68,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
     if (res.success && res.token) {
       setOtpToken(res.token);
-      setOtpExpiresAt(res.expiresAt || Date.now() + 5 * 60 * 1000);
+      setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
       setFailedAttempts(0);
       setOtp('');
-      if (res.delivered === false) {
-        setSmsDeliveryInfo(
-          `${res.gatewayError || 'Traccar Cloud Token NotRegistered on Firebase.'}${
-            res.fallbackOtp ? ` (Instant Verification Code: ${res.fallbackOtp})` : ''
-          }`
-        );
-        setShowOtpToast(false);
-      } else {
-        setSmsDeliveryInfo('SMS OTP has been dispatched to your phone via Traccar Cloud');
-        setShowOtpToast(true);
-      }
+      setSmsDeliveryInfo(res.message || 'Verification OTP has been dispatched to your mobile number');
+      setShowOtpToast(true);
       setStep('otp');
       setResendSeconds(30);
     } else {
@@ -100,20 +91,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
     if (res.success && res.token) {
       setOtpToken(res.token);
-      setOtpExpiresAt(res.expiresAt || Date.now() + 5 * 60 * 1000);
+      setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
       setFailedAttempts(0);
       setOtp('');
-      if (res.delivered === false) {
-        setSmsDeliveryInfo(
-          `${res.gatewayError || 'Traccar Cloud Token NotRegistered on Firebase.'}${
-            res.fallbackOtp ? ` (Instant Verification Code: ${res.fallbackOtp})` : ''
-          }`
-        );
-        setShowOtpToast(false);
-      } else {
-        setSmsDeliveryInfo('A fresh SMS OTP has been sent to your phone');
-        setShowOtpToast(true);
-      }
+      setSmsDeliveryInfo('A fresh verification OTP has been sent to your phone');
+      setShowOtpToast(true);
       setResendSeconds(30);
     } else {
       setErrorMsg(res.message || 'Unable to resend SMS. Please wait.');

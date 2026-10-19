@@ -767,4 +767,77 @@ export async function verifyServerOtp(
   }
 }
 
+/**
+ * Gateway configuration constants and helpers used by AdminDashboard
+ */
+export const DEFAULT_LOCAL_ENDPOINT = FAST2SMS_ENDPOINT;
+export const DEFAULT_LOCAL_TOKEN = DEFAULT_FAST2SMS_KEY;
+export const TRACCAR_SMS_ENDPOINT = FAST2SMS_ENDPOINT;
+export const DEFAULT_TRACCAR_TOKEN = DEFAULT_FAST2SMS_KEY;
+
+export function getTraccarLocalEndpoint(): string {
+  try {
+    return localStorage.getItem('safar_local_sms_endpoint') || DEFAULT_LOCAL_ENDPOINT;
+  } catch {
+    return DEFAULT_LOCAL_ENDPOINT;
+  }
+}
+
+export function getTraccarLocalToken(): string {
+  return getFast2SmsApiKey();
+}
+
+export function getTraccarToken(): string {
+  return getFast2SmsApiKey();
+}
+
+export function setTraccarConfig(config: {
+  localEndpoint?: string;
+  localToken?: string;
+  cloudToken?: string;
+}): void {
+  try {
+    if (config.localEndpoint) {
+      localStorage.setItem('safar_local_sms_endpoint', config.localEndpoint.trim());
+    }
+    const token = config.localToken || config.cloudToken;
+    if (token) {
+      setFast2SmsApiKey(token);
+    }
+  } catch {}
+}
+
+export async function verifyTraccarGateway(
+  config:
+    | {
+        localEndpoint?: string;
+        localToken?: string;
+        cloudToken?: string;
+      }
+    | string,
+  testPhone: string = '7710080992'
+): Promise<{
+  ok: boolean;
+  info: string;
+  errorCode?: string;
+  rawResponse?: any;
+  statusCode?: number;
+  numbersSent: string;
+  endpoint: string;
+}> {
+  const token =
+    typeof config === 'string'
+      ? config
+      : config.localToken || config.cloudToken || DEFAULT_FAST2SMS_KEY;
+  const res = await verifyFast2SmsKey(token, testPhone);
+  return {
+    ok: res.ok,
+    info: res.info,
+    statusCode: res.statusCode,
+    rawResponse: res,
+    numbersSent: res.numbersSent,
+    endpoint: res.endpoint
+  };
+}
+
 
