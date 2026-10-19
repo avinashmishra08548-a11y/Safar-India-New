@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { CabVehicle, CustomerUser, TripType, BookingRecord } from '../types';
-import { formatINR, FareCalculationResult } from '../utils/fareCalculator';
+import { computeTripFare, formatINR, FareCalculationResult } from '../utils/fareCalculator';
 import { sendDualBookingNotifications, sanitize10DigitPhone } from '../utils/smsService';
 import {
   launchRazorpayStandardCheckout,
@@ -87,6 +87,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [gstNumber, setGstNumber] = useState(currentUser?.gstNumber || '');
   const [gstCompanyName, setGstCompanyName] = useState(currentUser?.companyName || '');
 
+  // CabBazar Toll Mode & Optional Add-Ons
+  const [includeTollsState, setIncludeTollsState] = useState<boolean>(
+    fareDetails.tollsAndTaxes > 0
+  );
+  const [addonCarrier, setAddonCarrier] = useState(false);
+  const [addonAssuredModel, setAddonAssuredModel] = useState(false);
+  const [addonPet, setAddonPet] = useState(false);
+
   // Payment choice: 20% advance or 100% full
   const [paymentMode, setPaymentMode] = useState<'advance_20' | 'full'>('advance_20');
   const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('qr');
@@ -108,8 +116,24 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [errorMessage]);
 
-  const payableNowAmount = paymentMode === 'advance_20' ? fareDetails.advanceFare : fareDetails.totalFare;
-  const balanceDueAmount = paymentMode === 'advance_20' ? fareDetails.balanceDue : 0;
+  // Live CabBazar fare calculation synchronized with server
+  const activeFare = computeTripFare({
+    tripType,
+    cabId: cab.id,
+    distanceKm: fareDetails.distanceKm,
+    pickupCity,
+    dropCity,
+    pickupDate,
+    returnDate: tripType === 'roundtrip' ? returnDate : undefined,
+    localPackageId,
+    includeTolls: includeTollsState,
+    addonCarrier,
+    addonPet,
+    addonAssuredModel
+  });
+
+  const payableNowAmount = paymentMode === 'advance_20' ? activeFare.advanceFare : activeFare.totalFare;
+  const balanceDueAmount = paymentMode === 'advance_20' ? activeFare.balanceDue : 0;
 
   const handlePayAndConfirm = async (overrideMethod?: PreferredPaymentMethod) => {
     if (isProcessing) return;
@@ -165,12 +189,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       airportTerminal: airportTerminal.trim() || undefined,
       cabId: cab.id,
       cabName: `${cab.name} (${cab.models})`,
-      distanceKm: fareDetails.billedDistanceKm,
-      baseFare: fareDetails.baseFare,
-      driverAllowance: fareDetails.driverAllowance,
-      tollsAndTaxes: fareDetails.tollsAndTaxes,
-      gstAmount: fareDetails.gstAmount,
-      totalFare: fareDetails.totalFare,
+      distanceKm: activeFare.billedDistanceKm,
+      baseFare: activeFare.baseFare + activeFare.addonsTotal,
+      driverAllowance: activeFare.driverAllowance,
+      tollsAndTaxes: activeFare.tollsAndTaxes,
+      gstAmount: activeFare.gstAmount,
+      totalFare: activeFare.totalFare,
       advancePaid: payableNowAmount,
       balanceDue: balanceDueAmount,
       paymentMode,
@@ -186,7 +210,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       gstCompanyName: needGst ? gstCompanyName.trim() : undefined,
       status: 'confirmed',
       createdAt: new Date().toISOString(),
-      notes: specialNotes.trim() || undefined
+      notes:
+        [
+          specialNotes.trim(),
+          addonCarrier ? 'Add-on: Roof Carrier' : '',
+          addonAssuredModel ? 'Add-on: Assured New Model' : '',
+          addonPet ? 'Add-on: Pet Travel' : ''
+        ]
+          .filter(Boolean)
+          .join(' | ') || undefined
     };
 
     // Save/update registered customer directory
@@ -210,11 +242,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     // Create server-side Razorpay Order, open Razorpay Standard Checkout, and verify payment on server
     await launchRazorpayStandardCheckout({
       amountInRupees: payableNowAmount,
-      totalFareRupees: fareDetails.totalFare,
+      totalFareRupees: activeFare.totalFare,
       bookingId,
       tripType,
       cabId: cab.id,
-      distanceKm: fareDetails.distanceKm,
+      distanceKm: activeFare.distanceKm,
       pickupCity,
       dropCity,
       pickupAddress: pickupAddress.trim(),
@@ -223,7 +255,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       pickupTimeRaw: pickupTime,
       returnDateRaw: tripType === 'roundtrip' ? returnDate : undefined,
       localPackageId,
-      includeTolls: fareDetails.tollsAndTaxes > 0,
+      includeTolls: includeTollsState,
+      addonCarrier,
+      addonPet,
+      addonAssuredModel,
       customerName: customerName.trim(),
       customerPhone: cleanPhone,
       customerEmail: customerEmail.trim() || undefined,
@@ -320,23 +355,51 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </div>
         )}
 
-        {/* Itinerary Snapshot */}
-        <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div>
-            <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Date</span>
-            <span className="text-slate-900 font-bold">{pickupDate}</span>
+        {/* Itinerary & CabBazar Fare Snapshot */}
+        <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-3 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Date</span>
+              <span className="text-slate-900 font-bold">{pickupDate}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Time</span>
+              <span className="text-slate-900 font-bold">{pickupTime}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Included KM</span>
+              <span className="text-amber-700 font-bold">
+                {activeFare.billedDistanceKm} KM (Extra ₹{activeFare.extraKmRate}/km)
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Fare</span>
+              <span className="text-emerald-700 font-black text-sm">{formatINR(activeFare.totalFare)}</span>
+            </div>
           </div>
-          <div>
-            <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Time</span>
-            <span className="text-slate-900 font-bold">{pickupTime}</span>
-          </div>
-          <div>
-            <span className="text-[10px] text-slate-500 uppercase font-bold block">Est. Distance</span>
-            <span className="text-amber-700 font-bold">{fareDetails.billedDistanceKm} KM</span>
-          </div>
-          <div>
-            <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Fare</span>
-            <span className="text-emerald-700 font-bold">{formatINR(fareDetails.totalFare)}</span>
+
+          {/* Transparent CabBazar Itemized Pill Strip */}
+          <div className="pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+            <span>
+              Base + Bata: <strong>{formatINR(activeFare.baseFare + activeFare.driverAllowance)}</strong>
+            </span>
+            <span>·</span>
+            <span>
+              Night Fee: <strong className="text-emerald-700">₹0 (Included)</strong>
+            </span>
+            <span>·</span>
+            <span>
+              Toll &amp; State Tax:{' '}
+              <strong className={includeTollsState ? 'text-emerald-700' : 'text-amber-700'}>
+                {includeTollsState
+                  ? `Included (${formatINR(activeFare.tollsAndTaxes)})`
+                  : `Extra at Plaza (Est. ${formatINR(activeFare.estimatedTollsAndTaxes)})`}
+              </strong>
+            </span>
+            <span>·</span>
+            <span>
+              5% GST: <strong>{formatINR(activeFare.gstAmount)}</strong>
+            </span>
           </div>
         </div>
 
@@ -510,6 +573,73 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             )}
           </div>
+          {/* CabBazar Optional Add-Ons & Toll Inclusion Toggle */}
+          <div className="pt-2 space-y-2.5">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              CabBazar Toll Option &amp; Optional Trip Add-Ons
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+              {tripType !== 'local' && (
+                <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={includeTollsState}
+                      onChange={(e) => setIncludeTollsState(e.target.checked)}
+                      className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                    />
+                    <span className="font-semibold text-slate-800">
+                      Include Toll &amp; State Tax
+                    </span>
+                  </span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    +{formatINR(activeFare.estimatedTollsAndTaxes)}
+                  </span>
+                </label>
+              )}
+
+              <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={addonCarrier}
+                    onChange={(e) => setAddonCarrier(e.target.checked)}
+                    className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                  />
+                  <span className="font-semibold text-slate-800">Roof Luggage Carrier</span>
+                </span>
+                <span className="font-mono font-bold text-slate-700">+₹300</span>
+              </label>
+
+              <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={addonAssuredModel}
+                    onChange={(e) => setAddonAssuredModel(e.target.checked)}
+                    className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                  />
+                  <span className="font-semibold text-slate-800">Assured Diesel / New Model</span>
+                </span>
+                <span className="font-mono font-bold text-slate-700">+₹400</span>
+              </label>
+
+              <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={addonPet}
+                    onChange={(e) => setAddonPet(e.target.checked)}
+                    className="rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                  />
+                  <span className="font-semibold text-slate-800">Traveling with Pet</span>
+                </span>
+                <span className="font-mono font-bold text-slate-700">
+                  +{cab.id === 'suv' || cab.id === 'innova' || cab.id === 'tempo' ? '₹1,000' : '₹800'}
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
 
         {/* Payment Options: 20% Advance or 100% Full Fare */}
@@ -536,10 +666,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-900">Pay 20% Advance Now</span>
-                <span className="text-sm font-black text-amber-700">{formatINR(fareDetails.advanceFare)}</span>
+                <span className="text-sm font-black text-amber-700">{formatINR(activeFare.advanceFare)}</span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Balance {formatINR(fareDetails.balanceDue)} payable to chauffeur at trip completion.
+                Balance {formatINR(activeFare.balanceDue)} payable to chauffeur at trip completion.
               </p>
             </div>
 
@@ -554,7 +684,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-900">Pay 100% Full Fare</span>
-                <span className="text-sm font-black text-slate-950">{formatINR(fareDetails.totalFare)}</span>
+                <span className="text-sm font-black text-slate-950">{formatINR(activeFare.totalFare)}</span>
               </div>
               <p className="text-[11px] text-slate-500">
                 Completely cashless journey. Zero balance payable at drop.

@@ -8,6 +8,12 @@ export interface CabVehicle {
   models: string;
   category: string;
   ratePerKm: number;
+  roundTripRatePerKm?: number;
+  extraKmRate?: number;
+  driverAllowancePerDay?: number;
+  statePermitTax?: number;
+  hillStationCharge?: number;
+  local8Hr80KmFare?: number;
   capacityPassengers: number;
   capacityLuggage: number;
   features: string[];

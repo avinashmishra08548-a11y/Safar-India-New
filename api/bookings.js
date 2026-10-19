@@ -14,15 +14,245 @@
 
 import crypto from 'crypto';
 
-// Fleet pricing table matching src/data/cabsFleet.ts
+// Fleet pricing table matching src/data/cabsFleet.ts (CabBazar Rate Matrix)
 export const SERVER_CABS_FLEET = {
-  hatchback: { id: 'hatchback', name: 'Hatchback AC', models: 'WagonR, Swift, Tiago or equivalent', ratePerKm: 11 },
-  sedan: { id: 'sedan', name: 'Sedan AC (Dzire / Etios)', models: 'Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura', ratePerKm: 12 },
-  exec_sedan: { id: 'exec_sedan', name: 'Executive Sedan', models: 'Honda City, Maruti Ciaz, Hyundai Verna', ratePerKm: 15 },
-  suv: { id: 'suv', name: 'SUV (Ertiga / Carens)', models: 'Maruti Ertiga, Kia Carens, Triber', ratePerKm: 16 },
-  innova: { id: 'innova', name: 'Innova Crysta Premium', models: 'Toyota Innova Crysta Luxury', ratePerKm: 21 },
-  tempo: { id: 'tempo', name: 'Tempo Traveller (12 Seater)', models: 'Force Urbania / Traveller 12-17 Seater', ratePerKm: 29 }
+  hatchback: {
+    id: 'hatchback',
+    name: 'Hatchback AC',
+    models: 'WagonR, Celerio, Tiago or equivalent',
+    ratePerKm: 9.5,
+    roundTripRatePerKm: 9.5,
+    extraKmRate: 11,
+    driverAllowancePerDay: 300,
+    statePermitTax: 250,
+    hillStationCharge: 300,
+    local8Hr80KmFare: 1699
+  },
+  sedan: {
+    id: 'sedan',
+    name: 'Sedan AC (Dzire / Etios)',
+    models: 'Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura',
+    ratePerKm: 10.5,
+    roundTripRatePerKm: 10.5,
+    extraKmRate: 12,
+    driverAllowancePerDay: 300,
+    statePermitTax: 300,
+    hillStationCharge: 350,
+    local8Hr80KmFare: 1899
+  },
+  exec_sedan: {
+    id: 'exec_sedan',
+    name: 'Prime Executive Sedan',
+    models: 'Honda City, Maruti Ciaz, Hyundai Verna',
+    ratePerKm: 13.5,
+    roundTripRatePerKm: 13,
+    extraKmRate: 15,
+    driverAllowancePerDay: 350,
+    statePermitTax: 350,
+    hillStationCharge: 400,
+    local8Hr80KmFare: 2499
+  },
+  suv: {
+    id: 'suv',
+    name: 'SUV AC (Ertiga / Carens)',
+    models: 'Maruti Ertiga, Kia Carens, Toyota Rumion or equivalent',
+    ratePerKm: 13.5,
+    roundTripRatePerKm: 13.5,
+    extraKmRate: 15.5,
+    driverAllowancePerDay: 350,
+    statePermitTax: 450,
+    hillStationCharge: 450,
+    local8Hr80KmFare: 2599
+  },
+  innova: {
+    id: 'innova',
+    name: 'Assured Innova Crysta',
+    models: 'Toyota Innova Crysta (6+1 / 7+1 Luxury)',
+    ratePerKm: 17.5,
+    roundTripRatePerKm: 17,
+    extraKmRate: 19.5,
+    driverAllowancePerDay: 400,
+    statePermitTax: 550,
+    hillStationCharge: 550,
+    local8Hr80KmFare: 3299
+  },
+  tempo: {
+    id: 'tempo',
+    name: 'Tempo Traveller AC (12 Seater)',
+    models: 'Force Traveller / Urbania 12+1 Pushback AC',
+    ratePerKm: 26,
+    roundTripRatePerKm: 25,
+    extraKmRate: 28,
+    driverAllowancePerDay: 500,
+    statePermitTax: 850,
+    hillStationCharge: 800,
+    local8Hr80KmFare: 5499
+  }
 };
+
+const SERVER_EXPRESSWAY_TOLLS = {
+  'delhi-agra': { toll: 515, name: 'Yamuna Expressway FASTag' },
+  'agra-delhi': { toll: 515, name: 'Yamuna Expressway FASTag' },
+  'delhi-mathura': { toll: 320, name: 'Yamuna / NH-19 FASTag' },
+  'mathura-delhi': { toll: 320, name: 'Yamuna / NH-19 FASTag' },
+  'delhi-jaipur': { toll: 475, name: 'NH-48 / Delhi-Mumbai Expwy' },
+  'jaipur-delhi': { toll: 475, name: 'NH-48 / Delhi-Mumbai Expwy' },
+  'delhi-chandigarh': { toll: 445, name: 'NH-44 GT Road FASTag' },
+  'chandigarh-delhi': { toll: 445, name: 'NH-44 GT Road FASTag' },
+  'delhi-haridwar': { toll: 385, name: 'Delhi-Meerut Expwy + NH-334' },
+  'haridwar-delhi': { toll: 385, name: 'Delhi-Meerut Expwy + NH-334' },
+  'delhi-rishikesh': { toll: 410, name: 'Delhi-Meerut Expwy + NH-334' },
+  'rishikesh-delhi': { toll: 410, name: 'Delhi-Meerut Expwy + NH-334' },
+  'delhi-dehradun': { toll: 430, name: 'Delhi-Dehradun Highway FASTag' },
+  'dehradun-delhi': { toll: 430, name: 'Delhi-Dehradun Highway FASTag' },
+  'delhi-shimla': { toll: 560, name: 'NH-44 + Himalayan Expwy' },
+  'shimla-delhi': { toll: 560, name: 'NH-44 + Himalayan Expwy' },
+  'delhi-manali': { toll: 720, name: 'NH-44 + Kiratpur-Manali Expwy' },
+  'manali-delhi': { toll: 720, name: 'NH-44 + Kiratpur-Manali Expwy' },
+  'delhi-amritsar': { toll: 690, name: 'NH-44 Delhi-Amritsar Expwy' },
+  'amritsar-delhi': { toll: 690, name: 'NH-44 Delhi-Amritsar Expwy' },
+  'delhi-lucknow': { toll: 840, name: 'Yamuna + Agra-Lucknow Expwy' },
+  'lucknow-delhi': { toll: 840, name: 'Yamuna + Agra-Lucknow Expwy' },
+  'delhi-nainital': { toll: 420, name: 'NH-9 Moradabad-Rampur FASTag' },
+  'nainital-delhi': { toll: 420, name: 'NH-9 Moradabad-Rampur FASTag' },
+  'delhi-mussoorie': { toll: 450, name: 'Delhi-Dehradun Expwy FASTag' },
+  'mussoorie-delhi': { toll: 450, name: 'Delhi-Dehradun Expwy FASTag' },
+  'mumbai-pune': { toll: 320, name: 'Mumbai-Pune Expressway' },
+  'pune-mumbai': { toll: 320, name: 'Mumbai-Pune Expressway' },
+  'mumbai-lonavala': { toll: 240, name: 'Mumbai-Pune Expressway' },
+  'lonavala-mumbai': { toll: 240, name: 'Mumbai-Pune Expressway' },
+  'mumbai-shirdi': { toll: 360, name: 'Samruddhi / NH-160 FASTag' },
+  'shirdi-mumbai': { toll: 360, name: 'Samruddhi / NH-160 FASTag' },
+  'mumbai-nashik': { toll: 265, name: 'Mumbai-Nashik NH-160 FASTag' },
+  'nashik-mumbai': { toll: 265, name: 'Mumbai-Nashik NH-160 FASTag' },
+  'mumbai-goa': { toll: 640, name: 'NH-66 / Atal Setu FASTag' },
+  'goa-mumbai': { toll: 640, name: 'NH-66 / Atal Setu FASTag' },
+  'mumbai-mahabaleshwar': { toll: 410, name: 'Mumbai-Pune Expwy + NH-48' },
+  'mahabaleshwar-mumbai': { toll: 410, name: 'Mumbai-Pune Expwy + NH-48' },
+  'pune-shirdi': { toll: 240, name: 'Pune-Sangamner Highway FASTag' },
+  'shirdi-pune': { toll: 240, name: 'Pune-Sangamner Highway FASTag' },
+  'pune-mahabaleshwar': { toll: 165, name: 'NH-48 Khed-Shivapur FASTag' },
+  'mahabaleshwar-pune': { toll: 165, name: 'NH-48 Khed-Shivapur FASTag' },
+  'bangalore-mysore': { toll: 335, name: 'Bangalore-Mysore Expressway' },
+  'mysore-bangalore': { toll: 335, name: 'Bangalore-Mysore Expressway' },
+  'bangalore-chennai': { toll: 465, name: 'NH-48 Krishnagiri-Vellore FASTag' },
+  'chennai-bangalore': { toll: 465, name: 'NH-48 Krishnagiri-Vellore FASTag' },
+  'bangalore-tirupati': { toll: 315, name: 'NH-75 Mulbagal-Chittoor FASTag' },
+  'tirupati-bangalore': { toll: 315, name: 'NH-75 Mulbagal-Chittoor FASTag' },
+  'bangalore-ooty': { toll: 340, name: 'Bangalore-Mysore Expwy + Nilgiri' },
+  'ooty-bangalore': { toll: 340, name: 'Bangalore-Mysore Expwy + Nilgiri' },
+  'bangalore-coorg': { toll: 290, name: 'Bangalore-Mysore Expwy FASTag' },
+  'coorg-bangalore': { toll: 290, name: 'Bangalore-Mysore Expwy FASTag' },
+  'chennai-pondicherry': { toll: 195, name: 'East Coast Road (ECR) Toll' },
+  'pondicherry-chennai': { toll: 195, name: 'East Coast Road (ECR) Toll' },
+  'ahmedabad-udaipur': { toll: 355, name: 'NH-48 Himatnagar-Shamlaji FASTag' },
+  'udaipur-ahmedabad': { toll: 355, name: 'NH-48 Himatnagar-Shamlaji FASTag' },
+  'jaipur-udaipur': { toll: 460, name: 'NH-48 Kishangarh-Bhilwara FASTag' },
+  'udaipur-jaipur': { toll: 460, name: 'NH-48 Kishangarh-Bhilwara FASTag' },
+  'jaipur-jodhpur': { toll: 375, name: 'NH-48 + Beawar-Pali FASTag' },
+  'jodhpur-jaipur': { toll: 375, name: 'NH-48 + Beawar-Pali FASTag' },
+  'lucknow-varanasi': { toll: 410, name: 'Purvanchal / NH-31 FASTag' },
+  'varanasi-lucknow': { toll: 410, name: 'Purvanchal / NH-31 FASTag' },
+  'lucknow-ayodhya': { toll: 225, name: 'NH-27 Barabanki-Ayodhya FASTag' },
+  'ayodhya-lucknow': { toll: 225, name: 'NH-27 Barabanki-Ayodhya FASTag' },
+  'varanasi-ayodhya': { toll: 295, name: 'Purvanchal Expwy FASTag' },
+  'ayodhya-varanasi': { toll: 295, name: 'Purvanchal Expwy FASTag' },
+  'chandigarh-manali': { toll: 380, name: 'Kiratpur-Nerchowk-Manali Expwy' },
+  'manali-chandigarh': { toll: 380, name: 'Kiratpur-Nerchowk-Manali Expwy' },
+  'chandigarh-shimla': { toll: 185, name: 'Chandimandir-Solan Himalayan Expwy' },
+  'shimla-chandigarh': { toll: 185, name: 'Chandimandir-Solan Himalayan Expwy' },
+  'chandigarh-amritsar': { toll: 330, name: 'NH-5 / NH-44 Punjab FASTag' },
+  'amritsar-chandigarh': { toll: 330, name: 'NH-5 / NH-44 Punjab FASTag' }
+};
+
+const SERVER_CITY_STATE_KEYWORDS = [
+  { keywords: ['delhi', 'newdelhi', 'burari', 'dwarka', 'rohini', 'connaught', 'igi', 'aerocity', 'saket', 'vasantkunj', 'karolbagh', 'lajpat'], state: 'Delhi' },
+  { keywords: ['noida', 'greaternoida', 'ghaziabad', 'agra', 'lucknow', 'varanasi', 'ayodhya', 'mathura', 'vrindavan', 'prayagraj', 'allahabad', 'kanpur', 'meerut', 'gorakhpur', 'bareilly', 'aligarh', 'jhansi', 'moradabad', 'uttarpradesh'], state: 'Uttar Pradesh' },
+  { keywords: ['gurgaon', 'gurugram', 'faridabad', 'panipat', 'ambala', 'karnal', 'sonipat', 'rohtak', 'hisar', 'kurukshetra', 'haryana'], state: 'Haryana' },
+  { keywords: ['jaipur', 'udaipur', 'jodhpur', 'ajmer', 'pushkar', 'jaisalmer', 'bikaner', 'kota', 'mountabu', 'alwar', 'bharatpur', 'khatushyam', 'salasar', 'rajasthan'], state: 'Rajasthan' },
+  { keywords: ['chandigarh', 'amritsar', 'ludhiana', 'jalandhar', 'patiala', 'bathinda', 'mohali', 'zirakpur', 'pathankot', 'punjab'], state: 'Punjab' },
+  { keywords: ['shimla', 'manali', 'dharamshala', 'mcleodganj', 'dalhousie', 'kasauli', 'kullu', 'solan', 'spiti', 'kasol', 'himachal'], state: 'Himachal Pradesh' },
+  { keywords: ['dehradun', 'haridwar', 'rishikesh', 'nainital', 'mussoorie', 'haldwani', 'roorkee', 'jimcorbett', 'corbett', 'kedarnath', 'badrinath', 'almora', 'ranikhet', 'uttarakhand'], state: 'Uttarakhand' },
+  { keywords: ['mumbai', 'pune', 'lonavala', 'khandala', 'mahabaleshwar', 'shirdi', 'nashik', 'nagpur', 'aurangabad', 'sambhajinagar', 'thane', 'navimumbai', 'andheri', 'bandra', 'dadar', 'borivali', 'kalyan', 'kolhapur', 'solapur', 'maharashtra'], state: 'Maharashtra' },
+  { keywords: ['goa', 'panaji', 'margao', 'calangute', 'baga', 'dabolim', 'mopa', 'vasco'], state: 'Goa' },
+  { keywords: ['ahmedabad', 'surat', 'vadodara', 'rajkot', 'dwarka', 'somnath', 'bhuj', 'kutch', 'gandhinagar', 'statueofunity', 'kevadia', 'vapi', 'valsad', 'gujarat'], state: 'Gujarat' },
+  { keywords: ['bangalore', 'bengaluru', 'mysore', 'mysuru', 'coorg', 'madikeri', 'mangalore', 'hubli', 'belgaum', 'chikmagalur', 'hampi', 'udupi', 'gokarna', 'kempegowda', 'whitefield', 'electroniccity', 'karnataka'], state: 'Karnataka' },
+  { keywords: ['chennai', 'coimbatore', 'madurai', 'ooty', 'kodaikanal', 'rameswaram', 'kanyakumari', 'vellore', 'salem', 'trichy', 'thanjavur', 'mahabalipuram', 'tamilnadu'], state: 'Tamil Nadu' },
+  { keywords: ['pondicherry', 'puducherry'], state: 'Puducherry' },
+  { keywords: ['hyderabad', 'secunderabad', 'warangal', 'gachibowli', 'hitec', 'shamshabad', 'telangana'], state: 'Telangana' },
+  { keywords: ['tirupati', 'visakhapatnam', 'vizag', 'vijayawada', 'guntur', 'nellore', 'kurnool', 'andhrapradesh'], state: 'Andhra Pradesh' },
+  { keywords: ['kochi', 'cochin', 'munnar', 'thiruvananthapuram', 'trivandrum', 'alleppey', 'alappuzha', 'wayanad', 'kozhikode', 'calicut', 'thekkady', 'kovalam', 'kerala'], state: 'Kerala' },
+  { keywords: ['indore', 'bhopal', 'ujjain', 'omkareshwar', 'gwalior', 'jabalpur', 'khajuraho', 'pachmarhi', 'sanchi', 'madhyapradesh'], state: 'Madhya Pradesh' },
+  { keywords: ['kolkata', 'howrah', 'darjeeling', 'siliguri', 'digha', 'durgapur', 'asansol', 'westbengal'], state: 'West Bengal' },
+  { keywords: ['patna', 'gaya', 'bodhgaya', 'muzaffarpur', 'bhagalpur', 'darbhanga', 'rajgir', 'nalanda', 'bihar'], state: 'Bihar' },
+  { keywords: ['ranchi', 'jamshedpur', 'deoghar', 'dhanbad', 'bokaro', 'jharkhand'], state: 'Jharkhand' },
+  { keywords: ['bhubaneswar', 'puri', 'konark', 'cuttack', 'rourkela', 'odisha'], state: 'Odisha' },
+  { keywords: ['raipur', 'bilaspur', 'bhilai', 'durg', 'chhattisgarh'], state: 'Chhattisgarh' },
+  { keywords: ['guwahati', 'shillong', 'kaziranga', 'gangtok', 'sikkim', 'assam', 'meghalaya'], state: 'North East' },
+  { keywords: ['jammu', 'srinagar', 'katra', 'vaishnodevi', 'gulmarg', 'pahalgam', 'sonamarg', 'leh', 'ladakh', 'kashmir'], state: 'Jammu & Kashmir' }
+];
+
+const SERVER_HILL_STATION_KEYWORDS = [
+  'shimla', 'manali', 'mussoorie', 'nainital', 'dharamshala', 'mcleodganj', 'dalhousie',
+  'kasauli', 'kullu', 'kasol', 'spiti', 'ooty', 'kodaikanal', 'munnar', 'wayanad',
+  'coorg', 'madikeri', 'chikmagalur', 'mahabaleshwar', 'lonavala', 'khandala',
+  'mountabu', 'pachmarhi', 'darjeeling', 'gangtok', 'shillong', 'gulmarg', 'pahalgam',
+  'sonamarg', 'leh', 'ladakh', 'almora', 'ranikhet', 'badrinath', 'kedarnath', 'rishikesh'
+];
+
+function normalizeServerRouteToken(str) {
+  return String(str || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+function detectServerLocationState(locationStr, fallbackState = 'Delhi') {
+  if (!locationStr) return fallbackState;
+  const norm = normalizeServerRouteToken(locationStr);
+  for (const entry of SERVER_CITY_STATE_KEYWORDS) {
+    for (const kw of entry.keywords) {
+      if (norm.includes(kw)) return entry.state;
+    }
+  }
+  return fallbackState;
+}
+
+function isServerHillStationRoute(pickupCity, dropCity) {
+  const combined = normalizeServerRouteToken(pickupCity) + ' ' + normalizeServerRouteToken(dropCity);
+  return SERVER_HILL_STATION_KEYWORDS.some((kw) => combined.includes(kw));
+}
+
+function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230, cabId = 'sedan') {
+  const nFrom = normalizeServerRouteToken(pickupCity);
+  const nTo = normalizeServerRouteToken(dropCity);
+
+  let matchedToll = null;
+  let matchedName = 'NHAI Highway FASTag';
+
+  if (nFrom && nTo) {
+    for (const [pairKey, info] of Object.entries(SERVER_EXPRESSWAY_TOLLS)) {
+      const [c1, c2] = pairKey.split('-');
+      if (nFrom.includes(c1) && nTo.includes(c2)) {
+        matchedToll = info.toll;
+        matchedName = info.name;
+        break;
+      }
+    }
+  }
+
+  const vehicleTollMultiplier = cabId === 'tempo' ? 1.6 : 1.0;
+  if (matchedToll !== null) {
+    return {
+      baseTollOneWay: Math.round(matchedToll * vehicleTollMultiplier),
+      expresswayName: matchedName
+    };
+  }
+
+  const highwayBillableKm = Math.max(40, Math.round(distanceKm * 0.85));
+  const nhaiRatePerKm = cabId === 'tempo' ? 1.85 : cabId === 'innova' || cabId === 'suv' ? 1.20 : 1.15;
+  return {
+    baseTollOneWay: Math.round(highwayBillableKm * nhaiRatePerKm),
+    expresswayName: 'NHAI National Highway FASTag'
+  };
+}
 
 /**
  * Strip all whitespace, invisible Unicode characters (zero-width spaces, BOM, non-breaking spaces,
@@ -139,16 +369,21 @@ export function resolveNormalizedRazorpayCredentials(env = process.env, clientPu
 }
 
 /**
- * Compute trip fare on the server using the exact pricing rules in src/utils/fareCalculator.ts
+ * Compute trip fare on the server using the exact CabBazar pricing rules in src/utils/fareCalculator.ts
  */
 export function computeServerTripFare({
   tripType,
   cabId,
   distanceKm,
+  pickupCity = '',
+  dropCity = '',
   pickupDate,
   returnDate,
   localPackageId = '8h_80k',
-  includeTolls = true
+  includeTolls = true,
+  addonCarrier = false,
+  addonPet = false,
+  addonAssuredModel = false
 }) {
   const validTripTypes = ['oneway', 'roundtrip', 'local', 'airport'];
   if (!validTripTypes.includes(tripType)) {
@@ -156,23 +391,44 @@ export function computeServerTripFare({
   }
 
   const cab = SERVER_CABS_FLEET[cabId] || SERVER_CABS_FLEET.sedan;
-  const ratePerKm = cab.ratePerKm;
+  const oneWayRate = cab.ratePerKm;
+  const roundTripRate = cab.roundTripRatePerKm || cab.ratePerKm;
+  const dailyBata = cab.driverAllowancePerDay || 300;
+  const statePermitBase = cab.statePermitTax || 300;
+  const hillBase = cab.hillStationCharge || 350;
+  const local8HrBase = cab.local8Hr80KmFare || 1899;
 
   const parsedDistance = Number(distanceKm ?? 0);
   if (!Number.isFinite(parsedDistance) || parsedDistance < 0 || parsedDistance > 15000) {
     throw new Error(`Invalid distanceKm: ${distanceKm}`);
   }
 
-  let billedDistanceKm = parsedDistance;
+  let billedDistanceKm = Math.max(0, Math.round(parsedDistance));
+  let ratePerKm = oneWayRate;
   let baseFare = 0;
   let driverAllowance = 0;
   let daysCount = 1;
 
+  const isHillRoute = tripType !== 'local' && isServerHillStationRoute(pickupCity, dropCity);
+  const originState = detectServerLocationState(pickupCity, 'Delhi');
+  const destState =
+    tripType === 'local'
+      ? originState
+      : detectServerLocationState(dropCity, pickupCity ? originState : 'Uttar Pradesh');
+  const isInterState =
+    tripType !== 'local' &&
+    tripType !== 'airport' &&
+    Boolean(originState && destState && originState !== destState);
+
+  let hillStationCharge = 0;
+
   if (tripType === 'oneway') {
-    // Standard intercity rule: minimum 130 km billing (matches src/utils/fareCalculator.ts line 47)
-    billedDistanceKm = Math.max(130, parsedDistance);
-    baseFare = billedDistanceKm * ratePerKm;
-    driverAllowance = 300;
+    billedDistanceKm = Math.max(130, Math.round(parsedDistance));
+    const slabFactor = billedDistanceKm <= 150 ? 1.04 : billedDistanceKm > 350 ? 0.96 : 1.0;
+    ratePerKm = Number((oneWayRate * slabFactor).toFixed(1));
+    hillStationCharge = isHillRoute ? hillBase : 0;
+    baseFare = Math.round(billedDistanceKm * ratePerKm) + hillStationCharge;
+    driverAllowance = dailyBata;
   } else if (tripType === 'roundtrip') {
     if (pickupDate && returnDate) {
       const p = new Date(pickupDate).getTime();
@@ -183,45 +439,61 @@ export function computeServerTripFare({
       }
     }
     const minKmForDays = daysCount * 250;
-    const actualTwoWayKm = parsedDistance * 2;
+    const actualTwoWayKm = Math.round(parsedDistance * 2);
     billedDistanceKm = Math.max(minKmForDays, actualTwoWayKm);
-    baseFare = billedDistanceKm * ratePerKm;
-    driverAllowance = daysCount * 350;
+    ratePerKm = roundTripRate;
+    hillStationCharge = isHillRoute ? Math.round(hillBase * 1.4) : 0;
+    baseFare = Math.round(billedDistanceKm * ratePerKm) + hillStationCharge;
+    driverAllowance = daysCount * dailyBata;
   } else if (tripType === 'local') {
     if (localPackageId === '4h_40k') {
       billedDistanceKm = 40;
-      baseFare = Math.round(40 * ratePerKm + 550);
+      baseFare = Math.round(local8HrBase * 0.66) - 150;
       driverAllowance = 150;
     } else if (localPackageId === '12h_120k') {
       billedDistanceKm = 120;
-      baseFare = Math.round(120 * ratePerKm + 950);
+      baseFare = Math.round(local8HrBase * 1.34) - 300;
       driverAllowance = 300;
     } else {
       billedDistanceKm = 80;
-      baseFare = Math.round(80 * ratePerKm + 750);
+      baseFare = local8HrBase - 250;
       driverAllowance = 250;
     }
   } else if (tripType === 'airport') {
-    billedDistanceKm = Math.max(45, parsedDistance);
-    baseFare = Math.round(billedDistanceKm * ratePerKm + 450);
+    billedDistanceKm = Math.max(40, Math.round(parsedDistance));
+    const airportFixedPickupFee = cabId === 'tempo' ? 650 : cabId === 'innova' || cabId === 'suv' ? 450 : 350;
+    baseFare = Math.round(billedDistanceKm * oneWayRate + airportFixedPickupFee);
     driverAllowance = 200;
   }
 
-  let tollsAndTaxes = 0;
-  if (includeTolls) {
-    if (tripType === 'oneway') {
-      tollsAndTaxes = Math.round(billedDistanceKm * 1.6);
-    } else if (tripType === 'roundtrip') {
-      tollsAndTaxes = Math.round(billedDistanceKm * 1.4);
-    } else {
-      tollsAndTaxes = 120;
-    }
+  let highwayToll = 0;
+  let statePermitTax = 0;
+
+  if (tripType === 'oneway') {
+    const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, billedDistanceKm, cabId);
+    highwayToll = tollInfo.baseTollOneWay;
+    statePermitTax = isInterState ? statePermitBase : 0;
+  } else if (tripType === 'roundtrip') {
+    const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, Math.round(billedDistanceKm / 2), cabId);
+    highwayToll = Math.round(tollInfo.baseTollOneWay * 1.85);
+    statePermitTax = isInterState ? statePermitBase : 0;
+  } else if (tripType === 'airport') {
+    highwayToll = 120;
+    statePermitTax = 0;
   }
 
-  const taxableSubtotal = baseFare + driverAllowance;
+  const estimatedTollsAndTaxes = highwayToll + statePermitTax;
+  const tollsAndTaxes = includeTolls ? estimatedTollsAndTaxes : 0;
+
+  const carrierFee = addonCarrier ? 300 : 0;
+  const petFee = addonPet ? (cabId === 'suv' || cabId === 'innova' || cabId === 'tempo' ? 1000 : 800) : 0;
+  const assuredModelFee = addonAssuredModel ? 400 : 0;
+  const addonsTotal = carrierFee + petFee + assuredModelFee;
+
+  const taxableSubtotal = baseFare + driverAllowance + addonsTotal;
   const gstAmount = Math.round(taxableSubtotal * 0.05);
 
-  const totalFare = baseFare + driverAllowance + tollsAndTaxes + gstAmount;
+  const totalFare = baseFare + driverAllowance + tollsAndTaxes + addonsTotal + gstAmount;
   const advanceFare = Math.round(totalFare * 0.20);
   const balanceDue = totalFare - advanceFare;
 
@@ -230,7 +502,11 @@ export function computeServerTripFare({
     billedDistanceKm,
     baseFare,
     driverAllowance,
+    highwayToll,
+    statePermitTax,
+    estimatedTollsAndTaxes,
     tollsAndTaxes,
+    addonsTotal,
     gstAmount,
     totalFare,
     advanceFare,

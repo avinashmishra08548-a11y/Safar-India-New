@@ -141,6 +141,9 @@ export interface CreateOrderRequestPayload {
   returnDate?: string;
   localPackageId?: string;
   includeTolls: boolean;
+  addonCarrier?: boolean;
+  addonPet?: boolean;
+  addonAssuredModel?: boolean;
   paymentMode: 'advance_20' | 'full';
   customerName: string;
   customerPhone: string;
@@ -185,6 +188,9 @@ export interface RazorpayCheckoutOptions {
   returnDateRaw?: string;
   localPackageId?: string;
   includeTolls?: boolean;
+  addonCarrier?: boolean;
+  addonPet?: boolean;
+  addonAssuredModel?: boolean;
   totalFareRupees?: number;
   bookingDraft?: BookingRecord;
   onStatusChange?: (statusText: string) => void;
@@ -379,6 +385,9 @@ export async function launchRazorpayStandardCheckout(
         returnDate: checkoutParams.returnDateRaw,
         localPackageId: checkoutParams.localPackageId || '8h_80k',
         includeTolls,
+        addonCarrier: Boolean(checkoutParams.addonCarrier),
+        addonPet: Boolean(checkoutParams.addonPet),
+        addonAssuredModel: Boolean(checkoutParams.addonAssuredModel),
         paymentMode: checkoutParams.paymentMode,
         customerName: checkoutParams.customerName,
         customerPhone: checkoutParams.customerPhone,

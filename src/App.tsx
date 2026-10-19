@@ -1001,6 +1001,7 @@ export default function App() {
               returnDate={returnDate}
               localPackageId={localPackageId}
               includeTolls={includeTolls}
+              onToggleIncludeTolls={setIncludeTolls}
               travelDuration={travelDuration}
               onSelectCab={(cab, fare) => {
                 setIsCabsModalOpen(false);

@@ -186,10 +186,15 @@ export default async function handler(req, res) {
         tripType,
         cabId,
         distanceKm,
+        pickupCity,
+        dropCity,
         pickupDate,
         returnDate,
         localPackageId,
-        includeTolls: Boolean(includeTolls)
+        includeTolls: Boolean(includeTolls),
+        addonCarrier: Boolean(body.addonCarrier),
+        addonPet: Boolean(body.addonPet),
+        addonAssuredModel: Boolean(body.addonAssuredModel)
       });
     } catch (fareErr) {
       console.error('[/api/create-order] Fare calculation error:', {
