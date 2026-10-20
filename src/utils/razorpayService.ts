@@ -133,6 +133,7 @@ export interface CreateOrderRequestPayload {
   tripType: TripType;
   cabId: CabCategoryId;
   distanceKm: number;
+  extraKm?: number;
   pickupCity: string;
   dropCity: string;
   pickupAddress: string;
@@ -182,6 +183,7 @@ export interface RazorpayCheckoutOptions {
   tripType?: TripType;
   cabId?: CabCategoryId;
   distanceKm?: number;
+  extraKm?: number;
   pickupAddress?: string;
   pickupDateRaw?: string;
   pickupTimeRaw?: string;
@@ -359,6 +361,7 @@ export async function launchRazorpayStandardCheckout(
     const tripType: TripType = checkoutParams.tripType || 'oneway';
     const cabId: CabCategoryId = checkoutParams.cabId || 'sedan';
     const distanceKm = checkoutParams.distanceKm ?? 130;
+    const extraKm = checkoutParams.extraKm ?? 0;
     const pickupDateRaw =
       checkoutParams.pickupDateRaw || new Date().toISOString().split('T')[0];
     const pickupTimeRaw = checkoutParams.pickupTimeRaw || '08:00 AM';
@@ -377,6 +380,7 @@ export async function launchRazorpayStandardCheckout(
         tripType,
         cabId,
         distanceKm,
+        extraKm,
         pickupCity: checkoutParams.pickupCity,
         dropCity: checkoutParams.dropCity,
         pickupAddress: checkoutParams.pickupAddress || checkoutParams.pickupCity,

@@ -91,6 +91,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [includeTollsState, setIncludeTollsState] = useState<boolean>(
     tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0
   );
+  const [extraKmState, setExtraKmState] = useState<number>(fareDetails.extraKm || 0);
+  const [returnDateState, setReturnDateState] = useState<string>(returnDate || pickupDate);
+  const [returnTimeState, setReturnTimeState] = useState<string>(returnTime || '06:00 PM');
   const [addonCarrier, setAddonCarrier] = useState(false);
   const [addonAssuredModel, setAddonAssuredModel] = useState(false);
   const [addonPet, setAddonPet] = useState(false);
@@ -116,15 +119,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [errorMessage]);
 
-  // Live CabBazar fare calculation synchronized with server
+  // Live CabBazar fare calculation synchronized with server (including Hill Area, Outer Route, Pickup Time, Extra KM Slider)
   const activeFare = computeTripFare({
     tripType,
     cabId: cab.id,
     distanceKm: fareDetails.distanceKm,
+    extraKm: extraKmState,
     pickupCity,
     dropCity,
     pickupDate,
-    returnDate: tripType === 'roundtrip' ? returnDate : undefined,
+    pickupTime,
+    returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
     localPackageId,
     includeTolls: includeTollsState,
     addonCarrier,
@@ -182,8 +187,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       dropAddress: dropAddress.trim() || undefined,
       pickupDate,
       pickupTime,
-      returnDate: tripType === 'roundtrip' ? returnDate : undefined,
-      returnTime: tripType === 'roundtrip' ? returnTime : undefined,
+      returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
+      returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
       localPackage: tripType === 'local' ? localPackageId : undefined,
       airportMode: tripType === 'airport' ? airportMode : undefined,
       airportTerminal: airportTerminal.trim() || undefined,
@@ -213,6 +218,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       notes:
         [
           specialNotes.trim(),
+          extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
           addonCarrier ? 'Add-on: Roof Carrier' : '',
           addonAssuredModel ? 'Add-on: Assured New Model' : '',
           addonPet ? 'Add-on: Pet Travel' : ''
@@ -246,14 +252,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       bookingId,
       tripType,
       cabId: cab.id,
-      distanceKm: activeFare.distanceKm,
+      distanceKm: fareDetails.distanceKm,
+      extraKm: extraKmState,
       pickupCity,
       dropCity,
       pickupAddress: pickupAddress.trim(),
       pickupDate: `${pickupDate} at ${pickupTime}`,
       pickupDateRaw: pickupDate,
       pickupTimeRaw: pickupTime,
-      returnDateRaw: tripType === 'roundtrip' ? returnDate : undefined,
+      returnDateRaw: tripType === 'roundtrip' ? returnDateState : undefined,
       localPackageId,
       includeTolls: includeTollsState,
       addonCarrier,
@@ -359,17 +366,32 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-3 text-xs">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Date</span>
-              <span className="text-slate-900 font-bold">{pickupDate}</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Date &amp; Time</span>
+              <span className="text-slate-900 font-bold">{pickupDate} · {pickupTime}</span>
             </div>
+            {tripType === 'roundtrip' ? (
+              <div>
+                <span className="text-[10px] text-amber-800 uppercase font-bold block">Return Date ({activeFare.days} Days)</span>
+                <input
+                  type="date"
+                  min={pickupDate}
+                  value={returnDateState}
+                  onChange={(e) => setReturnDateState(e.target.value)}
+                  className="bg-white border border-amber-300 rounded-lg px-2 py-0.5 text-slate-900 font-bold text-xs mt-0.5"
+                />
+              </div>
+            ) : (
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase font-bold block">Route Type</span>
+                <span className="text-slate-900 font-bold">
+                  {activeFare.isHillAreaRoute ? '⛰️ Hill Area Route' : 'Highway Route'}
+                </span>
+              </div>
+            )}
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Time</span>
-              <span className="text-slate-900 font-bold">{pickupTime}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Included KM</span>
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Billed KM</span>
               <span className="text-amber-700 font-bold">
-                {activeFare.billedDistanceKm} KM (Extra ₹{activeFare.extraKmRate}/km)
+                {activeFare.billedDistanceKm} KM {extraKmState > 0 ? `(Incl. +${extraKmState} KM)` : ''}
               </span>
             </div>
             <div>
@@ -377,6 +399,31 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <span className="text-emerald-700 font-black text-sm">{formatINR(activeFare.totalFare)}</span>
             </div>
           </div>
+
+          {/* Extra KM Slider in Modal for quick adjustment */}
+          {tripType !== 'local' && (
+            <div className="pt-2.5 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center justify-between sm:justify-start gap-2">
+                <span className="text-[11px] font-bold text-slate-700">
+                  Extra Buffer KM Slider ({activeFare.isDropHillArea || activeFare.isPickupHillArea ? 'Hill Rate' : 'Highway Rate'} ₹{activeFare.extraKmRateUsed}/km):
+                </span>
+                <span className="text-xs font-mono font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
+                  +{extraKmState} KM
+                </span>
+              </div>
+              <div className="flex items-center gap-2 sm:w-56">
+                <input
+                  type="range"
+                  min={0}
+                  max={250}
+                  step={5}
+                  value={extraKmState}
+                  onChange={(e) => setExtraKmState(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Clean 2-Option Fare Mode Selector (No Toll/Tax ₹ Amount Shown) */}
           {tripType !== 'local' && (
@@ -393,7 +440,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   }`}
                 >
                   <CheckCircle className="w-3 h-3 shrink-0" />
-                  <span>Best Price (Toll + State Tax Included)</span>
+                  <span>Include Toll</span>
                 </button>
                 <button
                   type="button"
@@ -404,7 +451,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                       : 'text-slate-600 hover:text-slate-950'
                   }`}
                 >
-                  <span>Base Fare (Toll + State Tax Extra)</span>
+                  <span>Toll Extra (Alag Se)</span>
                 </button>
               </div>
             </div>

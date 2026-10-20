@@ -91,8 +91,20 @@ export default function App() {
   const [airportMode, setAirportMode] = useState<'pickup' | 'drop'>('drop');
   const [airportTerminal, setAirportTerminal] = useState('');
   const [includeTolls, setIncludeTolls] = useState(true);
+  const [extraKm, setExtraKm] = useState(0);
 
-  // Distance and Duration calculation via Ola Maps
+  const roundTripDays = useMemo(() => {
+    if (tripType === 'roundtrip' && pickupDate && returnDate) {
+      const p = new Date(pickupDate).getTime();
+      const r = new Date(returnDate).getTime();
+      if (!isNaN(p) && !isNaN(r) && r >= p) {
+        return Math.max(1, Math.ceil((r - p) / (1000 * 60 * 60 * 24)) + 1);
+      }
+    }
+    return 1;
+  }, [tripType, pickupDate, returnDate]);
+
+  // Distance and Duration calculation via Ola Maps & Verified Highway/Hill Matrix
   const [distanceKm, setDistanceKm] = useState(230);
   const [travelDuration, setTravelDuration] = useState('3 hrs 45 mins');
   const [isExactOlaDistance, setIsExactOlaDistance] = useState(false);
@@ -822,6 +834,29 @@ export default function App() {
               </div>
             </div>
 
+            {/* LIVE CAB SELECTOR WITH EXTRA KM SLIDER & ROUND TRIP RETURN DATE */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <CabSelector
+                tripType={tripType}
+                setTripType={setTripType}
+                pickupCity={pickupCity}
+                dropCity={dropCity}
+                distanceKm={distanceKm}
+                extraKm={extraKm}
+                setExtraKm={setExtraKm}
+                days={roundTripDays}
+                pickupDate={pickupDate}
+                pickupTime={pickupTime}
+                returnDate={returnDate}
+                setReturnDate={setReturnDate}
+                returnTime={returnTime}
+                setReturnTime={setReturnTime}
+                localPackageId={localPackageId}
+                includeTolls={includeTolls}
+                setIncludeTolls={setIncludeTolls}
+                onSelectCab={handleSelectCab}
+              />
+            </div>
 
             {/* POPULAR INTERCITY ROUTES SECTION */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -994,15 +1029,22 @@ export default function App() {
 
             <CabSelector
               tripType={tripType}
+              setTripType={setTripType}
               pickupCity={pickupCity}
               dropCity={dropCity}
               distanceKm={distanceKm}
+              extraKm={extraKm}
+              setExtraKm={setExtraKm}
+              days={roundTripDays}
               pickupDate={pickupDate}
+              pickupTime={pickupTime}
               returnDate={returnDate}
+              setReturnDate={setReturnDate}
+              returnTime={returnTime}
+              setReturnTime={setReturnTime}
               localPackageId={localPackageId}
               includeTolls={includeTolls}
-              onToggleIncludeTolls={setIncludeTolls}
-              travelDuration={travelDuration}
+              setIncludeTolls={setIncludeTolls}
               onSelectCab={(cab, fare) => {
                 setIsCabsModalOpen(false);
                 handleSelectCab(cab, fare);

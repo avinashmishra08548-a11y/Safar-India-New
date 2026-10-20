@@ -393,7 +393,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           <button
             type="button"
             onClick={() => setTripType('oneway')}
-            className={`flex items-center gap-2.5 py-2.5 px-3 text-xs sm:text-sm rounded-xl transition text-left leading-tight ${
+            className={`flex items-center gap-2.5 py-2.5 px-3 text-xs sm:text-sm rounded-xl transition text-left leading-tight cursor-pointer ${
               tripType === 'oneway'
                 ? 'bg-white text-slate-950 font-extrabold shadow-xs border border-slate-200/60'
                 : 'text-slate-700 hover:text-slate-950 font-semibold'
@@ -406,15 +406,22 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setTripType('roundtrip')}
-            className={`flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm rounded-xl transition ${
+            onClick={() => {
+              setTripType('roundtrip');
+              if (!returnDate || returnDate < pickupDate) {
+                const base = pickupDate ? new Date(pickupDate) : new Date();
+                base.setDate(base.getDate() + 2);
+                setReturnDate(base.toISOString().split('T')[0]);
+              }
+            }}
+            className={`flex items-center justify-center gap-2 py-2.5 px-3 text-xs sm:text-sm rounded-xl transition cursor-pointer ${
               tripType === 'roundtrip'
                 ? 'bg-white text-slate-950 font-extrabold shadow-xs border border-slate-200/60'
                 : 'text-slate-700 hover:text-slate-950 font-semibold'
             }`}
           >
-            <RefreshCw className="w-4 h-4 text-slate-700 shrink-0" />
-            <span>Round Trip</span>
+            <RefreshCw className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Round Trip (With Return Date)</span>
           </button>
         </div>
       )}
@@ -702,13 +709,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
       </div>
 
-      {/* 4. DATE, TIME & CUSTOMER MOBILE NUMBER ROW */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 mt-4">
+      {/* 4. DATE, TIME, RETURN DATE (FOR ROUND TRIP) & CUSTOMER MOBILE NUMBER ROW */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${tripType === 'roundtrip' ? 'lg:grid-cols-4' : 'md:grid-cols-3'} gap-3.5 mt-4`}>
         
         {/* Pickup Date & Time Box */}
         <div>
           <label htmlFor="booking-pickup-date" className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-            Pickup Date & Time
+            Pickup Date &amp; Time
           </label>
           <div className="grid grid-cols-2 gap-1.5">
             <input
@@ -718,7 +725,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               type="date"
               min={todayStr}
               value={pickupDate}
-              onChange={(e) => setPickupDate(e.target.value)}
+              onChange={(e) => {
+                const newPickup = e.target.value;
+                setPickupDate(newPickup);
+                if (returnDate && returnDate < newPickup) {
+                  setReturnDate(newPickup);
+                }
+              }}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
             />
             <select
@@ -736,14 +749,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         </div>
 
-        {/* Return Date if Round Trip */}
-        {tripType === 'roundtrip' ? (
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="booking-return-date" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Return Date & Time
+        {/* Dedicated Return Date & Time Box when Round Trip is active */}
+        {tripType === 'roundtrip' && (
+          <div className="bg-amber-50/70 border border-amber-300 rounded-2xl p-2 -m-1">
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="booking-return-date" className="flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-wider text-amber-950">
+                <Calendar className="w-3 h-3 text-amber-600 shrink-0" />
+                <span>Return Date &amp; Time</span>
               </label>
-              <span className="text-[10px] text-amber-700 font-bold">{roundTripDays} Day{roundTripDays > 1 ? 's' : ''}</span>
+              <span className="text-[10px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded-md font-extrabold">
+                {roundTripDays} Day{roundTripDays > 1 ? 's' : ''} Trip
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <input
@@ -754,7 +770,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 min={pickupDate || todayStr}
                 value={returnDate}
                 onChange={(e) => setReturnDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                className="w-full bg-white border border-amber-300 rounded-xl px-2 py-2 text-slate-900 text-xs font-bold focus:outline-none focus:border-amber-600 transition"
               />
               <select
                 id="booking-return-time"
@@ -762,65 +778,86 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 aria-label="Return Time"
                 value={returnTime}
                 onChange={(e) => setReturnTime(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition cursor-pointer"
+                className="w-full bg-white border border-amber-300 rounded-xl px-1.5 py-2 text-slate-900 text-xs font-bold focus:outline-none focus:border-amber-600 transition cursor-pointer"
               >
                 {timeSlots.map((time) => (
                   <option key={time} value={time}>{time}</option>
                 ))}
               </select>
             </div>
-          </div>
-        ) : (
-          /* Airport details or Highway Toll/Tax Fare Option Toggle */
-          <div>
-            <label htmlFor={activeMainCategory === 'airport' ? 'booking-airport-terminal' : 'booking-include-tolls'} className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              {activeMainCategory === 'airport' ? 'Airport Terminal / Flight No.' : 'Fare Option (Toll & State Tax)'}
-            </label>
-            {activeMainCategory === 'airport' ? (
-              <input
-                id="booking-airport-terminal"
-                name="airportTerminal"
-                type="text"
-                aria-label="Airport terminal or flight number"
-                value={airportTerminal}
-                onChange={(e) => setAirportTerminal(e.target.value)}
-                placeholder="e.g. Terminal 3 (T3), 6E-204"
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
-              />
-            ) : (
-              <div
-                id="booking-include-tolls"
-                className="grid grid-cols-2 gap-1 h-[38px] p-1 bg-slate-100 rounded-xl border border-slate-300"
-              >
+            <div className="flex items-center gap-1 mt-1.5">
+              {[
+                { label: 'Same Day', add: 0 },
+                { label: '+1 Day', add: 1 },
+                { label: '+2 Days', add: 2 },
+                { label: '+4 Days', add: 4 },
+              ].map((preset) => (
                 <button
+                  key={preset.label}
                   type="button"
-                  onClick={() => setIncludeTolls(true)}
-                  className={`rounded-lg text-[10px] font-extrabold transition flex items-center justify-center gap-1 px-1.5 cursor-pointer ${
-                    includeTolls
-                      ? 'bg-[#F59E0B] text-slate-950 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-950'
-                  }`}
+                  onClick={() => {
+                    const base = pickupDate ? new Date(pickupDate) : new Date();
+                    base.setDate(base.getDate() + preset.add);
+                    setReturnDate(base.toISOString().split('T')[0]);
+                  }}
+                  className="flex-1 py-0.5 px-1 rounded bg-white hover:bg-amber-200/70 text-[9px] font-extrabold text-amber-900 border border-amber-200 transition cursor-pointer"
                 >
-                  <CheckCircle2 className="w-3 h-3 shrink-0" />
-                  <span className="truncate">Include Toll</span>
+                  {preset.label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setIncludeTolls(false)}
-                  className={`rounded-lg text-[10px] font-extrabold transition flex items-center justify-center gap-1 px-1.5 cursor-pointer ${
-                    !includeTolls
-                      ? 'bg-slate-900 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-950'
-                  }`}
-                >
-                  <span className="truncate">Toll Extra</span>
-                </button>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
 
-            {/* CUSTOMER MOBILE NUMBER INPUT WITH TRACCAR CLOUD SMS OTP VERIFICATION */}
+        {/* Airport details or Highway Toll/Tax Fare Option Toggle */}
+        <div>
+          <label htmlFor={activeMainCategory === 'airport' ? 'booking-airport-terminal' : 'booking-include-tolls'} className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+            {activeMainCategory === 'airport' ? 'Airport Terminal / Flight No.' : 'Fare Option (Toll & State Tax)'}
+          </label>
+          {activeMainCategory === 'airport' ? (
+            <input
+              id="booking-airport-terminal"
+              name="airportTerminal"
+              type="text"
+              aria-label="Airport terminal or flight number"
+              value={airportTerminal}
+              onChange={(e) => setAirportTerminal(e.target.value)}
+              placeholder="e.g. Terminal 3 (T3), 6E-204"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 text-xs font-semibold focus:outline-none focus:border-amber-500 focus:bg-white transition"
+            />
+          ) : (
+            <div
+              id="booking-include-tolls"
+              className="grid grid-cols-2 gap-1 h-[38px] p-1 bg-slate-100 rounded-xl border border-slate-300"
+            >
+              <button
+                type="button"
+                onClick={() => setIncludeTolls(true)}
+                className={`rounded-lg text-[10px] font-extrabold transition flex items-center justify-center gap-1 px-1.5 cursor-pointer ${
+                  includeTolls
+                    ? 'bg-[#F59E0B] text-slate-950 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-950'
+                }`}
+              >
+                <CheckCircle2 className="w-3 h-3 shrink-0" />
+                <span className="truncate">Include Toll</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncludeTolls(false)}
+                className={`rounded-lg text-[10px] font-extrabold transition flex items-center justify-center gap-1 px-1.5 cursor-pointer ${
+                  !includeTolls
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-950'
+                }`}
+              >
+                <span className="truncate">Toll Extra</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* CUSTOMER MOBILE NUMBER INPUT WITH TRACCAR CLOUD SMS OTP VERIFICATION */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label htmlFor="booking-customer-mobile" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -901,12 +938,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
           <div>
             <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5 flex-wrap">
-              <span>{tripType === 'local' ? 'City Rental Package' : 'Road Distance & Duration'}</span>
+              <span>{tripType === 'local' ? 'City Rental Package' : 'Verified Road Distance & Duration'}</span>
               <span className="text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded font-mono font-bold">
-                Ola Maps Matrix
+                {isExactOlaDistance ? 'Verified Highway / Hill Route' : 'Road Route Matrix'}
               </span>
             </div>
-            <div className="text-sm font-black text-slate-900 flex items-center gap-2 mt-0.5">
+            <div className="text-sm font-black text-slate-900 flex items-center gap-2 mt-0.5 flex-wrap">
               <span>{tripType === 'local' ? (localPackageId === '4h_40k' ? '40 KM' : localPackageId === '12h_120k' ? '120 KM' : '80 KM') : `${distanceKm} KM`}</span>
               {travelDuration && tripType !== 'local' && (
                 <span className="text-xs text-amber-700 font-semibold">
@@ -914,8 +951,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 </span>
               )}
               {tripType === 'roundtrip' && (
-                <span className="text-xs text-slate-500 font-normal">
-                  (Billed min {roundTripDays * 250} KM or actual 2-way)
+                <span className="text-xs text-amber-900 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md font-bold">
+                  Round Trip ({roundTripDays} Day{roundTripDays > 1 ? 's' : ''} · Return: {returnDate})
                 </span>
               )}
             </div>
@@ -925,7 +962,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         <div className="flex items-center gap-3 text-[11px] text-slate-600">
           <span className="flex items-center gap-1 text-emerald-700 font-bold">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Zero Return Fare</span>
+            <span>{tripType === 'roundtrip' ? 'Return Cab Included' : 'Zero Return Fare'}</span>
           </span>
           <span className="hidden sm:flex items-center gap-1 text-slate-600 font-medium">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
