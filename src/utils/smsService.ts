@@ -740,23 +740,39 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
 }
 
 /**
- * Re-dispatches the active OTP directly to the customer's WhatsApp number
+ * Flushes / re-dispatches the active server-queued OTP directly to the customer's WhatsApp number
  */
 export async function retriggerWhatsAppOtpFromToken(
   phoneNumber: string,
-  token: string
+  token?: string
 ): Promise<boolean> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
-  if (!token || cleanPhone.length !== 10) return false;
+  if (cleanPhone.length !== 10) return false;
   try {
-    const parts = token.split('.');
-    if (parts.length >= 4) {
-      const realOtp = atob(parts[3]);
-      if (realOtp && realOtp.length === 4) {
-        return await whatsAppService.sendCustomerOtp(cleanPhone, realOtp);
-      }
+    const res = await fetch('/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'flush_pending',
+        recipientPhone: cleanPhone
+      })
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && data.success) return true;
     }
   } catch {}
+  if (token && token.startsWith('client_fallback.')) {
+    try {
+      const parts = token.split('.');
+      if (parts.length >= 4) {
+        const realOtp = atob(parts[3]);
+        if (realOtp && realOtp.length === 4) {
+          return await whatsAppService.sendCustomerOtp(cleanPhone, realOtp);
+        }
+      }
+    } catch {}
+  }
   return false;
 }
 

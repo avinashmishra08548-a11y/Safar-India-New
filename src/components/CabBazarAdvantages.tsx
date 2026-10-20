@@ -3,71 +3,59 @@ import {
   ShieldCheck, 
   Banknote, 
   Clock, 
-  MapPin, 
-  FileCheck2,
-  Award
+  MapPin
 } from 'lucide-react';
 
 export const CabBazarAdvantages: React.FC = () => {
   const advantages = [
     {
       icon: Banknote,
-      title: 'Pay Only One-Way Distance',
-      desc: 'No hidden round-trip return fares charged on one-way journeys. Save up to 50% on intercity cab travel.'
-    },
-    {
-      icon: Clock,
-      title: 'Zero Cancellation Fee',
-      desc: 'Plans changed? Enjoy 100% full refund on advance payment if cancelled up to 6 hours prior to departure.'
+      title: 'One-Way Fares Only',
+      desc: 'Pay strictly for one-way distance with zero return fare charges.'
     },
     {
       icon: ShieldCheck,
-      title: 'Verified Police-Checked Drivers',
-      desc: 'All chauffeurs undergo commercial background verification, highway driving tests, and medical fitness checks.'
+      title: 'Verified AC Cabs',
+      desc: 'Clean commercial vehicles with experienced highway chauffeurs.'
     },
     {
-      icon: FileCheck2,
-      title: 'All-Inclusive Transparent Invoices',
-      desc: 'Clear breakdown of driver allowance, tolls, state permit tax, and GST with official corporate tax invoices.'
-    },
-    {
-      icon: Award,
-      title: 'Spotless AC Commercial Fleet',
-      desc: 'High standard sanitization, chilled dual air conditioning, generous luggage space, and mobile USB charging.'
+      icon: Clock,
+      title: 'Free Cancellation',
+      desc: '100% advance refund if cancelled up to 6 hours before pickup.'
     },
     {
       icon: MapPin,
-      title: 'Guaranteed Doorstep Pickup & Drop',
-      desc: 'Chauffeur arrives directly at your home, hotel, or airport terminal on time with luggage assistance.'
+      title: 'Doorstep Pickup & Drop',
+      desc: 'On-time pickup from your home, hotel, or airport terminal.'
     }
   ];
 
   return (
-    <section className="space-y-6 py-6" id="why-safar-cabs">
-      <div className="text-center max-w-2xl mx-auto space-y-2">
-        <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-          Why Travelers Choose Safar India Cabs
+    <section className="space-y-8 py-8" id="why-safar-cabs">
+      <div className="max-w-xl">
+        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          Why Travel With Safar India Cabs
         </h2>
-        <p className="text-xs sm:text-sm text-slate-500">
-          The reliable, transparent alternative to expensive flight tickets and crowded trains for intercity travel across India.
+        <p className="text-sm text-slate-500 mt-1">
+          Comfortable, reliable intercity and airport cab service across India.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {advantages.map((item, idx) => {
           const Icon = item.icon;
           return (
             <div
               key={idx}
-              className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-amber-400 transition-all shadow-sm hover:shadow-md space-y-2.5"
+              className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xs space-y-3"
             >
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
+              <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200/80">
                 <Icon className="w-5 h-5 text-amber-600" />
               </div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-base font-extrabold text-slate-900">
                 {item.title}
               </h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
                 {item.desc}
               </p>
             </div>

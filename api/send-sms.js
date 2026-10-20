@@ -73,7 +73,6 @@ async function fetchWithTimeout(url, options, timeoutMs = 3500) {
 export async function dispatchTraccarSms(phone, message, options = {}) {
   const cleanPhone = sanitize10Digit(phone);
   if (cleanPhone.length !== 10) {
-    console.error('[Traccar SMS Error] Invalid 10-digit phone number:', phone);
     return {
       success: false,
       reason: `Invalid 10-digit Indian phone number: ${phone}`,
@@ -97,12 +96,6 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
   // STEP 1: Attempt Primary Traccar Local Service (http://172.24.139.153:8082)
   // =========================================================================
   try {
-    console.log(`[Traccar Local Service Request] POST ${localEndpoint}`, {
-      to: recipient,
-      authorization: localToken,
-      messagePreview: message.slice(0, 60)
-    });
-
     const localRes = await fetchWithTimeout(
       localEndpoint,
       {
@@ -113,11 +106,10 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
         },
         body: JSON.stringify(payload)
       },
-      3500
+      2500
     );
 
     const localText = await localRes.text().catch(() => '');
-    console.log(`[Traccar Local Service Response] HTTP ${localRes.status} for ${recipient}:`, localText);
 
     if (localRes.ok) {
       return {
@@ -131,24 +123,16 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
     }
 
     localErrorLog = `Local Service HTTP ${localRes.status}: ${localText}`;
-    console.warn(`[Traccar Local Service Non-200] ${localErrorLog} -> Falling back to Cloud Service...`);
   } catch (localErr) {
     localErrorLog = localErr?.name === 'AbortError'
-      ? `Local Service timeout (3.5s) reaching ${localEndpoint}`
+      ? `Local Service timeout (2.5s) reaching ${localEndpoint}`
       : `Local Service unreachable (${localEndpoint}): ${localErr?.message || localErr}`;
-    console.warn(`[Traccar Local Service Notice] ${localErrorLog} -> Falling back to Cloud Service...`);
   }
 
   // =========================================================================
   // STEP 2: Automatic Fallback to Traccar Cloud Service (https://www.traccar.org/sms/)
   // =========================================================================
   try {
-    console.log(`[Traccar Cloud Fallback Request] POST ${TRACCAR_CLOUD_ENDPOINT}`, {
-      to: recipient,
-      tokenPrefix: cloudToken.slice(0, 18) + '...',
-      messagePreview: message.slice(0, 60)
-    });
-
     const cloudRes = await fetchWithTimeout(
       TRACCAR_CLOUD_ENDPOINT,
       {
@@ -159,7 +143,7 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
         },
         body: JSON.stringify(payload)
       },
-      6000
+      5000
     );
 
     const responseText = await cloudRes.text().catch(() => '');
@@ -167,8 +151,6 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
     try {
       responseData = responseText ? JSON.parse(responseText) : {};
     } catch {}
-
-    console.log(`[Traccar Cloud Fallback Response] HTTP ${cloudRes.status} for ${recipient}:`, responseData);
 
     if (responseData && typeof responseData === 'object') {
       const failureCount = Number(responseData.failureCount ?? 0);
@@ -179,7 +161,6 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
       if (failureCount > 0 || successCount === 0 || (firstResp && firstResp.success === false)) {
         const errCode = fcmError?.code || 'FCM_DISPATCH_FAILED';
         const errMsg = fcmError?.message || 'Traccar Cloud FCM delivery failed';
-        console.error(`[Traccar Cloud Fallback Failed] to=${recipient} | localError=${localErrorLog} | cloudError=${errCode}: ${errMsg}`);
 
         return {
           success: false,
@@ -222,7 +203,6 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
       }
     };
   } catch (cloudErr) {
-    console.error(`[Traccar Cloud Fallback Exception] to=${recipient}:`, cloudErr);
     return {
       success: false,
       to: recipient,

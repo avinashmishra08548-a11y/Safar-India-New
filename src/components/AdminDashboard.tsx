@@ -92,8 +92,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onChangePin,
   onClearDemoBookings
 }) => {
-  if (!isOpen) return null;
-
   const [activeTab, setActiveTab] = useState<'bookings' | 'customers' | 'gateways' | 'security'>('bookings');
   const [search, setSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -170,6 +168,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
     } catch {}
   }, [bookings]);
+
+  if (!isOpen) return null;
 
   // Strict Financial & Booking Metrics:
   // 1. Total Bookings count

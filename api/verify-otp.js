@@ -159,8 +159,7 @@ export default async function handler(req, res) {
       const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
       const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
       const signature = generateSignature(cleanPhone, generatedOtp, expiresAt);
-      const encodedPayload = Buffer.from(generatedOtp, 'utf8').toString('base64');
-      const sessionToken = `${signature}.${expiresAt}.${cleanPhone}.${encodedPayload}`;
+      const sessionToken = `${signature}.${expiresAt}.${cleanPhone}`;
 
       const smsText = `🔐 Safar India Cabs Verification OTP: ${generatedOtp}. Valid for 10 minutes. Do not share this code with anyone.`;
 
@@ -181,9 +180,8 @@ export default async function handler(req, res) {
 
       return res.status(200).json({
         success: true,
-        message: `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`,
+        message: `Live OTP sent to your WhatsApp (+91 ${cleanPhone})`,
         token: sessionToken,
-        otp: generatedOtp,
         expiresAt,
         waDelivered,
         waTemplateDelivered,

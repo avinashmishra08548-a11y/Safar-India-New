@@ -70,6 +70,7 @@ export default function App() {
   const [tripType, setTripType] = useState<TripType>('oneway');
   const [pickupCity, setPickupCity] = useState('Delhi NCR');
   const [dropCity, setDropCity] = useState('Agra');
+  const [roundTripStops, setRoundTripStops] = useState<string[]>([]);
   
   // Date defaults: tomorrow
   const getTomorrowStr = () => {
@@ -104,6 +105,14 @@ export default function App() {
     return 1;
   }, [tripType, pickupDate, returnDate]);
 
+  const effectiveDropCity = useMemo(() => {
+    const validStops = roundTripStops.map((s) => s.trim()).filter(Boolean);
+    if (tripType === 'roundtrip' && validStops.length > 0) {
+      return [dropCity, ...validStops].join(' → ');
+    }
+    return dropCity;
+  }, [tripType, dropCity, roundTripStops]);
+
   // Distance and Duration calculation via Ola Maps & Verified Highway/Hill Matrix
   const [distanceKm, setDistanceKm] = useState(230);
   const [travelDuration, setTravelDuration] = useState('3 hrs 45 mins');
@@ -119,6 +128,28 @@ export default function App() {
         setDistanceKm(d);
         setTravelDuration(localPackageId === '4h_40k' ? '4 hrs' : localPackageId === '12h_120k' ? '12 hrs' : '8 hrs');
         setIsExactOlaDistance(false);
+        return;
+      }
+
+      const validStops =
+        tripType === 'roundtrip'
+          ? roundTripStops.map((s) => s.trim()).filter((s) => s.length >= 2)
+          : [];
+
+      if (validStops.length > 0) {
+        const waypoints = [pickupCity, dropCity, ...validStops, pickupCity];
+        let totalCircuitKm = 0;
+        for (let i = 0; i < waypoints.length - 1; i++) {
+          const legRes = await calculateExactRoadDistance(waypoints[i], waypoints[i + 1], null, null);
+          totalCircuitKm += legRes.distanceKm;
+        }
+        if (!isCancelled) {
+          // computeTripFare multiplies distanceKm * 2 for roundtrip, so store half of total circuit KM
+          setDistanceKm(Math.max(40, Math.round(totalCircuitKm / 2)));
+          const estHours = Math.max(2, Math.round(totalCircuitKm / 52));
+          setTravelDuration(`${estHours} hrs (Multi-City Round Trip)`);
+          setIsExactOlaDistance(true);
+        }
       } else {
         const res = await calculateExactRoadDistance(pickupCity, dropCity, pickupCoords, dropCoords);
         if (!isCancelled) {
@@ -134,7 +165,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [pickupCity, dropCity, pickupCoords, dropCoords, tripType, localPackageId]);
+  }, [pickupCity, dropCity, roundTripStops, pickupCoords, dropCoords, tripType, localPackageId]);
 
   // Selected cab for checkout
   const [selectedCabForCheckout, setSelectedCabForCheckout] = useState<{
@@ -436,295 +467,30 @@ export default function App() {
             />
           </div>
         ) : (
-          <div className="space-y-10">
+          <div className="space-y-14 sm:space-y-20">
             
-            {/* HERO SECTION MATCHING IMG-20261018-WA0009.jpg */}
-            <div className="relative overflow-hidden bg-gradient-to-b from-[#FAF7F0] via-[#F7F8FA] to-[#F3F4F6] pt-3.5 sm:pt-6 pb-8 sm:pb-12">
-              <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 relative z-10">
+            {/* SPACIOUS EXECUTIVE HERO SECTION */}
+            <div className="relative overflow-hidden bg-gradient-to-b from-[#FAF8F5] via-[#F8FAFC] to-[#F8FAFC] pt-8 sm:pt-12 pb-10 sm:pb-14 border-b border-slate-200/70">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 
-                {/* 1. Centered Cream/Gold Trust Pill */}
-                <div className="flex justify-center mb-3 sm:mb-5">
-                  <div className="inline-flex items-center gap-2 text-xs sm:text-sm text-[#78350F] bg-[#FEF9E7] border border-[#F3D87D] px-4 sm:px-6 py-1.5 sm:py-2 rounded-full shadow-2xs">
-                    <Sparkles className="w-4 h-4 text-[#F59E0B] shrink-0" />
-                    <span className="font-bold text-[#6B2F0A]">
-                      India&apos;s Most Trusted Outstation Taxi Service
-                    </span>
-                  </div>
+                {/* Clean, Spacious Hero Header */}
+                <div className="max-w-3xl mb-8 sm:mb-10">
+                  <p className="text-xs sm:text-sm font-bold text-amber-700 tracking-wide mb-2">
+                    A1 Cab Services · All India Outstation &amp; Local Rentals
+                  </p>
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight leading-[1.12]">
+                    Outstation &amp; Local Cabs with{' '}
+                    <span className="text-amber-500">Guaranteed Low Fares</span>
+                  </h1>
+                  <p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl">
+                    Verified AC commercial sedans, SUVs, and Innova Crysta with experienced highway chauffeurs.
+                  </p>
                 </div>
 
-                {/* 2. Seamless Split Hero Banner: Left 4-Line Headline + Right India Gate, Airplane & White Sedan Taxi */}
-                <div className="relative flex items-center justify-between min-h-[168px] sm:min-h-[240px] mb-3 sm:mb-5">
+                {/* Hero Split Grid: Left Booking Engine (7 cols) + Right Official Brand Banner & Highlights (5 cols) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
                   
-                  {/* Left 4-Line Stacked Headline */}
-                  <div className="w-[56%] sm:w-[52%] z-20 pr-1 py-1">
-                    <h1 className="text-[26px] sm:text-4xl md:text-5xl font-black text-[#0F172A] tracking-tight leading-[1.12]">
-                      Intercity
-                      <br />
-                      Outstation &amp;
-                      <br />
-                      Local Cabs with
-                      <br />
-                      <span className="text-[#F59E0B]">Guaranteed Low Fares</span>
-                    </h1>
-                  </div>
-
-                  {/* Right Seamless Illustration: India Gate + City Skyline + Airplane + Trees + White Sedan Taxi */}
-                  <div className="w-[54%] sm:w-[52%] -ml-10 sm:-ml-6 relative flex items-center justify-end select-none z-10">
-                    <div className="relative w-full max-w-[270px] sm:max-w-[440px] aspect-[16/11]">
-                      <svg
-                        viewBox="0 0 420 270"
-                        className="w-full h-full overflow-visible"
-                        aria-label="SafarIndiaCabs White Sedan Taxi at India Gate"
-                      >
-                        <defs>
-                          <linearGradient id="heroSkyGrad" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor="#FAF7F0" stopOpacity="0" />
-                            <stop offset="30%" stopColor="#FEF3C7" stopOpacity="0.85" />
-                            <stop offset="68%" stopColor="#FDE68A" stopOpacity="0.95" />
-                            <stop offset="100%" stopColor="#BAE6FD" stopOpacity="0.9" />
-                          </linearGradient>
-                          <radialGradient id="sunriseGlow" cx="0.52" cy="0.48" r="0.48">
-                            <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.5" />
-                            <stop offset="65%" stopColor="#FDE68A" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#FAF7F0" stopOpacity="0" />
-                          </radialGradient>
-                          <linearGradient id="highwayGrad" x1="0" y1="0" x2="1" y2="0.4">
-                            <stop offset="0%" stopColor="#FAF7F0" stopOpacity="0" />
-                            <stop offset="25%" stopColor="#E2E8F0" stopOpacity="0.9" />
-                            <stop offset="100%" stopColor="#334155" stopOpacity="0.95" />
-                          </linearGradient>
-                          <linearGradient id="carBodyGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#FFFFFF" />
-                            <stop offset="70%" stopColor="#F8FAFC" />
-                            <stop offset="100%" stopColor="#E2E8F0" />
-                          </linearGradient>
-                        </defs>
-
-                        {/* Soft Blended Sky & Sunrise Glow */}
-                        <ellipse cx="245" cy="125" rx="170" ry="115" fill="url(#heroSkyGrad)" />
-                        <circle cx="220" cy="125" r="105" fill="url(#sunriseGlow)" />
-
-                        {/* Distant Golden City Skyline Silhouettes */}
-                        <g fill="#F59E0B" opacity="0.28">
-                          <rect x="65" y="108" width="14" height="58" />
-                          <rect x="82" y="95" width="16" height="71" />
-                          <polygon points="90,78 82,95 98,95" />
-                          <rect x="102" y="114" width="12" height="52" />
-                          <rect x="235" y="102" width="18" height="64" />
-                          <rect x="256" y="115" width="15" height="51" />
-                        </g>
-
-                        {/* Detailed India Gate Monument in Warm Terracotta/Gold */}
-                        <g transform="translate(132, 42)">
-                          {/* Top Stepped Crown */}
-                          <rect x="20" y="0" width="52" height="7" rx="1" fill="#D97706" opacity="0.72" />
-                          <rect x="13" y="7" width="66" height="9" rx="1" fill="#EA580C" opacity="0.76" />
-                          <rect x="6" y="16" width="80" height="8" rx="1" fill="#D97706" opacity="0.82" />
-                          {/* Main Arch Pillar Body */}
-                          <rect x="9" y="24" width="74" height="100" rx="1.5" fill="#F59E0B" opacity="0.78" />
-                          {/* Architectural Inner Arch Cutout */}
-                          <path d="M 31 124 L 31 64 A 15 15 0 0 1 61 64 L 61 124 Z" fill="#FEF3C7" />
-                          {/* Horizontal Cornice Lines */}
-                          <line x1="9" y1="44" x2="83" y2="44" stroke="#B45309" strokeWidth="1.5" opacity="0.5" />
-                          <line x1="9" y1="62" x2="31" y2="62" stroke="#B45309" strokeWidth="1.2" opacity="0.5" />
-                          <line x1="61" y1="62" x2="83" y2="62" stroke="#B45309" strokeWidth="1.2" opacity="0.5" />
-                        </g>
-
-                        {/* Commercial Jet Airplane Ascending in Top-Right Sky */}
-                        <g transform="translate(308, 18) rotate(-14)">
-                          {/* Fuselage */}
-                          <path
-                            d="M 2 20 C 18 16, 46 11, 64 9 C 70 8.5, 74 10, 72 13 C 62 16, 34 21, 6 24 Z"
-                            fill="#334155"
-                          />
-                          {/* Tail Fin */}
-                          <polygon points="4,20 1,9 9,10 14,18" fill="#1E293B" />
-                          {/* Swept Wings */}
-                          <polygon points="30,16 18,4 26,4 44,14" fill="#64748B" />
-                          <polygon points="34,18 24,29 32,28 48,16" fill="#1E293B" />
-                        </g>
-
-                        {/* Lush Green Trees on Horizon */}
-                        <g>
-                          {/* Left Shrubs */}
-                          <circle cx="98" cy="160" r="14" fill="#65A30D" opacity="0.75" />
-                          <circle cx="118" cy="156" r="17" fill="#4D7C0F" opacity="0.8" />
-                          <circle cx="136" cy="162" r="12" fill="#84CC16" opacity="0.75" />
-                          {/* Right Trees */}
-                          <circle cx="356" cy="130" r="24" fill="#65A30D" />
-                          <circle cx="384" cy="122" r="28" fill="#4D7C0F" />
-                          <circle cx="404" cy="142" r="22" fill="#3F6212" />
-                          <circle cx="366" cy="148" r="20" fill="#84CC16" />
-                        </g>
-
-                        {/* Highway Road with Yellow Lane Stripe */}
-                        <polygon points="20,168 420,168 420,255 0,255" fill="url(#highwayGrad)" />
-                        <polygon points="285,255 420,218 420,228 310,255" fill="#FACC15" />
-
-                        {/* Realistic Car Ground Shadow */}
-                        <ellipse cx="262" cy="222" rx="125" ry="15" fill="#0F172A" opacity="0.38" />
-
-                        {/* Sleek White Commercial Sedan Taxi (3/4 Front-Left Angle) */}
-                        <g transform="translate(122, 86)">
-                          {/* Yellow TAXI Roof Sign */}
-                          <rect x="92" y="0" width="44" height="14" rx="3.5" fill="#FACC15" stroke="#B45309" strokeWidth="1" />
-                          <text
-                            x="114"
-                            y="10.2"
-                            textAnchor="middle"
-                            fill="#0F172A"
-                            fontSize="8.5"
-                            fontWeight="900"
-                            fontFamily="Inter, sans-serif"
-                            letterSpacing="0.5"
-                          >
-                            TAXI
-                          </text>
-
-                          {/* Sedan Body Silhouette */}
-                          <path
-                            d="M 8 88 L 16 64 C 24 54, 42 46, 58 42 L 88 18 C 104 12, 146 11, 186 14 L 236 32 C 254 38, 266 50, 270 68 L 272 104 C 272 114, 264 118, 250 118 L 20 118 C 10 118, 6 110, 6 98 Z"
-                            fill="url(#carBodyGrad)"
-                            stroke="#CBD5E1"
-                            strokeWidth="1.2"
-                          />
-
-                          {/* Dark Tinted Windshield */}
-                          <path
-                            d="M 62 43 L 90 21 C 102 16, 136 16, 150 18 L 142 45 Z"
-                            fill="#1E293B"
-                          />
-                          {/* Side Passenger Windows */}
-                          <path
-                            d="M 156 18 L 192 20 L 226 35 L 150 45 Z"
-                            fill="#0F172A"
-                          />
-                          {/* White Side Wing Mirror */}
-                          <rect x="144" y="38" width="15" height="9" rx="4" fill="#FFFFFF" stroke="#94A3B8" strokeWidth="1" />
-
-                          {/* Sculpted Hood & Side Character Lines */}
-                          <path d="M 14 68 Q 72 74 136 62" fill="none" stroke="#CBD5E1" strokeWidth="1.5" />
-                          <path d="M 152 78 L 258 68" fill="none" stroke="#CBD5E1" strokeWidth="1.5" />
-
-                          {/* Bold Black Front Upper Grille & LED Headlamps */}
-                          <polygon points="18,74 102,76 96,90 22,88" fill="#0F172A" />
-                          {/* Left Headlamp */}
-                          <polygon points="8,69 24,73 22,84 8,81" fill="#F8FAFC" stroke="#64748B" strokeWidth="1.2" />
-                          {/* Right Swept LED Headlamp */}
-                          <polygon points="98,73 140,66 132,82 94,85" fill="#F8FAFC" stroke="#475569" strokeWidth="1.5" />
-                          <line x1="100" y1="81" x2="130" y2="77" stroke="#38BDF8" strokeWidth="2" />
-
-                          {/* Lower Sport Bumper & Fog Lamps */}
-                          <polygon points="16,96 104,97 98,112 20,111" fill="#0F172A" />
-                          <polygon points="108,96 132,92 128,108 104,110" fill="#1E293B" />
-                          <circle cx="118" cy="101" r="3.5" fill="#F8FAFC" />
-
-                          {/* Yellow Commercial Front License Plate: SafarIndiaCabs */}
-                          <rect x="28" y="90" width="66" height="14" rx="2.5" fill="#FACC15" stroke="#B45309" strokeWidth="1" />
-                          <text
-                            x="61"
-                            y="99.8"
-                            textAnchor="middle"
-                            fill="#0F172A"
-                            fontSize="7.4"
-                            fontWeight="900"
-                            fontFamily="Inter, sans-serif"
-                          >
-                            SafarIndiaCabs
-                          </text>
-
-                          {/* Front & Rear Alloy Wheels */}
-                          <g transform="translate(36, 114)">
-                            <ellipse cx="0" cy="6" rx="16" ry="8" fill="#0F172A" />
-                          </g>
-                          <g transform="translate(162, 112)">
-                            <circle cx="0" cy="0" r="24" fill="#0F172A" />
-                            <circle cx="0" cy="0" r="15" fill="#E2E8F0" />
-                            <circle cx="0" cy="0" r="5" fill="#334155" />
-                            <line x1="-14" y1="0" x2="14" y2="0" stroke="#475569" strokeWidth="2" />
-                            <line x1="0" y1="-14" x2="0" y2="14" stroke="#475569" strokeWidth="2" />
-                          </g>
-                          <g transform="translate(248, 108)">
-                            <circle cx="0" cy="0" r="20" fill="#0F172A" />
-                            <circle cx="0" cy="0" r="12" fill="#CBD5E1" />
-                            <circle cx="0" cy="0" r="4" fill="#334155" />
-                          </g>
-                        </g>
-                      </svg>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* 3. Four-Column Trust Feature Strip Card (Matching IMG-20261018-WA0011.jpg) */}
-                <div className="bg-white border border-[#FDE68A]/90 rounded-[28px] sm:rounded-[34px] px-2.5 py-3.5 sm:px-6 sm:py-5 mb-5 sm:mb-7 shadow-[0_8px_28px_rgba(245,158,11,0.09)] grid grid-cols-4 divide-x divide-slate-200/90 items-center">
-                  
-                  {/* Feature 1: Zero return fare on one-way trips */}
-                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
-                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
-                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] font-black text-sm sm:text-xl flex items-center justify-center">
-                        ₹
-                      </div>
-                    </div>
-                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
-                      <div className="font-extrabold text-[#0F172A]">Zero</div>
-                      <div>return fare</div>
-                      <div>on one-way</div>
-                      <div>trips</div>
-                      <div className="h-[3px] w-4 sm:w-6 rounded-full bg-[#FACC15] mt-1.5" />
-                    </div>
-                  </div>
-
-                  {/* Feature 2: Verified AC commercial cabs */}
-                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
-                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
-                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] flex items-center justify-center">
-                        <ShieldCheck className="w-4.5 h-4.5 sm:w-6 sm:h-6 text-[#0F172A] stroke-[2.2]" />
-                      </div>
-                    </div>
-                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
-                      <div className="font-extrabold text-[#0F172A]">Verified AC</div>
-                      <div>commercial</div>
-                      <div>cabs</div>
-                      <div className="h-[3px] w-4 sm:w-6 rounded-full bg-[#FACC15] mt-1.5" />
-                    </div>
-                  </div>
-
-                  {/* Feature 3: 20% advance booking deposit */}
-                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
-                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
-                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] flex items-center justify-center">
-                        <Clock className="w-4.5 h-4.5 sm:w-6 sm:h-6 text-[#0F172A] stroke-[2.2]" />
-                      </div>
-                    </div>
-                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
-                      <div className="font-extrabold text-[#0F172A]">20% advance</div>
-                      <div>booking</div>
-                      <div>deposit</div>
-                      <div className="h-[3px] w-4 sm:w-6 rounded-full bg-[#FACC15] mt-1.5" />
-                    </div>
-                  </div>
-
-                  {/* Feature 4: Free cancellation up to 6 hours. */}
-                  <div className="flex items-center gap-2 sm:gap-3.5 px-1.5 sm:px-4">
-                    <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-[#FFFbeb] border border-[#FDE68A] p-0.5 shadow-[0_4px_12px_rgba(245,158,11,0.28)] shrink-0 flex items-center justify-center">
-                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#FFD43B] to-[#F59E0B] text-[#0F172A] font-black text-xs sm:text-lg flex items-center justify-center">
-                        ✕
-                      </div>
-                    </div>
-                    <div className="text-[10.5px] sm:text-sm text-[#1E293B] leading-[1.22]">
-                      <div className="font-extrabold text-[#0F172A]">Free cancellation</div>
-                      <div>up to 6 hours.</div>
-                      <div className="h-[3px] w-5 sm:w-7 rounded-full bg-[#FACC15] mt-1.5" />
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* 4. Hero Grid: Booking Engine + Desktop Fleet Showcase */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                  
-                  {/* Left Column: Booking Engine */}
+                  {/* Left Column: Streamlined Booking Engine */}
                   <div className="lg:col-span-7">
                     <BookingEngine
                       tripType={tripType}
@@ -733,6 +499,8 @@ export default function App() {
                       setPickupCity={setPickupCity}
                       dropCity={dropCity}
                       setDropCity={setDropCity}
+                      roundTripStops={roundTripStops}
+                      setRoundTripStops={setRoundTripStops}
                       pickupCoords={pickupCoords}
                       setPickupCoords={setPickupCoords}
                       dropCoords={dropCoords}
@@ -751,9 +519,8 @@ export default function App() {
                       setAirportMode={setAirportMode}
                       airportTerminal={airportTerminal}
                       setAirportTerminal={setAirportTerminal}
-                      includeTolls={includeTolls}
-                      setIncludeTolls={setIncludeTolls}
-                      distanceKm={distanceKm}
+                      calculatedDistance={distanceKm}
+                      tripDays={roundTripDays}
                       travelDuration={travelDuration}
                       isExactOlaDistance={isExactOlaDistance}
                       customerMobile={customerMobile}
@@ -764,66 +531,39 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Right Column: Fleet Visual & Trust Guarantees */}
-                  <div className="lg:col-span-5 space-y-4">
+                  {/* Right Column: Official Safar India Cabs Banner & Clean Key Assurances */}
+                  <div className="lg:col-span-5 space-y-5">
                     
-                    {/* Visual Fleet Card: Premium Chauffeur Fleet */}
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-md group bg-slate-950">
+                    {/* Official Brand Banner Card */}
+                    <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 shadow-lg bg-[#081C44]">
                       <img
-                        src={heroCabsIntercityImg || '/assets/images/hero_cabs_intercity_1792165620723.jpg'}
+                        src="/assets/aistudio/IMG-20261018-WA0004_d330717e.jpg"
                         onError={(e) => {
                           const target = e.currentTarget;
                           if (!target.dataset.fallbackApplied) {
                             target.dataset.fallbackApplied = 'true';
-                            target.src = cabsFleetShowcaseImg || '/assets/images/cabs_fleet_showcase_1792165620669.jpg';
+                            target.src = heroCabsIntercityImg || cabsFleetShowcaseImg;
                           }
                         }}
-                        alt="Safar India Cabs Fleet and Chauffeurs"
-                        className="w-full h-auto aspect-[16/9] object-cover group-hover:scale-102 transition duration-500 block"
+                        referrerPolicy="no-referrer"
+                        alt="Safar India Cabs — Your Journey, Our Priority"
+                        className="w-full h-auto aspect-[16/9] object-cover block"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/55 to-slate-950/10 flex flex-col justify-end p-4 sm:p-5">
-                        <span className="text-xs font-extrabold text-[#FFCC00] uppercase tracking-wider drop-shadow-md">
-                          Premium Chauffeur Fleet
-                        </span>
-                        <h4 className="text-sm sm:text-base font-black text-white drop-shadow-md mt-0.5">
-                          Dzire, Ertiga, Innova Crysta &amp; Urbania
-                        </h4>
-                        <p className="text-[11px] sm:text-xs text-slate-100 font-medium drop-shadow-md mt-0.5">
-                          Professional uniformed drivers with 5+ years highway experience.
-                        </p>
-                      </div>
                     </div>
 
-                    {/* Quick Trust Pillars */}
-                    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-200">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-900">No Return Fare for One-Way</div>
-                          <div className="text-[11px] text-slate-500">Pay only for kilometers traveled from pickup to drop.</div>
-                        </div>
+                    {/* Concise 3-Point Assurance Card (No Verbose Clutter) */}
+                    <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs grid grid-cols-3 gap-4 text-center divide-x divide-slate-100">
+                      <div className="px-2">
+                        <div className="text-base sm:text-lg font-black text-slate-950">One-Way</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Zero Return Fare</div>
                       </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center shrink-0 border border-amber-200">
-                          <ShieldCheck className="w-4 h-4 text-amber-600" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-900">Pay 20% Now, Rest to Chauffeur</div>
-                          <div className="text-[11px] text-slate-500">Secure booking confirmation via Razorpay or Instant UPI.</div>
-                        </div>
+                      <div className="px-2">
+                        <div className="text-base sm:text-lg font-black text-amber-600">20% Advance</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Instant Booking</div>
                       </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center shrink-0 border border-sky-200">
-                          <Clock className="w-4 h-4 text-sky-600" />
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-900">Chauffeur SMS 2 Hours Prior</div>
-                          <div className="text-[11px] text-slate-500">Complete vehicle plate &amp; driver contact details delivered to WhatsApp.</div>
-                        </div>
+                      <div className="px-2">
+                        <div className="text-base sm:text-lg font-black text-slate-950">Free Cancel</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Up to 6 Hrs Prior</div>
                       </div>
                     </div>
 
@@ -834,15 +574,15 @@ export default function App() {
               </div>
             </div>
 
-            {/* LIVE CAB SELECTOR WITH EXTRA KM SLIDER & ROUND TRIP RETURN DATE */}
+            {/* LIVE CAB SELECTOR */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <CabSelector
                 tripType={tripType}
                 setTripType={setTripType}
                 pickupCity={pickupCity}
-                dropCity={dropCity}
+                dropCity={effectiveDropCity}
                 distanceKm={distanceKm}
-                extraKm={extraKm}
+                extraKm={0}
                 setExtraKm={setExtraKm}
                 days={roundTripDays}
                 pickupDate={pickupDate}
@@ -863,7 +603,7 @@ export default function App() {
               <PopularRoutesSection onSelectRoute={handlePopularRouteClick} />
             </div>
 
-            {/* WHY CHOOSE SAFAR CABS / CABBAZAR ADVANTAGES */}
+            {/* WHY CHOOSE SAFAR INDIA CABS */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <CabBazarAdvantages />
             </div>
@@ -1014,7 +754,7 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-slate-200 pb-3 sticky top-0 bg-[#F8FAFC]/95 backdrop-blur-md z-20 pt-1">
               <div>
                 <h3 className="text-lg font-black text-slate-950">Available Cabs &amp; Fares</h3>
-                <p className="text-xs text-slate-500">Select your preferred vehicle for {pickupCity} to {dropCity}</p>
+                <p className="text-xs text-slate-500">Select your preferred vehicle for {pickupCity} to {effectiveDropCity}</p>
               </div>
               <button
                 type="button"
@@ -1031,7 +771,7 @@ export default function App() {
               tripType={tripType}
               setTripType={setTripType}
               pickupCity={pickupCity}
-              dropCity={dropCity}
+              dropCity={effectiveDropCity}
               distanceKm={distanceKm}
               extraKm={extraKm}
               setExtraKm={setExtraKm}
@@ -1063,7 +803,7 @@ export default function App() {
           fareDetails={selectedCabForCheckout.fare}
           tripType={tripType}
           pickupCity={pickupCity}
-          dropCity={dropCity}
+          dropCity={effectiveDropCity}
           pickupDate={pickupDate}
           pickupTime={pickupTime}
           returnDate={returnDate}

@@ -452,6 +452,7 @@ export default async function handler(req, res) {
             const senderPhone = formatWhatsAppPhone(msg?.from);
             const queued = pendingWhatsAppQueue.get(senderPhone);
             if (queued && Date.now() - queued.updatedAt < 30 * 60 * 1000) {
+              queued.lastFlushedAt = Date.now();
               const flushRes = await sendRawTextPayload(
                 queued.apiUrl,
                 queued.activeToken,
@@ -476,19 +477,26 @@ export default async function handler(req, res) {
       action
     } = body || {};
 
-    // Action: flush_pending (re-pushes latest queued message for a phone number)
+    // Action: flush_pending (re-pushes latest queued message for a phone number when WhatsApp session becomes active)
     if (action === 'flush_pending' && recipientPhone) {
       const formattedTo = formatWhatsAppPhone(recipientPhone);
       const queued = pendingWhatsAppQueue.get(formattedTo);
-      if (queued) {
-        const result = await sendWhatsAppCloudMessage(
+      if (queued && Date.now() - queued.updatedAt < 30 * 60 * 1000) {
+        if (queued.lastFlushedAt && Date.now() - queued.lastFlushedAt < 2500) {
+          return res.status(200).json({ success: true, throttled: true, to: formattedTo });
+        }
+        queued.lastFlushedAt = Date.now();
+        const flushRes = await sendRawTextPayload(
+          queued.apiUrl,
+          queued.activeToken,
           formattedTo,
-          queued.messageText,
-          phoneNumberId,
-          accessToken,
-          queued.templateConfig
+          queued.messageText
         );
-        return res.status(200).json(result);
+        return res.status(200).json({
+          success: flushRes.success,
+          to: formattedTo,
+          messageId: flushRes.messageId || null
+        });
       }
       return res.status(200).json({ success: false, reason: 'No pending message for phone' });
     }

@@ -19,8 +19,6 @@ export interface DriverPartnerApplication {
 }
 
 export const DriverPartnerModal: React.FC<DriverPartnerModalProps> = ({ isOpen, onClose }) => {
-  if (!isOpen) return null;
-
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
@@ -29,6 +27,8 @@ export const DriverPartnerModal: React.FC<DriverPartnerModalProps> = ({ isOpen, 
   const [hasCommercialPermit, setHasCommercialPermit] = useState(true);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -9,70 +9,57 @@ interface PopularRoutesSectionProps {
 
 export const PopularRoutesSection: React.FC<PopularRoutesSectionProps> = ({ onSelectRoute }) => {
   return (
-    <section className="space-y-4 py-4" id="popular-routes-section">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
+    <section className="space-y-6 py-8" id="popular-routes-section">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
         <div>
-          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 flex items-center gap-2">
-            <span>Popular Intercity Cab Routes</span>
-            <span className="text-[11px] bg-amber-50 text-amber-800 px-2.5 py-0.5 rounded-full font-bold border border-amber-200">
-              Guaranteed Low Fares
-            </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+            Popular Outstation Routes
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Book verified one-way and round-trip outstation cabs with zero return fare.
+          <p className="text-sm text-slate-500 mt-1">
+            Tap any route for instant one-way and round-trip fares.
           </p>
-        </div>
-        <div className="text-xs text-slate-500 hidden sm:block font-medium">
-          Click any route to instantly get cab quotes
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {POPULAR_ROUTES.map((route, idx) => (
           <div
             key={idx}
             onClick={() => onSelectRoute(route)}
-            className="bg-white border border-slate-200 hover:border-amber-400 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md group flex flex-col justify-between"
+            className="bg-white border border-slate-200/90 hover:border-amber-400 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md group flex flex-col justify-between"
           >
             <div>
-              <div className="flex items-center justify-between text-[10px] text-slate-500 mb-2">
-                <span className="bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 text-amber-700 font-bold">
-                  {route.badge}
-                </span>
-                <span className="flex items-center gap-1 text-slate-500">
-                  <Clock className="w-3 h-3 text-slate-400" />
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
+                <span className="text-amber-700 font-bold">{route.badge}</span>
+                <span className="flex items-center gap-1 text-slate-400 font-medium">
+                  <Clock className="w-3.5 h-3.5" />
                   {route.duration}
                 </span>
               </div>
 
-              {/* Route */}
-              <div className="space-y-1">
-                <div className="text-sm font-bold text-slate-900 group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
+              <div className="space-y-1.5">
+                <div className="text-base font-extrabold text-slate-900 group-hover:text-amber-600 transition-colors flex items-center gap-2">
                   <span>{route.from}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
                   <span>{route.to}</span>
                 </div>
-                <div className="text-[11px] text-slate-500 flex items-center gap-2">
-                  <span>{route.distanceKm} KM Highway Route</span>
+                <div className="text-xs text-slate-500 flex items-center gap-2 font-medium">
+                  <span className="font-mono">{route.distanceKm} KM</span>
                   <span>·</span>
                   <span>{route.popularCar}</span>
                 </div>
               </div>
             </div>
 
-            {/* Price row */}
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+            <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between">
               <div>
-                <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">Starting From</span>
-                <span className="text-base font-black text-slate-950">{formatINR(route.startingPrice)}</span>
+                <span className="text-[11px] text-slate-400 block font-medium">Starting From</span>
+                <span className="text-lg font-black text-slate-950 font-mono tabular-nums">{formatINR(route.startingPrice)}</span>
               </div>
-              <button
-                type="button"
-                className="text-xs font-bold text-slate-700 group-hover:text-amber-700 flex items-center gap-1 transition"
-              >
-                <span>Book Now</span>
+              <span className="text-xs font-bold text-slate-900 group-hover:text-amber-600 flex items-center gap-1 transition">
+                <span>Book</span>
                 <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              </span>
             </div>
           </div>
         ))}

@@ -72,8 +72,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   currentUser,
   onBookingSuccess
 }) => {
-  if (!isOpen) return null;
-
   const [customerName, setCustomerName] = useState(currentUser?.name || '');
   const [customerPhone, setCustomerPhone] = useState(currentUser?.phone || '');
   const [customerEmail, setCustomerEmail] = useState(currentUser?.email || '');
@@ -91,7 +89,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [includeTollsState, setIncludeTollsState] = useState<boolean>(
     tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0
   );
-  const [extraKmState, setExtraKmState] = useState<number>(fareDetails.extraKm || 0);
+  const [extraKmState] = useState<number>(fareDetails.extraKm || 0);
   const [returnDateState, setReturnDateState] = useState<string>(returnDate || pickupDate);
   const [returnTimeState, setReturnTimeState] = useState<string>(returnTime || '06:00 PM');
   const [addonCarrier, setAddonCarrier] = useState(false);
@@ -107,17 +105,36 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const bottomAlertRef = useRef<HTMLDivElement | null>(null);
 
+  // Sync fields when modal opens with latest props
+  useEffect(() => {
+    if (isOpen) {
+      if (currentUser?.name) setCustomerName(currentUser.name);
+      if (currentUser?.phone) setCustomerPhone(currentUser.phone);
+      if (currentUser?.email) setCustomerEmail(currentUser.email);
+      setPickupAddress(pickupCity || '');
+      setDropAddress(dropCity || '');
+      setIncludeTollsState(tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0);
+      setReturnDateState(returnDate || pickupDate);
+      setReturnTimeState(returnTime || '06:00 PM');
+      setErrorMessage('');
+    }
+  }, [isOpen, currentUser, pickupCity, dropCity, tripType, fareDetails.tollsAndTaxes, returnDate, pickupDate, returnTime]);
+
   // Pre-warm Razorpay Checkout SDK as soon as BookingModal opens
   useEffect(() => {
-    loadRazorpayScript().catch(() => {});
-  }, []);
+    if (isOpen) {
+      loadRazorpayScript().catch(() => {});
+    }
+  }, [isOpen]);
 
   // Whenever an error occurs, make sure the error alert right above the Pay button is scrolled into view
   useEffect(() => {
-    if (errorMessage && bottomAlertRef.current) {
+    if (isOpen && errorMessage && bottomAlertRef.current) {
       bottomAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [errorMessage]);
+  }, [isOpen, errorMessage]);
+
+  if (!isOpen) return null;
 
   // Live CabBazar fare calculation synchronized with server (including Hill Area, Outer Route, Pickup Time, Extra KM Slider)
   const activeFare = computeTripFare({
@@ -389,9 +406,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
             )}
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Billed KM</span>
-              <span className="text-amber-700 font-bold">
-                {activeFare.billedDistanceKm} KM {extraKmState > 0 ? `(Incl. +${extraKmState} KM)` : ''}
+              <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Distance</span>
+              <span className="text-slate-900 font-bold font-mono">
+                {activeFare.billedDistanceKm} KM · Extra: ₹{activeFare.extraKmRate}/km{activeFare.isHillAreaRoute ? ' (Hill)' : ''}
               </span>
             </div>
             <div>
@@ -399,31 +416,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <span className="text-emerald-700 font-black text-sm">{formatINR(activeFare.totalFare)}</span>
             </div>
           </div>
-
-          {/* Extra KM Slider in Modal for quick adjustment */}
-          {tripType !== 'local' && (
-            <div className="pt-2.5 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center justify-between sm:justify-start gap-2">
-                <span className="text-[11px] font-bold text-slate-700">
-                  Extra Buffer KM Slider ({activeFare.isDropHillArea || activeFare.isPickupHillArea ? 'Hill Rate' : 'Highway Rate'} ₹{activeFare.extraKmRateUsed}/km):
-                </span>
-                <span className="text-xs font-mono font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-                  +{extraKmState} KM
-                </span>
-              </div>
-              <div className="flex items-center gap-2 sm:w-56">
-                <input
-                  type="range"
-                  min={0}
-                  max={250}
-                  step={5}
-                  value={extraKmState}
-                  onChange={(e) => setExtraKmState(Number(e.target.value))}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                />
-              </div>
-            </div>
-          )}
 
           {/* Clean 2-Option Fare Mode Selector (No Toll/Tax ₹ Amount Shown) */}
           {tripType !== 'local' && (
