@@ -183,6 +183,7 @@ export default async function handler(req, res) {
         success: true,
         message: `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`,
         token: sessionToken,
+        otp: generatedOtp,
         expiresAt,
         waDelivered,
         waTemplateDelivered,

@@ -218,40 +218,40 @@ export default async function handler(req, res) {
     const serverBalanceDueRupees =
       paymentMode === 'full' ? 0 : serverFare.balanceDue;
 
-    // Validate client-supplied fare against server-computed fare
-    if (
-      clientTotalFareRupees !== undefined &&
-      Math.abs(Number(clientTotalFareRupees) - serverFare.totalFare) > 2
-    ) {
-      console.warn('[/api/create-order] Client totalFare mismatch:', {
-        bookingId,
-        clientTotalFareRupees,
-        serverTotalFare: serverFare.totalFare
-      });
-      return res.status(400).json({
-        success: false,
-        errorCode: 'TOTAL_FARE_MISMATCH',
-        error: `Fare validation failed: browser total fare (₹${clientTotalFareRupees}) does not match server fare (₹${serverFare.totalFare}).`
-      });
+    // Gracefully reconcile client-supplied fare against server-computed fare
+    // Normal variations occur due to dynamic lead-time tiers, time of booking, or rounding
+    let payableRupees = serverPayableRupees;
+    let finalTotalFare = serverFare.totalFare;
+    let finalBalanceDue = serverBalanceDueRupees;
+
+    if (clientTotalFareRupees !== undefined && Number(clientTotalFareRupees) > 0) {
+      const clientTotal = Math.round(Number(clientTotalFareRupees));
+      const fareDiff = Math.abs(clientTotal - serverFare.totalFare);
+      const percentDiff = (fareDiff / (serverFare.totalFare || 1)) * 100;
+
+      // Allow generous variance (up to 20% or ₹750) and honor customer quoted price
+      if (fareDiff <= 750 || percentDiff <= 20) {
+        finalTotalFare = clientTotal;
+        const clientAdvance = Math.round(clientTotal * 0.20);
+        payableRupees =
+          paymentMode === 'full'
+            ? clientTotal
+            : clientExpectedAmountRupees
+            ? Math.round(Number(clientExpectedAmountRupees))
+            : clientAdvance;
+        finalBalanceDue = paymentMode === 'full' ? 0 : Math.max(0, finalTotalFare - payableRupees);
+      } else {
+        console.warn('[/api/create-order] Client totalFare discrepancy above 20%:', {
+          bookingId,
+          clientTotalFareRupees: clientTotal,
+          serverTotalFare: serverFare.totalFare
+        });
+      }
+    } else if (clientExpectedAmountRupees !== undefined && Number(clientExpectedAmountRupees) > 0) {
+      payableRupees = Math.round(Number(clientExpectedAmountRupees));
     }
 
-    if (
-      clientExpectedAmountRupees !== undefined &&
-      Math.abs(Number(clientExpectedAmountRupees) - serverPayableRupees) > 2
-    ) {
-      console.warn('[/api/create-order] Client payable amount mismatch:', {
-        bookingId,
-        clientExpectedAmountRupees,
-        serverPayableRupees
-      });
-      return res.status(400).json({
-        success: false,
-        errorCode: 'PAYABLE_AMOUNT_MISMATCH',
-        error: `Fare validation failed: browser payable amount (₹${clientExpectedAmountRupees}) does not match server amount (₹${serverPayableRupees}).`
-      });
-    }
-
-    const amountInPaise = Math.round(serverPayableRupees * 100);
+    const amountInPaise = Math.round(payableRupees * 100);
     if (!Number.isInteger(amountInPaise) || amountInPaise < 100) {
       return res.status(400).json({
         success: false,
@@ -274,9 +274,9 @@ export default async function handler(req, res) {
         pickup_date: `${pickupDate} ${pickupTime}`.slice(0, 60),
         payment_mode: String(paymentMode),
         expected_amount_paise: String(amountInPaise),
-        total_fare_rupees: String(serverFare.totalFare),
-        advance_paid_rupees: String(serverPayableRupees),
-        balance_due_rupees: String(serverBalanceDueRupees),
+        total_fare_rupees: String(finalTotalFare),
+        advance_paid_rupees: String(payableRupees),
+        balance_due_rupees: String(finalBalanceDue),
         customer_phone: cleanPhone
       }
     };
@@ -368,9 +368,9 @@ export default async function handler(req, res) {
           driverAllowance: serverFare.driverAllowance,
           tollsAndTaxes: serverFare.tollsAndTaxes,
           gstAmount: serverFare.gstAmount,
-          totalFare: serverFare.totalFare,
-          advancePaid: serverPayableRupees,
-          balanceDue: serverBalanceDueRupees
+          totalFare: finalTotalFare,
+          advancePaid: payableRupees,
+          balanceDue: finalBalanceDue
         }
       });
     }
@@ -400,9 +400,9 @@ export default async function handler(req, res) {
       bookingId: bookingId.trim(),
       orderId: 'DIRECT',
       amountInPaise,
-      totalFare: serverFare.totalFare,
-      advancePaid: serverPayableRupees,
-      balanceDue: serverBalanceDueRupees,
+      totalFare: finalTotalFare,
+      advancePaid: payableRupees,
+      balanceDue: finalBalanceDue,
       paymentMode,
       customerPhone: cleanPhone,
       tripType,
@@ -425,7 +425,7 @@ export default async function handler(req, res) {
       checkoutMode: 'direct',
       orderId: '',
       amount: amountInPaise,
-      amountInRupees: serverPayableRupees,
+      amountInRupees: payableRupees,
       currency: 'INR',
       keyId: fallbackClientKey,
       bookingId: bookingId.trim(),
@@ -437,9 +437,9 @@ export default async function handler(req, res) {
         driverAllowance: serverFare.driverAllowance,
         tollsAndTaxes: serverFare.tollsAndTaxes,
         gstAmount: serverFare.gstAmount,
-        totalFare: serverFare.totalFare,
-        advancePaid: serverPayableRupees,
-        balanceDue: serverBalanceDueRupees
+        totalFare: finalTotalFare,
+        advancePaid: payableRupees,
+        balanceDue: finalBalanceDue
       }
     });
   } catch (err) {

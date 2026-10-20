@@ -582,29 +582,29 @@ function isServerLocationInHillArea(locationStr) {
   return SERVER_HILL_STATION_KEYWORDS.some((kw) => norm.includes(kw));
 }
 
-function parseServerPickupHour24(pickupTime) {
-  if (!pickupTime) return null;
-  const match = String(pickupTime).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!match) return null;
-  let hr = parseInt(match[1], 10);
-  const ampm = match[3].toUpperCase();
-  if (ampm === 'PM' && hr < 12) hr += 12;
-  if (ampm === 'AM' && hr === 12) hr = 0;
-  return hr;
+function isPeakOrNightPickupTime(pickupTime) {
+  const t = String(pickupTime || '').trim().toUpperCase();
+  if (!t) return false;
+  return (
+    t.startsWith('05:') ||
+    t.startsWith('06:') ||
+    t.startsWith('09:00 PM') ||
+    t.startsWith('10:') ||
+    t.startsWith('11:')
+  );
 }
 
 function computeServerLeadTimePricing(pickupDate, pickupTime) {
   try {
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const cleanPickup = String(pickupDate || '').trim().slice(0, 10);
-    const pickupHr = parseServerPickupHour24(pickupTime);
-    const isNightOrEarlyDispatch = pickupHr !== null && (pickupHr < 6 || pickupHr >= 22);
-    const nightDispatchFactor = isNightOrEarlyDispatch ? 1.05 : 1.0;
+    const isPeakSlot = isPeakOrNightPickupTime(pickupTime);
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanPickup)) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: Number((1.0 * nightDispatchFactor).toFixed(3))
+        leadTimeMultiplier: isPeakSlot ? 1.05 : 1.0,
+        leadTimeLabel: isPeakSlot ? 'Peak Time Slot (+5%)' : 'Standard Rate'
       };
     }
     const pickupMs = Date.parse(`${cleanPickup}T00:00:00Z`);
@@ -612,116 +612,184 @@ function computeServerLeadTimePricing(pickupDate, pickupTime) {
     if (!Number.isFinite(pickupMs) || !Number.isFinite(todayMs)) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: Number((1.0 * nightDispatchFactor).toFixed(3))
+        leadTimeMultiplier: 1.0,
+        leadTimeLabel: 'Standard Rate'
       };
     }
+
     const daysAhead = Math.round((pickupMs - todayMs) / 86400000);
     if (daysAhead <= 0) {
       return {
         leadTimeTier: 'same_day',
-        leadTimeMultiplier: Number((1.18 * nightDispatchFactor).toFixed(3))
+        leadTimeMultiplier: isPeakSlot ? 1.22 : 1.18,
+        leadTimeLabel: isPeakSlot
+          ? 'At-Time Urgent Night/Peak Dispatch'
+          : 'At-Time Instant Dispatch'
       };
     }
     if (daysAhead === 1) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: Number((1.0 * nightDispatchFactor).toFixed(3))
+        leadTimeMultiplier: isPeakSlot ? 1.05 : 1.0,
+        leadTimeLabel: isPeakSlot ? 'Next-Day Peak Slot' : 'Next-Day Standard Rate'
       };
     }
     if (daysAhead >= 5) {
       return {
         leadTimeTier: 'advance',
-        leadTimeMultiplier: Number((0.90 * nightDispatchFactor).toFixed(3))
+        leadTimeMultiplier: 0.90,
+        leadTimeLabel: 'Advance Booking Saver (10% OFF)'
       };
     }
     return {
       leadTimeTier: 'advance',
-      leadTimeMultiplier: Number((0.93 * nightDispatchFactor).toFixed(3))
+      leadTimeMultiplier: 0.93,
+      leadTimeLabel: 'Advance Booking Saver (7% OFF)'
     };
   } catch {
-    return { leadTimeTier: 'tomorrow', leadTimeMultiplier: 1.0 };
+    return {
+      leadTimeTier: 'tomorrow',
+      leadTimeMultiplier: 1.0,
+      leadTimeLabel: 'Standard Rate'
+    };
   }
 }
 
-function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceKm = 200) {
-  const pickupIsDaily = isServerDailyRouteCity(pickupCity);
-  if (tripType === 'local' || tripType === 'airport') {
-    if (pickupIsDaily) {
-      return { isOuterRoute: false, routeTierMultiplier: 1.0 };
-    }
-    return { isOuterRoute: true, routeTierMultiplier: 1.15 };
-  }
-  const dropIsDaily = isServerDailyRouteCity(dropCity);
-  const longOuterDistanceFactor = distanceKm > 450 ? 1.08 : distanceKm > 320 ? 1.04 : 1.0;
+function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
+  const pickupIsHill = isServerLocationInHillArea(pickupCity);
+  const dropIsHill = tripType === 'local' ? pickupIsHill : isServerLocationInHillArea(dropCity);
+  const isHillRoute = pickupIsHill || dropIsHill;
 
-  if (pickupIsDaily && dropIsDaily) {
-    if (longOuterDistanceFactor > 1.0) {
-      return { isOuterRoute: true, routeTierMultiplier: longOuterDistanceFactor };
-    }
-    return { isOuterRoute: false, routeTierMultiplier: 1.0 };
-  }
-  if (!pickupIsDaily && !dropIsDaily) {
+  if (!isHillRoute) {
     return {
-      isOuterRoute: true,
-      routeTierMultiplier: Number((1.22 * longOuterDistanceFactor).toFixed(3))
+      isHillRoute: false,
+      pickupIsHill: false,
+      dropIsHill: false,
+      hillTier: 'none',
+      hillRateMultiplier: 1.0,
+      hillTierLabel: ''
     };
   }
-  if (!pickupIsDaily) {
+
+  if (pickupIsHill && dropIsHill && tripType !== 'local') {
     return {
-      isOuterRoute: true,
-      routeTierMultiplier: Number((1.16 * longOuterDistanceFactor).toFixed(3))
+      isHillRoute: true,
+      pickupIsHill: true,
+      dropIsHill: true,
+      hillTier: 'both_hills',
+      hillRateMultiplier: 1.32,
+      hillTierLabel: 'Deep Mountain Hill-to-Hill Terrain'
     };
   }
+
   return {
-    isOuterRoute: true,
-    routeTierMultiplier: Number((1.12 * longOuterDistanceFactor).toFixed(3))
+    isHillRoute: true,
+    pickupIsHill,
+    dropIsHill,
+    hillTier: 'one_end_hill',
+    hillRateMultiplier: 1.22,
+    hillTierLabel: pickupIsHill ? 'Hill Station Pickup Terrain' : 'Hill Station Drop Terrain'
   };
 }
 
-function computeServerHillAreaPricing(pickupCity, dropCity, cabHillBase = 350, tripType = 'oneway', days = 1) {
-  if (tripType === 'local') {
-    const isLocalHill = isServerLocationInHillArea(pickupCity);
+function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceKm = 200, isHillRoute = false) {
+  const pickupIsDaily = isServerDailyRouteCity(pickupCity);
+  const dropIsDaily = tripType === 'local' ? pickupIsDaily : isServerDailyRouteCity(dropCity);
+  const pickupIsOuter = !pickupIsDaily;
+  const dropIsOuter = !dropIsDaily;
+
+  if (isHillRoute) {
+    if (pickupIsOuter && dropIsOuter) {
+      return {
+        isOuterRoute: true,
+        pickupIsOuter,
+        dropIsOuter,
+        routeTierMultiplier: distanceKm > 200 ? 1.10 : 1.08,
+        routeTierLabel: 'Outer Hill Corridor'
+      };
+    }
+    if (pickupIsOuter) {
+      return {
+        isOuterRoute: true,
+        pickupIsOuter,
+        dropIsOuter,
+        routeTierMultiplier: 1.08,
+        routeTierLabel: 'Outer Hill Pickup Dispatch'
+      };
+    }
     return {
-      isPickupHillArea: isLocalHill,
-      isDropHillArea: isLocalHill,
-      isHillAreaRoute: isLocalHill,
-      hillRateMultiplier: isLocalHill ? 1.22 : 1.0,
-      hillStationSurcharge: isLocalHill ? cabHillBase : 0,
-      hillDriverEffortBonus: isLocalHill ? 200 : 0
+      isOuterRoute: dropIsOuter,
+      pickupIsOuter,
+      dropIsOuter,
+      routeTierMultiplier: distanceKm > 280 ? 1.06 : 1.04,
+      routeTierLabel: 'Hill Highway Corridor'
     };
   }
-  const isPickupHill = isServerLocationInHillArea(pickupCity);
-  const isDropHill = isServerLocationInHillArea(dropCity);
-  const isHillAreaRoute = isPickupHill || isDropHill;
-  if (!isHillAreaRoute) {
+
+  if (tripType === 'local' || tripType === 'airport') {
+    if (pickupIsDaily) {
+      return {
+        isOuterRoute: false,
+        pickupIsOuter: false,
+        dropIsOuter: false,
+        routeTierMultiplier: 1.0,
+        routeTierLabel: 'Daily City Hub (Normal Rate)'
+      };
+    }
     return {
-      isPickupHillArea: false,
-      isDropHillArea: false,
-      isHillAreaRoute: false,
-      hillRateMultiplier: 1.0,
-      hillStationSurcharge: 0,
-      hillDriverEffortBonus: 0
+      isOuterRoute: true,
+      pickupIsOuter: true,
+      dropIsOuter: true,
+      routeTierMultiplier: 1.16,
+      routeTierLabel: 'Outer City Pickup Zone'
     };
   }
-  if (isPickupHill && isDropHill) {
-    const dayScale = tripType === 'roundtrip' ? Math.max(1.5, days * 0.85) : 1.0;
+
+  if (pickupIsDaily && dropIsDaily) {
+    if (distanceKm > 400) {
+      return {
+        isOuterRoute: true,
+        pickupIsOuter: false,
+        dropIsOuter: false,
+        routeTierMultiplier: 1.06,
+        routeTierLabel: 'Long Outstation Corridor'
+      };
+    }
     return {
-      isPickupHillArea: true,
-      isDropHillArea: true,
-      isHillAreaRoute: true,
-      hillRateMultiplier: 1.28,
-      hillStationSurcharge: Math.round(cabHillBase * 1.65 * dayScale),
-      hillDriverEffortBonus: Math.round(250 * Math.max(1, days))
+      isOuterRoute: false,
+      pickupIsOuter: false,
+      dropIsOuter: false,
+      routeTierMultiplier: 1.0,
+      routeTierLabel: 'Daily Highway Route (Normal Rate)'
     };
   }
-  const dayScale = tripType === 'roundtrip' ? Math.max(1.4, days * 0.75) : 1.0;
+
+  if (pickupIsOuter && dropIsOuter) {
+    return {
+      isOuterRoute: true,
+      pickupIsOuter: true,
+      dropIsOuter: true,
+      routeTierMultiplier: distanceKm > 200 ? 1.25 : 1.20,
+      routeTierLabel: 'Deep Outer Corridor'
+    };
+  }
+
+  if (pickupIsOuter) {
+    return {
+      isOuterRoute: true,
+      pickupIsOuter: true,
+      dropIsOuter: false,
+      routeTierMultiplier: distanceKm > 250 ? 1.19 : 1.16,
+      routeTierLabel: 'Outer Pickup Dispatch'
+    };
+  }
+
   return {
-    isPickupHillArea: isPickupHill,
-    isDropHillArea: isDropHill,
-    isHillAreaRoute: true,
-    hillRateMultiplier: 1.20,
-    hillStationSurcharge: Math.round(cabHillBase * 1.25 * dayScale),
-    hillDriverEffortBonus: Math.round(200 * Math.max(1, days))
+    isOuterRoute: true,
+    pickupIsOuter: false,
+    dropIsOuter: true,
+    routeTierMultiplier: distanceKm > 250 ? 1.16 : 1.12,
+    routeTierLabel: 'Outer Drop Corridor'
   };
 }
 
@@ -736,7 +804,7 @@ export function computeServerTripFare({
   pickupCity = '',
   dropCity = '',
   pickupDate,
-  pickupTime,
+  pickupTime = '',
   returnDate,
   localPackageId = '8h_80k',
   includeTolls = true,
@@ -752,6 +820,7 @@ export function computeServerTripFare({
   const cab = SERVER_CABS_FLEET[cabId] || SERVER_CABS_FLEET.sedan;
   const oneWayRate = cab.ratePerKm;
   const roundTripRate = cab.roundTripRatePerKm || cab.ratePerKm;
+  const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1.5);
   const dailyBata = cab.driverAllowancePerDay || 300;
   const hillBase = cab.hillStationCharge || 350;
   const local8HrBase = cab.local8Hr80KmFare || 1899;
@@ -760,30 +829,37 @@ export function computeServerTripFare({
   if (!Number.isFinite(parsedDistance) || parsedDistance < 0 || parsedDistance > 15000) {
     throw new Error(`Invalid distanceKm: ${distanceKm}`);
   }
-  const safeExtraKm = Math.max(0, Math.round(Number(extraKm) || 0));
+  const cleanExtraKm = Math.max(0, Math.round(Number(extraKm) || 0));
 
-  let daysCount = 1;
-  if (tripType === 'roundtrip' && pickupDate && returnDate) {
-    const p = new Date(pickupDate).getTime();
-    const r = new Date(returnDate).getTime();
-    if (Number.isFinite(p) && Number.isFinite(r)) {
-      const diffDays = Math.ceil((r - p) / (1000 * 60 * 60 * 24));
-      daysCount = Math.max(1, diffDays + 1);
-    }
-  }
+  const {
+    isHillRoute,
+    pickupIsHill,
+    dropIsHill,
+    hillTier,
+    hillRateMultiplier,
+    hillTierLabel
+  } = computeServerHillAreaPricing(tripType, pickupCity, dropCity);
 
-  const { leadTimeMultiplier } = computeServerLeadTimePricing(pickupDate, pickupTime);
-  const { routeTierMultiplier } = computeServerRouteTierPricing(tripType, pickupCity, dropCity, parsedDistance);
-  const hillPricing = computeServerHillAreaPricing(pickupCity, dropCity, hillBase, tripType, daysCount);
+  const { leadTimeTier, leadTimeMultiplier, leadTimeLabel } = computeServerLeadTimePricing(
+    pickupDate,
+    pickupTime
+  );
 
-  const dynamicRateFactor = leadTimeMultiplier * routeTierMultiplier * hillPricing.hillRateMultiplier;
+  const {
+    isOuterRoute,
+    pickupIsOuter,
+    dropIsOuter,
+    routeTierMultiplier,
+    routeTierLabel
+  } = computeServerRouteTierPricing(tripType, pickupCity, dropCity, parsedDistance, isHillRoute);
 
-  let billedDistanceKm = Math.max(0, Math.round(parsedDistance));
+  const dynamicRateFactor = leadTimeMultiplier * routeTierMultiplier * hillRateMultiplier;
+
+  let baseBilledDistanceKm = Math.max(0, Math.round(parsedDistance));
   let ratePerKm = oneWayRate;
-  let baseFare = 0;
+  let baseRouteFare = 0;
   let driverAllowance = 0;
-  let extraKmRateUsed = oneWayRate;
-  let extraKmCharge = 0;
+  let daysCount = 1;
 
   const originState = detectServerLocationState(pickupCity, 'Delhi');
   const destState =
@@ -795,82 +871,122 @@ export function computeServerTripFare({
     tripType !== 'airport' &&
     Boolean(originState && destState && originState !== destState);
 
-  let hillStationCharge = hillPricing.hillStationSurcharge;
+  let hillStationCharge = 0;
+  const hillDriverBonusPerDay =
+    hillTier === 'both_hills' ? 250 : hillTier === 'one_end_hill' ? 150 : 0;
 
   if (tripType === 'oneway') {
-    const baseRouteKm = Math.max(130, Math.round(parsedDistance));
-    const slabFactor = baseRouteKm <= 150 ? 1.04 : baseRouteKm > 350 ? 0.96 : 1.0;
+    baseBilledDistanceKm = Math.max(130, Math.round(parsedDistance));
+    const slabFactor =
+      baseBilledDistanceKm <= 150 ? 1.04 : baseBilledDistanceKm > 350 ? 0.98 : 1.0;
     ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
-    const sliderHillBoost = hillPricing.isDropHillArea
-      ? 1.15
-      : hillPricing.isPickupHillArea
-        ? 1.10
-        : 1.0;
-    extraKmRateUsed = Number((ratePerKm * sliderHillBoost).toFixed(1));
-    extraKmCharge = Math.round(safeExtraKm * extraKmRateUsed);
-    billedDistanceKm = baseRouteKm + safeExtraKm;
-    baseFare = Math.round(baseRouteKm * ratePerKm) + hillStationCharge + extraKmCharge;
-    driverAllowance = dailyBata + hillPricing.hillDriverEffortBonus;
+
+    hillStationCharge =
+      hillTier === 'both_hills'
+        ? Math.round(hillBase * 2.0)
+        : hillTier === 'one_end_hill'
+        ? Math.round(hillBase * 1.45)
+        : 0;
+    baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
+    driverAllowance = dailyBata + hillDriverBonusPerDay;
   } else if (tripType === 'roundtrip') {
+    if (pickupDate && returnDate) {
+      const p = new Date(pickupDate).getTime();
+      const r = new Date(returnDate).getTime();
+      if (Number.isFinite(p) && Number.isFinite(r)) {
+        const diffDays = Math.ceil((r - p) / (1000 * 60 * 60 * 24));
+        daysCount = Math.max(1, diffDays + 1);
+      }
+    }
     const minKmForDays = daysCount * 250;
     const actualTwoWayKm = Math.round(parsedDistance * 2);
-    const baseRoundTripKm = Math.max(minKmForDays, actualTwoWayKm);
+    baseBilledDistanceKm = Math.max(minKmForDays, actualTwoWayKm);
     ratePerKm = Number((roundTripRate * dynamicRateFactor).toFixed(1));
-    const sliderHillBoost = hillPricing.isDropHillArea || hillPricing.isPickupHillArea ? 1.15 : 1.0;
-    extraKmRateUsed = Number((ratePerKm * sliderHillBoost).toFixed(1));
-    extraKmCharge = Math.round(safeExtraKm * extraKmRateUsed);
-    billedDistanceKm = baseRoundTripKm + safeExtraKm;
-    baseFare = Math.round(baseRoundTripKm * ratePerKm) + hillStationCharge + extraKmCharge;
-    driverAllowance = daysCount * dailyBata + hillPricing.hillDriverEffortBonus;
+
+    hillStationCharge =
+      hillTier === 'both_hills'
+        ? Math.round(hillBase * 2.4)
+        : hillTier === 'one_end_hill'
+        ? Math.round(hillBase * 1.8)
+        : 0;
+    baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
+    driverAllowance = daysCount * (dailyBata + hillDriverBonusPerDay);
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
-    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
-    extraKmRateUsed = ratePerKm;
-    extraKmCharge = Math.round(safeExtraKm * extraKmRateUsed);
     if (localPackageId === '4h_40k') {
-      billedDistanceKm = 40 + safeExtraKm;
-      baseFare = Math.round(adjustedLocal8HrBase * 0.66) - 150 + extraKmCharge;
-      driverAllowance = 150 + hillPricing.hillDriverEffortBonus;
+      baseBilledDistanceKm = 40;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 0.66) - 150;
+      driverAllowance = 150 + hillDriverBonusPerDay;
     } else if (localPackageId === '12h_120k') {
-      billedDistanceKm = 120 + safeExtraKm;
-      baseFare = Math.round(adjustedLocal8HrBase * 1.34) - 300 + extraKmCharge;
-      driverAllowance = 300 + hillPricing.hillDriverEffortBonus;
+      baseBilledDistanceKm = 120;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.34) - 300;
+      driverAllowance = 300 + hillDriverBonusPerDay;
     } else {
-      billedDistanceKm = 80 + safeExtraKm;
-      baseFare = adjustedLocal8HrBase - 250 + extraKmCharge;
-      driverAllowance = 250 + hillPricing.hillDriverEffortBonus;
+      baseBilledDistanceKm = 80;
+      baseRouteFare = adjustedLocal8HrBase - 250;
+      driverAllowance = 250 + hillDriverBonusPerDay;
     }
-  } else if (tripType === 'airport') {
-    const baseAirportKm = Math.max(40, Math.round(parsedDistance));
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
-    const sliderHillBoost = hillPricing.isDropHillArea || hillPricing.isPickupHillArea ? 1.15 : 1.0;
-    extraKmRateUsed = Number((ratePerKm * sliderHillBoost).toFixed(1));
-    extraKmCharge = Math.round(safeExtraKm * extraKmRateUsed);
-    billedDistanceKm = baseAirportKm + safeExtraKm;
-    const airportFixedPickupFee = cabId === 'tempo' ? 650 : cabId === 'innova' || cabId === 'suv' ? 450 : 350;
-    baseFare = Math.round(baseAirportKm * ratePerKm + airportFixedPickupFee) + hillStationCharge + extraKmCharge;
-    driverAllowance = 200 + hillPricing.hillDriverEffortBonus;
+    hillStationCharge = isHillRoute ? hillBase : 0;
+  } else if (tripType === 'airport') {
+    baseBilledDistanceKm = Math.max(40, Math.round(parsedDistance));
+    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
+    const airportFixedPickupFee =
+      cabId === 'tempo' ? 650 : cabId === 'innova' || cabId === 'suv' ? 450 : 350;
+    baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
+    driverAllowance = 200 + hillDriverBonusPerDay;
+    hillStationCharge = isHillRoute ? hillBase : 0;
   }
+
+  const hillSliderFactor = dropIsHill ? 1.12 : isHillRoute ? 1.06 : 1.0;
+  const extraKmRate = Math.max(
+    Math.ceil(ratePerKm + (dropIsHill ? 3.0 : isHillRoute ? 2.5 : 1.5)),
+    Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
+  );
+
+  const sliderExtraFare = Math.round(cleanExtraKm * extraKmRate);
+  const billedDistanceKm = baseBilledDistanceKm + cleanExtraKm;
+  const baseFare = baseRouteFare + hillStationCharge + sliderExtraFare;
 
   let highwayToll = 0;
   let statePermitTax = 0;
   let stateRoutePath = [originState];
   let statePermitBreakdown = [];
+  let expresswayName = 'Local City Road';
 
   if (tripType === 'oneway') {
     const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, billedDistanceKm, cabId);
     highwayToll = tollInfo.baseTollOneWay;
+    expresswayName = tollInfo.expresswayName;
     if (isInterState) {
-      const permitInfo = computeServerMultiStatePermitBreakdown(originState, destState, pickupCity, dropCity, cabId);
+      const permitInfo = computeServerMultiStatePermitBreakdown(
+        originState,
+        destState,
+        pickupCity,
+        dropCity,
+        cabId
+      );
       stateRoutePath = permitInfo.stateRoutePath;
       statePermitBreakdown = permitInfo.statePermitBreakdown;
       statePermitTax = permitInfo.totalStatePermitTax;
     }
   } else if (tripType === 'roundtrip') {
-    const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, Math.round(billedDistanceKm / 2), cabId);
+    const tollInfo = lookupServerRouteExpresswayToll(
+      pickupCity,
+      dropCity,
+      Math.round(billedDistanceKm / 2),
+      cabId
+    );
     highwayToll = Math.round(tollInfo.baseTollOneWay * 1.85);
+    expresswayName = tollInfo.expresswayName;
     if (isInterState) {
-      const permitInfo = computeServerMultiStatePermitBreakdown(originState, destState, pickupCity, dropCity, cabId);
+      const permitInfo = computeServerMultiStatePermitBreakdown(
+        originState,
+        destState,
+        pickupCity,
+        dropCity,
+        cabId
+      );
       stateRoutePath = permitInfo.stateRoutePath;
       statePermitBreakdown = permitInfo.statePermitBreakdown;
       statePermitTax = permitInfo.totalStatePermitTax;
@@ -878,13 +994,18 @@ export function computeServerTripFare({
   } else if (tripType === 'airport') {
     highwayToll = 120;
     statePermitTax = 0;
+    expresswayName = 'Airport Toll & Entry';
   }
 
   const estimatedTollsAndTaxes = highwayToll + statePermitTax;
   const tollsAndTaxes = includeTolls ? estimatedTollsAndTaxes : 0;
 
   const carrierFee = addonCarrier ? 300 : 0;
-  const petFee = addonPet ? (cabId === 'suv' || cabId === 'innova' || cabId === 'tempo' ? 1000 : 800) : 0;
+  const petFee = addonPet
+    ? cabId === 'suv' || cabId === 'innova' || cabId === 'tempo'
+      ? 1000
+      : 800
+    : 0;
   const assuredModelFee = addonAssuredModel ? 400 : 0;
   const addonsTotal = carrierFee + petFee + assuredModelFee;
 
@@ -892,28 +1013,58 @@ export function computeServerTripFare({
   const gstAmount = Math.round(taxableSubtotal * 0.05);
 
   const totalFare = baseFare + driverAllowance + tollsAndTaxes + addonsTotal + gstAmount;
+
+  const mrpMultiplier = tripType === 'oneway' ? 1.42 : 1.18;
+  const originalMarketFare = Math.round((totalFare * mrpMultiplier) / 10) * 10 - 1;
+  const savingsAmount = Math.max(0, originalMarketFare - totalFare);
+  const savingsPercent = Math.round((savingsAmount / originalMarketFare) * 100);
+
   const advanceFare = Math.round(totalFare * 0.20);
   const balanceDue = totalFare - advanceFare;
 
   return {
     distanceKm: parsedDistance,
-    extraKm: safeExtraKm,
-    extraKmCharge,
-    extraKmRateUsed,
+    extraKm: cleanExtraKm,
+    extraKmCharge: sliderExtraFare,
+    extraKmRateUsed: extraKmRate,
     billedDistanceKm,
     baseFare,
     driverAllowance,
     highwayToll,
     statePermitTax,
+    stateRoutePath,
+    statePermitBreakdown,
     estimatedTollsAndTaxes,
     tollsAndTaxes,
+    hillStationCharge,
+    isHillRoute,
+    pickupIsHill,
+    dropIsHill,
+    hillTier,
+    hillRateMultiplier,
+    hillTierLabel,
+    isInterState,
+    originState,
+    destState,
+    expresswayName,
     addonsTotal,
     gstAmount,
     totalFare,
+    originalMarketFare,
+    savingsAmount,
+    savingsPercent,
     advanceFare,
     balanceDue,
     daysCount,
-    ratePerKm
+    ratePerKm,
+    leadTimeTier,
+    leadTimeMultiplier,
+    leadTimeLabel,
+    isOuterRoute,
+    pickupIsOuter,
+    dropIsOuter,
+    routeTierMultiplier,
+    routeTierLabel
   };
 }
 

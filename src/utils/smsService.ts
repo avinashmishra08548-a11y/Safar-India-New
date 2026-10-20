@@ -98,8 +98,7 @@ export async function sendOtpSms(phoneNumber: string, otp: string): Promise<SmsR
   const apiKey = getFast2SmsApiKey();
   const otpMessage = `Your Safar India Cabs verification OTP is ${otp}. Valid for 10 minutes. Please do not share this OTP with anyone.`;
 
-  // Automatically trigger Meta WhatsApp Cloud API OTP in parallel for every number
-  whatsAppService.sendCustomerOtp(cleanPhone, otp).catch(() => {});
+  // Fast2SMS Gateway Dispatch
 
   // STEP 1: Attempt Route 'otp' as requested
   try {
@@ -696,6 +695,7 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
   expiresAt?: number;
   message: string;
   isFallback?: boolean;
+  otp?: string;
 }> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
   try {
@@ -708,16 +708,7 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (data && data.success && data.token) {
-        // If server WhatsApp dispatch didn't confirm or user has custom client WhatsApp credentials, also dispatch from client
-        const parts = String(data.token).split('.');
-        if (parts.length >= 4 && !data.waDelivered) {
-          try {
-            const realOtp = atob(parts[3]);
-            if (realOtp && realOtp.length === 4) {
-              whatsAppService.sendCustomerOtp(cleanPhone, realOtp).catch(() => {});
-            }
-          } catch {}
-        }
+        // Authoritative server dispatch completed (/api/verify-otp handles multi-channel delivery)
         return {
           success: true,
           token: data.token,

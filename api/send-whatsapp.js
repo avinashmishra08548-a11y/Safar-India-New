@@ -383,12 +383,7 @@ export async function sendWhatsAppCloudMessage(
     sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText)
   ]);
 
-  // Schedule non-blocking follow-up text delivery after 2.5s in case the template just opened the session
-  if (templateResult.success) {
-    setTimeout(() => {
-      sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText).catch(() => {});
-    }, 2500);
-  }
+
 
   const overallSuccess = Boolean(templateResult.success || textResult.success);
 
