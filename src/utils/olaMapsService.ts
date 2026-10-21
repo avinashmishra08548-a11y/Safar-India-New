@@ -12,6 +12,7 @@ import {
   POPULAR_INDIAN_CITIES,
   estimateDistanceKm,
   lookupVerifiedHighwayDistance,
+  findMatchingIndianCity,
   calculateTerrainHaversineKm,
   isHillAreaToken
 } from '../data/indianCities';
@@ -304,29 +305,54 @@ function computeRealisticTravelMinutes(
   return Math.round((distanceKm / avgSpeedKmh) * 60 + 20);
 }
 
+function resolveLocalCoordsSync(locationName: string): Coordinates | null {
+  const trimmed = (locationName || '').trim();
+  if (trimmed.length < 3) return null;
+
+  // 1. Check Indian Cities database first
+  const matchedCity = findMatchingIndianCity(trimmed);
+  if (matchedCity) {
+    return { lat: matchedCity.lat, lng: matchedCity.lon };
+  }
+
+  // 2. Check specific Landmarks only on primary segment (>= 3 chars) matching name or alias
+  const primary = trimmed.split(',')[0].trim().toLowerCase();
+  if (primary.length >= 3) {
+    const exactLandmark = POPULAR_INDIAN_LANDMARKS.find(
+      (item) =>
+        item.name.toLowerCase() === primary ||
+        item.name.toLowerCase().startsWith(primary) ||
+        (item.aliases &&
+          item.aliases.some(
+            (a) => a.toLowerCase() === primary || (primary.length >= 4 && a.toLowerCase().startsWith(primary))
+          ))
+    );
+    if (exactLandmark) {
+      return { lat: exactLandmark.lat, lng: exactLandmark.lng };
+    }
+  }
+
+  return null;
+}
+
 async function resolveLocationCoords(locationName: string): Promise<Coordinates | null> {
   const trimmed = (locationName || '').trim();
-  if (!trimmed) return null;
+  if (trimmed.length < 3) return null;
 
-  const landmark = searchIndianLandmarks(trimmed)[0];
-  if (landmark) {
-    return { lat: landmark.lat, lng: landmark.lng };
+  const localCoords = resolveLocalCoordsSync(trimmed);
+  if (localCoords) {
+    return localCoords;
   }
 
-  const clean = trimmed.split(',')[0].trim().toLowerCase();
-  const city = POPULAR_INDIAN_CITIES.find(
-    (c) =>
-      c.name.toLowerCase() === clean ||
-      c.name.toLowerCase().includes(clean) ||
-      trimmed.toLowerCase().includes(c.name.split('(')[0].trim().toLowerCase())
-  );
-  if (city) {
-    return { lat: city.lat, lng: city.lon };
-  }
+  // Only query Photon OSM network geocoder if location string is >= 4 chars
+  if (trimmed.length < 4) return null;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2200);
     const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(trimmed)}&limit=1&bbox=68.1,6.5,97.4,35.5`;
-    const res = await fetch(photonUrl);
+    const res = await fetch(photonUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       const coords = data?.features?.[0]?.geometry?.coordinates;
@@ -341,7 +367,7 @@ async function resolveLocationCoords(locationName: string): Promise<Coordinates 
 
 /**
  * Calculate exact road driving distance (in KM) and estimated travel time.
- * 1. Checks Verified Indian Highway & Mountain Road Matrix first (e.g., Rudraprayag to Nainital = 223 KM).
+ * 1. Checks Verified Indian Highway & Mountain Road Matrix first (e.g., Rudraprayag to Nainital = 223 KM, Agra to Mathura = 58 KM).
  * 2. Resolves exact coordinates for both Pickup & Drop (including live geocoding if user typed text).
  * 3. Queries Ola Maps Distance Matrix / Directions API & OSRM India Road Routing.
  * 4. Calibrates mountain/hill road tortuosity so hill routes never underestimate road distance.
@@ -352,14 +378,11 @@ export async function calculateExactRoadDistance(
   pickupCoords?: Coordinates | null,
   dropCoords?: Coordinates | null
 ): Promise<OlaDistanceResult> {
-  const apiKey = getOlaMapsApiKey();
-
-  let pCoords = pickupCoords || (await resolveLocationCoords(pickupLocation));
-  let dCoords = dropCoords || (await resolveLocationCoords(dropLocation));
-
-  // 1. Check Verified Highway & Hill Route Matrix FIRST (guarantees 100% accuracy on Rudraprayag -> Nainital = 223 KM, etc.)
+  // 1. Check Verified Highway & Hill Route Matrix FIRST (instant 0ms lookup for all major pairs & pilgrimage stops)
   const verifiedKm = lookupVerifiedHighwayDistance(pickupLocation, dropLocation);
   if (verifiedKm !== null) {
+    const pSync = pickupCoords || resolveLocalCoordsSync(pickupLocation);
+    const dSync = dropCoords || resolveLocalCoordsSync(dropLocation);
     const durationMinutes = computeRealisticTravelMinutes(verifiedKm, pickupLocation, dropLocation);
     return {
       distanceKm: verifiedKm,
@@ -367,10 +390,14 @@ export async function calculateExactRoadDistance(
       durationMinutes,
       source: 'ola_maps_exact',
       routeSummary: `Verified Highway Route: ${pickupLocation} → ${dropLocation}`,
-      originCoords: pCoords || undefined,
-      destCoords: dCoords || undefined
+      originCoords: pSync || undefined,
+      destCoords: dSync || undefined
     };
   }
+
+  const apiKey = getOlaMapsApiKey();
+  const pCoords = pickupCoords || (await resolveLocationCoords(pickupLocation));
+  const dCoords = dropCoords || (await resolveLocationCoords(dropLocation));
 
   if (pCoords && dCoords) {
     const terrainGeodesicKm = calculateTerrainHaversineKm(
@@ -391,7 +418,7 @@ export async function calculateExactRoadDistance(
         const element = dmData?.rows?.[0]?.elements?.[0];
         if (element && element.distance?.value) {
           const rawKm = Math.round(element.distance.value / 1000);
-          const distanceKm = Math.max(25, rawKm);
+          const distanceKm = Math.max(12, rawKm);
           const durationMinutes = computeRealisticTravelMinutes(
             distanceKm,
             pickupLocation,
@@ -419,7 +446,7 @@ export async function calculateExactRoadDistance(
         const route = dirData?.routes?.[0];
         const leg = route?.legs?.[0];
         if (leg && typeof leg.distance === 'number') {
-          const distanceKm = Math.max(25, Math.round(leg.distance / 1000));
+          const distanceKm = Math.max(12, Math.round(leg.distance / 1000));
           const durationMinutes = computeRealisticTravelMinutes(
             distanceKm,
             pickupLocation,
@@ -440,13 +467,15 @@ export async function calculateExactRoadDistance(
 
     // 4. Query OSRM India Road Network Routing Engine (Shortest Highway/Mountain Route)
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2200);
       const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${pCoords.lng},${pCoords.lat};${dCoords.lng},${dCoords.lat}?alternatives=true&overview=false`;
-      const osrmRes = await fetch(osrmUrl);
+      const osrmRes = await fetch(osrmUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (osrmRes.ok) {
         const osrmData = await osrmRes.json();
         const routes = Array.isArray(osrmData?.routes) ? osrmData.routes : [];
         if (routes.length > 0) {
-          // Pick shortest practical driving route among alternatives
           const distancesKm = routes
             .map((r: any) => (typeof r.distance === 'number' ? Math.round(r.distance / 1000) : 0))
             .filter((d: number) => d > 0);
@@ -458,7 +487,7 @@ export async function calculateExactRoadDistance(
               dropLocation
             );
             return {
-              distanceKm: Math.max(25, minOsrmKm),
+              distanceKm: Math.max(12, minOsrmKm),
               durationText: formatMinutes(durationMinutes),
               durationMinutes,
               source: 'ola_maps_exact',

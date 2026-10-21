@@ -906,9 +906,8 @@ export function computeTripFare(params: {
         daysCount = Math.max(1, diffDays + 1);
       }
     }
-    const minKmForDays = daysCount * 250;
     const actualTwoWayKm = Math.round(distanceKm * 2);
-    baseBilledDistanceKm = Math.max(minKmForDays, actualTwoWayKm);
+    baseBilledDistanceKm = Math.max(80, actualTwoWayKm);
     ratePerKm = Number((roundTripRate * dynamicRateFactor).toFixed(1));
 
     hillStationCharge =

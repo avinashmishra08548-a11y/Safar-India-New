@@ -119,51 +119,96 @@ export default function App() {
   const [isExactOlaDistance, setIsExactOlaDistance] = useState(false);
   const [pickupCoords, setPickupCoords] = useState<Coordinates | null>({ lat: 28.6139, lng: 77.2090 });
   const [dropCoords, setDropCoords] = useState<Coordinates | null>({ lat: 27.1767, lng: 78.0081 });
+  const [roundTripLegs, setRoundTripLegs] = useState<Array<{ from: string; to: string; distanceKm: number }>>([]);
 
   useEffect(() => {
     let isCancelled = false;
-    async function updateDistance() {
+
+    const timer = setTimeout(async () => {
       if (tripType === 'local') {
         const d = localPackageId === '4h_40k' ? 40 : localPackageId === '12h_120k' ? 120 : 80;
-        setDistanceKm(d);
-        setTravelDuration(localPackageId === '4h_40k' ? '4 hrs' : localPackageId === '12h_120k' ? '12 hrs' : '8 hrs');
-        setIsExactOlaDistance(false);
+        if (!isCancelled) {
+          setDistanceKm(d);
+          setRoundTripLegs([]);
+          setTravelDuration(localPackageId === '4h_40k' ? '4 hrs' : localPackageId === '12h_120k' ? '12 hrs' : '8 hrs');
+          setIsExactOlaDistance(false);
+        }
         return;
       }
 
-      const validStops =
-        tripType === 'roundtrip'
-          ? roundTripStops.map((s) => s.trim()).filter((s) => s.length >= 2)
-          : [];
+      const cleanPickup = (pickupCity || '').trim();
+      const cleanDrop = (dropCity || '').trim();
 
-      if (validStops.length > 0) {
-        const waypoints = [pickupCity, dropCity, ...validStops, pickupCity];
-        let totalCircuitKm = 0;
-        for (let i = 0; i < waypoints.length - 1; i++) {
-          const legRes = await calculateExactRoadDistance(waypoints[i], waypoints[i + 1], null, null);
-          totalCircuitKm += legRes.distanceKm;
+      if (tripType === 'roundtrip') {
+        const validStops = roundTripStops
+          .map((s) => (s || '').trim())
+          .filter((s) => s.length >= 3);
+
+        const rawPoints = [cleanPickup, cleanDrop, ...validStops].filter((p) => p.length >= 3);
+
+        // Deduplicate consecutive identical points
+        const uniqueWaypoints: string[] = [];
+        for (const pt of rawPoints) {
+          const prev = uniqueWaypoints[uniqueWaypoints.length - 1];
+          if (!prev || prev.toLowerCase().split(',')[0].trim() !== pt.toLowerCase().split(',')[0].trim()) {
+            uniqueWaypoints.push(pt);
+          }
         }
-        if (!isCancelled) {
-          // computeTripFare multiplies distanceKm * 2 for roundtrip, so store half of total circuit KM
-          setDistanceKm(Math.max(40, Math.round(totalCircuitKm / 2)));
-          const estHours = Math.max(2, Math.round(totalCircuitKm / 52));
-          setTravelDuration(`${estHours} hrs (Multi-City Round Trip)`);
-          setIsExactOlaDistance(true);
+
+        if (uniqueWaypoints.length >= 2) {
+          const circuitPoints = [...uniqueWaypoints, uniqueWaypoints[0]];
+          let totalCircuitKm = 0;
+          let totalMinutes = 0;
+          const computedLegs: Array<{ from: string; to: string; distanceKm: number }> = [];
+
+          for (let i = 0; i < circuitPoints.length - 1; i++) {
+            const fromLoc = circuitPoints[i];
+            const toLoc = circuitPoints[i + 1];
+            const pC = i === 0 ? pickupCoords : null;
+            const dC = i === 0 && validStops.length === 0 ? dropCoords : null;
+            const legRes = await calculateExactRoadDistance(fromLoc, toLoc, pC, dC);
+            totalCircuitKm += legRes.distanceKm;
+            totalMinutes += legRes.durationMinutes;
+            computedLegs.push({
+              from: fromLoc.split(',')[0].trim(),
+              to: toLoc.split(',')[0].trim(),
+              distanceKm: legRes.distanceKm
+            });
+          }
+
+          if (!isCancelled) {
+            // computeTripFare multiplies distanceKm * 2 for roundtrip, so store exact half (totalCircuitKm / 2)
+            setDistanceKm(Math.max(40, totalCircuitKm / 2));
+            setRoundTripLegs(computedLegs);
+            const hrs = Math.max(2, Math.round(totalMinutes / 60));
+            setTravelDuration(
+              validStops.length > 0
+                ? `${hrs} hrs (${computedLegs.length} Legs Round Trip)`
+                : `${hrs} hrs (Round Trip)`
+            );
+            setIsExactOlaDistance(true);
+          }
         }
-      } else {
-        const res = await calculateExactRoadDistance(pickupCity, dropCity, pickupCoords, dropCoords);
-        if (!isCancelled) {
-          setDistanceKm(res.distanceKm);
-          setTravelDuration(res.durationText);
-          setIsExactOlaDistance(res.source === 'ola_maps_exact');
-          if (res.originCoords && !pickupCoords) setPickupCoords(res.originCoords);
-          if (res.destCoords && !dropCoords) setDropCoords(res.destCoords);
-        }
+        return;
       }
-    }
-    updateDistance();
+
+      // One-Way or Airport trip
+      if (cleanPickup.length < 3 || cleanDrop.length < 3) {
+        return;
+      }
+
+      const res = await calculateExactRoadDistance(cleanPickup, cleanDrop, pickupCoords, dropCoords);
+      if (!isCancelled) {
+        setDistanceKm(res.distanceKm);
+        setRoundTripLegs([]);
+        setTravelDuration(res.durationText);
+        setIsExactOlaDistance(res.source === 'ola_maps_exact');
+      }
+    }, 120);
+
     return () => {
       isCancelled = true;
+      clearTimeout(timer);
     };
   }, [pickupCity, dropCity, roundTripStops, pickupCoords, dropCoords, tripType, localPackageId]);
 
@@ -520,6 +565,7 @@ export default function App() {
                       airportTerminal={airportTerminal}
                       setAirportTerminal={setAirportTerminal}
                       calculatedDistance={distanceKm}
+                      roundTripLegs={roundTripLegs}
                       tripDays={roundTripDays}
                       travelDuration={travelDuration}
                       isExactOlaDistance={isExactOlaDistance}

@@ -109,6 +109,7 @@ interface BookingEngineProps {
   airportTerminal: string;
   setAirportTerminal: (t: string) => void;
   calculatedDistance: number;
+  roundTripLegs?: Array<{ from: string; to: string; distanceKm: number }>;
   tripDays: number;
   isExactOlaDistance?: boolean;
   travelDuration?: string;
@@ -157,6 +158,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   airportTerminal,
   setAirportTerminal,
   calculatedDistance,
+  roundTripLegs = [],
   tripDays,
   travelDuration,
   customerMobile = '',
@@ -1035,6 +1037,24 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Live Round Trip Route & Per-Leg Kilometer Breakdown */}
+            {roundTripLegs.length > 0 && (
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5 text-slate-700 font-semibold">
+                  <span className="text-emerald-800 font-extrabold">Round Trip Route KM:</span>
+                  {roundTripLegs.map((leg, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-emerald-200/80 text-[11px]">
+                      <span>{leg.from} → {leg.to}</span>
+                      <strong className="text-emerald-700 font-mono">({leg.distanceKm} KM)</strong>
+                    </span>
+                  ))}
+                </div>
+                <span className="font-mono font-extrabold text-emerald-900 bg-emerald-200/70 px-2.5 py-1 rounded-lg shrink-0">
+                  Total: {routePreviewFare.billedDistanceKm} KM
+                </span>
               </div>
             )}
           </div>
