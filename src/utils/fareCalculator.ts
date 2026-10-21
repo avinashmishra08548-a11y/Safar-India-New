@@ -739,6 +739,78 @@ export function lookupRouteExpresswayToll(
   };
 }
 
+export interface RoundTripFareBreakdown {
+  vehicleType: string;
+  totalKm: number;
+  numberOfDays: number;
+  chargeableKm: number;
+  perKmRate: number;
+  baseDistanceFare: number;
+  driverAllowance: number;
+  nightAllowance: number;
+  totalFare: number;
+  note: string;
+}
+
+/**
+ * Safar India Cabs - Round Trip Fare Calculation Logic
+ * 
+ * @param {number} totalKm - Total round trip distance in KMs
+ * @param {number} numberOfDays - Total trip duration in calendar days
+ * @param {string} vehicleType - Vehicle category ('SEDAN', 'SUV', 'INNOVA')
+ * @param {number} nightHalts - Number of nights the trip spans
+ * @returns {Object} Complete breakdown of round trip fare
+ */
+export function calculateRoundTripFare(
+  totalKm: number,
+  numberOfDays: number,
+  vehicleType: string,
+  nightHalts = 0
+): RoundTripFareBreakdown {
+  // 1. Define Per KM Rates & Driver Allowances based on vehicle category
+  const rates: Record<
+    string,
+    { perKmRate: number; driverAllowancePerDay: number; nightChargePerNight: number }
+  > = {
+    HATCHBACK: { perKmRate: 11.5, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    SEDAN: { perKmRate: 13, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    EXEC_SEDAN: { perKmRate: 15, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    SUV: { perKmRate: 17, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    INNOVA: { perKmRate: 22, driverAllowancePerDay: 400, nightChargePerNight: 300 },
+    TEMPO: { perKmRate: 26, driverAllowancePerDay: 500, nightChargePerNight: 400 }
+  };
+
+  const selectedConfig = rates[String(vehicleType || 'SEDAN').toUpperCase()] || rates['SEDAN'];
+
+  // 2. Minimum KM Rule (250 KM per day)
+  const MIN_KM_PER_DAY = 250;
+  const minChargeableKm = numberOfDays * MIN_KM_PER_DAY;
+
+  // Charge for whichever is higher: actual KM or minimum daily KM limit
+  const finalChargeableKm = Math.max(totalKm, minChargeableKm);
+
+  // 3. Component Calculations
+  const baseDistanceFare = finalChargeableKm * selectedConfig.perKmRate;
+  const totalDriverAllowance = numberOfDays * selectedConfig.driverAllowancePerDay;
+  const totalNightAllowance = nightHalts * selectedConfig.nightChargePerNight;
+
+  // 4. Final Total Estimated Fare (Excluding Tolls, Taxes, Parking)
+  const totalFare = baseDistanceFare + totalDriverAllowance + totalNightAllowance;
+
+  return {
+    vehicleType: vehicleType,
+    totalKm: totalKm,
+    numberOfDays: numberOfDays,
+    chargeableKm: finalChargeableKm,
+    perKmRate: selectedConfig.perKmRate,
+    baseDistanceFare: baseDistanceFare,
+    driverAllowance: totalDriverAllowance,
+    nightAllowance: totalNightAllowance,
+    totalFare: totalFare,
+    note: 'Toll Taxes, State Border Entry Taxes, and Parking fees are extra to be paid directly by customer.'
+  };
+}
+
 /**
  * SafarIndiaCabs Dynamic Fare, Hill Terrain, Outer Route, Lead-Time & Extra KM Slider Calculation Engine
  * (100% synchronized with computeServerTripFare in /api/bookings.js)
@@ -779,7 +851,6 @@ export function computeTripFare(params: {
   const cab = CABS_FLEET.find((c) => c.id === cabId) || CABS_FLEET[1];
 
   const oneWayRate = cab.ratePerKm;
-  const roundTripRate = cab.roundTripRatePerKm || cab.ratePerKm;
   const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1);
   const dailyBata = cab.driverAllowancePerDay || 300;
   const hillBase = cab.hillStationCharge || 300;
@@ -831,6 +902,7 @@ export function computeTripFare(params: {
   let ratePerKm = oneWayRate;
   let baseRouteFare = 0;
   let driverAllowance = 0;
+  let nightCharges = 0;
   let daysCount = 1;
 
   const originState = detectLocationState(pickupCity, 'Delhi');
@@ -869,29 +941,16 @@ export function computeTripFare(params: {
         daysCount = Math.max(1, diffDays + 1);
       }
     }
-    const actualTwoWayKm = Math.max(150, Math.round(distanceKm * 2));
-    // Keep baseBilledDistanceKm equal to actualTwoWayKm so adding/removing stops always updates KM live on screen
-    baseBilledDistanceKm = actualTwoWayKm;
-    ratePerKm = Number((roundTripRate * dynamicRateFactor).toFixed(1));
+    const actualTwoWayKm = Math.round(distanceKm * 2);
+    const nightHalts = Math.max(0, daysCount - 1);
+    const rtFare = calculateRoundTripFare(actualTwoWayKm, daysCount, cabId.toUpperCase(), nightHalts);
 
-    // Reasonable Round-Trip Pricing:
-    // - Charges exact actualTwoWayKm when distance meets or exceeds 220 KM/day
-    // - For shorter multi-day trips, smoothly blends 45% of unused daily quota so every stop added/removed updates fare accurately without overcharging
-    const minMultiDayQuotaKm = daysCount * 220;
-    const effectivePricingKm =
-      actualTwoWayKm >= minMultiDayQuotaKm
-        ? actualTwoWayKm
-        : actualTwoWayKm + Math.round((minMultiDayQuotaKm - actualTwoWayKm) * 0.45);
-
-    hillStationCharge =
-      hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.35)
-        : hillTier === 'one_end_hill'
-        ? hillBase
-        : 0;
-
-    baseRouteFare = Math.round(effectivePricingKm * ratePerKm);
-    driverAllowance = daysCount * (dailyBata + hillDriverBonusPerDay);
+    baseBilledDistanceKm = rtFare.chargeableKm;
+    ratePerKm = rtFare.perKmRate;
+    baseRouteFare = rtFare.baseDistanceFare;
+    driverAllowance = rtFare.driverAllowance;
+    nightCharges = rtFare.nightAllowance;
+    hillStationCharge = 0;
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
     if (localPackageId === '4h_40k') {
@@ -921,10 +980,13 @@ export function computeTripFare(params: {
 
   // 4. Extra KM Rate
   const hillSliderFactor = dropIsHill ? 1.08 : isHillRoute ? 1.05 : 1.0;
-  const extraKmRate = Math.max(
-    Math.ceil(ratePerKm + (dropIsHill ? 2.0 : isHillRoute ? 1.5 : 1.0)),
-    Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
-  );
+  const extraKmRate =
+    tripType === 'roundtrip'
+      ? ratePerKm
+      : Math.max(
+          Math.ceil(ratePerKm + (dropIsHill ? 2.0 : isHillRoute ? 1.5 : 1.0)),
+          Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
+        );
 
   const sliderExtraFare = Math.round(cleanExtraKm * extraKmRate);
   const billedDistanceKm = baseBilledDistanceKm + cleanExtraKm;
@@ -999,11 +1061,11 @@ export function computeTripFare(params: {
   const assuredModelFee = addonAssuredModel ? 300 : 0;
   const addonsTotal = carrierFee + petFee + assuredModelFee;
 
-  // 5% Commercial Passenger Transport GST
-  const taxableSubtotal = baseFare + driverAllowance + addonsTotal;
-  const gstAmount = Math.round(taxableSubtotal * 0.05);
+  // GST: 0 for roundtrip (strictly following calculateRoundTripFare formula), 5% for other trip types
+  const taxableSubtotal = baseFare + driverAllowance + nightCharges + addonsTotal;
+  const gstAmount = tripType === 'roundtrip' ? 0 : Math.round(taxableSubtotal * 0.05);
 
-  const totalFare = baseFare + driverAllowance + tollsAndTaxes + addonsTotal + gstAmount;
+  const totalFare = baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
 
   // Strikethrough Market Comparison Fare (Savaari / Gozo / MakeMyTrip benchmark)
   const mrpMultiplier = tripType === 'oneway' ? 1.25 : tripType === 'roundtrip' ? 1.20 : 1.18;
@@ -1021,7 +1083,7 @@ export function computeTripFare(params: {
     billedDistanceKm,
     baseFare,
     driverAllowance,
-    nightCharges: 0,
+    nightCharges,
     highwayToll,
     statePermitTax,
     stateRoutePath,

@@ -21,7 +21,7 @@ export const SERVER_CABS_FLEET = {
     name: 'Hatchback AC',
     models: 'WagonR, Celerio, Tiago or equivalent',
     ratePerKm: 9.5,
-    roundTripRatePerKm: 9.5,
+    roundTripRatePerKm: 11.5,
     extraKmRate: 10.5,
     driverAllowancePerDay: 250,
     statePermitTax: 200,
@@ -33,7 +33,7 @@ export const SERVER_CABS_FLEET = {
     name: 'Sedan AC (Dzire / Etios)',
     models: 'Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura',
     ratePerKm: 10.5,
-    roundTripRatePerKm: 10.5,
+    roundTripRatePerKm: 13,
     extraKmRate: 11.5,
     driverAllowancePerDay: 300,
     statePermitTax: 250,
@@ -45,7 +45,7 @@ export const SERVER_CABS_FLEET = {
     name: 'Prime Executive Sedan',
     models: 'Honda City, Maruti Ciaz, Hyundai Verna',
     ratePerKm: 12.5,
-    roundTripRatePerKm: 12.5,
+    roundTripRatePerKm: 15,
     extraKmRate: 13.5,
     driverAllowancePerDay: 350,
     statePermitTax: 300,
@@ -57,9 +57,9 @@ export const SERVER_CABS_FLEET = {
     name: 'SUV AC (Ertiga / Carens)',
     models: 'Maruti Ertiga, Kia Carens, Toyota Rumion or equivalent',
     ratePerKm: 13.5,
-    roundTripRatePerKm: 13.5,
+    roundTripRatePerKm: 17,
     extraKmRate: 15,
-    driverAllowancePerDay: 350,
+    driverAllowancePerDay: 300,
     statePermitTax: 350,
     hillStationCharge: 400,
     local8Hr80KmFare: 2599
@@ -69,7 +69,7 @@ export const SERVER_CABS_FLEET = {
     name: 'Assured Innova Crysta',
     models: 'Toyota Innova Crysta (6+1 / 7+1 Luxury)',
     ratePerKm: 16.5,
-    roundTripRatePerKm: 16.5,
+    roundTripRatePerKm: 22,
     extraKmRate: 18,
     driverAllowancePerDay: 400,
     statePermitTax: 450,
@@ -81,7 +81,7 @@ export const SERVER_CABS_FLEET = {
     name: 'Tempo Traveller AC (12 Seater)',
     models: 'Force Traveller / Urbania 12+1 Pushback AC',
     ratePerKm: 22,
-    roundTripRatePerKm: 22,
+    roundTripRatePerKm: 26,
     extraKmRate: 24,
     driverAllowancePerDay: 500,
     statePermitTax: 650,
@@ -761,6 +761,57 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
 }
 
 /**
+ * Safar India Cabs - Round Trip Fare Calculation Logic
+ * 
+ * @param {number} totalKm - Total round trip distance in KMs
+ * @param {number} numberOfDays - Total trip duration in calendar days
+ * @param {string} vehicleType - Vehicle category ('SEDAN', 'SUV', 'INNOVA')
+ * @param {number} nightHalts - Number of nights the trip spans
+ * @returns {Object} Complete breakdown of round trip fare
+ */
+export function calculateRoundTripFare(totalKm, numberOfDays, vehicleType, nightHalts = 0) {
+  // 1. Define Per KM Rates & Driver Allowances based on vehicle category
+  const rates = {
+    HATCHBACK: { perKmRate: 11.5, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    SEDAN: { perKmRate: 13, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    EXEC_SEDAN: { perKmRate: 15, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    SUV: { perKmRate: 17, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    INNOVA: { perKmRate: 22, driverAllowancePerDay: 400, nightChargePerNight: 300 },
+    TEMPO: { perKmRate: 26, driverAllowancePerDay: 500, nightChargePerNight: 400 }
+  };
+
+  const selectedConfig = rates[String(vehicleType || 'SEDAN').toUpperCase()] || rates['SEDAN'];
+
+  // 2. Minimum KM Rule (250 KM per day)
+  const MIN_KM_PER_DAY = 250;
+  const minChargeableKm = numberOfDays * MIN_KM_PER_DAY;
+
+  // Charge for whichever is higher: actual KM or minimum daily KM limit
+  const finalChargeableKm = Math.max(totalKm, minChargeableKm);
+
+  // 3. Component Calculations
+  const baseDistanceFare = finalChargeableKm * selectedConfig.perKmRate;
+  const totalDriverAllowance = numberOfDays * selectedConfig.driverAllowancePerDay;
+  const totalNightAllowance = nightHalts * selectedConfig.nightChargePerNight;
+
+  // 4. Final Total Estimated Fare (Excluding Tolls, Taxes, Parking)
+  const totalFare = baseDistanceFare + totalDriverAllowance + totalNightAllowance;
+
+  return {
+    vehicleType: vehicleType,
+    totalKm: totalKm,
+    numberOfDays: numberOfDays,
+    chargeableKm: finalChargeableKm,
+    perKmRate: selectedConfig.perKmRate,
+    baseDistanceFare: baseDistanceFare,
+    driverAllowance: totalDriverAllowance,
+    nightAllowance: totalNightAllowance,
+    totalFare: totalFare,
+    note: 'Toll Taxes, State Border Entry Taxes, and Parking fees are extra to be paid directly by customer.'
+  };
+}
+
+/**
  * Compute trip fare on the server using the exact SafarIndiaCabs pricing rules in src/utils/fareCalculator.ts
  */
 export function computeServerTripFare({
@@ -786,7 +837,6 @@ export function computeServerTripFare({
 
   const cab = SERVER_CABS_FLEET[cabId] || SERVER_CABS_FLEET.sedan;
   const oneWayRate = cab.ratePerKm;
-  const roundTripRate = cab.roundTripRatePerKm || cab.ratePerKm;
   const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1);
   const dailyBata = cab.driverAllowancePerDay || 300;
   const hillBase = cab.hillStationCharge || 300;
@@ -826,6 +876,7 @@ export function computeServerTripFare({
   let ratePerKm = oneWayRate;
   let baseRouteFare = 0;
   let driverAllowance = 0;
+  let nightCharges = 0;
   let daysCount = 1;
 
   const originState = detectServerLocationState(pickupCity, 'Delhi');
@@ -864,25 +915,16 @@ export function computeServerTripFare({
         daysCount = Math.max(1, diffDays + 1);
       }
     }
-    const actualTwoWayKm = Math.max(150, Math.round(parsedDistance * 2));
-    baseBilledDistanceKm = actualTwoWayKm;
-    ratePerKm = Number((roundTripRate * dynamicRateFactor).toFixed(1));
+    const actualTwoWayKm = Math.round(parsedDistance * 2);
+    const nightHalts = Math.max(0, daysCount - 1);
+    const rtFare = calculateRoundTripFare(actualTwoWayKm, daysCount, String(cabId).toUpperCase(), nightHalts);
 
-    const minMultiDayQuotaKm = daysCount * 220;
-    const effectivePricingKm =
-      actualTwoWayKm >= minMultiDayQuotaKm
-        ? actualTwoWayKm
-        : actualTwoWayKm + Math.round((minMultiDayQuotaKm - actualTwoWayKm) * 0.45);
-
-    hillStationCharge =
-      hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.35)
-        : hillTier === 'one_end_hill'
-        ? hillBase
-        : 0;
-
-    baseRouteFare = Math.round(effectivePricingKm * ratePerKm);
-    driverAllowance = daysCount * (dailyBata + hillDriverBonusPerDay);
+    baseBilledDistanceKm = rtFare.chargeableKm;
+    ratePerKm = rtFare.perKmRate;
+    baseRouteFare = rtFare.baseDistanceFare;
+    driverAllowance = rtFare.driverAllowance;
+    nightCharges = rtFare.nightAllowance;
+    hillStationCharge = 0;
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
     if (localPackageId === '4h_40k') {
@@ -911,10 +953,13 @@ export function computeServerTripFare({
   }
 
   const hillSliderFactor = dropIsHill ? 1.08 : isHillRoute ? 1.05 : 1.0;
-  const extraKmRate = Math.max(
-    Math.ceil(ratePerKm + (dropIsHill ? 2.0 : isHillRoute ? 1.5 : 1.0)),
-    Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
-  );
+  const extraKmRate =
+    tripType === 'roundtrip'
+      ? ratePerKm
+      : Math.max(
+          Math.ceil(ratePerKm + (dropIsHill ? 2.0 : isHillRoute ? 1.5 : 1.0)),
+          Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
+        );
 
   const sliderExtraFare = Math.round(cleanExtraKm * extraKmRate);
   const billedDistanceKm = baseBilledDistanceKm + cleanExtraKm;
@@ -981,10 +1026,10 @@ export function computeServerTripFare({
   const assuredModelFee = addonAssuredModel ? 300 : 0;
   const addonsTotal = carrierFee + petFee + assuredModelFee;
 
-  const taxableSubtotal = baseFare + driverAllowance + addonsTotal;
-  const gstAmount = Math.round(taxableSubtotal * 0.05);
+  const taxableSubtotal = baseFare + driverAllowance + nightCharges + addonsTotal;
+  const gstAmount = tripType === 'roundtrip' ? 0 : Math.round(taxableSubtotal * 0.05);
 
-  const totalFare = baseFare + driverAllowance + tollsAndTaxes + addonsTotal + gstAmount;
+  const totalFare = baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
 
   const mrpMultiplier = tripType === 'oneway' ? 1.25 : tripType === 'roundtrip' ? 1.20 : 1.18;
   const originalMarketFare = Math.round((totalFare * mrpMultiplier) / 10) * 10 - 1;
@@ -1002,6 +1047,7 @@ export function computeServerTripFare({
     billedDistanceKm,
     baseFare,
     driverAllowance,
+    nightCharges,
     highwayToll,
     statePermitTax,
     stateRoutePath,
