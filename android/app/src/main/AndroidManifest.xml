@@ -3,11 +3,102 @@
     package="com.safarindiacabs.app">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      Android 11+ (API Level 30 and above) Package Visibility Declaration for UPI Intent Flow.
+      Required so PackageManager, WebView, and Razorpay Checkout SDK can detect and launch
+      installed UPI applications (Google Pay, PhonePe, Paytm, BHIM, CRED, Amazon Pay, WhatsApp, Bank UPI apps).
+    -->
+    <queries>
+        <!-- Standard NPCI UPI Deep-Link Intent (upi://pay) -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="upi" android:host="pay" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+
+        <!-- App-Specific UPI Intent Schemes -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tez" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="gpay" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="phonepe" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="paytmmp" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="paytm" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="bhim" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="credpay" />
+        </intent>
+
+        <!-- Explicit UPI App Packages for Android 11+ (API 30+) Detection -->
+        <!-- 1. Google Pay (GPay / Tez) -->
+        <package android:name="com.google.android.apps.nbu.paisa.user" />
+        <!-- 2. PhonePe -->
+        <package android:name="com.phonepe.app" />
+        <package android:name="com.phonepe.app.preprod" />
+        <!-- 3. Paytm -->
+        <package android:name="net.one97.paytm" />
+        <!-- 4. BHIM UPI -->
+        <package android:name="in.org.npci.upiapp" />
+        <!-- 5. Popular Additional UPI Apps in India -->
+        <package android:name="in.amazon.mShop.android.shopping" />
+        <package android:name="com.dreamplug.androidapp" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="com.mobikwik_new" />
+        <package android:name="com.freecharge.android" />
+        <package android:name="com.myairtelapp" />
+        <package android:name="com.naviapp" />
+        <package android:name="money.super.payments" />
+        <package android:name="com.sbi.upi" />
+        <package android:name="com.csam.icici.bank.imobile" />
+        <package android:name="com.axis.mobile" />
+        <package android:name="com.snapwork.hdfc" />
+        <package android:name="com.msf.kbank.mobile" />
+    </queries>
 
     <application
         android:allowBackup="true"
+        android:hardwareAccelerated="true"
         android:label="Safar India Cabs"
-        android:supportsRtl="true">
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
     </application>
 
 </manifest>

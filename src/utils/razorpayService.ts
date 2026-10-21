@@ -60,6 +60,122 @@ export function setRazorpayKeyId(key: string): void {
   } catch {}
 }
 
+export interface InstalledUpiAppsInfo {
+  gpay: boolean;
+  phonepe: boolean;
+  paytm: boolean;
+  bhim: boolean;
+  cred?: boolean;
+  amazon_pay?: boolean;
+  hasAnyUpiApp: boolean;
+  installedRazorpayAppCodes: string[];
+}
+
+export const UPI_PACKAGE_MAP: Record<string, { razorpayCode: string; packageName: string; label: string }> = {
+  gpay: {
+    razorpayCode: 'google_pay',
+    packageName: 'com.google.android.apps.nbu.paisa.user',
+    label: 'Google Pay'
+  },
+  phonepe: {
+    razorpayCode: 'phonepe',
+    packageName: 'com.phonepe.app',
+    label: 'PhonePe'
+  },
+  paytm: {
+    razorpayCode: 'paytm',
+    packageName: 'net.one97.paytm',
+    label: 'Paytm'
+  },
+  bhim: {
+    razorpayCode: 'bhim',
+    packageName: 'in.org.npci.upiapp',
+    label: 'BHIM UPI'
+  }
+};
+
+/**
+ * Normalizes Android WebView User-Agent before Razorpay checkout.js initializes.
+ * Razorpay's web script hides UPI Intent apps when it sees "; wv" or "Version/4.0" in navigator.userAgent.
+ */
+export function ensureAndroidWebViewUpiSupport(): void {
+  if (typeof window === 'undefined' || !window.navigator) return;
+  try {
+    const ua = window.navigator.userAgent || '';
+    if (/Android/i.test(ua) && (/;\s*wv\b/i.test(ua) || /\bwv\)/i.test(ua) || /Version\/\d+\.\d+/i.test(ua))) {
+      const cleanUa = ua
+        .replace(/;\s*wv\)/gi, ')')
+        .replace(/;\s*wv;/gi, ';')
+        .replace(/\bwv\b/gi, '')
+        .replace(/Version\/\d+\.\d+\s*/gi, '');
+      Object.defineProperty(window.navigator, 'userAgent', {
+        get: () => cleanUa,
+        configurable: true
+      });
+      Object.defineProperty(window.navigator, 'appVersion', {
+        get: () => cleanUa.replace(/^Mozilla\//i, ''),
+        configurable: true
+      });
+      (window as any).__SAFAR_ANDROID_WEBVIEW__ = true;
+    }
+  } catch {}
+}
+
+/**
+ * Detects installed UPI apps on Android 11+ (API Level 30+) via the native SafarUpiBridge
+ * (backed by <queries> in AndroidManifest.xml), falling back to enabling all 4 major UPI apps.
+ */
+export function detectInstalledUpiApps(): InstalledUpiAppsInfo {
+  const defaultInfo: InstalledUpiAppsInfo = {
+    gpay: true,
+    phonepe: true,
+    paytm: true,
+    bhim: true,
+    hasAnyUpiApp: true,
+    installedRazorpayAppCodes: ['google_pay', 'phonepe', 'paytm', 'bhim']
+  };
+
+  if (typeof window === 'undefined') {
+    return defaultInfo;
+  }
+
+  try {
+    const bridge = (window as any).SafarUpiBridge;
+    if (bridge && typeof bridge.getInstalledUpiAppsJson === 'function') {
+      const rawJson = bridge.getInstalledUpiAppsJson();
+      const parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      if (parsed && typeof parsed === 'object') {
+        const codes: string[] = [];
+        if (parsed.gpay) codes.push('google_pay');
+        if (parsed.phonepe) codes.push('phonepe');
+        if (parsed.paytm) codes.push('paytm');
+        if (parsed.bhim) codes.push('bhim');
+        if (parsed.cred) codes.push('cred');
+        if (parsed.amazon_pay) codes.push('amazon_pay');
+
+        // Always keep all 4 primary apps visible in Razorpay sheet if none returned so UI never hides UPI
+        const finalCodes =
+          codes.length > 0 ? codes : ['google_pay', 'phonepe', 'paytm', 'bhim'];
+
+        return {
+          gpay: parsed.gpay !== false,
+          phonepe: parsed.phonepe !== false,
+          paytm: parsed.paytm !== false,
+          bhim: parsed.bhim !== false,
+          cred: Boolean(parsed.cred),
+          amazon_pay: Boolean(parsed.amazon_pay),
+          hasAnyUpiApp: Boolean(parsed.hasAnyUpiApp ?? true),
+          installedRazorpayAppCodes: finalCodes
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[Razorpay Checkout] SafarUpiBridge detection fallback:', err);
+  }
+
+  return defaultInfo;
+}
+
 /**
  * Ensure Razorpay checkout.js script is loaded in document with timeout protection
  */
@@ -68,6 +184,8 @@ export function loadRazorpayScript(timeoutMs = 10000): Promise<boolean> {
     if (typeof window === 'undefined') {
       return resolve(false);
     }
+    ensureAndroidWebViewUpiSupport();
+
     if (typeof (window as any).Razorpay === 'function') {
       return resolve(true);
     }
@@ -301,10 +419,28 @@ export async function verifyRazorpayPaymentOnServer(params: {
 }
 
 /**
- * Build Razorpay Checkout display config so UPI QR & UPI Apps (GPay, PhonePe, Paytm, BHIM)
- * or Cards/NetBanking appear prominently at the top according to the user's selected option.
+ * Build Razorpay Checkout display config so UPI Intent Apps (Google Pay, PhonePe, Paytm, BHIM),
+ * UPI Collect (VPA), and UPI QR appear prominently at the top on both Android 11+ apps and Web.
  */
 function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
+  const installedUpi = detectInstalledUpiApps();
+  const baseApps = installedUpi.installedRazorpayAppCodes.length > 0
+    ? [...installedUpi.installedRazorpayAppCodes]
+    : ['google_pay', 'phonepe', 'paytm', 'bhim'];
+
+  // Prioritize the user's selected UPI app at the front of the list
+  const preferredAppCode =
+    preferredMethod && UPI_PACKAGE_MAP[preferredMethod]
+      ? UPI_PACKAGE_MAP[preferredMethod].razorpayCode
+      : null;
+
+  const orderedUpiApps = preferredAppCode
+    ? [preferredAppCode, ...baseApps.filter((app) => app !== preferredAppCode)]
+    : baseApps;
+
+  const isAndroid =
+    typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+
   if (preferredMethod === 'card_netbanking') {
     return {
       display: {
@@ -314,8 +450,14 @@ function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
             instruments: [{ method: 'card' }, { method: 'netbanking' }]
           },
           upi_block: {
-            name: 'Pay via UPI Apps or Scan QR',
-            instruments: [{ method: 'upi' }]
+            name: 'Pay via UPI Apps (GPay, PhonePe, Paytm, BHIM)',
+            instruments: [
+              {
+                method: 'upi',
+                flows: isAndroid ? ['intent', 'collect'] : ['intent', 'qr', 'collect'],
+                apps: orderedUpiApps
+              }
+            ]
           }
         },
         sequence: ['block.cards_banks', 'block.upi_block'],
@@ -326,24 +468,34 @@ function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
     };
   }
 
+  // On Android (or when a UPI app is selected), prioritize 'intent' and 'collect' flows
+  // so installed UPI apps (Google Pay, PhonePe, Paytm, BHIM) render at the very top of the payment sheet.
+  const upiFlows =
+    preferredMethod === 'qr' && !isAndroid
+      ? ['qr', 'intent', 'collect']
+      : isAndroid
+      ? ['intent', 'collect']
+      : ['intent', 'qr', 'collect'];
+
   return {
     display: {
       blocks: {
         upi_block: {
-          name: 'Pay via UPI Apps or Scan QR',
+          name: 'UPI Apps (GPay, PhonePe, Paytm, BHIM)',
           instruments: [
             {
               method: 'upi',
-              apps: ['google_pay', 'phonepe', 'paytm', 'bhim']
-            },
-            {
-              method: 'upi',
-              flows: ['qr', 'intent', 'collect']
+              flows: upiFlows,
+              apps: orderedUpiApps
             }
           ]
+        },
+        cards_banks: {
+          name: 'Cards & NetBanking',
+          instruments: [{ method: 'card' }, { method: 'netbanking' }, { method: 'wallet' }]
         }
       },
-      sequence: ['block.upi_block'],
+      sequence: ['block.upi_block', 'block.cards_banks'],
       preferences: {
         show_default_blocks: true
       }
@@ -358,6 +510,8 @@ export async function launchRazorpayStandardCheckout(
   checkoutParams: RazorpayCheckoutOptions
 ): Promise<void> {
   try {
+    ensureAndroidWebViewUpiSupport();
+
     const tripType: TripType = checkoutParams.tripType || 'oneway';
     const cabId: CabCategoryId = checkoutParams.cabId || 'sedan';
     const distanceKm = checkoutParams.distanceKm ?? 130;
@@ -458,6 +612,11 @@ export async function launchRazorpayStandardCheckout(
     const hasServerOrderId =
       typeof orderData.orderId === 'string' && orderData.orderId.startsWith('order_');
 
+    const selectedUpiPkg =
+      checkoutParams.preferredMethod && UPI_PACKAGE_MAP[checkoutParams.preferredMethod]
+        ? UPI_PACKAGE_MAP[checkoutParams.preferredMethod].packageName
+        : undefined;
+
     const options: Record<string, any> = {
       key: serverKeyId,
       ...(hasServerOrderId ? { order_id: orderData.orderId } : {}),
@@ -469,6 +628,16 @@ export async function launchRazorpayStandardCheckout(
           ? `Full Cab Booking Payment (${checkoutParams.bookingId})`
           : `Advance Cab Booking Payment (${checkoutParams.bookingId})`,
       image: '/logo.png',
+      // Explicitly enable UPI first and disable EMI/PayLater clutter so UPI is always rendered
+      method: {
+        upi: true,
+        card: true,
+        netbanking: true,
+        wallet: true,
+        emi: false,
+        paylater: false
+      },
+      ...(selectedUpiPkg ? { upi_app_package_name: selectedUpiPkg } : {}),
       config: buildCheckoutDisplayConfig(checkoutParams.preferredMethod),
       prefill: {
         name: checkoutParams.customerName,

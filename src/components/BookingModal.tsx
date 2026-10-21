@@ -16,6 +16,8 @@ import { sendDualBookingNotifications, sanitize10DigitPhone } from '../utils/sms
 import {
   launchRazorpayStandardCheckout,
   loadRazorpayScript,
+  detectInstalledUpiApps,
+  ensureAndroidWebViewUpiSupport,
   PreferredPaymentMethod
 } from '../utils/razorpayService';
 
@@ -46,11 +48,11 @@ const PAYMENT_GATEWAY_METHODS: {
   isCard?: boolean;
   isQr?: boolean;
 }[] = [
-  { id: 'qr', label: 'UPI QR Code', subLabel: 'Scan with any app', dotColor: 'bg-amber-500', isQr: true },
   { id: 'gpay', label: 'Google Pay', subLabel: 'Instant UPI Intent', dotColor: 'bg-emerald-500' },
   { id: 'phonepe', label: 'PhonePe', subLabel: 'Instant UPI Intent', dotColor: 'bg-purple-600' },
-  { id: 'paytm', label: 'Paytm UPI', subLabel: 'Paytm / Wallet UPI', dotColor: 'bg-sky-500' },
-  { id: 'bhim', label: 'BHIM UPI', subLabel: 'All Bank UPI IDs', dotColor: 'bg-orange-500' },
+  { id: 'paytm', label: 'Paytm UPI', subLabel: 'Instant UPI Intent', dotColor: 'bg-sky-500' },
+  { id: 'bhim', label: 'BHIM UPI', subLabel: 'All Bank UPI Apps', dotColor: 'bg-orange-500' },
+  { id: 'qr', label: 'UPI QR Code', subLabel: 'Scan with any app', dotColor: 'bg-amber-500', isQr: true },
   { id: 'card_netbanking', label: 'Cards & Banking', subLabel: 'Visa, RuPay, Banks', dotColor: 'bg-slate-700', isCard: true },
 ];
 
@@ -98,7 +100,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   // Payment choice: 20% advance or 100% full
   const [paymentMode, setPaymentMode] = useState<'advance_20' | 'full'>('advance_20');
-  const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('qr');
+  const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('gpay');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('Creating secure Razorpay order...');
   const [errorMessage, setErrorMessage] = useState('');
@@ -120,9 +122,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [isOpen, currentUser, pickupCity, dropCity, tripType, fareDetails.tollsAndTaxes, returnDate, pickupDate, returnTime]);
 
-  // Pre-warm Razorpay Checkout SDK as soon as BookingModal opens
+  // Pre-warm Razorpay Checkout SDK & Android 11+ UPI Intent detection as soon as BookingModal opens
   useEffect(() => {
     if (isOpen) {
+      ensureAndroidWebViewUpiSupport();
+      const installed = detectInstalledUpiApps();
+      if (installed.gpay) setSelectedGatewayMethod('gpay');
+      else if (installed.phonepe) setSelectedGatewayMethod('phonepe');
+      else if (installed.paytm) setSelectedGatewayMethod('paytm');
+      else if (installed.bhim) setSelectedGatewayMethod('bhim');
       loadRazorpayScript().catch(() => {});
     }
   }, [isOpen]);

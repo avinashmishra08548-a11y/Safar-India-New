@@ -56,6 +56,31 @@
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap">
     </noscript>
 
+    <!-- Android 11+ WebView UPI Intent Enabler (Runs before Razorpay checkout.js initializes) -->
+    <script>
+      (function () {
+        try {
+          var ua = window.navigator && window.navigator.userAgent ? window.navigator.userAgent : '';
+          if (/Android/i.test(ua) && (/;\s*wv\b/i.test(ua) || /\bwv\)/i.test(ua) || /Version\/\d+\.\d+/i.test(ua))) {
+            var cleanUa = ua
+              .replace(/;\s*wv\)/gi, ')')
+              .replace(/;\s*wv;/gi, ';')
+              .replace(/\bwv\b/gi, '')
+              .replace(/Version\/\d+\.\d+\s*/gi, '');
+            Object.defineProperty(window.navigator, 'userAgent', {
+              get: function () { return cleanUa; },
+              configurable: true
+            });
+            Object.defineProperty(window.navigator, 'appVersion', {
+              get: function () { return cleanUa.replace(/^Mozilla\//i, ''); },
+              configurable: true
+            });
+            window.__SAFAR_ANDROID_WEBVIEW__ = true;
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Deferred Payment SDK (Non-blocking) -->
     <script defer src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
