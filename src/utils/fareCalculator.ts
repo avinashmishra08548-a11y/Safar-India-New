@@ -337,10 +337,9 @@ function isPeakOrNightPickupTime(pickupTime?: string): boolean {
 
 /**
  * Computes Booking Date & Time Multiplier:
- * - Today / Immediate ("At the time"): 1.18x (+18% Urgent Dispatch) or 1.22x (+22% Peak/Night Urgent Dispatch)
- * - Tomorrow ("Kal ki ride"): 1.00x (Average Standard Rate) or 1.05x for early-morning/late-night slot
- * - Advance (2-4 days ahead): 0.93x (7% Advance Discount)
- * - Early Advance (5+ days ahead): 0.90x (10% Early-Bird Advance Discount)
+ * - Today / Immediate ("At the time"): 1.15x (+15% Urgent Dispatch) or 1.20x (+20% Peak/Night Urgent Dispatch)
+ * - Tomorrow & Advance Bookings: 1.00x (Standard Rate) or 1.05x for early-morning/late-night slot
+ *   (Never discounts below 1.00x so multi-day and advance Round Trip fares never drop below standard company rates)
  */
 export function computeLeadTimePricing(
   pickupDate?: string,
@@ -376,7 +375,7 @@ export function computeLeadTimePricing(
     if (daysAhead <= 0) {
       return {
         leadTimeTier: 'same_day',
-        leadTimeMultiplier: isPeakSlot ? 1.22 : 1.18,
+        leadTimeMultiplier: isPeakSlot ? 1.20 : 1.15,
         leadTimeLabel: isPeakSlot
           ? 'At-Time Urgent Night/Peak Dispatch'
           : 'At-Time Instant Dispatch'
@@ -389,17 +388,10 @@ export function computeLeadTimePricing(
         leadTimeLabel: isPeakSlot ? 'Next-Day Peak Slot' : 'Next-Day Standard Rate'
       };
     }
-    if (daysAhead >= 5) {
-      return {
-        leadTimeTier: 'advance',
-        leadTimeMultiplier: 0.90,
-        leadTimeLabel: 'Advance Booking Saver (10% OFF)'
-      };
-    }
     return {
       leadTimeTier: 'advance',
-      leadTimeMultiplier: 0.93,
-      leadTimeLabel: 'Advance Booking Saver (7% OFF)'
+      leadTimeMultiplier: isPeakSlot ? 1.04 : 1.0,
+      leadTimeLabel: 'Standard Assured Rate'
     };
   } catch {
     return {
@@ -412,8 +404,8 @@ export function computeLeadTimePricing(
 
 /**
  * Computes Hill Station Terrain Pricing (Highest Priority: Fuel & Driver Effort in Hills)
- * - Both Pickup & Drop in Hills (e.g. Rudraprayag to Nainital): 1.32x Hill Terrain Rate
- * - Either Pickup OR Drop in Hills (e.g. Delhi to Mussoorie / Nainital): 1.22x Hill Climb Rate
+ * - Both Pickup & Drop in Hills (e.g. Rudraprayag to Nainital): 1.35x Hill Terrain Rate
+ * - Either Pickup OR Drop in Hills (e.g. Delhi to Mussoorie / Nainital): 1.24x Hill Climb Rate
  * - Plains Route: 1.00x
  */
 export function computeHillTerrainPricing(
@@ -449,7 +441,7 @@ export function computeHillTerrainPricing(
       pickupIsHill: true,
       dropIsHill: true,
       hillTier: 'both_hills',
-      hillRateMultiplier: 1.32,
+      hillRateMultiplier: 1.35,
       hillTierLabel: 'Deep Mountain Hill-to-Hill Terrain'
     };
   }
@@ -459,7 +451,7 @@ export function computeHillTerrainPricing(
     pickupIsHill,
     dropIsHill,
     hillTier: 'one_end_hill',
-    hillRateMultiplier: 1.22,
+    hillRateMultiplier: 1.24,
     hillTierLabel: pickupIsHill ? 'Hill Station Pickup Terrain' : 'Hill Station Drop Terrain'
   };
 }
@@ -817,9 +809,9 @@ export function computeTripFare(params: {
   const oneWayRate = cab.ratePerKm;
   const roundTripRate = cab.roundTripRatePerKm || cab.ratePerKm;
   const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1.5);
-  const dailyBata = cab.driverAllowancePerDay || 300;
-  const hillBase = cab.hillStationCharge || 350;
-  const local8HrBase = cab.local8Hr80KmFare || 1899;
+  const dailyBata = cab.driverAllowancePerDay || 400;
+  const hillBase = cab.hillStationCharge || 450;
+  const local8HrBase = cab.local8Hr80KmFare || 2299;
 
   const cleanExtraKm = Math.max(0, Math.round(Number(extraKm || 0)));
 
@@ -833,7 +825,7 @@ export function computeTripFare(params: {
     hillTierLabel
   } = computeHillTerrainPricing(tripType, pickupCity, dropCity);
 
-  // 2. Booking Date & Time Multiplier (At-the-time Urgent = High, Tomorrow = Standard, Advance = Discounted)
+  // 2. Booking Date & Time Multiplier (At-the-time Urgent = High, Tomorrow & Advance = Standard)
   const { leadTimeTier, leadTimeMultiplier, leadTimeLabel } = computeLeadTimePricing(
     pickupDate,
     pickupTime
@@ -852,16 +844,16 @@ export function computeTripFare(params: {
 
   const extraHourRate =
     cabId === 'hatchback'
-      ? 120
-      : cabId === 'sedan'
       ? 150
-      : cabId === 'exec_sedan'
+      : cabId === 'sedan'
       ? 180
+      : cabId === 'exec_sedan'
+      ? 220
       : cabId === 'suv'
-      ? 200
-      : cabId === 'innova'
       ? 250
-      : 350;
+      : cabId === 'innova'
+      ? 300
+      : 400;
 
   let baseBilledDistanceKm = Math.max(0, Math.round(distanceKm));
   let ratePerKm = oneWayRate;
@@ -881,19 +873,19 @@ export function computeTripFare(params: {
 
   let hillStationCharge = 0;
   const hillDriverBonusPerDay =
-    hillTier === 'both_hills' ? 250 : hillTier === 'one_end_hill' ? 150 : 0;
+    hillTier === 'both_hills' ? 300 : hillTier === 'one_end_hill' ? 200 : 0;
 
   if (tripType === 'oneway') {
     baseBilledDistanceKm = Math.max(130, Math.round(distanceKm));
     const slabFactor =
-      baseBilledDistanceKm <= 150 ? 1.04 : baseBilledDistanceKm > 350 ? 0.98 : 1.0;
+      baseBilledDistanceKm <= 160 ? 1.08 : baseBilledDistanceKm > 380 ? 1.02 : 1.0;
     ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
 
     hillStationCharge =
       hillTier === 'both_hills'
         ? Math.round(hillBase * 2.0)
         : hillTier === 'one_end_hill'
-        ? Math.round(hillBase * 1.45)
+        ? Math.round(hillBase * 1.5)
         : 0;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
     driverAllowance = dailyBata + hillDriverBonusPerDay;
@@ -906,49 +898,65 @@ export function computeTripFare(params: {
         daysCount = Math.max(1, diffDays + 1);
       }
     }
-    const actualTwoWayKm = Math.round(distanceKm * 2);
-    baseBilledDistanceKm = Math.max(80, actualTwoWayKm);
+    const actualTwoWayKm = Math.max(150, Math.round(distanceKm * 2));
+    // Keep baseBilledDistanceKm equal to actualTwoWayKm so adding/removing stops always updates KM live on screen
+    baseBilledDistanceKm = actualTwoWayKm;
     ratePerKm = Number((roundTripRate * dynamicRateFactor).toFixed(1));
+
+    // Industry Round-Trip Pricing: accounts for dedicated multi-day cab holding (250 KM/day benchmark)
+    // AND local destination sightseeing (35 KM/day), while still scaling dynamically with every stop added/removed!
+    const minMultiDayQuotaKm = daysCount * 250;
+    const effectivePricingKm =
+      actualTwoWayKm >= minMultiDayQuotaKm
+        ? actualTwoWayKm + daysCount * 35
+        : Math.round(minMultiDayQuotaKm * 0.65 + actualTwoWayKm * 0.55);
 
     hillStationCharge =
       hillTier === 'both_hills'
-        ? Math.round(hillBase * 2.4)
+        ? Math.round(hillBase * 2.5)
         : hillTier === 'one_end_hill'
-        ? Math.round(hillBase * 1.8)
+        ? Math.round(hillBase * 2.0)
         : 0;
-    baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
-    driverAllowance = daysCount * (dailyBata + hillDriverBonusPerDay);
+
+    const nightHaltAllowance =
+      daysCount > 1
+        ? (daysCount - 1) *
+          (cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 300)
+        : 0;
+
+    baseRouteFare = Math.round(effectivePricingKm * ratePerKm);
+    driverAllowance = daysCount * (dailyBata + hillDriverBonusPerDay) + nightHaltAllowance;
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
     if (localPackageId === '4h_40k') {
       baseBilledDistanceKm = 40;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 0.66) - 150;
-      driverAllowance = 150 + hillDriverBonusPerDay;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 0.70) - 200;
+      driverAllowance = 200 + hillDriverBonusPerDay;
     } else if (localPackageId === '12h_120k') {
       baseBilledDistanceKm = 120;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.34) - 300;
-      driverAllowance = 300 + hillDriverBonusPerDay;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.35) - 350;
+      driverAllowance = 350 + hillDriverBonusPerDay;
     } else {
       baseBilledDistanceKm = 80;
-      baseRouteFare = adjustedLocal8HrBase - 250;
-      driverAllowance = 250 + hillDriverBonusPerDay;
+      baseRouteFare = adjustedLocal8HrBase - 300;
+      driverAllowance = 300 + hillDriverBonusPerDay;
     }
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     hillStationCharge = isHillRoute ? hillBase : 0;
   } else if (tripType === 'airport') {
-    baseBilledDistanceKm = Math.max(40, Math.round(distanceKm));
+    baseBilledDistanceKm = Math.max(45, Math.round(distanceKm));
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     const airportFixedPickupFee =
-      cabId === 'tempo' ? 650 : cabId === 'innova' || cabId === 'suv' ? 450 : 350;
+      cabId === 'tempo' ? 800 : cabId === 'innova' || cabId === 'suv' ? 550 : 400;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
-    driverAllowance = 200 + hillDriverBonusPerDay;
+    driverAllowance = 250 + hillDriverBonusPerDay;
     hillStationCharge = isHillRoute ? hillBase : 0;
   }
 
-  // 4. Extra KM Slider Rate (Higher when Drop/Route is in Hill Area due to mountain fuel & gradient)
-  const hillSliderFactor = dropIsHill ? 1.12 : isHillRoute ? 1.06 : 1.0;
+  // 4. Extra KM Rate (Higher when Drop/Route is in Hill Area due to mountain fuel & gradient)
+  const hillSliderFactor = dropIsHill ? 1.15 : isHillRoute ? 1.08 : 1.0;
   const extraKmRate = Math.max(
-    Math.ceil(ratePerKm + (dropIsHill ? 3.0 : isHillRoute ? 2.5 : 1.5)),
+    Math.ceil(ratePerKm + (dropIsHill ? 3.5 : isHillRoute ? 2.5 : 1.5)),
     Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
   );
 
@@ -987,7 +995,7 @@ export function computeTripFare(params: {
       Math.round(billedDistanceKm / 2),
       cabId
     );
-    highwayToll = Math.round(tollInfo.baseTollOneWay * 1.85);
+    highwayToll = Math.round(tollInfo.baseTollOneWay * 2.0);
     expresswayName = tollInfo.expresswayName;
 
     if (isInterState) {
@@ -1003,7 +1011,7 @@ export function computeTripFare(params: {
       statePermitTax = permitInfo.totalStatePermitTax;
     }
   } else if (tripType === 'airport') {
-    highwayToll = 120;
+    highwayToll = 150;
     statePermitTax = 0;
     expresswayName = 'Airport Toll & Entry';
   } else {
@@ -1031,8 +1039,8 @@ export function computeTripFare(params: {
 
   const totalFare = baseFare + driverAllowance + tollsAndTaxes + addonsTotal + gstAmount;
 
-  // Strikethrough MRP (Traditional 2-way operator comparison)
-  const mrpMultiplier = tripType === 'oneway' ? 1.42 : 1.18;
+  // Strikethrough Market Comparison Fare (Savaari / Gozo / MakeMyTrip benchmark)
+  const mrpMultiplier = tripType === 'oneway' ? 1.35 : tripType === 'roundtrip' ? 1.24 : 1.22;
   const originalMarketFare = Math.round((totalFare * mrpMultiplier) / 10) * 10 - 1;
   const savingsAmount = Math.max(0, originalMarketFare - totalFare);
   const savingsPercent = Math.round((savingsAmount / originalMarketFare) * 100);
