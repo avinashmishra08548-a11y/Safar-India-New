@@ -91,7 +91,7 @@ export default function App() {
   const [localPackageId, setLocalPackageId] = useState('8h_80k');
   const [airportMode, setAirportMode] = useState<'pickup' | 'drop'>('drop');
   const [airportTerminal, setAirportTerminal] = useState('');
-  const [includeTolls, setIncludeTolls] = useState(false);
+  const [includeTolls, setIncludeTolls] = useState(true);
   const [extraKm, setExtraKm] = useState(0);
 
   const roundTripDays = useMemo(() => {
