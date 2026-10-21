@@ -51,9 +51,38 @@ export default function App() {
   // Navigation tabs: 'booking' | 'routes' | 'rides' | 'about' | 'help'
   const [activeTab, setActiveTab] = useState<NavTabId>('booking');
 
-  const handleSwitchTab = (tab: NavTabId) => {
+  const scrollToSectionTop = (sectionId?: string, fallbackTop = 0) => {
+    window.setTimeout(() => {
+      if (sectionId) {
+        const el = document.getElementById(sectionId);
+        if (el) {
+          const stickyHeaderOffset = 84;
+          const elementTop = el.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo({
+            top: Math.max(0, elementTop - stickyHeaderOffset),
+            behavior: 'smooth'
+          });
+          if (!el.hasAttribute('tabindex')) {
+            el.setAttribute('tabindex', '-1');
+          }
+          el.focus({ preventScroll: true });
+          return;
+        }
+      }
+      window.scrollTo({ top: fallbackTop, behavior: 'smooth' });
+    }, 60);
+  };
+
+  const handleSwitchTab = (tab: NavTabId, targetSectionId?: string) => {
     setActiveTab(tab);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const defaultSectionMap: Record<NavTabId, string> = {
+      booking: 'booking-section-top',
+      routes: 'routes-section-top',
+      rides: 'rides-section-top',
+      about: 'about-company-top',
+      help: 'customer-support-top'
+    };
+    scrollToSectionTop(targetSectionId || defaultSectionMap[tab], 0);
   };
 
   // Customer Authentication state
@@ -498,7 +527,10 @@ export default function App() {
       <main className="flex-1 pb-28 sm:pb-16">
         
         {activeTab === 'rides' ? (
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-in fade-in">
+          <div
+            id="rides-section-top"
+            className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-in fade-in scroll-mt-24 outline-hidden"
+          >
             <MyBookingsView
               currentUser={currentUser}
               bookings={currentUserBookings}
@@ -512,7 +544,10 @@ export default function App() {
             />
           </div>
         ) : activeTab === 'routes' ? (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-10 animate-in fade-in">
+          <div
+            id="routes-section-top"
+            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-10 animate-in fade-in scroll-mt-24 outline-hidden"
+          >
             <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
               <div className="space-y-1.5">
                 <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400">
@@ -549,7 +584,7 @@ export default function App() {
             onNavigateToRides={() => handleSwitchTab('rides')}
           />
         ) : (
-          <div className="space-y-14 sm:space-y-20">
+          <div id="booking-section-top" className="space-y-14 sm:space-y-20 scroll-mt-24 outline-hidden">
             
             {/* SPACIOUS EXECUTIVE HERO SECTION */}
             <div className="relative overflow-hidden bg-gradient-to-b from-[#FAF8F5] via-[#F8FAFC] to-[#F8FAFC] pt-8 sm:pt-12 pb-10 sm:pb-14 border-b border-slate-200/70">
@@ -771,8 +806,7 @@ export default function App() {
           setTripType('oneway');
           setPickupCity(from);
           setDropCity(to);
-          setActiveTab('booking');
-          window.scrollTo({ top: 350, behavior: 'smooth' });
+          handleSwitchTab('booking', 'booking-section-top');
         }}
       />
 

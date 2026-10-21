@@ -17,7 +17,7 @@ import { NavTabId } from './Header';
 
 interface FooterProps {
   activeNavTab?: NavTabId;
-  onNavigateTab?: (tab: NavTabId) => void;
+  onNavigateTab?: (tab: NavTabId, targetSectionId?: string) => void;
   onOpenDriverPartner?: () => void;
   onSelectRoute?: (pickup: string, drop: string) => void;
 }
@@ -47,21 +47,23 @@ export const Footer: React.FC<FooterProps> = ({
 
   const footerNavLinks: Array<{
     id: NavTabId;
+    targetSectionId: string;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }> = [
-    { id: 'booking', label: 'Book Outstation / Local Cab', icon: Car },
-    { id: 'routes', label: 'Popular Intercity Routes', icon: MapPin },
-    { id: 'rides', label: 'My Rides & Tax Invoices', icon: Clock },
-    { id: 'about', label: 'About Company & Features', icon: Info },
-    { id: 'help', label: '24/7 Help & Support Center', icon: HelpCircle }
+    { id: 'booking', targetSectionId: 'booking-section-top', label: 'Book Outstation / Local Cab', icon: Car },
+    { id: 'routes', targetSectionId: 'routes-section-top', label: 'Popular Intercity Routes', icon: MapPin },
+    { id: 'rides', targetSectionId: 'rides-section-top', label: 'My Rides & Tax Invoices', icon: Clock },
+    { id: 'about', targetSectionId: 'about-company-top', label: 'About Company & Features', icon: Info },
+    { id: 'help', targetSectionId: 'customer-support-top', label: '24/7 Help & Support Center', icon: HelpCircle }
   ];
 
-  const handleSectionSelect = (tab: NavTabId) => {
+  const handleSectionSelect = (tab: NavTabId, targetSectionId?: string) => {
     if (onNavigateTab) {
-      onNavigateTab(tab);
+      onNavigateTab(tab, targetSectionId);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -84,7 +86,7 @@ export const Footer: React.FC<FooterProps> = ({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => handleSectionSelect(item.id)}
+                    onClick={() => handleSectionSelect(item.id, item.targetSectionId)}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                       isActive
                         ? 'bg-amber-400 text-slate-950 font-black shadow-xs ring-2 ring-amber-400/30'
@@ -195,7 +197,7 @@ export const Footer: React.FC<FooterProps> = ({
               </h4>
               <button
                 type="button"
-                onClick={() => handleSectionSelect('routes')}
+                onClick={() => handleSectionSelect('routes', 'routes-section-top')}
                 className="text-[11px] text-amber-700 hover:text-amber-800 font-extrabold cursor-pointer"
               >
                 View All 150+ Routes →
@@ -208,7 +210,6 @@ export const Footer: React.FC<FooterProps> = ({
                   type="button"
                   onClick={() => {
                     if (onSelectRoute) onSelectRoute(r.from, r.to);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="text-left text-slate-600 hover:text-amber-700 transition flex items-center gap-1 group truncate font-medium cursor-pointer"
                 >
@@ -301,7 +302,7 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="flex flex-wrap items-center justify-center gap-4 font-semibold">
             <button
               type="button"
-              onClick={() => handleSectionSelect('about')}
+              onClick={() => handleSectionSelect('about', 'about-company-top')}
               className={`transition cursor-pointer ${
                 activeNavTab === 'about'
                   ? 'text-amber-700 font-extrabold underline underline-offset-4'
@@ -313,7 +314,7 @@ export const Footer: React.FC<FooterProps> = ({
             <span>·</span>
             <button
               type="button"
-              onClick={() => handleSectionSelect('help')}
+              onClick={() => handleSectionSelect('help', 'help-faqs-section')}
               className={`transition cursor-pointer ${
                 activeNavTab === 'help'
                   ? 'text-amber-700 font-extrabold underline underline-offset-4'
@@ -325,16 +326,24 @@ export const Footer: React.FC<FooterProps> = ({
             <span>·</span>
             <button
               type="button"
-              onClick={() => handleSectionSelect('about')}
-              className="hover:text-slate-900 transition cursor-pointer"
+              onClick={() => handleSectionSelect('about', 'fare-rules-section')}
+              className={`transition cursor-pointer ${
+                activeNavTab === 'about'
+                  ? 'text-amber-700 font-bold hover:text-amber-800'
+                  : 'hover:text-slate-900'
+              }`}
             >
               Fare Rules
             </button>
             <span>·</span>
             <button
               type="button"
-              onClick={() => handleSectionSelect('help')}
-              className="hover:text-slate-900 transition cursor-pointer"
+              onClick={() => handleSectionSelect('help', 'customer-support-top')}
+              className={`transition cursor-pointer ${
+                activeNavTab === 'help'
+                  ? 'text-amber-700 font-bold hover:text-amber-800'
+                  : 'hover:text-slate-900'
+              }`}
             >
               Customer Support
             </button>

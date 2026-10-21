@@ -184,6 +184,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const [isLoadingStop, setIsLoadingStop] = useState(false);
 
   // Secure WhatsApp OTP verification states
+  const [inlineCustomerName, setInlineCustomerName] = useState<string>(() => currentUser?.name || '');
   const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(() => Boolean(currentUser));
   const [showInlineOtpBox, setShowInlineOtpBox] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -205,9 +206,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     if (currentUser?.phone) {
       setIsPhoneVerified(true);
       setShowInlineOtpBox(false);
+      if (currentUser.name) {
+        setInlineCustomerName(currentUser.name);
+      }
       if (setCustomerMobile && !customerMobile) {
         setCustomerMobile(currentUser.phone);
       }
+    } else {
+      setIsPhoneVerified(false);
     }
   }, [currentUser]);
 
@@ -397,11 +403,19 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     }
   };
 
-  // Single-dispatch WhatsApp OTP handler — sends strictly 1 OTP per explicit user click
+  // Single-dispatch WhatsApp OTP handler — strictly validates mandatory Customer Name & 10-digit Phone first
   const handleSendOtp = async (isResend: boolean = false) => {
+    const cleanName = (inlineCustomerName || currentUser?.name || '').trim();
+    if (!cleanName || cleanName.length < 2 || !/[a-zA-Z\u0900-\u097F]/.test(cleanName)) {
+      setOtpError('Customer Name is mandatory. Please enter your full name (at least 2 characters) before requesting an OTP.');
+      const nameEl = document.getElementById('booking-customer-name-input');
+      if (nameEl) nameEl.focus();
+      return;
+    }
+
     const cleanNumber = sanitize10DigitPhone(customerMobile);
     if (cleanNumber.length !== 10) {
-      setOtpError('Please enter your 10-digit WhatsApp mobile number first');
+      setOtpError('Please enter your 10-digit WhatsApp mobile number first.');
       const mobileEl = document.getElementById('booking-mobile-input');
       if (mobileEl) mobileEl.focus();
       return;
@@ -422,14 +436,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     try {
       const res = await requestServerOtp(cleanNumber, {
         forceNew: isResend,
-        customerName: currentUser?.name || 'Traveler'
+        customerName: cleanName
       });
 
       if (res.success && res.token) {
         setOtpToken(res.token);
         if (isResend) setOtpInput('');
         setOtpNotice(
-          `4-digit OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter it below & click Submit OTP.`
+          `Hello ${cleanName}, 4-digit OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter it below & click Submit OTP.`
         );
         setCountdown(30);
         setTimeout(() => inlineOtpInputRef.current?.focus(), 80);
@@ -450,6 +464,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   const handleVerifyOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    const cleanName = (inlineCustomerName || currentUser?.name || '').trim();
+    if (!cleanName || cleanName.length < 2 || !/[a-zA-Z\u0900-\u097F]/.test(cleanName)) {
+      setOtpError('Customer Name is mandatory. Please enter your full name before verifying OTP.');
+      const nameEl = document.getElementById('booking-customer-name-input');
+      if (nameEl) nameEl.focus();
+      return;
+    }
+
     const entered = otpInput.replace(/\D/g, '').trim();
     if (entered.length !== 4) {
       setOtpError('Please enter the 4-digit OTP received on your WhatsApp');
@@ -474,30 +496,19 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       setShowOtpModal(false);
       setOtpError('');
 
-      let resolvedName = currentUser?.name || '';
-      if (!resolvedName) {
-        try {
-          const raw = localStorage.getItem('safar_registered_customers');
-          const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
-          const existing = list.find((u) => sanitize10DigitPhone(u.phone) === cleanNumber);
-          if (existing?.name) resolvedName = existing.name;
-        } catch {}
-      }
-
       const loggedInCustomer: CustomerUser = {
         id: `CUST-${cleanNumber}`,
-        name: resolvedName || `Traveler (${cleanNumber.slice(-4)})`,
+        name: cleanName,
         phone: cleanNumber,
         createdAt: new Date().toISOString()
       };
 
       try {
         const raw = localStorage.getItem('safar_registered_customers');
-        const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
-        if (!list.some((u) => sanitize10DigitPhone(u.phone) === cleanNumber)) {
-          list.unshift(loggedInCustomer);
-          localStorage.setItem('safar_registered_customers', JSON.stringify(list));
-        }
+        let list: CustomerUser[] = raw ? JSON.parse(raw) : [];
+        list = list.filter((u) => sanitize10DigitPhone(u.phone) !== cleanNumber);
+        list.unshift(loggedInCustomer);
+        localStorage.setItem('safar_registered_customers', JSON.stringify(list));
       } catch {}
 
       if (onLoginSuccess) {
@@ -1078,85 +1089,123 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           </div>
 
-          {/* Customer WhatsApp Number */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-              Mobile Number (WhatsApp)
-            </label>
-            <div className="relative flex items-center">
-              <Smartphone className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
-              <span className="absolute left-9 text-xs font-bold text-slate-400 pointer-events-none">
-                +91
-              </span>
-              <input
-                id="booking-mobile-input"
-                type="tel"
-                inputMode="numeric"
-                maxLength={10}
-                value={customerMobile}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                  if (setCustomerMobile) setCustomerMobile(val);
-                  if (currentUser?.phone !== val) {
-                    setIsPhoneVerified(false);
-                    setShowInlineOtpBox(false);
-                    setOtpToken('');
-                    setCountdown(0);
-                  }
-                  setOtpError('');
-                }}
-                placeholder="10-digit number"
-                className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-16 pr-20 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-              />
-              {customerMobile.length === 10 && (
-                <div className="absolute right-1.5">
-                  {isPhoneVerified ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3" /> Verified
+          {/* Customer Full Name & WhatsApp Number */}
+          <div className="space-y-2">
+            {!isPhoneVerified && (
+              <div>
+                <label
+                  htmlFor="booking-customer-name-input"
+                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1"
+                >
+                  Customer Name <span className="text-rose-600">*</span>
+                </label>
+                <input
+                  id="booking-customer-name-input"
+                  type="text"
+                  required
+                  value={inlineCustomerName}
+                  onChange={(e) => {
+                    setInlineCustomerName(e.target.value);
+                    if (otpError) setOtpError('');
+                  }}
+                  placeholder="Enter your full name *"
+                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                />
+              </div>
+            )}
+
+            <div>
+              <label
+                htmlFor="booking-mobile-input"
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1"
+              >
+                Mobile Number (WhatsApp) <span className="text-rose-600">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <Smartphone className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                <span className="absolute left-9 text-xs font-bold text-slate-400 pointer-events-none">
+                  +91
+                </span>
+                <input
+                  id="booking-mobile-input"
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={customerMobile}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    if (setCustomerMobile) setCustomerMobile(val);
+                    if (currentUser?.phone !== val) {
+                      setIsPhoneVerified(false);
+                      setShowInlineOtpBox(false);
+                      setOtpToken('');
+                      setCountdown(0);
+                    }
+                    if (val.length === 10 && !inlineCustomerName.trim()) {
+                      try {
+                        const raw = localStorage.getItem('safar_registered_customers');
+                        const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
+                        const existing = list.find((u) => sanitize10DigitPhone(u.phone) === val);
+                        if (existing?.name && !existing.name.startsWith('Traveler')) {
+                          setInlineCustomerName(existing.name);
+                        }
+                      } catch {}
+                    }
+                    setOtpError('');
+                  }}
+                  placeholder="10-digit number"
+                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-16 pr-20 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                />
+                {customerMobile.length === 10 && (
+                  <div className="absolute right-1.5">
+                    {isPhoneVerified ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3" /> Verified
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSendOtp(false)}
+                        disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/70 text-white font-bold text-[11px] transition cursor-pointer disabled:cursor-not-allowed"
+                      >
+                        {isSendingOtp ? '...' : showInlineOtpBox && countdown > 0 ? `${countdown}s` : 'Get OTP'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* PROMINENT "CLICK HERE TO GET OTP" BUTTON RIGHT BELOW MOBILE NUMBER */}
+              {!isPhoneVerified && (
+                <button
+                  type="button"
+                  onClick={() => handleSendOtp(false)}
+                  disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
+                  className="mt-2 w-full flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-80 border border-emerald-300 text-emerald-900 transition cursor-pointer disabled:cursor-not-allowed group"
+                >
+                  <span className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>
+                      {isSendingOtp
+                        ? 'Sending OTP to WhatsApp...'
+                        : showInlineOtpBox && countdown > 0
+                        ? `OTP Sent to WhatsApp ✓`
+                        : 'Click Here to Get OTP on WhatsApp'}
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSendOtp(false)}
-                      disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
-                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/70 text-white font-bold text-[11px] transition cursor-pointer disabled:cursor-not-allowed"
-                    >
-                      {isSendingOtp ? '...' : showInlineOtpBox && countdown > 0 ? `${countdown}s` : 'Get OTP'}
-                    </button>
-                  )}
-                </div>
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-600 group-hover:bg-emerald-700 px-2 py-0.5 rounded-md">
+                    {showInlineOtpBox && countdown > 0 ? (
+                      `Wait ${countdown}s`
+                    ) : (
+                      <>
+                        Get OTP <ArrowRight className="w-2.5 h-2.5" />
+                      </>
+                    )}
+                  </span>
+                </button>
               )}
             </div>
-
-            {/* PROMINENT "CLICK HERE TO GET OTP" BUTTON RIGHT BELOW MOBILE NUMBER */}
-            {!isPhoneVerified && (
-              <button
-                type="button"
-                onClick={() => handleSendOtp(false)}
-                disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
-                className="mt-2 w-full flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-80 border border-emerald-300 text-emerald-900 transition cursor-pointer disabled:cursor-not-allowed group"
-              >
-                <span className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800">
-                  <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>
-                    {isSendingOtp
-                      ? 'Sending OTP to WhatsApp...'
-                      : showInlineOtpBox && countdown > 0
-                      ? `OTP Sent to WhatsApp ✓`
-                      : 'Click Here to Get OTP on WhatsApp'}
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-600 group-hover:bg-emerald-700 px-2 py-0.5 rounded-md">
-                  {showInlineOtpBox && countdown > 0 ? (
-                    `Wait ${countdown}s`
-                  ) : (
-                    <>
-                      Get OTP <ArrowRight className="w-2.5 h-2.5" />
-                    </>
-                  )}
-                </span>
-              </button>
-            )}
           </div>
         </div>
 

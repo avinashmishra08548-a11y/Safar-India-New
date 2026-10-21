@@ -123,7 +123,10 @@ export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-10 sm:space-y-14 animate-in fade-in">
+    <div
+      id="about-company-top"
+      className="scroll-mt-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-10 sm:space-y-14 animate-in fade-in"
+    >
       {/* Hero Banner Card */}
       <div className="relative rounded-3xl overflow-hidden bg-slate-900 text-white border border-slate-800 p-6 sm:p-10 shadow-xl">
         <div className="max-w-3xl space-y-4">
@@ -234,7 +237,10 @@ export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
       </div>
 
       {/* Fleet & Transparent Fare Structure Table */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5">
+      <div
+        id="fare-rules-section"
+        className="scroll-mt-24 bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5"
+      >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <span className="text-xs font-extrabold uppercase tracking-wider text-amber-700">
@@ -347,7 +353,10 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-10 animate-in fade-in">
+    <div
+      id="customer-support-top"
+      className="scroll-mt-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-10 animate-in fade-in"
+    >
       {/* Header Banner */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white rounded-3xl p-6 sm:p-9 border border-slate-800 shadow-xl">
         <div className="max-w-3xl space-y-3">
@@ -576,7 +585,9 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
       </div>
 
       {/* Embedded FAQs & Billing Rules */}
-      <FaqSection />
+      <div id="help-faqs-section" className="scroll-mt-24">
+        <FaqSection />
+      </div>
 
       {/* Bottom CTA */}
       <div className="text-center pt-2">

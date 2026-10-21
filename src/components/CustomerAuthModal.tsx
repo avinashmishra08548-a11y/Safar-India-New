@@ -7,7 +7,9 @@ import {
   RefreshCw,
   MessageSquare,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  User,
+  AlertCircle
 } from 'lucide-react';
 import { CustomerUser } from '../types';
 import {
@@ -29,8 +31,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   onLoginSuccess,
   authPrompt
 }) => {
-  const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [otpRequested, setOtpRequested] = useState(false);
@@ -44,6 +46,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [smsDeliveryInfo, setSmsDeliveryInfo] = useState('');
 
   const sendingLockRef = useRef<boolean>(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
 
   // Countdown timer for Resend OTP (prevents repeated accidental OTP dispatches)
@@ -58,15 +62,30 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     if (isOpen) {
       setErrorMsg('');
       sendingLockRef.current = false;
+      setTimeout(() => {
+        if (!name.trim()) {
+          nameInputRef.current?.focus();
+        }
+      }, 60);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const isValidCustomerName = (val: string): boolean => {
+    const trimmed = val.trim();
+    return trimmed.length >= 2 && /[a-zA-Z\u0900-\u097F]/.test(trimmed);
+  };
+
+  const handleNameChange = (val: string) => {
+    setName(val);
+    if (errorMsg) setErrorMsg('');
+  };
+
   const handlePhoneChange = (val: string) => {
     const clean = sanitize10DigitPhone(val);
     setPhone(clean);
-    setErrorMsg('');
+    if (errorMsg) setErrorMsg('');
 
     // If phone number changes after requesting OTP, reset OTP session for the new number
     if (clean.length < 10) {
@@ -75,23 +94,31 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       setSmsDeliveryInfo('');
       setResendSeconds(0);
     } else if (clean.length === 10) {
-      // Auto-fill returning customer's saved name if available
+      // Auto-fill returning customer's saved name if available and name field is currently empty
       try {
         const raw = localStorage.getItem('safar_registered_customers');
         const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
         const existing = list.find((u) => sanitize10DigitPhone(u.phone) === clean);
-        if (existing?.name && !name.trim()) {
+        if (existing?.name && !name.trim() && !existing.name.startsWith('Traveler')) {
           setName(existing.name);
         }
       } catch {}
     }
   };
 
-  // Single-dispatch "Get OTP on WhatsApp" handler — sends strictly 1 OTP to the customer's entered number
+  // Single-dispatch "Get OTP on WhatsApp" handler — strictly validates mandatory Customer Name & 10-digit Phone first
   const handleGetOtpOnWhatsApp = async (isResend: boolean = false) => {
+    const cleanName = name.trim();
+    if (!isValidCustomerName(cleanName)) {
+      setErrorMsg('Customer Name is mandatory. Please enter your valid full name (at least 2 characters) to request an OTP.');
+      nameInputRef.current?.focus();
+      return;
+    }
+
     const cleanPhone = sanitize10DigitPhone(phone);
     if (cleanPhone.length !== 10) {
-      setErrorMsg('Please enter your valid 10-digit WhatsApp mobile number first.');
+      setErrorMsg('Please enter your valid 10-digit WhatsApp mobile number.');
+      phoneInputRef.current?.focus();
       return;
     }
 
@@ -112,7 +139,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     try {
       const res = await requestServerOtp(cleanPhone, {
         forceNew: isResend,
-        customerName: name.trim() || 'Traveler'
+        customerName: cleanName
       });
 
       if (res.success && res.token) {
@@ -120,7 +147,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
         if (isResend) setOtp('');
         setSmsDeliveryInfo(
-          `4-digit OTP sent to your WhatsApp number +91 ${cleanPhone}. Please enter it below.`
+          `Hello ${cleanName}, a 4-digit OTP has been sent to your WhatsApp (+91 ${cleanPhone}). Please enter it below.`
         );
         setResendSeconds(30);
         setTimeout(() => otpInputRef.current?.focus(), 80);
@@ -138,13 +165,21 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const cleanPhone = sanitize10DigitPhone(phone);
-    if (cleanPhone.length !== 10) {
-      setErrorMsg('Please enter a valid 10-digit WhatsApp mobile number.');
+    const cleanName = name.trim();
+    if (!isValidCustomerName(cleanName)) {
+      setErrorMsg('Customer Name is mandatory. Please enter your valid full name before logging in.');
+      nameInputRef.current?.focus();
       return;
     }
 
-    // If user pressed Enter before requesting OTP, trigger Get OTP first
+    const cleanPhone = sanitize10DigitPhone(phone);
+    if (cleanPhone.length !== 10) {
+      setErrorMsg('Please enter a valid 10-digit WhatsApp mobile number.');
+      phoneInputRef.current?.focus();
+      return;
+    }
+
+    // If user pressed Enter/Submit before requesting OTP, trigger Get OTP first
     if (!otpRequested || !otpToken) {
       await handleGetOtpOnWhatsApp(false);
       return;
@@ -184,18 +219,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
-    let resolvedName = name.trim();
-    if (!resolvedName) {
-      try {
-        const raw = localStorage.getItem('safar_registered_customers');
-        const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
-        const existing = list.find((u) => sanitize10DigitPhone(u.phone) === cleanPhone);
-        if (existing?.name) resolvedName = existing.name;
-      } catch {}
-    }
-
     const user: CustomerUser = {
-      name: resolvedName || `Traveler (${cleanPhone.slice(-4)})`,
+      name: cleanName,
       phone: cleanPhone,
       email: email.trim() || undefined
     };
@@ -216,6 +241,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   };
 
   const cleanPhoneLen = sanitize10DigitPhone(phone).length;
+  const nameIsValid = isValidCustomerName(name);
   const isOtpCooldownActive = otpRequested && resendSeconds > 0;
 
   return (
@@ -225,6 +251,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           type="button"
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl bg-slate-100 transition cursor-pointer"
+          aria-label="Close login modal"
         >
           <X className="w-5 h-5" />
         </button>
@@ -234,10 +261,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <Smartphone className="w-6 h-6 text-emerald-600" />
           </div>
           <h3 className="text-lg font-extrabold text-slate-900">
-            Customer WhatsApp Login
+            Customer Login / Sign-Up
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Enter your WhatsApp number and tap Get OTP to receive a single 4-digit verification code
+            Enter your full name &amp; WhatsApp number to receive a 4-digit verification OTP
           </p>
         </div>
 
@@ -249,8 +276,12 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         )}
 
         {errorMsg && (
-          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs text-center font-semibold">
-            {errorMsg}
+          <div
+            role="alert"
+            className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2 font-semibold"
+          >
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
           </div>
         )}
 
@@ -261,17 +292,51 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           </div>
         )}
 
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          {/* 1. WHATSAPP MOBILE NUMBER INPUT */}
+        <form onSubmit={handleVerifyOtp} noValidate className="space-y-4">
+          {/* 1. MANDATORY CUSTOMER FULL NAME */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              1. Your WhatsApp Number *
+            <label
+              htmlFor="auth-customer-name"
+              className="block text-xs font-bold text-slate-700 mb-1.5"
+            >
+              1. Customer Full Name <span className="text-rose-600">*</span>
+            </label>
+            <div className="relative">
+              <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                ref={nameInputRef}
+                id="auth-customer-name"
+                name="customerName"
+                type="text"
+                required
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="Enter your full name (e.g. Rahul Sharma)"
+                className={`w-full bg-slate-50 border rounded-xl pl-10 pr-3.5 py-3 text-slate-900 text-sm font-semibold focus:outline-none focus:bg-white transition ${
+                  name.length > 0 && !nameIsValid
+                    ? 'border-rose-400 focus:border-rose-500'
+                    : 'border-slate-300 focus:border-emerald-600'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* 2. WHATSAPP MOBILE NUMBER INPUT */}
+          <div>
+            <label
+              htmlFor="auth-customer-phone"
+              className="block text-xs font-bold text-slate-700 mb-1.5"
+            >
+              2. Your WhatsApp Number <span className="text-rose-600">*</span>
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-xs text-slate-500 font-bold">
                 +91
               </span>
               <input
+                ref={phoneInputRef}
+                id="auth-customer-phone"
+                name="customerPhone"
                 type="tel"
                 inputMode="numeric"
                 required
@@ -283,15 +348,17 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               />
             </div>
 
-            {/* PROMINENT "GET OTP ON WHATSAPP" BUTTON (Protected against duplicate clicks) */}
+            {/* PROMINENT "GET OTP ON WHATSAPP" BUTTON */}
             <button
               type="button"
               onClick={() => handleGetOtpOnWhatsApp(false)}
-              disabled={isSending || cleanPhoneLen !== 10 || isOtpCooldownActive}
+              disabled={isSending || isOtpCooldownActive}
               className={`mt-2.5 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-white transition shadow-sm ${
-                isSending || cleanPhoneLen !== 10 || isOtpCooldownActive
+                isSending || isOtpCooldownActive
                   ? 'bg-emerald-600/80 opacity-90 cursor-not-allowed'
-                  : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer active:scale-99'
+                  : nameIsValid && cleanPhoneLen === 10
+                  ? 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer active:scale-99'
+                  : 'bg-slate-700 hover:bg-slate-800 cursor-pointer'
               }`}
             >
               <span className="flex items-center gap-2 text-xs font-extrabold">
@@ -304,7 +371,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                     : 'Get OTP on WhatsApp'}
                 </span>
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-950 bg-amber-400 px-2.5 py-1 rounded-lg">
+              <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-950 bg-amber-400 px-2.5 py-1 rounded-lg">
                 {isSending ? (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin" /> Sending
@@ -320,25 +387,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             </button>
           </div>
 
-          {/* 2. FULL NAME (OPTIONAL) */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Your Name (Optional)
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Rahul Sharma"
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 text-sm font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
-            />
-          </div>
-
           {/* 3. 4-DIGIT OTP INPUT & SUBMIT BUTTON */}
           <div className="p-4 rounded-2xl bg-slate-50 border-2 border-emerald-200 space-y-3">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-extrabold text-slate-900">
-                2. Enter 4-Digit WhatsApp OTP *
+              <label
+                htmlFor="auth-otp-input"
+                className="block text-xs font-extrabold text-slate-900"
+              >
+                3. Enter 4-Digit WhatsApp OTP <span className="text-rose-600">*</span>
               </label>
               {otpRequested && (
                 <button
@@ -355,6 +411,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
             <input
               ref={otpInputRef}
+              id="auth-otp-input"
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
@@ -391,4 +448,3 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     </div>
   );
 };
-
