@@ -1,46 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Shield, 
-  Car, 
-  Users, 
-  DollarSign, 
-  TrendingUp, 
-  Phone, 
-  MessageSquare, 
-  CheckCircle, 
-  Clock, 
-  FileSpreadsheet, 
+import {
+  Shield,
+  Car,
+  Users,
+  Phone,
+  MessageSquare,
+  FileSpreadsheet,
   Search,
-  Filter,
   UserCheck,
   X,
   KeyRound,
   Lock,
   Radio,
   Send,
-  Server,
   Globe,
   Download,
   CheckCircle2,
-  Sparkles,
-  ExternalLink,
   Loader2,
   CreditCard,
-  Trash2
+  Trash2,
+  Sun,
+  Moon,
+  Calendar,
+  MapPin,
+  IndianRupee,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
-import { 
+import {
   getTraccarLocalEndpoint,
   getTraccarLocalToken,
-  getTraccarToken, 
+  getTraccarToken,
   setTraccarConfig,
-  verifyTraccarGateway, 
+  verifyTraccarGateway,
   DEFAULT_LOCAL_ENDPOINT,
   DEFAULT_LOCAL_TOKEN,
-  TRACCAR_SMS_ENDPOINT, 
-  DEFAULT_TRACCAR_TOKEN, 
+  TRACCAR_SMS_ENDPOINT,
+  DEFAULT_TRACCAR_TOKEN,
   sanitize10DigitPhone,
   sendDriverAssignmentSms
 } from '../utils/smsService';
@@ -56,9 +55,9 @@ import {
   DEFAULT_OLA_CLIENT_SECRET,
   testOlaMapsCredentials
 } from '../utils/olaMapsService';
-import { 
-  getRazorpayKeyId, 
-  setRazorpayKeyId, 
+import {
+  getRazorpayKeyId,
+  setRazorpayKeyId,
   DEFAULT_RAZORPAY_KEY,
   launchRazorpayStandardCheckout
 } from '../utils/razorpayService';
@@ -76,8 +75,8 @@ interface AdminDashboardProps {
   onClose: () => void;
   bookings: BookingRecord[];
   onUpdateBookingStatus: (
-    bookingId: string, 
-    status: 'confirmed' | 'completed' | 'cancelled', 
+    bookingId: string,
+    status: 'confirmed' | 'completed' | 'cancelled',
     driverInfo?: { name: string; phone: string; carPlate: string; vehicleModel?: string }
   ) => void;
   onChangePin: (newPin: string) => void;
@@ -93,9 +92,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onClearDemoBookings
 }) => {
   const [activeTab, setActiveTab] = useState<'bookings' | 'customers' | 'gateways' | 'security'>('bookings');
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('safar_owner_theme') === 'dark';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleTheme = () => {
+    setIsDark((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('safar_owner_theme', next ? 'dark' : 'light');
+      } catch {}
+      return next;
+    });
+  };
+
   const [search, setSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
+  const [tripTypeFilter, setTripTypeFilter] = useState<'all' | 'oneway' | 'roundtrip' | 'local' | 'airport'>('all');
   const [selectedBookingForDriver, setSelectedBookingForDriver] = useState<BookingRecord | null>(null);
 
   const [driverName, setDriverName] = useState('');
@@ -153,9 +171,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (raw) {
         setRegisteredCustomers(JSON.parse(raw));
       } else {
-        // Collect unique customers from bookings
         const map = new Map<string, CustomerUser>();
-        bookings.forEach(b => {
+        bookings.forEach((b) => {
           if (!map.has(b.customerPhone)) {
             map.set(b.customerPhone, {
               name: b.customerName,
@@ -171,37 +188,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   if (!isOpen) return null;
 
-  // Strict Financial & Booking Metrics:
-  // 1. Total Bookings count
+  // Financial & Booking Metrics
   const totalBookings = bookings.length;
-  // 2. Active / Scheduled Bookings
-  const activeBookings = bookings.filter(b => b.status === 'confirmed').length;
-  // 3. Completed Bookings
-  const completedBookings = bookings.filter(b => b.status === 'completed').length;
-  // 4. Cancelled Bookings
-  const cancelledBookings = bookings.filter(b => b.status === 'cancelled').length;
+  const activeBookings = bookings.filter((b) => b.status === 'confirmed').length;
+  const completedBookings = bookings.filter((b) => b.status === 'completed').length;
+  const cancelledBookings = bookings.filter((b) => b.status === 'cancelled').length;
 
-  // 5. Verified Advance Payments (Only captured Razorpay payments for confirmed / completed rides)
-  // For booking SIC-789940: Total ₹1,817 has Verified Advance = ₹363
-  const verifiedAdvanceRevenue = bookings.reduce((sum, b) => 
-    (b.status === 'confirmed' || b.status === 'completed') ? sum + (Number(b.advancePaid) || 0) : sum, 0
+  const verifiedAdvanceRevenue = bookings.reduce(
+    (sum, b) => (b.status === 'confirmed' || b.status === 'completed' ? sum + (Number(b.advancePaid) || 0) : sum),
+    0
   );
 
-  // 6. Outstanding Balance payable at drop (To be collected by drivers for active rides - NOT counted as collected revenue)
-  // For booking SIC-789940: Outstanding Balance = ₹1,454
-  const outstandingBalanceDue = bookings.reduce((sum, b) => 
-    b.status === 'confirmed' ? sum + (Number(b.balanceDue) || 0) : sum, 0
+  const outstandingBalanceDue = bookings.reduce(
+    (sum, b) => (b.status === 'confirmed' ? sum + (Number(b.balanceDue) || 0) : sum),
+    0
   );
 
-  const filteredBookings = bookings.filter(b => {
+  const totalBookingVolume = bookings.reduce(
+    (sum, b) => (b.status !== 'cancelled' ? sum + (Number(b.totalFare) || 0) : sum),
+    0
+  );
+
+  const filteredBookings = bookings.filter((b) => {
     const matchStatus = statusFilter === 'all' || b.status === statusFilter;
-    const matchSearch = 
+    const matchTripType = tripTypeFilter === 'all' || b.tripType === tripTypeFilter;
+    const matchSearch =
       b.id.toLowerCase().includes(search.toLowerCase()) ||
       b.customerName.toLowerCase().includes(search.toLowerCase()) ||
       b.customerPhone.includes(search) ||
       b.pickupCity.toLowerCase().includes(search.toLowerCase()) ||
       b.dropCity.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
+    return matchStatus && matchTripType && matchSearch;
   });
 
   const handleOpenAssignModal = (b: BookingRecord) => {
@@ -224,7 +241,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     setIsSendingDriverSms(true);
 
-    // 1. Update Booking Record in Fleet state
     onUpdateBookingStatus(b.id, 'confirmed', {
       name: driverName.trim(),
       phone: cleanDriverPhone,
@@ -232,7 +248,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       vehicleModel
     });
 
-    // 2. Trigger automatic Traccar Cloud SMS dual dispatch: Driver Pickup Duty Alert & Customer Driver Details
     const travelDate = `${b.pickupDate} at ${b.pickupTime}`;
     try {
       await sendDriverAssignmentSms({
@@ -254,7 +269,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     setIsSendingDriverSms(false);
-    setDriverSmsSuccessNotice(`Driver assigned! Automated WhatsApp & SMS alerts sent to Driver (+91 ${cleanDriverPhone}) and Customer (+91 ${b.customerPhone})!`);
+    setDriverSmsSuccessNotice(
+      `Driver assigned! Automated WhatsApp & SMS alerts sent to Driver (+91 ${cleanDriverPhone}) and Customer (+91 ${b.customerPhone})!`
+    );
 
     setTimeout(() => {
       setDriverSmsSuccessNotice('');
@@ -263,7 +280,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setDriverPhone('');
       setDriverVehicleModel('');
       setDriverCarPlate('');
-    }, 2500);
+    }, 2200);
   };
 
   const handleUpdatePin = (e: React.FormEvent) => {
@@ -284,8 +301,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const exportCSV = () => {
-    const headers = ['Booking ID', 'Date', 'Customer Name', 'Phone', 'From', 'To', 'Vehicle', 'Total Fare', 'Advance Paid', 'Balance Due', 'Status'];
-    const rows = bookings.map(b => [
+    const headers = [
+      'Booking ID',
+      'Date',
+      'Customer Name',
+      'Phone',
+      'From',
+      'To',
+      'Vehicle',
+      'Total Fare',
+      'Advance Paid',
+      'Balance Due',
+      'Status'
+    ];
+    const rows = bookings.map((b) => [
       b.id,
       b.pickupDate,
       `"${b.customerName}"`,
@@ -298,7 +327,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       b.balanceDue,
       b.status
     ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -310,18 +340,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const exportCustomersCSV = () => {
     const headers = ['Customer Name', 'Mobile Number', 'Email', 'Total Rides', 'Total Spend (INR)'];
-    const rows = registeredCustomers.map(c => {
-      const userRides = bookings.filter(b => b.customerPhone === c.phone);
+    const rows = registeredCustomers.map((c) => {
+      const userRides = bookings.filter((b) => b.customerPhone === c.phone);
       const userSpend = userRides.reduce((sum, b) => sum + b.totalFare, 0);
-      return [
-        `"${c.name}"`,
-        c.phone,
-        `"${c.email || ''}"`,
-        userRides.length,
-        userSpend
-      ];
+      return [`"${c.name}"`, c.phone, `"${c.email || ''}"`, userRides.length, userSpend];
     });
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -338,7 +363,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       localToken: traccarLocalToken.trim() || DEFAULT_LOCAL_TOKEN,
       cloudToken: traccarToken.trim() || DEFAULT_TRACCAR_TOKEN
     });
-    setTraccarSaveMsg('Traccar Local Service + Cloud Fallback configuration saved & synced across all OTP and booking flows!');
+    setTraccarSaveMsg('Traccar Local Service + Cloud Fallback configuration saved & synced!');
     setTimeout(() => setTraccarSaveMsg(''), 4000);
   };
 
@@ -351,14 +376,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       localToken: DEFAULT_LOCAL_TOKEN,
       cloudToken: DEFAULT_TRACCAR_TOKEN
     });
-    setTraccarSaveMsg('Reset to default Local Service (http://172.24.139.153:8082) + Cloud Fallback credentials!');
+    setTraccarSaveMsg('Reset to default Local Service + Cloud Fallback credentials!');
     setTimeout(() => setTraccarSaveMsg(''), 4000);
   };
 
   const handleTestTraccarSms = async () => {
     const cleanPhone = sanitize10DigitPhone(testPhone);
     if (!cleanPhone || cleanPhone.length !== 10) {
-      setTestStatus({ running: false, ok: false, message: 'Please enter a valid 10-digit mobile number (e.g. 9876543210)' });
+      setTestStatus({
+        running: false,
+        ok: false,
+        message: 'Please enter a valid 10-digit mobile number (e.g. 9876543210)'
+      });
       return;
     }
     setTestStatus({ running: true });
@@ -397,7 +426,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleTestRazorpay = () => {
     setRazorpayTestStatus('Creating server order & launching Razorpay Standard Checkout...');
     const testDate = new Date().toISOString().split('T')[0];
-    // Minimum 130km sedan oneway fare: base 1560 + DA 300 + tolls 208 + GST 93 = 2161 total, 20% advance = 432
     launchRazorpayStandardCheckout({
       amountInRupees: 432,
       totalFareRupees: 2161,
@@ -424,7 +452,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setRazorpayTestStatus('Razorpay Checkout modal was dismissed by user.');
       },
       onError: (errMessage) => {
-        setRazorpayTestStatus('Razorpay Notice: ' + (typeof errMessage === 'string' ? errMessage : JSON.stringify(errMessage)));
+        setRazorpayTestStatus(
+          'Razorpay Notice: ' + (typeof errMessage === 'string' ? errMessage : JSON.stringify(errMessage))
+        );
       }
     });
   };
@@ -445,7 +475,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setOlaMapsApiKey(DEFAULT_OLA_API_KEY);
     setOlaMapsClientId(DEFAULT_OLA_CLIENT_ID);
     setOlaMapsClientSecret(DEFAULT_OLA_CLIENT_SECRET);
-    setOlaSaveMsg('Reset to official Ola Maps credentials provided by owner.');
+    setOlaSaveMsg('Reset to official Ola Maps credentials.');
     setTimeout(() => setOlaSaveMsg(''), 4000);
   };
 
@@ -458,7 +488,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleSaveWhatsAppConfig = (e: React.FormEvent) => {
     e.preventDefault();
     setWhatsAppConfig(waPhoneId, waAccessToken);
-    setWaSaveMsg('Meta WhatsApp Cloud API credentials saved & active across Login OTP, Booking Confirmation & Driver Assignment!');
+    setWaSaveMsg(
+      'Meta WhatsApp Cloud API credentials saved & active across Login OTP, Booking Confirmation & Driver Assignment!'
+    );
     setTimeout(() => setWaSaveMsg(''), 4000);
   };
 
@@ -466,14 +498,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setWaPhoneId(DEFAULT_WHATSAPP_PHONE_ID);
     setWaAccessToken(DEFAULT_WHATSAPP_ACCESS_TOKEN);
     setWhatsAppConfig(DEFAULT_WHATSAPP_PHONE_ID, DEFAULT_WHATSAPP_ACCESS_TOKEN);
-    setWaSaveMsg('Reset to verified Safar India Cabs WhatsApp Phone Number ID (902764639583293) & Permanent Token.');
+    setWaSaveMsg('Reset to verified Safar India Cabs WhatsApp Phone Number ID & Permanent Token.');
     setTimeout(() => setWaSaveMsg(''), 4000);
   };
 
   const handleTestWhatsAppMessage = async () => {
     const clean = sanitize10DigitPhone(waTestPhone);
     if (clean.length !== 10) {
-      setWaTestStatus({ running: false, ok: false, message: 'Please enter a valid 10-digit WhatsApp mobile number.' });
+      setWaTestStatus({
+        running: false,
+        ok: false,
+        message: 'Please enter a valid 10-digit WhatsApp mobile number.'
+      });
       return;
     }
     setWaTestStatus({ running: true });
@@ -493,1052 +529,1166 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       running: false,
       ok: sent,
       message: sent
-        ? `Success! Live WhatsApp message dispatched to +91 ${clean} via Meta Graph API v20.0 (Phone ID: ${waPhoneId}).`
+        ? `Success! Live WhatsApp message dispatched to +91 ${clean} via Meta Graph API (Phone ID: ${waPhoneId}).`
         : `WhatsApp API Notice: ${errText || 'Check Meta Cloud API recipient test whitelist or token.'}`
     });
   };
 
+  // Theme-adaptive surface classes (Default: Clean Light Theme)
+  const shellBg = isDark ? 'bg-slate-900 text-slate-100 border-slate-800' : 'bg-[#F8FAFC] text-slate-900 border-slate-200';
+  const headerBg = isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white border-slate-200';
+  const cardBg = isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200/90 shadow-2xs';
+  const subtleBg = isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200/80';
+  const inputBg = isDark
+    ? 'bg-slate-900 border-slate-700 text-white placeholder-slate-500 focus:border-amber-400'
+    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-amber-500';
+  const textPrimary = isDark ? 'text-white' : 'text-slate-900';
+  const textSecondary = isDark ? 'text-slate-400' : 'text-slate-500';
+  const textMuted = isDark ? 'text-slate-500' : 'text-slate-400';
+  const dividerBorder = isDark ? 'border-slate-800' : 'border-slate-200';
+
   return (
-    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-5xl my-auto p-5 sm:p-6 shadow-2xl relative space-y-5 max-h-[90vh] overflow-y-auto">
-        
-        {/* Top bar */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <div
+        className={`${shellBg} border rounded-3xl w-full max-w-6xl my-auto shadow-2xl relative flex flex-col max-h-[92vh] overflow-hidden transition-colors duration-200`}
+      >
+        {/* Top Header Bar */}
+        <div className={`${headerBg} border-b px-5 sm:px-7 py-4 flex items-center justify-between gap-4 shrink-0`}>
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
               <Shield className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
-                <span>Owner & Dispatch Control Center</span>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                  Confidential
-                </span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                Safar India Cabs · Real-time bookings, advance revenue, customers & chauffeur management
-              </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-semibold text-amber-600">
+                <span>Safar India Cabs</span>
+                <span aria-hidden="true">·</span>
+                <span>Owner Administration</span>
+              </div>
+              <h2 className={`text-lg sm:text-xl font-black tracking-tight truncate ${textPrimary}`}>
+                Owner &amp; Dispatch Control Center
+              </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white p-2 rounded-xl bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap ${
+                isDark
+                  ? 'bg-slate-800 border-slate-700 text-amber-300 hover:bg-slate-700'
+                  : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+              }`}
+              title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+              <span className="hidden sm:inline">{isDark ? 'Light Theme' : 'Dark Theme'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close Owner Panel"
+              className={`p-2 rounded-xl border transition cursor-pointer ${
+                isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-700'
+                  : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-950 hover:bg-rose-50 hover:border-rose-200'
+              }`}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('bookings')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'bookings' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Car className="w-3.5 h-3.5" />
-            <span>All Bookings ({totalBookings})</span>
-          </button>
+        {/* Navigation Tabs Bar */}
+        <div className={`${headerBg} border-b px-5 sm:px-7 py-2.5 flex items-center justify-between gap-3 overflow-x-auto shrink-0`}>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('bookings')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                activeTab === 'bookings'
+                  ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                  : `${textSecondary} hover:${textPrimary}`
+              }`}
+            >
+              <Car className="w-4 h-4" />
+              <span>Bookings &amp; Dispatch ({totalBookings})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('customers')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'customers' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Customer Directory ({registeredCustomers.length})</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('customers')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                activeTab === 'customers'
+                  ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                  : `${textSecondary} hover:${textPrimary}`
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Customers ({registeredCustomers.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('gateways')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'gateways' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>SMS & Free APIs</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('gateways')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                activeTab === 'gateways'
+                  ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                  : `${textSecondary} hover:${textPrimary}`
+              }`}
+            >
+              <Radio className="w-4 h-4" />
+              <span>Gateways &amp; APIs</span>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('security')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeTab === 'security' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Security PIN</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('security')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                activeTab === 'security'
+                  ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                  : `${textSecondary} hover:${textPrimary}`
+              }`}
+            >
+              <Lock className="w-4 h-4" />
+              <span>Security PIN</span>
+            </button>
+          </div>
+
+          <div className="hidden md:flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportCSV}
+              className={`py-1.5 px-3 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                isDark
+                  ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Export Bookings CSV</span>
+            </button>
+
+            {onClearDemoBookings && (
+              <button
+                type="button"
+                onClick={onClearDemoBookings}
+                className="py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="Clear test bookings from local storage"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Clear Demo Data</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {activeTab === 'bookings' && (
-          <div className="space-y-4">
-            {/* Comprehensive KPI Strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Bookings</span>
-                <div className="text-xl sm:text-2xl font-black text-white mt-1">{totalBookings}</div>
-                <span className="text-[10px] text-slate-400 font-medium">Real Confirmed Fleet</span>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Active / Scheduled</span>
-                <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{activeBookings}</div>
-                <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                  <span className="text-emerald-400 font-semibold">{completedBookings} Done</span>
-                  <span>·</span>
-                  <span className="text-rose-400 font-semibold">{cancelledBookings} Cancel</span>
-                </div>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Verified Advance</span>
-                <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{formatINR(verifiedAdvanceRevenue)}</div>
-                <span className="text-[10px] text-emerald-400/80 font-medium">Captured Razorpay Payments</span>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Outstanding Balance</span>
-                <div className="text-xl sm:text-2xl font-black text-amber-400 mt-1">{formatINR(outstandingBalanceDue)}</div>
-                <span className="text-[10px] text-slate-500 font-medium">Collect at drop (Not revenue)</span>
-              </div>
-
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 col-span-2 sm:col-span-1 flex flex-col justify-between">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Quick Action</span>
-                <div className="mt-2 flex flex-col gap-1.5">
-                  <button
-                    onClick={exportCSV}
-                    className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Export CSV</span>
-                  </button>
-                  {onClearDemoBookings && (
-                    <button
-                      onClick={() => {
-                        onClearDemoBookings();
-                      }}
-                      className="py-1 px-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer"
-                      title="Clear mock or test bookings from local storage"
-                    >
-                      <Trash2 className="w-3 h-3 text-rose-400" />
-                      <span>Clear Demo Bookings</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Filter & Search Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <div className="flex items-center gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl text-xs">
-                <button
-                  onClick={() => setStatusFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'all' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-                >
-                  All ({totalBookings})
-                </button>
-                <button
-                  onClick={() => setStatusFilter('confirmed')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'confirmed' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-                >
-                  Active ({activeBookings})
-                </button>
-                <button
-                  onClick={() => setStatusFilter('completed')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'completed' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-                >
-                  Completed ({completedBookings})
-                </button>
-                <button
-                  onClick={() => setStatusFilter('cancelled')}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition ${statusFilter === 'cancelled' ? 'bg-amber-400 text-slate-950' : 'text-slate-400'}`}
-                >
-                  Cancelled ({cancelledBookings})
-                </button>
-              </div>
-
-              <div className="relative flex-1 max-w-xs">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by Customer, City or ID..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                />
-              </div>
-            </div>
-
-            {/* Bookings List */}
-            <div className="space-y-3">
-              {filteredBookings.length === 0 ? (
-                <div className="p-8 text-center text-slate-500 text-xs bg-slate-950 rounded-2xl border border-slate-800">
-                  No bookings found matching your criteria.
-                </div>
-              ) : (
-                filteredBookings.map((b) => (
-                  <div
-                    key={b.id}
-                    className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3 hover:border-slate-700 transition"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-amber-400 text-xs">{b.id}</span>
-                        <span className="text-slate-500 text-[10px]">·</span>
-                        <span className="text-white text-xs font-bold">{b.customerName}</span>
-                        <span className="text-slate-400 text-xs">(+91 {b.customerPhone})</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {/* Driver Assigned Status Badge */}
-                        {b.driverName && (
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
-                            <UserCheck className="w-3 h-3 text-emerald-400" />
-                            <span>Driver Assigned</span>
-                          </span>
-                        )}
-
-                        <a
-                          href={`tel:+91${b.customerPhone}`}
-                          className="p-1.5 bg-slate-900 text-slate-300 hover:text-white rounded-lg border border-slate-800"
-                          title="Call Customer"
-                        >
-                          <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                        </a>
-                        <a
-                          href={buildWhatsAppSchemeUrl(`Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`, b.customerPhone)}
-                          onClick={(e) => triggerWhatsAppDeepLink(e, `Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`, b.customerPhone)}
-                          className="p-1.5 bg-slate-900 text-slate-300 hover:text-emerald-400 rounded-lg border border-slate-800 cursor-pointer"
-                          title="WhatsApp Customer"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                        </a>
-                        {b.status === 'confirmed' ? (
-                          <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
-                            ACTIVE
-                          </span>
-                        ) : (
-                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2.5 py-0.5 rounded-full font-bold">
-                            {b.status.toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Driver Assigned Details Banner */}
-                    {b.driverName && (
-                      <div className="bg-slate-900/90 border border-emerald-500/30 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-400 font-bold">Assigned Driver:</span>
-                          <span className="text-white font-bold">{b.driverName}</span>
-                          <a href={`tel:+91${b.driverPhone}`} className="text-emerald-300 underline font-mono text-[11px]">(+91 {b.driverPhone})</a>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-slate-300">
-                          <span className="text-slate-400">Vehicle:</span>
-                          <span className="text-amber-400 font-semibold">{b.driverVehicleModel || b.cabName}</span>
-                          {b.driverVehicleNo && (
-                            <span className="bg-slate-950 px-2 py-0.5 rounded border border-slate-700 font-mono font-bold text-white uppercase">
-                              {b.driverVehicleNo}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Details */}
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                      <div>
-                        <span className="text-[10px] text-slate-500 uppercase block">Journey Route</span>
-                        <div className="font-semibold text-white">{b.pickupCity} → {b.dropCity}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{b.pickupAddress}</div>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] text-slate-500 uppercase block">Date & Cab Class</span>
-                        <div className="font-semibold text-slate-200">{b.pickupDate} at {b.pickupTime}</div>
-                        <div className="text-[10px] text-amber-400 font-medium">{b.cabName}</div>
-                      </div>
-
-                      <div>
-                        <span className="text-[10px] text-slate-500 uppercase block">Fares & Payments</span>
-                        <div className="text-white font-bold">Total: {formatINR(b.totalFare)}</div>
-                        <div className="text-[10px] text-emerald-400">Advance Paid: {formatINR(b.advancePaid)}</div>
-                        <div className="text-[10px] text-amber-400">Driver Balance: {formatINR(b.balanceDue)}</div>
-                      </div>
-
-                      <div className="flex sm:flex-col justify-end items-end gap-1.5">
-                        {b.status === 'confirmed' && (
-                          <>
-                            <button
-                              onClick={() => handleOpenAssignModal(b)}
-                              className="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1 cursor-pointer"
-                            >
-                              <UserCheck className="w-3.5 h-3.5" />
-                              <span>{b.driverName ? 'Update Driver' : 'Assign Driver'}</span>
-                            </button>
-
-                            <button
-                              onClick={() => onUpdateBookingStatus(b.id, 'completed')}
-                              className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-xl transition cursor-pointer"
-                            >
-                              Mark Completed
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
+        {/* Main Scrollable Viewport */}
+        <div className="p-5 sm:p-7 overflow-y-auto space-y-6 flex-1">
+          {/* TAB 1: BOOKINGS & DISPATCH */}
+          {activeTab === 'bookings' && (
+            <div className="space-y-6">
+              {/* 5-Column Financial & Fleet KPI Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                <div className={`${cardBg} p-4 rounded-2xl border`}>
+                  <span className={`text-xs font-semibold block ${textSecondary}`}>Total Bookings</span>
+                  <div className={`text-2xl font-black font-mono tabular-nums mt-1 ${textPrimary}`}>
+                    {totalBookings}
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+                  <div className={`text-[11px] mt-1 ${textSecondary}`}>
+                    All recorded trips
+                  </div>
+                </div>
 
-        {/* Tab 2: Registered Customers Directory */}
-        {activeTab === 'customers' && (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <div>
-                <h4 className="text-sm font-extrabold text-white">Registered Customer Profiles & Ride Records</h4>
-                <p className="text-xs text-slate-400">Total {registeredCustomers.length} saved customer contacts stored securely in system</p>
+                <div className={`${cardBg} p-4 rounded-2xl border`}>
+                  <span className={`text-xs font-semibold block ${textSecondary}`}>Active / Scheduled</span>
+                  <div className="text-2xl font-black font-mono tabular-nums text-amber-600 mt-1">
+                    {activeBookings}
+                  </div>
+                  <div className={`flex items-center gap-1.5 text-[11px] mt-1 ${textSecondary}`}>
+                    <span className="text-emerald-600 font-semibold">{completedBookings} Done</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="text-rose-600 font-semibold">{cancelledBookings} Cancelled</span>
+                  </div>
+                </div>
+
+                <div className={`${cardBg} p-4 rounded-2xl border`}>
+                  <span className={`text-xs font-semibold block ${textSecondary}`}>Advance Received</span>
+                  <div className="text-2xl font-black font-mono tabular-nums text-emerald-600 mt-1">
+                    {formatINR(verifiedAdvanceRevenue)}
+                  </div>
+                  <div className={`text-[11px] mt-1 ${textSecondary}`}>
+                    20% online advance paid
+                  </div>
+                </div>
+
+                <div className={`${cardBg} p-4 rounded-2xl border`}>
+                  <span className={`text-xs font-semibold block ${textSecondary}`}>Driver Collect Balance</span>
+                  <div className="text-2xl font-black font-mono tabular-nums text-amber-600 mt-1">
+                    {formatINR(outstandingBalanceDue)}
+                  </div>
+                  <div className={`text-[11px] mt-1 ${textSecondary}`}>
+                    Payable at trip completion
+                  </div>
+                </div>
+
+                <div className={`${cardBg} p-4 rounded-2xl border col-span-2 sm:col-span-1`}>
+                  <span className={`text-xs font-semibold block ${textSecondary}`}>Total Booking Value</span>
+                  <div className={`text-2xl font-black font-mono tabular-nums mt-1 ${textPrimary}`}>
+                    {formatINR(totalBookingVolume)}
+                  </div>
+                  <div className={`text-[11px] mt-1 ${textSecondary}`}>
+                    Gross active &amp; completed
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-60">
-                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+
+              {/* Filter & Search Toolbar */}
+              <div className={`${cardBg} p-3.5 rounded-2xl border flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3`}>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Status Segmented Filter */}
+                  <div className={`flex items-center gap-1 p-1 rounded-xl border ${subtleBg}`}>
+                    {(
+                      [
+                        { id: 'all', label: `All (${totalBookings})` },
+                        { id: 'confirmed', label: `Active (${activeBookings})` },
+                        { id: 'completed', label: `Completed (${completedBookings})` },
+                        { id: 'cancelled', label: `Cancelled (${cancelledBookings})` }
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setStatusFilter(tab.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                          statusFilter === tab.id
+                            ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                            : `${textSecondary} hover:${textPrimary}`
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Trip Type Filter */}
+                  <div className={`flex items-center gap-1 p-1 rounded-xl border ${subtleBg}`}>
+                    {(
+                      [
+                        { id: 'all', label: 'All Types' },
+                        { id: 'oneway', label: 'One-Way' },
+                        { id: 'roundtrip', label: 'Round-Trip' },
+                        { id: 'local', label: 'Local' },
+                        { id: 'airport', label: 'Airport' }
+                      ] as const
+                    ).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTripTypeFilter(t.id)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                          tripTypeFilter === t.id
+                            ? isDark
+                              ? 'bg-slate-800 text-white'
+                              : 'bg-white text-slate-900 shadow-2xs'
+                            : `${textSecondary} hover:${textPrimary}`
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative w-full lg:w-72">
+                  <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`} />
                   <input
                     type="text"
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                    placeholder="Search name or mobile..."
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search ID, customer, mobile or city..."
+                    className={`w-full border rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:outline-none ${inputBg}`}
                   />
                 </div>
-                <button
-                  onClick={exportCustomersCSV}
-                  className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Export CSV</span>
-                </button>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {registeredCustomers
-                .filter(c => 
-                  !customerSearch || 
-                  c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
-                  c.phone.includes(customerSearch)
-                )
-                .map((c, i) => {
-                  const userRides = bookings.filter(b => b.customerPhone === c.phone);
-                  const userSpend = userRides.reduce((sum, b) => sum + b.totalFare, 0);
-                  return (
-                    <div key={i} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2 hover:border-slate-700 transition">
-                      <div className="flex items-center justify-between">
-                        <div className="font-bold text-white text-sm">{c.name}</div>
-                        <span className="text-[10px] bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded-full font-bold">
-                          {userRides.length} Ride{userRides.length !== 1 ? 's' : ''}
-                        </span>
+              {/* Bookings List */}
+              <div className="space-y-3.5">
+                {filteredBookings.length === 0 ? (
+                  <div className={`${cardBg} p-10 text-center rounded-2xl border space-y-2`}>
+                    <Car className={`w-8 h-8 mx-auto ${textMuted}`} />
+                    <div className={`text-sm font-bold ${textPrimary}`}>No bookings match your current filter</div>
+                    <p className={`text-xs ${textSecondary}`}>
+                      Try clearing your search query or switching the status tab above.
+                    </p>
+                  </div>
+                ) : (
+                  filteredBookings.map((b) => (
+                    <div
+                      key={b.id}
+                      className={`${cardBg} border rounded-2xl p-4 sm:p-5 space-y-4 transition hover:border-amber-400/60`}
+                    >
+                      {/* Top Metadata Row */}
+                      <div className={`flex flex-wrap items-center justify-between gap-2 border-b pb-3 ${dividerBorder}`}>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="font-mono font-black text-amber-600 text-sm">{b.id}</span>
+                          <span className={textMuted} aria-hidden="true">·</span>
+                          <span className={`font-extrabold text-sm ${textPrimary}`}>{b.customerName}</span>
+                          <span className={textMuted} aria-hidden="true">·</span>
+                          <span className={`font-mono font-semibold ${textSecondary}`}>+91 {b.customerPhone}</span>
+                          <span className={textMuted} aria-hidden="true">·</span>
+                          <span className={`font-semibold capitalize ${textSecondary}`}>
+                            {b.tripType === 'roundtrip'
+                              ? 'Round Trip'
+                              : b.tripType === 'oneway'
+                              ? 'One-Way'
+                              : b.tripType}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`tel:+91${b.customerPhone}`}
+                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition ${
+                              isDark
+                                ? 'bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800'
+                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                            title="Call Customer"
+                          >
+                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Call</span>
+                          </a>
+
+                          <a
+                            href={buildWhatsAppSchemeUrl(
+                              `Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`,
+                              b.customerPhone
+                            )}
+                            onClick={(e) =>
+                              triggerWhatsAppDeepLink(
+                                e,
+                                `Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`,
+                                b.customerPhone
+                              )
+                            }
+                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                              isDark
+                                ? 'bg-slate-900 border-slate-800 text-emerald-400 hover:bg-slate-800'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                            }`}
+                            title="WhatsApp Customer"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>WhatsApp</span>
+                          </a>
+
+                          <span
+                            className={`text-xs font-bold flex items-center gap-1 pl-2 ${
+                              b.status === 'confirmed'
+                                ? 'text-emerald-600'
+                                : b.status === 'completed'
+                                ? 'text-sky-600'
+                                : 'text-rose-600'
+                            }`}
+                          >
+                            {b.status === 'confirmed' ? (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            ) : b.status === 'completed' ? (
+                              <CheckCircle className="w-3.5 h-3.5" />
+                            ) : (
+                              <XCircle className="w-3.5 h-3.5" />
+                            )}
+                            <span className="capitalize">{b.status === 'confirmed' ? 'Active' : b.status}</span>
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="text-xs text-slate-300 flex items-center gap-1.5 font-mono">
-                        <Phone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span>+91 {c.phone}</span>
-                      </div>
-
-                      {c.email && (
-                        <div className="text-[11px] text-slate-400 truncate">
-                          {c.email}
+                      {/* Driver Assigned Banner (if assigned) */}
+                      {b.driverName && (
+                        <div
+                          className={`rounded-xl px-3.5 py-2.5 border flex flex-wrap items-center justify-between gap-2 text-xs ${
+                            isDark
+                              ? 'bg-emerald-950/30 border-emerald-800/50 text-emerald-200'
+                              : 'bg-emerald-50/80 border-emerald-200 text-slate-800'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <UserCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="font-bold text-emerald-700">Assigned Chauffeur:</span>
+                            <span className="font-extrabold">{b.driverName}</span>
+                            <span aria-hidden="true">·</span>
+                            <a
+                              href={`tel:+91${b.driverPhone}`}
+                              className="font-mono font-bold text-emerald-700 underline"
+                            >
+                              +91 {b.driverPhone}
+                            </a>
+                          </div>
+                          <div className="flex items-center gap-2 font-medium">
+                            <span>Vehicle:</span>
+                            <span className="font-bold">{b.driverVehicleModel || b.cabName}</span>
+                            {b.driverVehicleNo && (
+                              <span
+                                className={`px-2 py-0.5 rounded border font-mono font-bold uppercase ${
+                                  isDark
+                                    ? 'bg-slate-900 border-slate-700 text-amber-300'
+                                    : 'bg-white border-slate-300 text-slate-900'
+                                }`}
+                              >
+                                {b.driverVehicleNo}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )}
 
-                      <div className="pt-2 border-t border-slate-900 flex justify-between items-center text-xs">
-                        <span className="text-slate-500 text-[10px]">Total Booking Value:</span>
-                        <span className="text-emerald-400 font-bold">{formatINR(userSpend)}</span>
-                      </div>
+                      {/* 4-Column Booking Breakdown */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                        <div>
+                          <span className={`text-[11px] font-semibold block mb-0.5 ${textSecondary}`}>
+                            Journey Route
+                          </span>
+                          <div className={`font-extrabold text-sm flex items-center gap-1.5 ${textPrimary}`}>
+                            <MapPin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>
+                              {b.pickupCity} → {b.dropCity}
+                            </span>
+                          </div>
+                          {b.pickupAddress && (
+                            <div className={`text-[11px] mt-0.5 truncate ${textSecondary}`} title={b.pickupAddress}>
+                              Pickup: {b.pickupAddress}
+                            </div>
+                          )}
+                        </div>
 
-                      <div className="flex gap-2 pt-1">
-                        <a
-                          href={`tel:+91${c.phone}`}
-                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1"
-                        >
-                          <Phone className="w-3 h-3 text-emerald-400" />
-                          <span>Call</span>
-                        </a>
-                        <a
-                          href={buildWhatsAppSchemeUrl(`Hello ${c.name}, greetings from Safar India Cabs!`, c.phone)}
-                          onClick={(e) => triggerWhatsAppDeepLink(e, `Hello ${c.name}, greetings from Safar India Cabs!`, c.phone)}
-                          className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-emerald-400 rounded-lg text-xs font-bold text-center border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <MessageSquare className="w-3 h-3" />
-                          <span>WhatsApp</span>
-                        </a>
+                        <div>
+                          <span className={`text-[11px] font-semibold block mb-0.5 ${textSecondary}`}>
+                            Schedule &amp; Vehicle
+                          </span>
+                          <div className={`font-bold flex items-center gap-1.5 ${textPrimary}`}>
+                            <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>
+                              {b.pickupDate} at {b.pickupTime}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-bold text-amber-600 mt-0.5">
+                            {b.cabName} ({b.distanceKm} KM)
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className={`text-[11px] font-semibold block mb-0.5 ${textSecondary}`}>
+                            Fare &amp; Payment Breakdown
+                          </span>
+                          <div className={`font-mono font-black text-sm tabular-nums ${textPrimary}`}>
+                            Total: {formatINR(b.totalFare)}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] font-mono tabular-nums mt-0.5">
+                            <span className="text-emerald-600 font-bold">Paid: {formatINR(b.advancePaid)}</span>
+                            <span aria-hidden="true">·</span>
+                            <span className="text-amber-600 font-bold">Due: {formatINR(b.balanceDue)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex sm:flex-col lg:flex-row items-center justify-end gap-2">
+                          {b.status === 'confirmed' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAssignModal(b)}
+                                className="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>{b.driverName ? 'Update Driver' : 'Assign Driver'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => onUpdateBookingStatus(b.id, 'completed')}
+                                className={`px-3 py-2 rounded-xl border text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                                  isDark
+                                    ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                                }`}
+                              >
+                                Mark Completed
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: SMS Gateway & Free APIs Configuration */}
-        {activeTab === 'gateways' && (
-          <div className="space-y-6">
-            
-            {/* Razorpay Standard Checkout & Dynamic UPI Panel */}
-            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold">
-                    <CreditCard className="w-5 h-5 text-slate-950" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-white">Razorpay Standard Checkout & Dynamic UPI QR</h4>
-                    <p className="text-xs text-slate-400">Accept 20% advance or 100% full fares via Dynamic UPI QR (Paytm, PhonePe, Google Pay), Cards & NetBanking</p>
-                  </div>
-                </div>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                  Active & Enabled
-                </span>
-              </div>
-
-              {razorpaySaveMsg && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
-                  {razorpaySaveMsg}
-                </div>
-              )}
-
-              <form onSubmit={handleSaveRazorpayKey} className="space-y-3">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Razorpay Key ID (rzp_live_... or rzp_test_...)
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      type="text"
-                      required
-                      value={razorpayKey}
-                      onChange={(e) => setRazorpayKey(e.target.value)}
-                      placeholder="Paste Razorpay Key ID"
-                      className="flex-1 min-w-[260px] bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
-                    >
-                      Save Key
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleResetRazorpayKey}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition"
-                    >
-                      Reset Test Key
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleTestRazorpay}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-400/30 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Test Checkout Modal</span>
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Default Test Key: <span className="font-mono text-emerald-400 text-[10px] bg-slate-900 px-1.5 py-0.5 rounded break-all">{DEFAULT_RAZORPAY_KEY}</span>
-                  </p>
-                </div>
-              </form>
-
-              {razorpayTestStatus && (
-                <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-amber-300 font-mono">
-                  {razorpayTestStatus}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">1. Dynamic UPI / QR Code</span>
-                  <span className="text-white font-bold">Google Pay, PhonePe, Paytm, BHIM</span>
-                  <div className="text-[10px] text-slate-400">Scan & pay 20% advance or full fare</div>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">2. Status & Confirmation</span>
-                  <span className="text-emerald-400 font-bold">Auto "Confirmed" on Success</span>
-                  <div className="text-[10px] text-slate-400">Generates instant digital invoice voucher</div>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Dual WhatsApp + SMS</span>
-                  <span className="text-emerald-400 font-bold">Instant WhatsApp & SMS Triggered</span>
-                  <div className="text-[10px] text-slate-400">Sends WhatsApp & SMS to customer & admin</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Meta WhatsApp Cloud API Official Verified Panel */}
-            <div className="bg-slate-950 p-5 rounded-3xl border border-emerald-500/30 space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                    <MessageSquare className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-white">Meta WhatsApp Cloud API (5-Stage Automated Workflow)</h4>
-                    <p className="text-xs text-slate-400">1. Customer OTP Login · 2. Booking Confirmation · 3. Admin Alert · 4. Driver Duty Alert · 5. Driver Details to Customer</p>
-                  </div>
-                </div>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                  Verified ID: {waPhoneId}
-                </span>
-              </div>
-
-              {waSaveMsg && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
-                  {waSaveMsg}
-                </div>
-              )}
-
-              <form onSubmit={handleSaveWhatsAppConfig} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-1">
-                      WhatsApp Phone Number ID
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={waPhoneId}
-                      onChange={(e) => setWaPhoneId(e.target.value)}
-                      placeholder="902764639583293"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-400"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-400 mb-1">
-                      Permanent Meta Access Token
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={waAccessToken}
-                      onChange={(e) => setWaAccessToken(e.target.value)}
-                      placeholder="EAAQJwftBnh4BSwB6..."
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-400"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow transition"
-                  >
-                    Save WhatsApp Credentials
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetWhatsAppConfig}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold text-xs rounded-xl border border-slate-700 transition"
-                  >
-                    Reset Official Token & Phone ID
-                  </button>
-                </div>
-              </form>
-
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-white block">Test Live Meta WhatsApp Cloud API Dispatch</span>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
-                      +91
-                    </span>
-                    <input
-                      type="tel"
-                      maxLength={10}
-                      value={waTestPhone}
-                      onChange={(e) => setWaTestPhone(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Enter WhatsApp number to test"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-400 font-mono"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={waTestStatus.running}
-                    onClick={handleTestWhatsAppMessage}
-                    className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 disabled:opacity-50 text-emerald-300 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
-                  >
-                    {waTestStatus.running ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Sending WhatsApp...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Send Test WhatsApp</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {waTestStatus.message && (
-                  <div className={`p-3 rounded-xl text-xs font-medium ${
-                    waTestStatus.ok
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                  }`}>
-                    {waTestStatus.message}
-                  </div>
+                  ))
                 )}
               </div>
             </div>
+          )}
 
-            {/* Traccar Local Service + Cloud Fallback SMS Gateway Panel */}
-            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-900 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-400/10 text-amber-400 flex items-center justify-center border border-amber-400/20">
-                    <Radio className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-white">Traccar SMS Gateway (Local Service Primary + Cloud Fallback)</h4>
-                    <p className="text-xs text-slate-400">Bypasses Cloud FCM token issues using Direct Local HTTP Service first, with Cloud Service fallback</p>
-                  </div>
+          {/* TAB 2: CUSTOMERS DIRECTORY */}
+          {activeTab === 'customers' && (
+            <div className="space-y-5">
+              <div className={`${cardBg} p-4 rounded-2xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3`}>
+                <div>
+                  <h3 className={`text-base font-extrabold ${textPrimary}`}>
+                    Registered Customer Directory
+                  </h3>
+                  <p className={`text-xs ${textSecondary}`}>
+                    Total {registeredCustomers.length} verified customer profiles with ride history
+                  </p>
                 </div>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                  Local + Cloud Active
-                </span>
+
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${textMuted}`} />
+                    <input
+                      type="text"
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      placeholder="Search name or mobile..."
+                      className={`w-full border rounded-xl pl-8 pr-3 py-2 text-xs font-medium focus:outline-none ${inputBg}`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={exportCustomersCSV}
+                    className="py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
               </div>
 
-              {traccarSaveMsg && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
-                  {traccarSaveMsg}
-                </div>
-              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {registeredCustomers
+                  .filter(
+                    (c) =>
+                      !customerSearch ||
+                      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+                      c.phone.includes(customerSearch)
+                  )
+                  .map((c, i) => {
+                    const userRides = bookings.filter((b) => b.customerPhone === c.phone);
+                    const userSpend = userRides.reduce((sum, b) => sum + b.totalFare, 0);
+                    return (
+                      <div key={i} className={`${cardBg} border rounded-2xl p-4 space-y-3`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className={`font-extrabold text-sm ${textPrimary}`}>{c.name}</div>
+                            <div className={`text-xs font-mono font-semibold mt-0.5 ${textSecondary}`}>
+                              +91 {c.phone}
+                            </div>
+                          </div>
+                          <span className="text-xs font-bold text-amber-600 font-mono tabular-nums">
+                            {userRides.length} {userRides.length === 1 ? 'Ride' : 'Rides'}
+                          </span>
+                        </div>
 
-              <form onSubmit={handleSaveTraccarToken} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-1">
-                      1. Primary Local Service Endpoint
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={traccarLocalEndpoint}
-                      onChange={(e) => setTraccarLocalEndpointState(e.target.value)}
-                      placeholder="http://172.24.139.153:8082"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                    />
+                        {c.email && <div className={`text-xs truncate ${textSecondary}`}>{c.email}</div>}
+
+                        <div className={`pt-2.5 border-t flex justify-between items-center text-xs ${dividerBorder}`}>
+                          <span className={textSecondary}>Total Booking Value</span>
+                          <span className="text-emerald-600 font-black font-mono tabular-nums">
+                            {formatINR(userSpend)}
+                          </span>
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <a
+                            href={`tel:+91${c.phone}`}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold text-center border flex items-center justify-center gap-1.5 transition ${
+                              isDark
+                                ? 'bg-slate-900 border-slate-800 text-white hover:bg-slate-800'
+                                : 'bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Call</span>
+                          </a>
+                          <a
+                            href={buildWhatsAppSchemeUrl(
+                              `Hello ${c.name}, greetings from Safar India Cabs!`,
+                              c.phone
+                            )}
+                            onClick={(e) =>
+                              triggerWhatsAppDeepLink(
+                                e,
+                                `Hello ${c.name}, greetings from Safar India Cabs!`,
+                                c.phone
+                              )
+                            }
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold text-center border flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                              isDark
+                                ? 'bg-slate-900 border-slate-800 text-emerald-400 hover:bg-slate-800'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                            }`}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>WhatsApp</span>
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: GATEWAYS & APIS */}
+          {activeTab === 'gateways' && (
+            <div className="space-y-6">
+              {/* 1. Razorpay Standard Checkout */}
+              <div className={`${cardBg} p-5 rounded-2xl border space-y-4`}>
+                <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 ${dividerBorder}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0">
+                      <CreditCard className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-extrabold ${textPrimary}`}>
+                        Razorpay Standard Checkout &amp; Dynamic UPI QR
+                      </h4>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Accept 20% advance or 100% full fares via UPI QR, Google Pay, PhonePe, Paytm &amp; Cards
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-1">
-                      2. Primary Local Service Token
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={traccarLocalToken}
-                      onChange={(e) => setTraccarLocalTokenState(e.target.value)}
-                      placeholder="b45b4260-7725-485b-8a65-15a2dd324fb9"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
+                  <span className="text-xs font-bold text-emerald-600">Active &amp; Enabled</span>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    3. Cloud Fallback Token (https://www.traccar.org/sms/)
-                  </label>
+                {razorpaySaveMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold">
+                    {razorpaySaveMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handleSaveRazorpayKey} className="space-y-3">
+                  <div>
+                    <label className={`block text-xs font-bold mb-1.5 ${textSecondary}`}>
+                      Razorpay Key ID (rzp_live_... or rzp_test_...)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={razorpayKey}
+                        onChange={(e) => setRazorpayKey(e.target.value)}
+                        placeholder="Paste Razorpay Key ID"
+                        className={`flex-1 min-w-[240px] border rounded-xl px-3.5 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition cursor-pointer"
+                      >
+                        Save Key
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetRazorpayKey}
+                        className={`px-3.5 py-2 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                          isDark
+                            ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                            : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        Reset Default
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleTestRazorpay}
+                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                      >
+                        Test Checkout Modal
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                {razorpayTestStatus && (
+                  <div className={`p-3 rounded-xl border text-xs font-mono ${subtleBg}`}>
+                    {razorpayTestStatus}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Meta WhatsApp Cloud API */}
+              <div className={`${cardBg} p-5 rounded-2xl border space-y-4`}>
+                <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 ${dividerBorder}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                      <MessageSquare className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-extrabold ${textPrimary}`}>
+                        Meta WhatsApp Cloud API (Automated OTP &amp; Dispatch)
+                      </h4>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Handles single-click Customer Login OTP, Booking Confirmation &amp; Driver Duty Alerts
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-emerald-600">ID: {waPhoneId}</span>
+                </div>
+
+                {waSaveMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold">
+                    {waSaveMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handleSaveWhatsAppConfig} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>
+                        WhatsApp Phone Number ID
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={waPhoneId}
+                        onChange={(e) => setWaPhoneId(e.target.value)}
+                        className={`w-full border rounded-xl px-3.5 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>
+                        Permanent Meta Access Token
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={waAccessToken}
+                        onChange={(e) => setWaAccessToken(e.target.value)}
+                        className={`w-full border rounded-xl px-3.5 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-2">
-                    <input
-                      type="text"
-                      required
-                      value={traccarToken}
-                      onChange={(e) => setTraccarTokenState(e.target.value)}
-                      placeholder="Paste your Traccar Cloud Fallback Token"
-                      className="flex-1 min-w-[260px] bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                    />
                     <button
                       type="submit"
-                      className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
                     >
-                      Save Configuration
+                      Save WhatsApp Credentials
                     </button>
                     <button
                       type="button"
-                      onClick={handleResetToOfficialKey}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 transition"
-                      title="Restore official Local + Cloud tokens"
+                      onClick={handleResetWhatsAppConfig}
+                      className={`px-3.5 py-2 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                        isDark
+                          ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                          : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Reset Default Token
+                    </button>
+                  </div>
+                </form>
+
+                <div className={`${subtleBg} p-4 rounded-xl border space-y-2.5`}>
+                  <span className={`text-xs font-bold block ${textPrimary}`}>
+                    Send Live Test WhatsApp Message
+                  </span>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <span className={`absolute inset-y-0 left-0 pl-3 flex items-center text-xs font-bold ${textSecondary}`}>
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        value={waTestPhone}
+                        onChange={(e) => setWaTestPhone(e.target.value.replace(/\D/g, ''))}
+                        placeholder="Enter 10-digit WhatsApp number"
+                        className={`w-full border rounded-xl pl-11 pr-3 py-2 text-xs font-mono focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={waTestStatus.running}
+                      onClick={handleTestWhatsAppMessage}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      {waTestStatus.running ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Sending...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Send Test WhatsApp</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {waTestStatus.message && (
+                    <div
+                      className={`p-2.5 rounded-lg text-xs font-medium ${
+                        waTestStatus.ok
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}
+                    >
+                      {waTestStatus.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Traccar SMS Gateway */}
+              <div className={`${cardBg} p-5 rounded-2xl border space-y-4`}>
+                <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 ${dividerBorder}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                      <Radio className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-extrabold ${textPrimary}`}>
+                        Traccar SMS Gateway (Local Primary + Cloud Fallback)
+                      </h4>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Dispatches transactional SMS alerts alongside WhatsApp notifications
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-600">Configured</span>
+                </div>
+
+                {traccarSaveMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold">
+                    {traccarSaveMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handleSaveTraccarToken} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>
+                        Primary Local Endpoint
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={traccarLocalEndpoint}
+                        onChange={(e) => setTraccarLocalEndpointState(e.target.value)}
+                        className={`w-full border rounded-xl px-3.5 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>
+                        Primary Local Token
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={traccarLocalToken}
+                        onChange={(e) => setTraccarLocalTokenState(e.target.value)}
+                        className={`w-full border rounded-xl px-3.5 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>
+                      Cloud Fallback Token ({TRACCAR_SMS_ENDPOINT})
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={traccarToken}
+                        onChange={(e) => setTraccarTokenState(e.target.value)}
+                        className={`flex-1 min-w-[240px] border rounded-xl px-3.5 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                      <button
+                        type="submit"
+                        className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition cursor-pointer"
+                      >
+                        Save SMS Config
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetToOfficialKey}
+                        className={`px-3.5 py-2 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                          isDark
+                            ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                            : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        Reset Defaults
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                <div className={`${subtleBg} p-4 rounded-xl border space-y-2.5`}>
+                  <span className={`text-xs font-bold block ${textPrimary}`}>Test Live SMS Dispatch</span>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <span className={`absolute inset-y-0 left-0 pl-3 flex items-center text-xs font-bold ${textSecondary}`}>
+                        +91
+                      </span>
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        value={testPhone}
+                        onChange={(e) => setTestPhone(e.target.value.replace(/\D/g, ''))}
+                        className={`w-full border rounded-xl pl-11 pr-3 py-2 text-xs font-mono focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={testStatus.running}
+                      onClick={handleTestTraccarSms}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      {testStatus.running ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Testing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Send Test SMS</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {testStatus.message && (
+                    <div
+                      className={`p-2.5 rounded-lg text-xs font-medium ${
+                        testStatus.ok
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-800 border border-rose-200'
+                      }`}
+                    >
+                      {testStatus.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4. Ola Maps Platform Integration */}
+              <div className={`${cardBg} p-5 rounded-2xl border space-y-4`}>
+                <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-3 ${dividerBorder}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                      <Globe className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className={`text-sm font-extrabold ${textPrimary}`}>
+                        Ola Maps Platform Integration
+                      </h4>
+                      <p className={`text-xs ${textSecondary}`}>
+                        Powers Location Autocomplete &amp; Accurate Road KM Distance Calculation
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-600">Active &amp; Safeguarded</span>
+                </div>
+
+                {olaSaveMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold">
+                    {olaSaveMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handleSaveOlaMaps} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Ola Maps API Key</label>
+                      <input
+                        type="text"
+                        required
+                        value={olaApiKey}
+                        onChange={(e) => setOlaApiKey(e.target.value)}
+                        className={`w-full border rounded-xl px-3 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Client ID</label>
+                      <input
+                        type="text"
+                        value={olaClientId}
+                        onChange={(e) => setOlaClientId(e.target.value)}
+                        className={`w-full border rounded-xl px-3 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Client Secret</label>
+                      <input
+                        type="password"
+                        value={olaClientSecret}
+                        onChange={(e) => setOlaClientSecret(e.target.value)}
+                        className={`w-full border rounded-xl px-3 py-2 font-mono text-xs focus:outline-none ${inputBg}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition cursor-pointer"
+                    >
+                      Save Ola Maps Credentials
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetOlaMaps}
+                      className={`px-3.5 py-2 rounded-xl border font-bold text-xs transition cursor-pointer ${
+                        isDark
+                          ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                          : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                      }`}
                     >
                       Reset Defaults
                     </button>
+                    <button
+                      type="button"
+                      disabled={olaTestStatus.running}
+                      onClick={handleTestOlaMaps}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {olaTestStatus.running ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Testing...</span>
+                        </>
+                      ) : (
+                        <span>Test Ola Maps Connection</span>
+                      )}
+                    </button>
                   </div>
-                </div>
-              </form>
+                </form>
 
-              {/* Technical Specifications Card */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Primary Local Endpoint</span>
-                  <span className="font-mono text-emerald-400 font-bold break-all">{traccarLocalEndpoint}</span>
-                  <div className="text-[10px] text-slate-400 font-mono">Token: {traccarLocalToken}</div>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Automatic Cloud Fallback</span>
-                  <span className="font-mono text-amber-400 font-bold break-all">{TRACCAR_SMS_ENDPOINT}</span>
-                  <div className="text-[10px] text-slate-400">Used if Local IP is unreachable</div>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Payload Format</span>
-                  <span className="text-slate-300 font-mono text-[10px]">{`{ "to": "+91XXXXXXXXXX", "message": "..." }`}</span>
-                </div>
-              </div>
-
-              {/* Test Live SMS Tool */}
-              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-white block">Test Live Traccar SMS Dispatch (Local Service &rarr; Cloud Fallback)</span>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="relative flex-1">
-                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
-                      +91
-                    </span>
-                    <input
-                      type="tel"
-                      maxLength={10}
-                      value={testPhone}
-                      onChange={(e) => setTestPhone(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Enter mobile number to test"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-3 py-2 text-white text-xs focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={testStatus.running}
-                    onClick={handleTestTraccarSms}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5"
+                {olaTestStatus.message && (
+                  <div
+                    className={`p-3 rounded-xl text-xs font-medium ${
+                      olaTestStatus.ok
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}
                   >
-                    {testStatus.running ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Testing Local & Cloud...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Send Test Live SMS</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {testStatus.message && (
-                  <div className={`p-3 rounded-xl text-xs font-medium space-y-2 ${
-                    testStatus.ok 
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                      : 'bg-rose-500/10 text-rose-300 border border-rose-500/30'
-                  }`}>
-                    <div className="font-bold">
-                      {testStatus.ok ? '✓ Traccar SMS Gateway Delivered:' : '⚠️ Traccar SMS Gateway Diagnostic Log:'}
-                    </div>
-                    <div>{testStatus.message}</div>
-                    {testStatus.rawResponse && (
-                      <pre className="p-2.5 bg-slate-950 rounded-lg border border-slate-800 text-[10px] font-mono text-amber-300 overflow-x-auto whitespace-pre-wrap">
-                        {typeof testStatus.rawResponse === 'string'
-                          ? testStatus.rawResponse
-                          : JSON.stringify(testStatus.rawResponse, null, 2)}
-                      </pre>
-                    )}
+                    {olaTestStatus.message}
                   </div>
                 )}
               </div>
             </div>
+          )}
 
-            {/* OLA MAPS API INTEGRATION CARD */}
-            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-900 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                    <Globe className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-white">
-                      Ola Maps Platform Integration
-                    </h4>
-                    <p className="text-xs text-slate-400">
-                      Exact Location Search (Autocomplete) & Accurate Road KM Driving Distance / Dynamic Fare
-                    </p>
-                  </div>
+          {/* TAB 4: SECURITY PIN */}
+          {activeTab === 'security' && (
+            <div className={`max-w-md mx-auto ${cardBg} p-6 rounded-2xl border space-y-5`}>
+              <div className="text-center space-y-1.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                  <KeyRound className="w-6 h-6" />
                 </div>
-                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                  Active & Safeguarded
-                </span>
-              </div>
-
-              {olaSaveMsg && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-bold">
-                  {olaSaveMsg}
-                </div>
-              )}
-
-              <form onSubmit={handleSaveOlaMaps} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Ola Maps API Key
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={olaApiKey}
-                      onChange={(e) => setOlaApiKey(e.target.value)}
-                      placeholder="Paste Ola Maps API Key"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Client ID
-                    </label>
-                    <input
-                      type="text"
-                      value={olaClientId}
-                      onChange={(e) => setOlaClientId(e.target.value)}
-                      placeholder="Ola Maps Client ID"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Client Secret
-                    </label>
-                    <input
-                      type="password"
-                      value={olaClientSecret}
-                      onChange={(e) => setOlaClientSecret(e.target.value)}
-                      placeholder="Ola Maps Client Secret"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
-                  >
-                    Save Ola Maps Credentials
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResetOlaMaps}
-                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition"
-                  >
-                    Reset to Default Credentials
-                  </button>
-                  <button
-                    type="button"
-                    disabled={olaTestStatus.running}
-                    onClick={handleTestOlaMaps}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-emerald-400 font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-emerald-500/30"
-                  >
-                    {olaTestStatus.running ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Testing Connection...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Test Ola Maps Connection</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-
-              {olaTestStatus.message && (
-                <div className={`p-3 rounded-xl text-xs font-medium ${
-                  olaTestStatus.ok
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                }`}>
-                  <div className="font-bold">{olaTestStatus.ok ? 'Ola Maps Connected:' : 'Ola Maps Diagnostic:'}</div>
-                  <div className="mt-0.5">{olaTestStatus.message}</div>
-                </div>
-              )}
-
-              {/* Technical Specifications Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-900/90 rounded-2xl border border-slate-800 text-[11px]">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">1. Autocomplete API</span>
-                  <span className="font-mono text-emerald-400 font-bold">places/v1/autocomplete</span>
-                  <div className="text-[10px] text-slate-400">Pickup & Drop location suggestions</div>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">2. Driving Directions</span>
-                  <span className="font-mono text-emerald-400 font-bold">routing/v1/directions</span>
-                  <div className="text-[10px] text-slate-400">Exact highway road driving distance & travel time</div>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold block">3. Fallback Engine</span>
-                  <span className="font-mono text-emerald-400 font-bold">National Highway Matrix</span>
-                  <div className="text-[10px] text-slate-400">Ensures 100% booking continuity even if offline</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Zero Cost Free APIs Architecture Card */}
-            <div className="bg-slate-950 p-5 rounded-3xl border border-slate-800 space-y-4">
-              <div className="border-b border-slate-900 pb-3">
-                <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>100% Zero Monthly Cost Solutions (Permanent Savings)</span>
-                </h4>
-                <p className="text-xs text-slate-400">
-                  You requested to avoid expensive Google Maps and Meta WhatsApp APIs. Here is how your website achieves top performance for ₹0:
+                <h3 className={`text-base font-extrabold ${textPrimary}`}>Change Owner Access PIN</h3>
+                <p className={`text-xs ${textSecondary}`}>
+                  Update your confidential 4-digit PIN used to unlock this dashboard
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-emerald-400">OpenStreetMap & OSRM Engine</span>
-                    <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-[10px]">₹0 Free Forever</span>
-                  </div>
-                  <p className="text-slate-300 text-[11px] leading-relaxed">
-                    Instead of paying Google Maps $200+/month with mandatory foreign credit card billing, we use open highway coordinates and OSRM distance engine covering 80+ Indian cities and major airport hubs.
-                  </p>
-                  <div className="text-[10px] text-slate-500 font-medium">✓ No Google billing · No monthly quotas · Instant calculation</div>
+              {pinChangeMsg && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs text-center font-bold">
+                  {pinChangeMsg}
+                </div>
+              )}
+
+              {pinErrorMsg && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs text-center font-bold">
+                  {pinErrorMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleUpdatePin} className="space-y-4">
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>New 4-Digit PIN</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    required
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                    placeholder="••••"
+                    className={`w-full text-center tracking-[0.5em] text-xl font-black border rounded-xl py-2.5 font-mono focus:outline-none ${inputBg}`}
+                  />
                 </div>
 
-                <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-emerald-400">WhatsApp Click-to-Chat (wa.me)</span>
-                    <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold text-[10px]">₹0 Free Forever</span>
-                  </div>
-                  <p className="text-slate-300 text-[11px] leading-relaxed">
-                    Instead of paying Meta WhatsApp Business APIs (which charge ₹0.40 - ₹0.80 per message plus ₹2,000/month SaaS platforms like Interakt/Wati), we generate auto-filled dispatch messages directly to your number (+91 7710080992) for FREE.
-                  </p>
-                  <div className="text-[10px] text-slate-500 font-medium">✓ Auto-filled voucher · Direct to owner · Zero platform fees</div>
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Confirm 4-Digit PIN</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    required
+                    value={confirmPin}
+                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                    placeholder="••••"
+                    className={`w-full text-center tracking-[0.5em] text-xl font-black border rounded-xl py-2.5 font-mono focus:outline-none ${inputBg}`}
+                  />
                 </div>
-              </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition cursor-pointer"
+                >
+                  Save New Owner PIN
+                </button>
+              </form>
             </div>
-
-          </div>
-        )}
-
-        {/* Tab 4: Security & PIN Management */}
-        {activeTab === 'security' && (
-          <div className="max-w-md mx-auto bg-slate-950 p-6 rounded-3xl border border-slate-800 space-y-4">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-amber-400/10 text-amber-400 flex items-center justify-center mx-auto border border-amber-400/20">
-                <KeyRound className="w-6 h-6" />
-              </div>
-              <h4 className="text-base font-extrabold text-white">Change Owner Access PIN</h4>
-              <p className="text-xs text-slate-400">Set a confidential 4-digit PIN for your control center</p>
-            </div>
-
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-[11px] text-slate-400 leading-relaxed">
-              <span className="font-bold text-amber-400 block mb-0.5">Strict Confidentiality Notice:</span>
-              Your Owner PIN is never displayed, hinted, or suggested anywhere on the public website. Only someone who enters your secret PIN can access customer records or dispatch bookings.
-            </div>
-
-            {pinChangeMsg && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs text-center font-bold">
-                {pinChangeMsg}
-              </div>
-            )}
-
-            {pinErrorMsg && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs text-center font-bold">
-                {pinErrorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleUpdatePin} className="space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">New 4-Digit PIN</label>
-                <input
-                  type="password"
-                  maxLength={4}
-                  required
-                  value={newPin}
-                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••"
-                  className="w-full text-center tracking-[0.5em] text-xl font-black bg-slate-900 border border-slate-800 rounded-xl py-2.5 text-amber-400 font-mono focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Confirm 4-Digit PIN</label>
-                <input
-                  type="password"
-                  maxLength={4}
-                  required
-                  value={confirmPin}
-                  onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="••••"
-                  className="w-full text-center tracking-[0.5em] text-xl font-black bg-slate-900 border border-slate-800 rounded-xl py-2.5 text-amber-400 font-mono focus:outline-none focus:border-amber-400"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition"
-              >
-                Save New PIN
-              </button>
-            </form>
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
 
       {/* Driver Assignment Modal */}
       {selectedBookingForDriver && (
-        <div className="fixed inset-0 bg-slate-950/90 z-60 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-60 flex items-center justify-center p-4">
+          <div className={`${cardBg} border rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-4`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${dividerBorder}`}>
               <div>
-                <h4 className="text-base font-bold text-white">Assign Driver & Vehicle</h4>
-                <p className="text-xs text-amber-400 font-medium">Booking #{selectedBookingForDriver.id} · {selectedBookingForDriver.customerName}</p>
+                <h4 className={`text-base font-extrabold ${textPrimary}`}>Assign Chauffeur &amp; Cab</h4>
+                <p className="text-xs text-amber-600 font-bold">
+                  Booking #{selectedBookingForDriver.id} · {selectedBookingForDriver.customerName}
+                </p>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedBookingForDriver(null)}
-                className="text-slate-400 hover:text-white"
+                className={`p-1.5 rounded-xl border ${subtleBg} ${textSecondary}`}
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {driverSmsSuccessNotice && (
-              <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold text-center flex items-center justify-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold text-center flex items-center justify-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>{driverSmsSuccessNotice}</span>
               </div>
             )}
 
             <form onSubmit={handleSaveDriver} className="space-y-3.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Full Name *</label>
+                <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Driver Full Name *</label>
                 <input
                   type="text"
                   required
                   value={driverName}
                   onChange={(e) => setDriverName(e.target.value)}
                   placeholder="e.g. Ramesh Kumar"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-medium"
+                  className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none ${inputBg}`}
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Driver Mobile Number *</label>
+                <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Driver Mobile Number *</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-xs text-slate-500 font-bold">
+                  <span className={`absolute inset-y-0 left-0 pl-3 flex items-center text-xs font-bold ${textSecondary}`}>
                     +91
                   </span>
                   <input
@@ -1548,135 +1698,119 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     value={driverPhone}
                     onChange={(e) => setDriverPhone(e.target.value.replace(/\D/g, ''))}
                     placeholder="9876543210"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-11 pr-3 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-mono font-bold"
+                    className={`w-full border rounded-xl pl-11 pr-3 py-2.5 text-xs font-mono font-bold focus:outline-none ${inputBg}`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Make / Model (e.g. Swift Dzire, Ertiga) *</label>
+                <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>
+                  Vehicle Make / Model *
+                </label>
                 <input
                   type="text"
                   required
                   value={driverVehicleModel}
                   onChange={(e) => setDriverVehicleModel(e.target.value)}
-                  placeholder="e.g. Swift Dzire / Ertiga / Innova Crysta"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-medium"
+                  placeholder="e.g. Maruti Dzire / Ertiga / Innova Crysta"
+                  className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-medium focus:outline-none ${inputBg}`}
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Vehicle Registration Number (e.g. DL 01 AB 1234) *</label>
+                <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>
+                  Vehicle Registration Number *
+                </label>
                 <input
                   type="text"
                   required
                   value={driverCarPlate}
                   onChange={(e) => setDriverCarPlate(e.target.value.toUpperCase())}
                   placeholder="e.g. DL 01 AB 1234"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white text-xs focus:outline-none focus:border-amber-400 font-mono font-bold uppercase tracking-wider"
+                  className={`w-full border rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold uppercase tracking-wider focus:outline-none ${inputBg}`}
                 />
               </div>
 
-              {/* Automatic WhatsApp Cloud API + SMS Notice */}
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-[11px] text-emerald-300 space-y-1">
-                <div className="font-bold flex items-center gap-1.5 text-emerald-400">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Automated WhatsApp Cloud API + SMS Dual Dispatch</span>
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-emerald-800">
+                  <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Automatic WhatsApp &amp; SMS Dispatch</span>
                 </div>
-                <p className="text-slate-300 text-[10px] leading-relaxed">
-                  Clicking below will automatically send on <strong>WhatsApp & SMS</strong>:<br />
-                  1️⃣ <strong>Driver (+91 {driverPhone || 'Driver'})</strong>: <em>"SafarIndiaCabs Driver Partner {driverName || 'Driver'}, your Pickup is confirmed! Please timely complete the trip"</em> + full trip details.<br />
-                  2️⃣ <strong>Customer (+91 {selectedBookingForDriver.customerPhone})</strong>: Complete Driver Name, Phone, Vehicle Model & Number ({driverCarPlate || 'Reg No'}).
+                <p className="text-emerald-700 leading-relaxed">
+                  Assigning will automatically send trip duty details to Driver (+91 {driverPhone || 'Driver'}) and cab/chauffeur details to Customer (+91 {selectedBookingForDriver.customerPhone}).
                 </p>
               </div>
 
-              <div className="space-y-2 pt-2">
+              <div className="space-y-2 pt-1">
                 <button
                   type="submit"
                   disabled={isSendingDriverSms}
-                  className="w-full py-3 bg-amber-400 hover:bg-amber-300 disabled:opacity-60 text-slate-950 rounded-xl text-xs sm:text-sm font-black shadow-md flex items-center justify-center gap-2 transition cursor-pointer active:scale-95"
+                  className="w-full py-3 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 rounded-xl text-xs font-black shadow-xs flex items-center justify-center gap-2 transition cursor-pointer"
                 >
                   {isSendingDriverSms ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                      <span>Sending WhatsApp & SMS to Driver & Customer...</span>
+                      <span>Dispatching Alerts...</span>
                     </>
                   ) : (
                     <>
                       <Car className="w-4 h-4 text-slate-950" />
-                      <span>Assign Driver & Send WhatsApp + SMS</span>
+                      <span>Assign Driver &amp; Send WhatsApp + SMS</span>
                     </>
                   )}
                 </button>
 
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cleanId = String(selectedBookingForDriver.id).replace(/^#/, '');
-                      const driverDispatchText =
-                        `🚖 *SafarIndiaCabs Driver Partner ${driverName || 'Partner'}*\n\n` +
-                        `Your Pickup is confirmed! Please timely complete the trip.\n\n` +
-                        `📋 *Complete Trip Info:*\n` +
-                        `• Booking ID: *#${cleanId}*\n` +
-                        `• Customer Name: *${selectedBookingForDriver.customerName}*\n` +
-                        `• Customer Mobile: *+91 ${selectedBookingForDriver.customerPhone}*\n` +
-                        `• Pickup Location: *${selectedBookingForDriver.pickupCity}*\n` +
-                        `• Drop Location: *${selectedBookingForDriver.dropCity}*\n` +
-                        `• Pickup Date & Time: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n` +
-                        `• Assigned Vehicle: *${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Assigned'})*\n` +
-                        `• Collect Balance at Drop: *₹${selectedBookingForDriver.balanceDue}*\n\n` +
-                        `Please contact the customer promptly. Drive safely!`;
+                  <a
+                    href={buildWhatsAppSchemeUrl(
+                      `🚖 *SafarIndiaCabs Driver Partner ${driverName || 'Partner'}*\n\nYour Pickup is confirmed! Please timely complete the trip.\n\n• Booking ID: *#${String(selectedBookingForDriver.id).replace(/^#/, '')}*\n• Customer: *${selectedBookingForDriver.customerName}* (+91 ${selectedBookingForDriver.customerPhone})\n• Route: *${selectedBookingForDriver.pickupCity}* to *${selectedBookingForDriver.dropCity}*\n• Pickup: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n• Vehicle: *${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Assigned'})*\n• Collect Balance at Drop: *₹${selectedBookingForDriver.balanceDue}*`,
+                      sanitize10DigitPhone(driverPhone)
+                    )}
+                    onClick={(e) => {
                       const targetPhone = sanitize10DigitPhone(driverPhone);
                       if (targetPhone.length === 10) {
-                        window.open(`https://wa.me/91${targetPhone}?text=${encodeURIComponent(driverDispatchText)}`, '_blank');
+                        triggerWhatsAppDeepLink(
+                          e,
+                          `🚖 *SafarIndiaCabs Driver Partner ${driverName || 'Partner'}*\n\nYour Pickup is confirmed! Please timely complete the trip.\n\n• Booking ID: *#${String(selectedBookingForDriver.id).replace(/^#/, '')}*\n• Customer: *${selectedBookingForDriver.customerName}* (+91 ${selectedBookingForDriver.customerPhone})\n• Route: *${selectedBookingForDriver.pickupCity}* to *${selectedBookingForDriver.dropCity}*\n• Pickup: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n• Vehicle: *${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Assigned'})*\n• Collect Balance at Drop: *₹${selectedBookingForDriver.balanceDue}*`,
+                          targetPhone
+                        );
+                      } else {
+                        e.preventDefault();
                       }
                     }}
-                    className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                    className="flex-1 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
                     <span>WhatsApp Driver</span>
-                  </button>
+                  </a>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cleanId = String(selectedBookingForDriver.id).replace(/^#/, '');
-                      const dispatchText = 
-                        `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\n` +
-                        `Hello *${selectedBookingForDriver.customerName}*, your ride is ready. Here are your complete driver & vehicle details:\n\n` +
-                        `👨‍✈️ *Driver Name:* ${driverName || 'Assigned'}\n` +
-                        `📞 *Driver Contact:* +91 ${driverPhone || 'Shared'}\n` +
-                        `🚙 *Vehicle Model:* ${driverVehicleModel || selectedBookingForDriver.cabName}\n` +
-                        `🔢 *Vehicle Number:* ${driverCarPlate || 'Allocated'}\n\n` +
-                        `📋 *Trip Details:*\n` +
-                        `• Booking ID: *#${cleanId}*\n` +
-                        `• Route: *${selectedBookingForDriver.pickupCity}* ➔ *${selectedBookingForDriver.dropCity}*\n` +
-                        `• Date & Time: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n` +
-                        `• Balance Payable: *₹${selectedBookingForDriver.balanceDue}*\n\n` +
-                        `📞 24/7 Helpline: +91 7710080992`;
-                      window.open(`https://wa.me/91${selectedBookingForDriver.customerPhone}?text=${encodeURIComponent(dispatchText)}`, '_blank');
-                    }}
-                    className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                  <a
+                    href={buildWhatsAppSchemeUrl(
+                      `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\nHello *${selectedBookingForDriver.customerName}*, your ride is ready:\n\n👨‍✈️ *Driver:* ${driverName || 'Assigned'} (+91 ${driverPhone || 'Shared'})\n🚙 *Vehicle:* ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n📋 *Booking ID:* #${String(selectedBookingForDriver.id).replace(/^#/, '')}\n📍 *Route:* ${selectedBookingForDriver.pickupCity} ➔ ${selectedBookingForDriver.dropCity}\n💰 *Balance Payable:* ₹${selectedBookingForDriver.balanceDue}`,
+                      selectedBookingForDriver.customerPhone
+                    )}
+                    onClick={(e) =>
+                      triggerWhatsAppDeepLink(
+                        e,
+                        `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\nHello *${selectedBookingForDriver.customerName}*, your ride is ready:\n\n👨‍✈️ *Driver:* ${driverName || 'Assigned'} (+91 ${driverPhone || 'Shared'})\n🚙 *Vehicle:* ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n📋 *Booking ID:* #${String(selectedBookingForDriver.id).replace(/^#/, '')}\n📍 *Route:* ${selectedBookingForDriver.pickupCity} ➔ ${selectedBookingForDriver.dropCity}\n💰 *Balance Payable:* ₹${selectedBookingForDriver.balanceDue}`,
+                        selectedBookingForDriver.customerPhone
+                      )
+                    }
+                    className={`flex-1 py-2 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      isDark
+                        ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                        : 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200'
+                    }`}
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
                     <span>WhatsApp Customer</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBookingForDriver(null)}
-                    className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition"
-                  >
-                    Close
-                  </button>
+                  </a>
                 </div>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 };
