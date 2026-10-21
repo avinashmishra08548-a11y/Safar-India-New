@@ -17,7 +17,9 @@ import {
   ArrowRight,
   Shield,
   User,
-  LogOut
+  LogOut,
+  Info,
+  HelpCircle
 } from 'lucide-react';
 import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
@@ -26,7 +28,7 @@ import { computeTripFare, FareCalculationResult } from './utils/fareCalculator';
 import { calculateExactRoadDistance, Coordinates } from './utils/olaMapsService';
 import { sanitize10DigitPhone } from './utils/smsService';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsapp';
-import { Header } from './components/Header';
+import { Header, NavTabId } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
 import { BookingModal } from './components/BookingModal';
@@ -41,12 +43,18 @@ import { DriverPartnerSection } from './components/DriverPartnerSection';
 import { DriverPartnerModal } from './components/DriverPartnerModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
+import { AboutSectionView, HelpSupportView } from './components/AboutAndHelpViews';
 import cabsFleetShowcaseImg from './assets/images/cabs_fleet_showcase_1792165620669.jpg';
 import heroCabsIntercityImg from './assets/images/hero_cabs_intercity_1792165620723.jpg';
 
 export default function App() {
-  // Navigation tabs: 'booking' | 'rides' | 'routes' | 'faq'
-  const [activeTab, setActiveTab] = useState<'booking' | 'rides' | 'routes' | 'faq'>('booking');
+  // Navigation tabs: 'booking' | 'routes' | 'rides' | 'about' | 'help'
+  const [activeTab, setActiveTab] = useState<NavTabId>('booking');
+
+  const handleSwitchTab = (tab: NavTabId) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Customer Authentication state
   const [currentUser, setCurrentUser] = useState<CustomerUser | null>(() => {
@@ -480,14 +488,7 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
-        onNavigateTab={(tab) => {
-          setActiveTab(tab);
-          if (tab === 'routes') {
-            document.getElementById('popular-routes-section')?.scrollIntoView({ behavior: 'smooth' });
-          } else if (tab === 'faq') {
-            document.getElementById('faq-section')?.scrollIntoView({ behavior: 'smooth' });
-          }
-        }}
+        onNavigateTab={handleSwitchTab}
         activeNavTab={activeTab}
         onOpenAdmin={() => setIsAdminPinModalOpen(true)}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
@@ -496,9 +497,8 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 pb-28 sm:pb-16">
         
-        {/* If Active Tab is 'rides', show the My Bookings view full screen */}
         {activeTab === 'rides' ? (
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-in fade-in">
             <MyBookingsView
               currentUser={currentUser}
               bookings={currentUserBookings}
@@ -508,9 +508,46 @@ export default function App() {
               }}
               onSelectBookingForInvoice={(b) => setActiveVoucherBooking(b)}
               onCancelBooking={handleCancelBooking}
-              onNavigateToBooking={() => setActiveTab('booking')}
+              onNavigateToBooking={() => handleSwitchTab('booking')}
             />
           </div>
+        ) : activeTab === 'routes' ? (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-10 animate-in fade-in">
+            <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+              <div className="space-y-1.5">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400">
+                  150+ Fixed-Fare Intercity Corridors
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+                  Popular One-Way &amp; Outstation Routes
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
+                  Tap any route below to instantly load pickup &amp; drop cities and view available AC Sedan, SUV, and Innova Crysta fares.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSwitchTab('booking')}
+                className="px-5 py-3 rounded-2xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs sm:text-sm shrink-0 transition active:scale-95 cursor-pointer"
+              >
+                Custom Route Search →
+              </button>
+            </div>
+
+            <PopularRoutesSection onSelectRoute={handlePopularRouteClick} />
+            <DriverPartnerSection onOpenPartnerModal={() => setIsDriverPartnerOpen(true)} />
+          </div>
+        ) : activeTab === 'about' ? (
+          <AboutSectionView
+            onNavigateToBooking={() => handleSwitchTab('booking')}
+            onNavigateToRoutes={() => handleSwitchTab('routes')}
+            onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
+          />
+        ) : activeTab === 'help' ? (
+          <HelpSupportView
+            onNavigateToBooking={() => handleSwitchTab('booking')}
+            onNavigateToRides={() => handleSwitchTab('rides')}
+          />
         ) : (
           <div className="space-y-14 sm:space-y-20">
             
@@ -688,88 +725,47 @@ export default function App() {
       </div>
 
       {/* Mobile Bottom Navigation Bar: Fixed at bottom: 50px !important above AppsGeyser Ad Banner */}
-      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[50px] left-0 right-0 w-full bg-white border-t border-slate-200 z-[999999] px-2 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <nav className="fixed-bottom bottom-nav sm:hidden fixed bottom-[50px] left-0 right-0 w-full bg-white/95 backdrop-blur-md border-t border-slate-200 z-[999999] px-1.5 py-1 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         <div className="grid grid-cols-5 text-center items-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('booking');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className={`flex flex-col items-center justify-center py-1 text-[11px] leading-tight transition active:scale-95 whitespace-nowrap ${
-              activeTab === 'booking' ? 'text-[#B45309] font-extrabold' : 'text-slate-700 hover:text-slate-950 font-semibold'
-            }`}
-          >
-            <Car className={`w-5 h-5 mb-0.5 shrink-0 ${activeTab === 'booking' ? 'text-[#D97706]' : 'text-slate-800'}`} />
-            <span>Book Cab</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('booking');
-              setTimeout(() => {
-                const el = document.getElementById('popular-routes-section');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }, 120);
-            }}
-            className={`flex flex-col items-center justify-center py-1 text-[11px] leading-tight transition active:scale-95 whitespace-nowrap ${
-              activeTab === 'routes' ? 'text-[#B45309] font-extrabold' : 'text-slate-700 hover:text-slate-950 font-semibold'
-            }`}
-          >
-            <MapPin className="w-5 h-5 mb-0.5 shrink-0 text-slate-800" />
-            <span>Routes</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('rides')}
-            className={`flex flex-col items-center justify-center py-1 text-[11px] leading-tight transition active:scale-95 whitespace-nowrap ${
-              activeTab === 'rides' ? 'text-[#B45309] font-extrabold' : 'text-slate-700 hover:text-slate-950 font-semibold'
-            }`}
-          >
-            <Clock className="w-5 h-5 mb-0.5 shrink-0 text-slate-800" />
-            <span>Rides</span>
-          </button>
-
-          {/* Customer Login / Profile Button in Cream Rounded Box */}
-          {currentUser ? (
-            <button
-              type="button"
-              onClick={() => setIsCustomerProfileOpen(true)}
-              className="flex flex-col items-center justify-center py-1.5 px-2 text-[11px] leading-tight font-extrabold text-slate-950 bg-[#FEF3C7] rounded-2xl transition active:scale-95 whitespace-nowrap"
-            >
-              <User className="w-5 h-5 mb-0.5 text-slate-950 shrink-0" />
-              <span className="truncate max-w-[54px]">{currentUser.name.split(' ')[0]}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setAuthPrompt('');
-                setIsAuthModalOpen(true);
-              }}
-              className="flex flex-col items-center justify-center py-1.5 px-2 text-[11px] leading-tight font-extrabold text-slate-950 bg-[#FEF3C7] rounded-2xl transition active:scale-95 whitespace-nowrap"
-            >
-              <User className="w-5 h-5 mb-0.5 text-slate-950 shrink-0" />
-              <span>Login</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsAdminPinModalOpen(true)}
-            className="flex flex-col items-center justify-center py-1 text-[11px] leading-tight font-semibold text-slate-700 hover:text-slate-950 transition active:scale-95 whitespace-nowrap"
-          >
-            <Shield className="w-5 h-5 mb-0.5 text-slate-800 shrink-0" />
-            <span>Owner</span>
-          </button>
+          {[
+            { id: 'booking' as NavTabId, label: 'Book Cab', icon: Car },
+            { id: 'routes' as NavTabId, label: 'Routes', icon: MapPin },
+            { id: 'rides' as NavTabId, label: 'My Rides', icon: Clock },
+            { id: 'about' as NavTabId, label: 'About', icon: Info },
+            { id: 'help' as NavTabId, label: 'Help', icon: HelpCircle }
+          ].map((tabItem) => {
+            const isActive = activeTab === tabItem.id;
+            const IconComp = tabItem.icon;
+            return (
+              <button
+                key={tabItem.id}
+                type="button"
+                onClick={() => handleSwitchTab(tabItem.id)}
+                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[11px] leading-tight transition-all active:scale-95 whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? 'bg-amber-400/20 text-slate-950 font-black shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-950 font-semibold'
+                }`}
+              >
+                {isActive && (
+                  <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-1 rounded-full bg-amber-500" />
+                )}
+                <IconComp
+                  className={`w-5 h-5 mb-0.5 shrink-0 transition-transform ${
+                    isActive ? 'text-amber-600 scale-105 stroke-[2.4]' : 'text-slate-600'
+                  }`}
+                />
+                <span>{tabItem.label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
 
-      {/* Footer with Owner Portal link & Driver Partner */}
-      <Footer 
-        onOpenAdmin={() => setIsAdminPinModalOpen(true)}
+      {/* Footer with Interactive Section Switcher & Updated Official Contacts (Owner Portal Removed) */}
+      <Footer
+        activeNavTab={activeTab}
+        onNavigateTab={handleSwitchTab}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
         onSelectRoute={(from, to) => {
           setTripType('oneway');
