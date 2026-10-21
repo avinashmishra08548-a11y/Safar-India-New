@@ -13,10 +13,8 @@ import { CustomerUser } from '../types';
 import {
   requestServerOtp,
   verifyServerOtp,
-  retriggerWhatsAppOtpFromToken,
   sanitize10DigitPhone
 } from '../utils/smsService';
-import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
 
 interface CustomerAuthModalProps {
   isOpen: boolean;
@@ -44,61 +42,24 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
   const [smsDeliveryInfo, setSmsDeliveryInfo] = useState('');
-  const prewarmedPhoneRef = useRef<string>('');
+
+  const sendingLockRef = useRef<boolean>(false);
   const otpInputRef = useRef<HTMLInputElement>(null);
 
+  // Countdown timer for Resend OTP (prevents repeated accidental OTP dispatches)
   useEffect(() => {
-    let timer: any;
-    if (resendSeconds > 0) {
-      timer = setTimeout(() => setResendSeconds(resendSeconds - 1), 1000);
-    }
+    if (resendSeconds <= 0) return;
+    const timer = setTimeout(() => setResendSeconds((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearTimeout(timer);
   }, [resendSeconds]);
 
-  // Pre-queue live OTP on the server as soon as 10 digits are entered so "Click Here to Get OTP" works instantaneously
+  // Reset modal state cleanly when opened
   useEffect(() => {
-    if (!isOpen) return;
-    const clean = sanitize10DigitPhone(phone);
-    if (clean.length === 10 && prewarmedPhoneRef.current !== clean) {
-      prewarmedPhoneRef.current = clean;
-      requestServerOtp(clean)
-        .then((res) => {
-          if (res.success && res.token) {
-            setOtpToken(res.token);
-            setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
-          }
-        })
-        .catch(() => {});
+    if (isOpen) {
+      setErrorMsg('');
+      sendingLockRef.current = false;
     }
-  }, [isOpen, phone]);
-
-  // Automatically flush live WhatsApp OTP while waiting for OTP & when user returns from WhatsApp chat
-  useEffect(() => {
-    const cleanPhone = sanitize10DigitPhone(phone);
-    if (!isOpen || cleanPhone.length !== 10 || !otpRequested) return;
-
-    const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {});
-      }
-    };
-
-    const t1 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 2500);
-    const t2 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 6000);
-    const t3 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 10000);
-    const t4 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 15000);
-
-    window.addEventListener('focus', handleVisibilityOrFocus);
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-    };
-  }, [isOpen, otpRequested, phone, otpToken]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -106,99 +67,71 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     const clean = sanitize10DigitPhone(val);
     setPhone(clean);
     setErrorMsg('');
+
+    // If phone number changes after requesting OTP, reset OTP session for the new number
     if (clean.length < 10) {
+      setOtpRequested(false);
+      setOtpToken('');
       setSmsDeliveryInfo('');
+      setResendSeconds(0);
+    } else if (clean.length === 10) {
+      // Auto-fill returning customer's saved name if available
+      try {
+        const raw = localStorage.getItem('safar_registered_customers');
+        const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
+        const existing = list.find((u) => sanitize10DigitPhone(u.phone) === clean);
+        if (existing?.name && !name.trim()) {
+          setName(existing.name);
+        }
+      } catch {}
     }
   };
 
-  // Direct "Click Here to Get OTP" handler right below the number box
-  const handleClickHereToGetOtp = async () => {
+  // Single-dispatch "Get OTP on WhatsApp" handler — sends strictly 1 OTP to the customer's entered number
+  const handleGetOtpOnWhatsApp = async (isResend: boolean = false) => {
     const cleanPhone = sanitize10DigitPhone(phone);
     if (cleanPhone.length !== 10) {
-      setErrorMsg('Please enter your 10-digit WhatsApp mobile number first');
+      setErrorMsg('Please enter your valid 10-digit WhatsApp mobile number first.');
       return;
     }
 
-    // Immediately show OTP Input & Submit button first so UI never waits or blocks
+    // Block concurrent or cooldown clicks so multiple OTPs are never sent
+    if (sendingLockRef.current || isSending) return;
+    if (isResend && resendSeconds > 0) return;
+    if (!isResend && otpRequested && resendSeconds > 0 && otpToken) {
+      otpInputRef.current?.focus();
+      return;
+    }
+
+    sendingLockRef.current = true;
+    setIsSending(true);
     setErrorMsg('');
     setOtpRequested(true);
     setFailedAttempts(0);
-    setSmsDeliveryInfo(`Live OTP dispatched to your WhatsApp (+91 ${cleanPhone}). Enter the 4-digit OTP below & click Submit.`);
-    setResendSeconds(25);
-    setTimeout(() => otpInputRef.current?.focus(), 100);
-
-    // Trigger WhatsApp bot link safely
-    triggerWhatsAppDeepLink(
-      '919142526791',
-      `Hi Safar India Cabs, please send my Login OTP for +91 ${cleanPhone}`
-    );
-
-    setIsSending(true);
-    try {
-      if (!otpToken || prewarmedPhoneRef.current !== cleanPhone) {
-        const res = await requestServerOtp(cleanPhone);
-        if (res.success && res.token) {
-          setOtpToken(res.token);
-          setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
-        }
-      } else {
-        retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {});
-      }
-    } catch {}
-    setIsSending(false);
-  };
-
-  const handleSendOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cleanPhone = sanitize10DigitPhone(phone);
-    if (cleanPhone.length !== 10) {
-      setErrorMsg('Please enter a valid 10-digit WhatsApp mobile number');
-      return;
-    }
-
-    // Immediately reveal the OTP input & Submit button
-    setOtpRequested(true);
-    setIsSending(true);
-    setErrorMsg('');
 
     try {
-      const res = await requestServerOtp(cleanPhone);
-      setIsSending(false);
+      const res = await requestServerOtp(cleanPhone, {
+        forceNew: isResend,
+        customerName: name.trim() || 'Traveler'
+      });
 
       if (res.success && res.token) {
         setOtpToken(res.token);
         setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
-        setFailedAttempts(0);
-        setSmsDeliveryInfo(`Live OTP sent to your WhatsApp (+91 ${cleanPhone}). Enter the 4-digit OTP below.`);
-        setResendSeconds(25);
-        setTimeout(() => otpInputRef.current?.focus(), 100);
+        if (isResend) setOtp('');
+        setSmsDeliveryInfo(
+          `4-digit OTP sent to your WhatsApp number +91 ${cleanPhone}. Please enter it below.`
+        );
+        setResendSeconds(30);
+        setTimeout(() => otpInputRef.current?.focus(), 80);
       } else {
-        setErrorMsg(res.message || 'Unable to dispatch OTP. Please tap Click Here to Get OTP.');
+        setErrorMsg(res.message || 'Could not send OTP right now. Please try again.');
       }
     } catch {
+      setErrorMsg('Network issue while sending OTP. Please try again.');
+    } finally {
       setIsSending(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (resendSeconds > 0) return;
-    const cleanPhone = sanitize10DigitPhone(phone);
-    if (cleanPhone.length !== 10) return;
-    setIsSending(true);
-    setErrorMsg('');
-
-    const res = await requestServerOtp(cleanPhone);
-    setIsSending(false);
-
-    if (res.success && res.token) {
-      setOtpToken(res.token);
-      setOtpExpiresAt(res.expiresAt || Date.now() + 10 * 60 * 1000);
-      setFailedAttempts(0);
-      setOtp('');
-      setSmsDeliveryInfo(`Fresh live OTP sent to your WhatsApp (+91 ${cleanPhone})`);
-      setResendSeconds(25);
-    } else {
-      setErrorMsg(res.message || 'Unable to resend OTP. Please tap Click Here to Get OTP.');
+      sendingLockRef.current = false;
     }
   };
 
@@ -211,26 +144,33 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
-    if (!otp || otp.trim().length !== 4) {
-      setErrorMsg('Please enter the 4-digit OTP received on your WhatsApp.');
+    // If user pressed Enter before requesting OTP, trigger Get OTP first
+    if (!otpRequested || !otpToken) {
+      await handleGetOtpOnWhatsApp(false);
+      return;
+    }
+
+    const cleanOtp = otp.replace(/\D/g, '').trim();
+    if (cleanOtp.length !== 4) {
+      setErrorMsg('Please enter the 4-digit OTP sent to your WhatsApp.');
       otpInputRef.current?.focus();
       return;
     }
 
     if (otpExpiresAt > 0 && Date.now() > otpExpiresAt) {
-      setErrorMsg('Verification code has expired. Please tap Click Here to Get OTP.');
+      setErrorMsg('OTP has expired. Please click "Resend OTP" to get a fresh code.');
       return;
     }
 
     if (failedAttempts >= 5) {
-      setErrorMsg('Too many invalid attempts. Please tap Click Here to Get OTP for a fresh code.');
+      setErrorMsg('Too many incorrect attempts. Please click "Resend OTP".');
       return;
     }
 
     setIsVerifying(true);
     setErrorMsg('');
 
-    const verifyRes = await verifyServerOtp(cleanPhone, otp.trim(), otpToken);
+    const verifyRes = await verifyServerOtp(cleanPhone, cleanOtp, otpToken);
     setIsVerifying(false);
 
     if (!verifyRes.success) {
@@ -239,7 +179,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       setErrorMsg(
         remaining > 0
           ? `Incorrect OTP. Please check your WhatsApp (+91 ${cleanPhone}). (${remaining} attempts left)`
-          : 'Too many incorrect attempts. Please tap Click Here to Get OTP.'
+          : 'Too many incorrect attempts. Please click "Resend OTP".'
       );
       return;
     }
@@ -276,7 +216,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   };
 
   const cleanPhoneLen = sanitize10DigitPhone(phone).length;
-  const showOtpBox = otpRequested || cleanPhoneLen === 10;
+  const isOtpCooldownActive = otpRequested && resendSeconds > 0;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000000] flex items-center justify-center p-4 overflow-y-auto">
@@ -294,10 +234,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <Smartphone className="w-6 h-6 text-emerald-600" />
           </div>
           <h3 className="text-lg font-extrabold text-slate-900">
-            Customer WhatsApp OTP Login
+            Customer WhatsApp Login
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Enter your WhatsApp number, click to get OTP, and submit the 4-digit OTP below
+            Enter your WhatsApp number and tap Get OTP to receive a single 4-digit verification code
           </p>
         </div>
 
@@ -322,10 +262,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         )}
 
         <form onSubmit={handleVerifyOtp} className="space-y-4">
-          {/* 1. MOBILE NUMBER INPUT */}
+          {/* 1. WHATSAPP MOBILE NUMBER INPUT */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              1. WhatsApp Mobile Number *
+              1. Your WhatsApp Number *
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-xs text-slate-500 font-bold">
@@ -343,19 +283,39 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               />
             </div>
 
-            {/* PROMINENT "CLICK HERE TO GET OTP" BUTTON RIGHT BELOW MOBILE NUMBER */}
+            {/* PROMINENT "GET OTP ON WHATSAPP" BUTTON (Protected against duplicate clicks) */}
             <button
               type="button"
-              onClick={handleClickHereToGetOtp}
-              disabled={isSending}
-              className="mt-2.5 w-full flex items-center justify-between px-3.5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition cursor-pointer shadow-sm active:scale-99"
+              onClick={() => handleGetOtpOnWhatsApp(false)}
+              disabled={isSending || cleanPhoneLen !== 10 || isOtpCooldownActive}
+              className={`mt-2.5 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-white transition shadow-sm ${
+                isSending || cleanPhoneLen !== 10 || isOtpCooldownActive
+                  ? 'bg-emerald-600/80 opacity-90 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer active:scale-99'
+              }`}
             >
               <span className="flex items-center gap-2 text-xs font-extrabold">
                 <MessageSquare className="w-4 h-4 text-white shrink-0" />
-                <span>Click Here to Get OTP on WhatsApp</span>
+                <span>
+                  {isSending
+                    ? 'Sending OTP to your WhatsApp...'
+                    : isOtpCooldownActive
+                    ? `OTP Sent to +91 ${phone} ✓`
+                    : 'Get OTP on WhatsApp'}
+                </span>
               </span>
               <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-950 bg-amber-400 px-2.5 py-1 rounded-lg">
-                {isSending ? 'Sending...' : 'Get OTP'} <ArrowRight className="w-3 h-3" />
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" /> Sending
+                  </>
+                ) : isOtpCooldownActive ? (
+                  `Wait ${resendSeconds}s`
+                ) : (
+                  <>
+                    Get OTP <ArrowRight className="w-3 h-3" />
+                  </>
+                )}
               </span>
             </button>
           </div>
@@ -363,7 +323,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           {/* 2. FULL NAME (OPTIONAL) */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Full Name (Optional)
+              Your Name (Optional)
             </label>
             <input
               type="text"
@@ -374,21 +334,21 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             />
           </div>
 
-          {/* 3. ALWAYS-VISIBLE 4-DIGIT OTP INPUT & SUBMIT BUTTON */}
+          {/* 3. 4-DIGIT OTP INPUT & SUBMIT BUTTON */}
           <div className="p-4 rounded-2xl bg-slate-50 border-2 border-emerald-200 space-y-3">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-extrabold text-slate-900">
-                2. Enter 4-Digit OTP Received on WhatsApp *
+                2. Enter 4-Digit WhatsApp OTP *
               </label>
-              {showOtpBox && (
+              {otpRequested && (
                 <button
                   type="button"
-                  onClick={handleResend}
+                  onClick={() => handleGetOtpOnWhatsApp(true)}
                   disabled={resendSeconds > 0 || isSending}
                   className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 disabled:text-slate-400 flex items-center gap-1 cursor-pointer"
                 >
                   <RefreshCw className={`w-3 h-3 ${isSending ? 'animate-spin' : ''}`} />
-                  {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : 'Resend OTP'}
+                  {resendSeconds > 0 ? `Resend OTP in ${resendSeconds}s` : 'Resend OTP'}
                 </button>
               )}
             </div>
@@ -410,7 +370,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
             <button
               type="submit"
-              disabled={isVerifying}
+              disabled={isVerifying || isSending}
               className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black py-3.5 rounded-xl text-sm shadow-md transition cursor-pointer flex items-center justify-center gap-2"
             >
               {isVerifying ? (
@@ -421,7 +381,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4 text-slate-950" />
-                  <span>Submit OTP &amp; Login</span>
+                  <span>Verify OTP &amp; Login</span>
                 </>
               )}
             </button>
@@ -431,3 +391,4 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     </div>
   );
 };
+

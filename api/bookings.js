@@ -20,73 +20,73 @@ export const SERVER_CABS_FLEET = {
     id: 'hatchback',
     name: 'Hatchback AC',
     models: 'WagonR, Celerio, Tiago or equivalent',
-    ratePerKm: 11,
-    roundTripRatePerKm: 11.5,
-    extraKmRate: 12.5,
-    driverAllowancePerDay: 350,
-    statePermitTax: 300,
-    hillStationCharge: 400,
-    local8Hr80KmFare: 1999
+    ratePerKm: 9.5,
+    roundTripRatePerKm: 9.5,
+    extraKmRate: 10.5,
+    driverAllowancePerDay: 250,
+    statePermitTax: 200,
+    hillStationCharge: 250,
+    local8Hr80KmFare: 1599
   },
   sedan: {
     id: 'sedan',
     name: 'Sedan AC (Dzire / Etios)',
     models: 'Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura',
-    ratePerKm: 12.5,
-    roundTripRatePerKm: 13,
-    extraKmRate: 14,
-    driverAllowancePerDay: 400,
-    statePermitTax: 350,
-    hillStationCharge: 450,
-    local8Hr80KmFare: 2299
+    ratePerKm: 10.5,
+    roundTripRatePerKm: 10.5,
+    extraKmRate: 11.5,
+    driverAllowancePerDay: 300,
+    statePermitTax: 250,
+    hillStationCharge: 300,
+    local8Hr80KmFare: 1849
   },
   exec_sedan: {
     id: 'exec_sedan',
     name: 'Prime Executive Sedan',
     models: 'Honda City, Maruti Ciaz, Hyundai Verna',
-    ratePerKm: 15,
-    roundTripRatePerKm: 15.5,
-    extraKmRate: 17,
-    driverAllowancePerDay: 450,
-    statePermitTax: 400,
-    hillStationCharge: 550,
-    local8Hr80KmFare: 2899
+    ratePerKm: 12.5,
+    roundTripRatePerKm: 12.5,
+    extraKmRate: 13.5,
+    driverAllowancePerDay: 350,
+    statePermitTax: 300,
+    hillStationCharge: 350,
+    local8Hr80KmFare: 2299
   },
   suv: {
     id: 'suv',
     name: 'SUV AC (Ertiga / Carens)',
     models: 'Maruti Ertiga, Kia Carens, Toyota Rumion or equivalent',
-    ratePerKm: 16,
-    roundTripRatePerKm: 16.5,
-    extraKmRate: 18,
-    driverAllowancePerDay: 450,
-    statePermitTax: 500,
-    hillStationCharge: 600,
-    local8Hr80KmFare: 3199
+    ratePerKm: 13.5,
+    roundTripRatePerKm: 13.5,
+    extraKmRate: 15,
+    driverAllowancePerDay: 350,
+    statePermitTax: 350,
+    hillStationCharge: 400,
+    local8Hr80KmFare: 2599
   },
   innova: {
     id: 'innova',
     name: 'Assured Innova Crysta',
     models: 'Toyota Innova Crysta (6+1 / 7+1 Luxury)',
-    ratePerKm: 20,
-    roundTripRatePerKm: 20.5,
-    extraKmRate: 22,
-    driverAllowancePerDay: 500,
-    statePermitTax: 650,
-    hillStationCharge: 750,
-    local8Hr80KmFare: 3999
+    ratePerKm: 16.5,
+    roundTripRatePerKm: 16.5,
+    extraKmRate: 18,
+    driverAllowancePerDay: 400,
+    statePermitTax: 450,
+    hillStationCharge: 500,
+    local8Hr80KmFare: 3299
   },
   tempo: {
     id: 'tempo',
     name: 'Tempo Traveller AC (12 Seater)',
     models: 'Force Traveller / Urbania 12+1 Pushback AC',
-    ratePerKm: 28,
-    roundTripRatePerKm: 28,
-    extraKmRate: 30,
-    driverAllowancePerDay: 650,
-    statePermitTax: 950,
-    hillStationCharge: 1100,
-    local8Hr80KmFare: 6499
+    ratePerKm: 22,
+    roundTripRatePerKm: 22,
+    extraKmRate: 24,
+    driverAllowancePerDay: 500,
+    statePermitTax: 650,
+    hillStationCharge: 700,
+    local8Hr80KmFare: 4999
   }
 };
 
@@ -272,30 +272,30 @@ const SERVER_INDIA_STATE_ADJACENCY = {
 };
 
 const SERVER_STATE_PERMIT_BASE_RATES_SEDAN = {
-  'Uttar Pradesh': { tax: 250, desc: 'UP State Entry Permit Tax' },
-  'Uttarakhand': { tax: 300, desc: 'Uttarakhand State Permit & Green Cess' },
-  'Haryana': { tax: 200, desc: 'Haryana State Border Permit Tax' },
-  'Punjab': { tax: 250, desc: 'Punjab State Entry Permit Tax' },
-  'Himachal Pradesh': { tax: 320, desc: 'Himachal State Permit & Green Tax' },
-  'Rajasthan': { tax: 280, desc: 'Rajasthan State Border Permit Tax' },
-  'Delhi': { tax: 200, desc: 'Delhi MCD Commercial Entry Toll' },
-  'Jammu & Kashmir': { tax: 350, desc: 'J&K Lakhanpur Entry Permit Tax' },
-  'Madhya Pradesh': { tax: 250, desc: 'MP State Border Permit Tax' },
-  'Maharashtra': { tax: 280, desc: 'Maharashtra RTO Border Permit' },
-  'Goa': { tax: 350, desc: 'Goa State Entry & Green Cess' },
-  'Gujarat': { tax: 280, desc: 'Gujarat RTO Checkpost Permit' },
-  'Karnataka': { tax: 300, desc: 'Karnataka State Entry Permit' },
-  'Tamil Nadu': { tax: 280, desc: 'Tamil Nadu Border Checkpost Permit' },
-  'Kerala': { tax: 320, desc: 'Kerala Walayar/Muthanga State Permit' },
-  'Puducherry': { tax: 180, desc: 'Puducherry Entry Permit Tax' },
-  'Andhra Pradesh': { tax: 280, desc: 'Andhra Pradesh Border Permit' },
-  'Telangana': { tax: 280, desc: 'Telangana RTO Entry Permit' },
-  'Bihar': { tax: 250, desc: 'Bihar State Entry Permit Tax' },
-  'Jharkhand': { tax: 250, desc: 'Jharkhand Border Permit Tax' },
-  'West Bengal': { tax: 280, desc: 'West Bengal State Entry Permit' },
-  'Odisha': { tax: 250, desc: 'Odisha State Border Permit' },
-  'Chhattisgarh': { tax: 250, desc: 'Chhattisgarh Border Permit' },
-  'North East': { tax: 350, desc: 'North-East Inter-State Entry Permit' }
+  'Uttar Pradesh': { tax: 200, desc: 'UP State Entry Permit Tax' },
+  'Uttarakhand': { tax: 250, desc: 'Uttarakhand State Permit & Green Cess' },
+  'Haryana': { tax: 150, desc: 'Haryana State Border Permit Tax' },
+  'Punjab': { tax: 200, desc: 'Punjab State Entry Permit Tax' },
+  'Himachal Pradesh': { tax: 250, desc: 'Himachal State Permit & Green Tax' },
+  'Rajasthan': { tax: 220, desc: 'Rajasthan State Border Permit Tax' },
+  'Delhi': { tax: 150, desc: 'Delhi MCD Commercial Entry Toll' },
+  'Jammu & Kashmir': { tax: 280, desc: 'J&K Lakhanpur Entry Permit Tax' },
+  'Madhya Pradesh': { tax: 200, desc: 'MP State Border Permit Tax' },
+  'Maharashtra': { tax: 220, desc: 'Maharashtra RTO Border Permit' },
+  'Goa': { tax: 280, desc: 'Goa State Entry & Green Cess' },
+  'Gujarat': { tax: 220, desc: 'Gujarat RTO Checkpost Permit' },
+  'Karnataka': { tax: 240, desc: 'Karnataka State Entry Permit' },
+  'Tamil Nadu': { tax: 220, desc: 'Tamil Nadu Border Checkpost Permit' },
+  'Kerala': { tax: 250, desc: 'Kerala Walayar/Muthanga State Permit' },
+  'Puducherry': { tax: 150, desc: 'Puducherry Entry Permit Tax' },
+  'Andhra Pradesh': { tax: 220, desc: 'Andhra Pradesh Border Permit' },
+  'Telangana': { tax: 220, desc: 'Telangana RTO Entry Permit' },
+  'Bihar': { tax: 200, desc: 'Bihar State Entry Permit Tax' },
+  'Jharkhand': { tax: 200, desc: 'Jharkhand Border Permit Tax' },
+  'West Bengal': { tax: 220, desc: 'West Bengal State Entry Permit' },
+  'Odisha': { tax: 200, desc: 'Odisha State Border Permit' },
+  'Chhattisgarh': { tax: 200, desc: 'Chhattisgarh Border Permit' },
+  'North East': { tax: 280, desc: 'North-East Inter-State Entry Permit' }
 };
 
 function normalizeServerRouteToken(str) {
@@ -382,23 +382,24 @@ function computeServerMultiStatePermitBreakdown(originState, destState, pickupCi
 
   const vehiclePermitMultiplier =
     cabId === 'hatchback'
-      ? 0.85
+      ? 0.8
       : cabId === 'sedan'
       ? 1.0
       : cabId === 'exec_sedan'
-      ? 1.15
+      ? 1.1
       : cabId === 'suv'
-      ? 1.45
+      ? 1.25
       : cabId === 'innova'
-      ? 1.75
-      : 2.65;
+      ? 1.4
+      : 1.9;
 
   const statesEntered = stateRoutePath.slice(1);
   const breakdown = statesEntered.map((stateName, idx) => {
     const isFinalDest = idx === statesEntered.length - 1;
     const role = isFinalDest ? 'destination' : 'transit';
-    const baseInfo = SERVER_STATE_PERMIT_BASE_RATES_SEDAN[stateName] || { tax: 280, desc: `${stateName} State Entry Permit` };
-    const taxAmount = Math.round((baseInfo.tax * vehiclePermitMultiplier) / 10) * 10;
+    const baseInfo = SERVER_STATE_PERMIT_BASE_RATES_SEDAN[stateName] || { tax: 200, desc: `${stateName} State Entry Permit` };
+    const roleFactor = role === 'transit' ? 0.5 : 1.0;
+    const taxAmount = Math.round((baseInfo.tax * vehiclePermitMultiplier * roleFactor) / 10) * 10;
     const label = role === 'transit'
       ? `${stateName} (En-Route Transit State Permit)`
       : `${stateName} (Destination State Entry Permit)`;
@@ -427,7 +428,7 @@ function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230,
     }
   }
 
-  const vehicleTollMultiplier = cabId === 'tempo' ? 1.6 : 1.0;
+  const vehicleTollMultiplier = cabId === 'tempo' ? 1.45 : 1.0;
   if (matchedToll !== null) {
     return {
       baseTollOneWay: Math.round(matchedToll * vehicleTollMultiplier),
@@ -435,8 +436,8 @@ function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230,
     };
   }
 
-  const highwayBillableKm = Math.max(40, Math.round(distanceKm * 0.85));
-  const nhaiRatePerKm = cabId === 'tempo' ? 1.85 : cabId === 'innova' || cabId === 'suv' ? 1.20 : 1.15;
+  const highwayBillableKm = Math.max(40, Math.round(distanceKm * 0.8));
+  const nhaiRatePerKm = cabId === 'tempo' ? 1.55 : cabId === 'innova' || cabId === 'suv' ? 1.05 : 0.95;
   return {
     baseTollOneWay: Math.round(highwayBillableKm * nhaiRatePerKm),
     expresswayName: 'NHAI National Highway FASTag'
@@ -603,8 +604,8 @@ function computeServerLeadTimePricing(pickupDate, pickupTime) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanPickup)) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: isPeakSlot ? 1.05 : 1.0,
-        leadTimeLabel: isPeakSlot ? 'Peak Time Slot (+5%)' : 'Standard Rate'
+        leadTimeMultiplier: isPeakSlot ? 1.02 : 1.0,
+        leadTimeLabel: isPeakSlot ? 'Peak Time Slot' : 'Standard Rate'
       };
     }
     const pickupMs = Date.parse(`${cleanPickup}T00:00:00Z`);
@@ -621,22 +622,22 @@ function computeServerLeadTimePricing(pickupDate, pickupTime) {
     if (daysAhead <= 0) {
       return {
         leadTimeTier: 'same_day',
-        leadTimeMultiplier: isPeakSlot ? 1.20 : 1.15,
+        leadTimeMultiplier: isPeakSlot ? 1.07 : 1.05,
         leadTimeLabel: isPeakSlot
-          ? 'At-Time Urgent Night/Peak Dispatch'
-          : 'At-Time Instant Dispatch'
+          ? 'Same-Day Peak Dispatch'
+          : 'Same-Day Instant Dispatch'
       };
     }
     if (daysAhead === 1) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: isPeakSlot ? 1.05 : 1.0,
+        leadTimeMultiplier: isPeakSlot ? 1.02 : 1.0,
         leadTimeLabel: isPeakSlot ? 'Next-Day Peak Slot' : 'Next-Day Standard Rate'
       };
     }
     return {
       leadTimeTier: 'advance',
-      leadTimeMultiplier: isPeakSlot ? 1.04 : 1.0,
+      leadTimeMultiplier: isPeakSlot ? 1.02 : 1.0,
       leadTimeLabel: 'Standard Assured Rate'
     };
   } catch {
@@ -670,8 +671,8 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
       pickupIsHill: true,
       dropIsHill: true,
       hillTier: 'both_hills',
-      hillRateMultiplier: 1.35,
-      hillTierLabel: 'Deep Mountain Hill-to-Hill Terrain'
+      hillRateMultiplier: 1.14,
+      hillTierLabel: 'Mountain Hill-to-Hill Terrain'
     };
   }
 
@@ -680,7 +681,7 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
     pickupIsHill,
     dropIsHill,
     hillTier: 'one_end_hill',
-    hillRateMultiplier: 1.24,
+    hillRateMultiplier: 1.08,
     hillTierLabel: pickupIsHill ? 'Hill Station Pickup Terrain' : 'Hill Station Drop Terrain'
   };
 }
@@ -692,29 +693,11 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
   const dropIsOuter = !dropIsDaily;
 
   if (isHillRoute) {
-    if (pickupIsOuter && dropIsOuter) {
-      return {
-        isOuterRoute: true,
-        pickupIsOuter,
-        dropIsOuter,
-        routeTierMultiplier: distanceKm > 200 ? 1.10 : 1.08,
-        routeTierLabel: 'Outer Hill Corridor'
-      };
-    }
-    if (pickupIsOuter) {
-      return {
-        isOuterRoute: true,
-        pickupIsOuter,
-        dropIsOuter,
-        routeTierMultiplier: 1.08,
-        routeTierLabel: 'Outer Hill Pickup Dispatch'
-      };
-    }
     return {
-      isOuterRoute: dropIsOuter,
+      isOuterRoute: false,
       pickupIsOuter,
       dropIsOuter,
-      routeTierMultiplier: distanceKm > 280 ? 1.06 : 1.04,
+      routeTierMultiplier: 1.0,
       routeTierLabel: 'Hill Highway Corridor'
     };
   }
@@ -733,21 +716,12 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: true,
-      routeTierMultiplier: 1.16,
+      routeTierMultiplier: 1.05,
       routeTierLabel: 'Outer City Pickup Zone'
     };
   }
 
   if (pickupIsDaily && dropIsDaily) {
-    if (distanceKm > 400) {
-      return {
-        isOuterRoute: true,
-        pickupIsOuter: false,
-        dropIsOuter: false,
-        routeTierMultiplier: 1.06,
-        routeTierLabel: 'Long Outstation Corridor'
-      };
-    }
     return {
       isOuterRoute: false,
       pickupIsOuter: false,
@@ -762,8 +736,8 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: true,
-      routeTierMultiplier: distanceKm > 200 ? 1.25 : 1.20,
-      routeTierLabel: 'Deep Outer Corridor'
+      routeTierMultiplier: distanceKm > 250 ? 1.07 : 1.05,
+      routeTierLabel: 'Outer Route Corridor'
     };
   }
 
@@ -772,7 +746,7 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: false,
-      routeTierMultiplier: distanceKm > 250 ? 1.19 : 1.16,
+      routeTierMultiplier: 1.05,
       routeTierLabel: 'Outer Pickup Dispatch'
     };
   }
@@ -781,7 +755,7 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
     isOuterRoute: true,
     pickupIsOuter: false,
     dropIsOuter: true,
-    routeTierMultiplier: distanceKm > 250 ? 1.16 : 1.12,
+    routeTierMultiplier: 1.04,
     routeTierLabel: 'Outer Drop Corridor'
   };
 }
@@ -813,10 +787,10 @@ export function computeServerTripFare({
   const cab = SERVER_CABS_FLEET[cabId] || SERVER_CABS_FLEET.sedan;
   const oneWayRate = cab.ratePerKm;
   const roundTripRate = cab.roundTripRatePerKm || cab.ratePerKm;
-  const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1.5);
-  const dailyBata = cab.driverAllowancePerDay || 400;
-  const hillBase = cab.hillStationCharge || 450;
-  const local8HrBase = cab.local8Hr80KmFare || 2299;
+  const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1);
+  const dailyBata = cab.driverAllowancePerDay || 300;
+  const hillBase = cab.hillStationCharge || 300;
+  const local8HrBase = cab.local8Hr80KmFare || 1849;
 
   const parsedDistance = Number(distanceKm ?? 0);
   if (!Number.isFinite(parsedDistance) || parsedDistance < 0 || parsedDistance > 15000) {
@@ -866,19 +840,18 @@ export function computeServerTripFare({
 
   let hillStationCharge = 0;
   const hillDriverBonusPerDay =
-    hillTier === 'both_hills' ? 300 : hillTier === 'one_end_hill' ? 200 : 0;
+    hillTier === 'both_hills' ? 150 : hillTier === 'one_end_hill' ? 100 : 0;
 
   if (tripType === 'oneway') {
-    baseBilledDistanceKm = Math.max(130, Math.round(parsedDistance));
-    const slabFactor =
-      baseBilledDistanceKm <= 160 ? 1.08 : baseBilledDistanceKm > 380 ? 1.02 : 1.0;
+    baseBilledDistanceKm = Math.max(120, Math.round(parsedDistance));
+    const slabFactor = baseBilledDistanceKm <= 140 ? 1.04 : 1.0;
     ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
 
     hillStationCharge =
       hillTier === 'both_hills'
-        ? Math.round(hillBase * 2.0)
+        ? Math.round(hillBase * 1.25)
         : hillTier === 'one_end_hill'
-        ? Math.round(hillBase * 1.5)
+        ? hillBase
         : 0;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
     driverAllowance = dailyBata + hillDriverBonusPerDay;
@@ -895,57 +868,51 @@ export function computeServerTripFare({
     baseBilledDistanceKm = actualTwoWayKm;
     ratePerKm = Number((roundTripRate * dynamicRateFactor).toFixed(1));
 
-    const minMultiDayQuotaKm = daysCount * 250;
+    const minMultiDayQuotaKm = daysCount * 220;
     const effectivePricingKm =
       actualTwoWayKm >= minMultiDayQuotaKm
-        ? actualTwoWayKm + daysCount * 35
-        : Math.round(minMultiDayQuotaKm * 0.65 + actualTwoWayKm * 0.55);
+        ? actualTwoWayKm
+        : actualTwoWayKm + Math.round((minMultiDayQuotaKm - actualTwoWayKm) * 0.45);
 
     hillStationCharge =
       hillTier === 'both_hills'
-        ? Math.round(hillBase * 2.5)
+        ? Math.round(hillBase * 1.35)
         : hillTier === 'one_end_hill'
-        ? Math.round(hillBase * 2.0)
-        : 0;
-
-    const nightHaltAllowance =
-      daysCount > 1
-        ? (daysCount - 1) *
-          (cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 300)
+        ? hillBase
         : 0;
 
     baseRouteFare = Math.round(effectivePricingKm * ratePerKm);
-    driverAllowance = daysCount * (dailyBata + hillDriverBonusPerDay) + nightHaltAllowance;
+    driverAllowance = daysCount * (dailyBata + hillDriverBonusPerDay);
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
     if (localPackageId === '4h_40k') {
       baseBilledDistanceKm = 40;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 0.70) - 200;
-      driverAllowance = 200 + hillDriverBonusPerDay;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 0.68) - 180;
+      driverAllowance = 180 + hillDriverBonusPerDay;
     } else if (localPackageId === '12h_120k') {
       baseBilledDistanceKm = 120;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.35) - 350;
-      driverAllowance = 350 + hillDriverBonusPerDay;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.32) - 300;
+      driverAllowance = 300 + hillDriverBonusPerDay;
     } else {
       baseBilledDistanceKm = 80;
-      baseRouteFare = adjustedLocal8HrBase - 300;
-      driverAllowance = 300 + hillDriverBonusPerDay;
+      baseRouteFare = adjustedLocal8HrBase - 250;
+      driverAllowance = 250 + hillDriverBonusPerDay;
     }
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
-    hillStationCharge = isHillRoute ? hillBase : 0;
+    hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
   } else if (tripType === 'airport') {
-    baseBilledDistanceKm = Math.max(45, Math.round(parsedDistance));
+    baseBilledDistanceKm = Math.max(35, Math.round(parsedDistance));
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     const airportFixedPickupFee =
-      cabId === 'tempo' ? 800 : cabId === 'innova' || cabId === 'suv' ? 550 : 400;
+      cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 250;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
-    driverAllowance = 250 + hillDriverBonusPerDay;
-    hillStationCharge = isHillRoute ? hillBase : 0;
+    driverAllowance = 200 + hillDriverBonusPerDay;
+    hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
   }
 
-  const hillSliderFactor = dropIsHill ? 1.15 : isHillRoute ? 1.08 : 1.0;
+  const hillSliderFactor = dropIsHill ? 1.08 : isHillRoute ? 1.05 : 1.0;
   const extraKmRate = Math.max(
-    Math.ceil(ratePerKm + (dropIsHill ? 3.5 : isHillRoute ? 2.5 : 1.5)),
+    Math.ceil(ratePerKm + (dropIsHill ? 2.0 : isHillRoute ? 1.5 : 1.0)),
     Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
   );
 
@@ -982,7 +949,7 @@ export function computeServerTripFare({
       Math.round(billedDistanceKm / 2),
       cabId
     );
-    highwayToll = Math.round(tollInfo.baseTollOneWay * 2.0);
+    highwayToll = Math.round(tollInfo.baseTollOneWay * 1.75);
     expresswayName = tollInfo.expresswayName;
     if (isInterState) {
       const permitInfo = computeServerMultiStatePermitBreakdown(
@@ -997,7 +964,7 @@ export function computeServerTripFare({
       statePermitTax = permitInfo.totalStatePermitTax;
     }
   } else if (tripType === 'airport') {
-    highwayToll = 150;
+    highwayToll = 120;
     statePermitTax = 0;
     expresswayName = 'Airport Toll & Entry';
   }
@@ -1005,13 +972,13 @@ export function computeServerTripFare({
   const estimatedTollsAndTaxes = highwayToll + statePermitTax;
   const tollsAndTaxes = includeTolls ? estimatedTollsAndTaxes : 0;
 
-  const carrierFee = addonCarrier ? 300 : 0;
+  const carrierFee = addonCarrier ? 250 : 0;
   const petFee = addonPet
     ? cabId === 'suv' || cabId === 'innova' || cabId === 'tempo'
-      ? 1000
-      : 800
+      ? 600
+      : 500
     : 0;
-  const assuredModelFee = addonAssuredModel ? 400 : 0;
+  const assuredModelFee = addonAssuredModel ? 300 : 0;
   const addonsTotal = carrierFee + petFee + assuredModelFee;
 
   const taxableSubtotal = baseFare + driverAllowance + addonsTotal;
@@ -1019,7 +986,7 @@ export function computeServerTripFare({
 
   const totalFare = baseFare + driverAllowance + tollsAndTaxes + addonsTotal + gstAmount;
 
-  const mrpMultiplier = tripType === 'oneway' ? 1.35 : tripType === 'roundtrip' ? 1.24 : 1.22;
+  const mrpMultiplier = tripType === 'oneway' ? 1.25 : tripType === 'roundtrip' ? 1.20 : 1.18;
   const originalMarketFare = Math.round((totalFare * mrpMultiplier) / 10) * 10 - 1;
   const savingsAmount = Math.max(0, originalMarketFare - totalFare);
   const savingsPercent = Math.round((savingsAmount / originalMarketFare) * 100);

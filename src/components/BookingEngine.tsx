@@ -194,7 +194,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const [otpNotice, setOtpNotice] = useState('');
   const [otpError, setOtpError] = useState('');
   const [countdown, setCountdown] = useState(0);
-  const prewarmedPhoneRef = useRef<string>('');
+  const sendingOtpLockRef = useRef<boolean>(false);
   const inlineOtpInputRef = useRef<HTMLInputElement>(null);
 
   const pickupRef = useRef<HTMLDivElement>(null);
@@ -213,53 +213,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   useEffect(() => {
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      const timer = setTimeout(() => setCountdown((prev) => Math.max(0, prev - 1)), 1000);
       return () => clearTimeout(timer);
     }
   }, [countdown]);
-
-  // Pre-queue live OTP on the server as soon as 10 digits are entered so "Click Here to Get OTP" works instantaneously
-  useEffect(() => {
-    const clean = sanitize10DigitPhone(customerMobile);
-    if (clean.length === 10 && !isPhoneVerified && prewarmedPhoneRef.current !== clean) {
-      prewarmedPhoneRef.current = clean;
-      requestServerOtp(clean)
-        .then((res) => {
-          if (res.success && res.token) {
-            setOtpToken(res.token);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [customerMobile, isPhoneVerified]);
-
-  // Automatically flush pending WhatsApp OTP while waiting for OTP & when customer returns from WhatsApp app
-  useEffect(() => {
-    const cleanPhone = sanitize10DigitPhone(customerMobile);
-    if ((!showOtpModal && !showInlineOtpBox) || cleanPhone.length !== 10) return;
-
-    const handleVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {});
-      }
-    };
-
-    const t1 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 2500);
-    const t2 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 6000);
-    const t3 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 10000);
-    const t4 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 15000);
-
-    window.addEventListener('focus', handleVisibilityOrFocus);
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      clearTimeout(t4);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-    };
-  }, [showOtpModal, showInlineOtpBox, customerMobile, otpToken]);
 
   const handleSelectCategory = (cat: 'outstation' | 'local' | 'airport') => {
     setActiveMainCategory(cat);
@@ -440,36 +397,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     }
   };
 
-  const handleSendOtp = async () => {
-    const cleanNumber = sanitize10DigitPhone(customerMobile);
-    if (cleanNumber.length !== 10) {
-      setOtpError('Please enter a valid 10-digit WhatsApp mobile number');
-      return;
-    }
-
-    setShowInlineOtpBox(true);
-    setShowOtpModal(true);
-    setIsSendingOtp(true);
-    setOtpError('');
-    setOtpNotice(`Live OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter 4-digit OTP below.`);
-
-    try {
-      const res = await requestServerOtp(cleanNumber);
-      setIsSendingOtp(false);
-
-      if (res.success && res.token) {
-        setOtpToken(res.token);
-        setCountdown(25);
-      } else {
-        setOtpError(res.message || 'Unable to send OTP right now. Please tap Click Here to Get OTP.');
-      }
-    } catch {
-      setIsSendingOtp(false);
-    }
-  };
-
-  // Direct "Click Here to Get OTP" handler right below the number box
-  const handleClickHereToGetOtp = async () => {
+  // Single-dispatch WhatsApp OTP handler — sends strictly 1 OTP per explicit user click
+  const handleSendOtp = async (isResend: boolean = false) => {
     const cleanNumber = sanitize10DigitPhone(customerMobile);
     if (cleanNumber.length !== 10) {
       setOtpError('Please enter your 10-digit WhatsApp mobile number first');
@@ -478,42 +407,62 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       return;
     }
 
-    // Immediately show inline OTP Input & Submit button so customer can enter OTP right away
-    setOtpError('');
+    if (sendingOtpLockRef.current || isSendingOtp) return;
+    if (isResend && countdown > 0) return;
+    if (!isResend && showInlineOtpBox && countdown > 0 && otpToken) {
+      inlineOtpInputRef.current?.focus();
+      return;
+    }
+
+    sendingOtpLockRef.current = true;
     setShowInlineOtpBox(true);
-    setCountdown(25);
-    setOtpNotice(`Live OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter 4-digit OTP & click Submit.`);
-    setTimeout(() => inlineOtpInputRef.current?.focus(), 100);
-
-    // Safely open WhatsApp link without crashing or navigating current page away
-    triggerWhatsAppDeepLink(
-      '919142526791',
-      `Hi Safar India Cabs, please send my Login OTP for +91 ${cleanNumber}`
-    );
-
     setIsSendingOtp(true);
+    setOtpError('');
+
     try {
-      if (!otpToken || prewarmedPhoneRef.current !== cleanNumber) {
-        const res = await requestServerOtp(cleanNumber);
-        if (res.success && res.token) {
-          setOtpToken(res.token);
-        }
+      const res = await requestServerOtp(cleanNumber, {
+        forceNew: isResend,
+        customerName: currentUser?.name || 'Traveler'
+      });
+
+      if (res.success && res.token) {
+        setOtpToken(res.token);
+        if (isResend) setOtpInput('');
+        setOtpNotice(
+          `4-digit OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter it below & click Submit OTP.`
+        );
+        setCountdown(30);
+        setTimeout(() => inlineOtpInputRef.current?.focus(), 80);
       } else {
-        retriggerWhatsAppOtpFromToken(cleanNumber, otpToken).catch(() => {});
+        setOtpError(res.message || 'Unable to send OTP right now. Please try again.');
       }
-    } catch {}
-    setIsSendingOtp(false);
+    } catch {
+      setOtpError('Network issue while sending OTP. Please try again.');
+    } finally {
+      setIsSendingOtp(false);
+      sendingOtpLockRef.current = false;
+    }
+  };
+
+  const handleClickHereToGetOtp = async () => {
+    await handleSendOtp(false);
   };
 
   const handleVerifyOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const entered = otpInput.trim();
+    const entered = otpInput.replace(/\D/g, '').trim();
     if (entered.length !== 4) {
       setOtpError('Please enter the 4-digit OTP received on your WhatsApp');
+      inlineOtpInputRef.current?.focus();
       return;
     }
 
     const cleanNumber = sanitize10DigitPhone(customerMobile);
+    if (!otpToken) {
+      setOtpError('Please tap "Get OTP" first to receive your 4-digit WhatsApp OTP.');
+      return;
+    }
+
     setIsVerifyingOtp(true);
     setOtpError('');
     const verifyRes = await verifyServerOtp(cleanNumber, entered, otpToken);
@@ -525,9 +474,19 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       setShowOtpModal(false);
       setOtpError('');
 
+      let resolvedName = currentUser?.name || '';
+      if (!resolvedName) {
+        try {
+          const raw = localStorage.getItem('safar_registered_customers');
+          const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
+          const existing = list.find((u) => sanitize10DigitPhone(u.phone) === cleanNumber);
+          if (existing?.name) resolvedName = existing.name;
+        } catch {}
+      }
+
       const loggedInCustomer: CustomerUser = {
         id: `CUST-${cleanNumber}`,
-        name: currentUser?.name || `Traveler (${cleanNumber.slice(-4)})`,
+        name: resolvedName || `Traveler (${cleanNumber.slice(-4)})`,
         phone: cleanNumber,
         createdAt: new Date().toISOString()
       };
@@ -554,11 +513,6 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   };
 
   const handleExploreSubmit = () => {
-    const cleanNumber = sanitize10DigitPhone(customerMobile);
-    if (cleanNumber.length === 10 && !isPhoneVerified) {
-      handleSendOtp();
-      return;
-    }
     onExploreCabs();
   };
 
@@ -1145,6 +1099,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   if (setCustomerMobile) setCustomerMobile(val);
                   if (currentUser?.phone !== val) {
                     setIsPhoneVerified(false);
+                    setShowInlineOtpBox(false);
+                    setOtpToken('');
+                    setCountdown(0);
                   }
                   setOtpError('');
                 }}
@@ -1160,11 +1117,11 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   ) : (
                     <button
                       type="button"
-                      onClick={handleClickHereToGetOtp}
-                      disabled={isSendingOtp}
-                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer"
+                      onClick={() => handleSendOtp(false)}
+                      disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/70 text-white font-bold text-[11px] transition cursor-pointer disabled:cursor-not-allowed"
                     >
-                      {isSendingOtp ? '...' : 'Get OTP'}
+                      {isSendingOtp ? '...' : showInlineOtpBox && countdown > 0 ? `${countdown}s` : 'Get OTP'}
                     </button>
                   )}
                 </div>
@@ -1175,16 +1132,28 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             {!isPhoneVerified && (
               <button
                 type="button"
-                onClick={handleClickHereToGetOtp}
-                disabled={isSendingOtp}
-                className="mt-2 w-full flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 transition cursor-pointer group"
+                onClick={() => handleSendOtp(false)}
+                disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
+                className="mt-2 w-full flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-80 border border-emerald-300 text-emerald-900 transition cursor-pointer disabled:cursor-not-allowed group"
               >
                 <span className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800">
                   <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Click Here to Get OTP</span>
+                  <span>
+                    {isSendingOtp
+                      ? 'Sending OTP to WhatsApp...'
+                      : showInlineOtpBox && countdown > 0
+                      ? `OTP Sent to WhatsApp ✓`
+                      : 'Click Here to Get OTP on WhatsApp'}
+                  </span>
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-600 group-hover:bg-emerald-700 px-2 py-0.5 rounded-md">
-                  Receive OTP <ArrowRight className="w-2.5 h-2.5" />
+                  {showInlineOtpBox && countdown > 0 ? (
+                    `Wait ${countdown}s`
+                  ) : (
+                    <>
+                      Get OTP <ArrowRight className="w-2.5 h-2.5" />
+                    </>
+                  )}
                 </span>
               </button>
             )}
@@ -1192,7 +1161,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         </div>
 
         {/* INLINE 4-DIGIT OTP INPUT & SUBMIT BOX RIGHT BELOW MOBILE NUMBER */}
-        {!isPhoneVerified && (showInlineOtpBox || customerMobile.replace(/\D/g, '').length === 10) && (
+        {!isPhoneVerified && showInlineOtpBox && (
           <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-0.5">
               <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
@@ -1200,11 +1169,11 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 <span>Enter 4-Digit WhatsApp OTP to Verify (+91 {customerMobile})</span>
               </div>
               <p className="text-[11px] text-slate-600">
-                {otpNotice || 'Click "Click Here to Get OTP" above, then enter the 4-digit OTP below and click Submit OTP.'}
+                {otpNotice || 'Enter the 4-digit OTP received on your WhatsApp below and click Submit OTP.'}
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <input
                 ref={inlineOtpInputRef}
                 type="text"
@@ -1220,7 +1189,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               />
               <button
                 type="button"
-                disabled={isVerifyingOtp}
+                disabled={isVerifyingOtp || isSendingOtp}
                 onClick={() => handleVerifyOtp()}
                 className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-amber-400 font-extrabold text-xs transition cursor-pointer shrink-0 flex items-center gap-1.5 shadow-xs"
               >
@@ -1236,11 +1205,19 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   </>
                 )}
               </button>
+              <button
+                type="button"
+                disabled={countdown > 0 || isSendingOtp}
+                onClick={() => handleSendOtp(true)}
+                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 disabled:text-slate-400 px-2 py-1 cursor-pointer disabled:cursor-not-allowed"
+              >
+                {countdown > 0 ? `Resend (${countdown}s)` : 'Resend OTP'}
+              </button>
             </div>
           </div>
         )}
 
-        {otpError && !showOtpModal && (
+        {otpError && (
           <div className="text-xs text-rose-600 font-semibold px-1">{otpError}</div>
         )}
 
@@ -1286,120 +1263,6 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Secure Live WhatsApp OTP Verification Modal */}
-      {showOtpModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95">
-            <button
-              type="button"
-              onClick={() => setShowOtpModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl bg-slate-100 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="text-center space-y-1">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto mb-2">
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-extrabold text-slate-900">
-                Verify WhatsApp OTP
-              </h3>
-              <p className="text-xs text-slate-500">
-                Enter the 4-digit live OTP sent to your WhatsApp{' '}
-                <strong className="text-slate-900">+91 {customerMobile}</strong>
-              </p>
-            </div>
-
-            {otpNotice && (
-              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-900 font-semibold text-center">
-                {otpNotice}
-              </div>
-            )}
-
-            <div className="p-3 rounded-2xl bg-emerald-50/90 border border-emerald-300 flex items-center justify-between gap-2">
-              <div className="text-[11px] text-emerald-950 font-semibold leading-tight">
-                Didn't receive the code yet?
-                <span className="block text-[10px] text-emerald-700 font-normal mt-0.5">
-                  Tap here to receive OTP on WhatsApp
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const cleanPhone = sanitize10DigitPhone(customerMobile);
-                  triggerWhatsAppDeepLink(
-                    '919142526791',
-                    `Hi Safar India Cabs, please send my Login OTP for +91 ${cleanPhone}`
-                  );
-                  setTimeout(() => {
-                    retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {});
-                  }, 2500);
-                }}
-                className="shrink-0 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Click Here to Get OTP
-              </button>
-            </div>
-
-            {otpError && (
-              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium text-center">
-                {otpError}
-              </div>
-            )}
-
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={4}
-              value={otpInput}
-              onChange={(e) => {
-                setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4));
-                setOtpError('');
-              }}
-              placeholder="Enter 4-Digit OTP"
-              className="w-full bg-slate-50 border-2 border-slate-300 rounded-2xl px-4 py-3 text-center text-2xl tracking-[0.4em] text-slate-900 font-mono font-extrabold focus:outline-none focus:border-emerald-600 focus:bg-white placeholder:text-xs placeholder:tracking-normal placeholder:font-sans placeholder:text-slate-400"
-            />
-
-            <button
-              type="button"
-              disabled={isVerifyingOtp}
-              onClick={() => handleVerifyOtp()}
-              className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black py-3.5 rounded-xl text-sm transition cursor-pointer flex items-center justify-center gap-2"
-            >
-              {isVerifyingOtp ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Verifying OTP...</span>
-                </>
-              ) : (
-                <span>Submit OTP &amp; View Fares</span>
-              )}
-            </button>
-
-            <div className="flex items-center justify-between text-xs pt-1">
-              <button
-                type="button"
-                onClick={() => setShowOtpModal(false)}
-                className="text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
-              >
-                Change Number
-              </button>
-
-              <button
-                type="button"
-                disabled={countdown > 0 || isSendingOtp}
-                onClick={handleSendOtp}
-                className="text-emerald-700 hover:text-emerald-800 disabled:text-slate-400 font-bold cursor-pointer"
-              >
-                {countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

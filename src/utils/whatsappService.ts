@@ -459,7 +459,7 @@ export class WhatsAppService {
   }
 
   /**
-   * Core HTTP Sender Method (Serverless Proxy with Template+Text + Direct Meta Cloud API Fallback)
+   * Core HTTP Sender Method (Serverless Proxy with single clean fallback)
    */
   public async sendTextMessage(
     recipientPhone: string,
@@ -471,7 +471,7 @@ export class WhatsAppService {
     const activeToken = getWhatsAppAccessToken();
     const formattedPhone = this.formatPhoneNumber(recipientPhone);
 
-    // 1. Try serverless backend proxy first (/api/send-whatsapp) which handles Template + Text + Queue
+    // 1. Primary: Serverless backend proxy (/api/send-whatsapp)
     try {
       const serverRes = await fetch('/api/send-whatsapp', {
         method: 'POST',
@@ -484,18 +484,21 @@ export class WhatsAppService {
           templateConfig
         })
       });
-      if (serverRes.ok) {
-        const data = await serverRes.json().catch(() => null);
-        if (data?.success) {
+      const data = await serverRes.json().catch(() => null);
+      if (data !== null) {
+        if (data.success) {
           callback?.onSuccess('Message Sent Successfully');
           return true;
         }
+        const err = new Error(data.error || `HTTP Error Code: ${serverRes.status}`);
+        callback?.onError(err);
+        return false;
       }
     } catch {
-      // Fall through to direct Meta Graph API call
+      // Only fall through to direct Meta Graph API call if /api/send-whatsapp is unreachable
     }
 
-    // 2. Direct Meta WhatsApp Cloud API request (Template + Text in parallel)
+    // 2. Static-mode fallback: Direct Meta WhatsApp Cloud API request (single attempt, no duplicate loop)
     const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
 
     if (templateConfig && templateConfig.name) {
@@ -523,15 +526,21 @@ export class WhatsAppService {
         }
       };
 
-      fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${activeToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify(tplPayload)
-      }).catch(() => {});
+      try {
+        const tplRes = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          },
+          body: JSON.stringify(tplPayload)
+        });
+        if (tplRes.status === 200 || tplRes.status === 201) {
+          callback?.onSuccess('Message Sent Successfully');
+          return true;
+        }
+      } catch {}
     }
 
     const payload = {
@@ -545,36 +554,30 @@ export class WhatsAppService {
       }
     };
 
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const res = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${activeToken}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${activeToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-        if (res.status === 200 || res.status === 201) {
-          callback?.onSuccess('Message Sent Successfully');
-          return true;
-        } else if (attempt === 2) {
-          const errData = await res.json().catch(() => null);
-          const err = new Error(errData?.error?.message || `HTTP Error Code: ${res.status}`);
-          callback?.onError(err);
-          return false;
-        }
-      } catch (e) {
-        if (attempt === 2) {
-          const err = e instanceof Error ? e : new Error(String(e));
-          callback?.onError(err);
-          return false;
-        }
+      if (res.status === 200 || res.status === 201) {
+        callback?.onSuccess('Message Sent Successfully');
+        return true;
       }
+      const errData = await res.json().catch(() => null);
+      const err = new Error(errData?.error?.message || `HTTP Error Code: ${res.status}`);
+      callback?.onError(err);
+      return false;
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      callback?.onError(err);
+      return false;
     }
-    return false;
   }
 }
 

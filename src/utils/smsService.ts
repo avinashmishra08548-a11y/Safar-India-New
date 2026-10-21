@@ -684,12 +684,22 @@ export async function sendDriverAssignmentSms(params: {
   return custRes as SmsResult;
 }
 
+// Client-side in-flight lock and recent-send cache to guarantee only 1 OTP request is fired per user action
+const inFlightOtpRequests = new Map<string, Promise<any>>();
+const recentClientOtpCache = new Map<
+  string,
+  { sentAt: number; token: string; expiresAt: number; message: string; fallbackCode?: string }
+>();
+
 /**
  * SECURE SERVER-SIDE OTP SERVICE
  * Requests server-side OTP generation via /api/verify-otp
- * Never exposes the generated OTP in frontend logs or state
+ * Strictly deduplicated so only 1 OTP is ever dispatched per explicit "Get OTP" / "Resend OTP" action.
  */
-export async function requestServerOtp(phoneNumber: string): Promise<{
+export async function requestServerOtp(
+  phoneNumber: string,
+  options?: { forceNew?: boolean; customerName?: string }
+): Promise<{
   success: boolean;
   token?: string;
   expiresAt?: number;
@@ -698,49 +708,111 @@ export async function requestServerOtp(phoneNumber: string): Promise<{
   otp?: string;
 }> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
-  try {
-    const res = await fetch('/api/verify-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'send', phone: cleanPhone })
-    });
-
-    if (res.ok) {
-      const data = await res.json().catch(() => null);
-      if (data && data.success && data.token) {
-        // Authoritative server dispatch completed (/api/verify-otp handles multi-channel delivery)
-        return {
-          success: true,
-          token: data.token,
-          expiresAt: data.expiresAt,
-          message: data.message || `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`
-        };
-      }
-    }
-  } catch (err) {
-    console.info('Backend /api/verify-otp send notice:', err);
+  if (cleanPhone.length !== 10) {
+    return {
+      success: false,
+      message: 'Please enter a valid 10-digit WhatsApp mobile number.'
+    };
   }
 
-  // Client-side fallback if server route not available
-  const fallbackCode = Math.floor(1000 + Math.random() * 9000).toString();
-  await Promise.allSettled([
-    sendOtpSms(cleanPhone, fallbackCode),
-    whatsAppService.sendCustomerOtp(cleanPhone, fallbackCode)
-  ]);
-  const expiresAt = Date.now() + 10 * 60 * 1000;
-  // Use client token format: 'client_fallback.' + expiresAt + '.' + cleanPhone + '.' + btoa(fallbackCode)
-  const clientToken = `client_fallback.${expiresAt}.${cleanPhone}.${btoa(fallbackCode)}`;
-  return {
-    success: true,
-    token: clientToken,
-    expiresAt,
-    message: `Verification OTP sent to WhatsApp & SMS on +91 ${cleanPhone}`,
-    isFallback: true
-  };
+  const now = Date.now();
+  const forceNew = Boolean(options?.forceNew);
+  const customerName = options?.customerName?.trim() || 'Traveler';
+
+  // 1. If a request for this exact phone number is already in flight right now, return the same promise
+  const existingInFlight = inFlightOtpRequests.get(cleanPhone);
+  if (existingInFlight) {
+    return existingInFlight;
+  }
+
+  // 2. If an OTP was already sent in the last 15 seconds (or 5s on explicit resend), return cached session without re-sending
+  const cached = recentClientOtpCache.get(cleanPhone);
+  const cooldownMs = forceNew ? 5000 : 15000;
+  if (cached && now - cached.sentAt < cooldownMs && cached.expiresAt > now + 60000) {
+    return {
+      success: true,
+      token: cached.token,
+      expiresAt: cached.expiresAt,
+      message: cached.message
+    };
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const res = await fetch('/api/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send',
+          phone: cleanPhone,
+          name: customerName,
+          forceNew
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data && data.success && data.token) {
+          const msg = data.message || `OTP sent to your WhatsApp (+91 ${cleanPhone})`;
+          const exp = data.expiresAt || Date.now() + 10 * 60 * 1000;
+          recentClientOtpCache.set(cleanPhone, {
+            sentAt: Date.now(),
+            token: data.token,
+            expiresAt: exp,
+            message: msg
+          });
+          return {
+            success: true,
+            token: data.token,
+            expiresAt: exp,
+            message: msg
+          };
+        }
+      }
+    } catch (err) {
+      console.info('Backend /api/verify-otp send notice:', err);
+    }
+
+    // Static-mode fallback ONLY if server route is completely unreachable
+    const fallbackCode =
+      cached && cached.fallbackCode && Date.now() - cached.sentAt < 5 * 60 * 1000
+        ? cached.fallbackCode
+        : Math.floor(1000 + Math.random() * 9000).toString();
+
+    await whatsAppService.sendCustomerOtp(cleanPhone, fallbackCode, undefined, customerName);
+
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    const clientToken = `client_fallback.${expiresAt}.${cleanPhone}.${btoa(fallbackCode)}`;
+    const msg = `OTP sent to your WhatsApp (+91 ${cleanPhone})`;
+
+    recentClientOtpCache.set(cleanPhone, {
+      sentAt: Date.now(),
+      token: clientToken,
+      expiresAt,
+      message: msg,
+      fallbackCode
+    });
+
+    return {
+      success: true,
+      token: clientToken,
+      expiresAt,
+      message: msg,
+      isFallback: true
+    };
+  })();
+
+  inFlightOtpRequests.set(cleanPhone, requestPromise);
+  try {
+    return await requestPromise;
+  } finally {
+    inFlightOtpRequests.delete(cleanPhone);
+  }
 }
 
 /**
- * Flushes / re-dispatches the active server-queued OTP directly to the customer's WhatsApp number
+ * Flushes / re-dispatches the active server-queued OTP to the customer's WhatsApp number
+ * (Throttled on both client and server so it never sends duplicate messages)
  */
 export async function retriggerWhatsAppOtpFromToken(
   phoneNumber: string,
@@ -762,30 +834,25 @@ export async function retriggerWhatsAppOtpFromToken(
       if (data && data.success) return true;
     }
   } catch {}
-  if (token && token.startsWith('client_fallback.')) {
-    try {
-      const parts = token.split('.');
-      if (parts.length >= 4) {
-        const realOtp = atob(parts[3]);
-        if (realOtp && realOtp.length === 4) {
-          return await whatsAppService.sendCustomerOtp(cleanPhone, realOtp);
-        }
-      }
-    } catch {}
-  }
   return false;
 }
 
 /**
  * SECURE SERVER-SIDE OTP VERIFICATION
- * Verifies OTP via server-side cryptographic HMAC token
+ * Verifies OTP via server-side cryptographic HMAC token or active server cache
  */
 export async function verifyServerOtp(
-  phoneNumber: string, 
-  otpCode: string, 
+  phoneNumber: string,
+  otpCode: string,
   token: string
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
+  const cleanOtp = String(otpCode || '').replace(/\D/g, '').trim();
+
+  if (cleanOtp.length !== 4) {
+    const msg = 'Please enter the 4-digit OTP received on your WhatsApp.';
+    return { success: false, error: msg, message: msg };
+  }
 
   // If client-side fallback token
   if (token && token.startsWith('client_fallback.')) {
@@ -795,19 +862,20 @@ export async function verifyServerOtp(
     const encodedOtp = parts[3];
 
     if (tokenPhone !== cleanPhone) {
-      const msg = 'Phone number mismatch. Request a new code.';
+      const msg = 'Phone number changed. Please click "Get OTP on WhatsApp" again.';
       return { success: false, error: msg, message: msg };
     }
     if (Date.now() > expiresAt) {
-      const msg = 'Verification code has expired. Please request a new code.';
+      const msg = 'Verification code has expired. Please click "Resend OTP".';
       return { success: false, error: msg, message: msg };
     }
     try {
       const realOtp = atob(encodedOtp);
-      if (otpCode.trim() === realOtp) {
+      if (cleanOtp === realOtp) {
+        recentClientOtpCache.delete(cleanPhone);
         return { success: true, message: 'Verified' };
       }
-      const msg = 'Incorrect verification code. Please check your WhatsApp or SMS.';
+      const msg = 'Incorrect OTP. Please check your WhatsApp (+91 ' + cleanPhone + ').';
       return { success: false, error: msg, message: msg };
     } catch {
       const msg = 'Invalid verification token.';
@@ -823,16 +891,18 @@ export async function verifyServerOtp(
       body: JSON.stringify({
         action: 'verify',
         phone: cleanPhone,
-        otp: otpCode.trim(),
+        otp: cleanOtp,
         token
       })
     });
 
     const data = await res.json().catch(() => null);
     if (res.ok && data && data.success && data.verified) {
+      recentClientOtpCache.delete(cleanPhone);
       return { success: true, message: 'Verified' };
     }
-    const errMsg = data?.error || 'Incorrect verification code. Please check your WhatsApp or SMS.';
+    const errMsg =
+      data?.error || `Incorrect OTP. Please check your WhatsApp (+91 ${cleanPhone}).`;
     return {
       success: false,
       error: errMsg,

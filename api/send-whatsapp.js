@@ -280,8 +280,11 @@ export async function dispatchWhatsAppTemplateWithFallback(
   return { success: false, reason: 'No approved template matched yet' };
 }
 
+// Per-recipient deduplication cache to prevent duplicate WhatsApp messages within 15 seconds
+const recentWhatsAppDispatches = new Map();
+
 /**
- * Core Raw Text Sender ("type": "text")
+ * Core Raw Text Sender ("type": "text") - Single clean request without retry loops on 4xx
  */
 async function sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText) {
   const payload = {
@@ -295,65 +298,71 @@ async function sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText)
     }
   };
 
-  let lastError = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${activeToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${activeToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
-      const data = await response.json().catch(() => null);
-      if (response.status === 200 || response.status === 201) {
-        return {
-          success: true,
-          status: response.status,
-          to: formattedTo,
-          messageId: data?.messages?.[0]?.id || null,
-          data
-        };
-      } else {
-        lastError = {
-          success: false,
-          status: response.status,
-          to: formattedTo,
-          errorCode: data?.error?.code,
-          error: data?.error?.message || `HTTP Error Code: ${response.status}`,
-          data
-        };
-      }
-    } catch (err) {
-      lastError = {
-        success: false,
+    const data = await response.json().catch(() => null);
+    if (response.status === 200 || response.status === 201) {
+      return {
+        success: true,
+        status: response.status,
         to: formattedTo,
-        error: err?.message || 'Network or Exception Error'
+        messageId: data?.messages?.[0]?.id || null,
+        data
       };
     }
+    return {
+      success: false,
+      status: response.status,
+      to: formattedTo,
+      errorCode: data?.error?.code,
+      error: data?.error?.message || `HTTP Error Code: ${response.status}`,
+      data
+    };
+  } catch (err) {
+    return {
+      success: false,
+      to: formattedTo,
+      error: err?.message || 'Network or Exception Error'
+    };
   }
-  return lastError || { success: false, to: formattedTo, error: 'WhatsApp text dispatch failed' };
 }
 
 /**
  * Primary Dispatcher:
- * 1. Stores message in Pending Outbox Queue for instant webhook/session sync
- * 2. Fires BOTH Official Template Message (for numbers with no prior chat) AND Rich Text Message
- * 3. Schedules staggered background delivery waves so messages land immediately upon window activation
+ * 1. Deduplicates identical messages to the same recipient within 15 seconds so multiple OTPs are never sent.
+ * 2. Tries Official Template Message first (delivers to any WhatsApp number).
+ * 3. Only falls back to Raw Text Message if no template was dispatched — guaranteeing strictly 1 message per request.
  */
 export async function sendWhatsAppCloudMessage(
   recipientPhone,
   messageText,
   customPhoneId,
   customAccessToken,
-  templateConfig = null
+  templateConfig = null,
+  options = {}
 ) {
   const formattedTo = formatWhatsAppPhone(recipientPhone);
   if (!formattedTo || formattedTo.length < 12) {
     return { success: false, error: 'Invalid recipient phone number' };
+  }
+
+  const now = Date.now();
+  const dedupeKey = `${formattedTo}:${String(messageText || '').trim().slice(0, 120)}`;
+  const previousDispatch = recentWhatsAppDispatches.get(dedupeKey);
+  if (!options?.force && previousDispatch && now - previousDispatch.sentAt < 15000) {
+    return {
+      ...previousDispatch.result,
+      deduplicated: true
+    };
   }
 
   const activePhoneId = (customPhoneId && String(customPhoneId).trim()) || DEFAULT_PHONE_NUMBER_ID;
@@ -361,44 +370,56 @@ export async function sendWhatsAppCloudMessage(
     (customAccessToken && String(customAccessToken).trim()) || DEFAULT_ACCESS_TOKEN;
   const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
 
-  // Save in Pending WhatsApp Queue (valid for 30 mins) for instant webhook/focus delivery
+  // Save in Pending WhatsApp Queue (valid for 30 mins) for webhook session sync
   pendingWhatsAppQueue.set(formattedTo, {
     to: formattedTo,
     messageText,
     templateConfig,
     apiUrl,
     activeToken,
-    updatedAt: Date.now()
+    updatedAt: now,
+    lastFlushedAt: now
   });
 
-  // Execute Template Dispatch (works without prior "Hi/Hello") and Rich Text Dispatch in parallel
-  const [templateResult, textResult] = await Promise.all([
-    dispatchWhatsAppTemplateWithFallback(
-      apiUrl,
-      activeToken,
-      formattedTo,
-      messageText,
-      templateConfig
-    ),
-    sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText)
-  ]);
+  // Step 1: Try Official Meta Template first (delivers outside 24h window without duplicate text)
+  const templateResult = await dispatchWhatsAppTemplateWithFallback(
+    apiUrl,
+    activeToken,
+    formattedTo,
+    messageText,
+    templateConfig
+  );
 
+  let textResult = { success: false, status: null, messageId: null, data: null, error: null };
 
+  // Step 2: Only send Raw Text if template dispatch did not succeed
+  if (!templateResult.success) {
+    textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
+  }
 
   const overallSuccess = Boolean(templateResult.success || textResult.success);
 
-  return {
+  const finalResult = {
     success: overallSuccess,
-    status: textResult.status || templateResult.status || (overallSuccess ? 200 : 502),
+    status: templateResult.status || textResult.status || (overallSuccess ? 200 : 502),
     to: formattedTo,
     phoneNumberId: activePhoneId,
     templateDispatched: Boolean(templateResult.success),
     templateName: templateResult.templateName || null,
     textDispatched: Boolean(textResult.success),
     messageId: templateResult.messageId || textResult.messageId || null,
-    data: textResult.data || templateResult.data || null,
+    data: templateResult.data || textResult.data || null,
     error: overallSuccess ? undefined : textResult.error || templateResult.error
   };
+
+  if (overallSuccess) {
+    recentWhatsAppDispatches.set(dedupeKey, {
+      sentAt: now,
+      result: finalResult
+    });
+  }
+
+  return finalResult;
 }
 
 export default async function handler(req, res) {
@@ -451,7 +472,12 @@ export default async function handler(req, res) {
           for (const msg of messages) {
             const senderPhone = formatWhatsAppPhone(msg?.from);
             const queued = pendingWhatsAppQueue.get(senderPhone);
-            if (queued && Date.now() - queued.updatedAt < 30 * 60 * 1000) {
+            if (
+              queued &&
+              Date.now() - queued.updatedAt < 30 * 60 * 1000 &&
+              (!queued.lastWebhookFlushedAt || Date.now() - queued.lastWebhookFlushedAt > 20000)
+            ) {
+              queued.lastWebhookFlushedAt = Date.now();
               queued.lastFlushedAt = Date.now();
               const flushRes = await sendRawTextPayload(
                 queued.apiUrl,
@@ -477,12 +503,12 @@ export default async function handler(req, res) {
       action
     } = body || {};
 
-    // Action: flush_pending (re-pushes latest queued message for a phone number when WhatsApp session becomes active)
+    // Action: flush_pending (re-pushes latest queued message for a phone number only if at least 20s have elapsed)
     if (action === 'flush_pending' && recipientPhone) {
       const formattedTo = formatWhatsAppPhone(recipientPhone);
       const queued = pendingWhatsAppQueue.get(formattedTo);
       if (queued && Date.now() - queued.updatedAt < 30 * 60 * 1000) {
-        if (queued.lastFlushedAt && Date.now() - queued.lastFlushedAt < 2500) {
+        if (queued.lastFlushedAt && Date.now() - queued.lastFlushedAt < 20000) {
           return res.status(200).json({ success: true, throttled: true, to: formattedTo });
         }
         queued.lastFlushedAt = Date.now();
