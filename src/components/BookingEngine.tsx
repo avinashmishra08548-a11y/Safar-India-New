@@ -1,22 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  ArrowRightLeft, 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Navigation, 
-  Plane, 
-  Car, 
-  ChevronDown, 
-  Loader2, 
-  X, 
-  Building2, 
+import {
+  ArrowRightLeft,
+  Calendar,
+  Clock,
+  MapPin,
+  Navigation,
+  Plane,
+  Car,
+  ChevronDown,
+  Loader2,
+  X,
+  Building2,
   Train,
   Smartphone,
   CheckCircle2,
   ShieldCheck,
   MessageSquare,
-  RefreshCw,
   Mountain,
   Plus,
   Trash2,
@@ -24,11 +23,11 @@ import {
 } from 'lucide-react';
 import { TripType, CustomerUser } from '../types';
 import { searchOlaPlaces, OlaPlacePrediction, Coordinates } from '../utils/olaMapsService';
-import { 
+import {
   requestServerOtp,
   verifyServerOtp,
   retriggerWhatsAppOtpFromToken,
-  sanitize10DigitPhone 
+  sanitize10DigitPhone
 } from '../utils/smsService';
 import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
 import { computeTripFare } from '../utils/fareCalculator';
@@ -65,6 +64,21 @@ const MAJOR_AIRPORTS = [
   { code: 'AMD', name: 'Sardar Vallabhbhai Patel Airport, Ahmedabad', city: 'Ahmedabad' },
   { code: 'PNQ', name: 'Pune International Airport', city: 'Pune' },
   { code: 'GOI', name: 'Goa Airport (Dabolim / Mopa)', city: 'Goa (North & South)' }
+];
+
+const QUICK_ROUNDTRIP_STOPS = [
+  'Mathura, Uttar Pradesh',
+  'Vrindavan, Uttar Pradesh',
+  'Agra, Uttar Pradesh',
+  'Jaipur, Rajasthan',
+  'Haridwar, Uttarakhand',
+  'Rishikesh, Uttarakhand',
+  'Mussoorie, Uttarakhand',
+  'Shimla, Himachal Pradesh',
+  'Manali, Himachal Pradesh',
+  'Nainital, Uttarakhand',
+  'Ayodhya, Uttar Pradesh',
+  'Varanasi, Uttar Pradesh'
 ];
 
 interface BookingEngineProps {
@@ -105,14 +119,13 @@ interface BookingEngineProps {
   onExploreCabs: () => void;
 }
 
-function getPlaceIcon(types?: string[]) {
-  if (!types || types.length === 0) return <MapPin className="w-4 h-4 text-amber-600 shrink-0" />;
-  const joined = types.join(' ').toLowerCase();
-  if (joined.includes('airport')) return <Plane className="w-4 h-4 text-sky-600 shrink-0" />;
-  if (joined.includes('train') || joined.includes('transit') || joined.includes('railway')) {
+function getPlaceIcon(types?: string[], category?: string) {
+  const combined = [...(types || []), category || ''].join(' ').toLowerCase();
+  if (combined.includes('airport')) return <Plane className="w-4 h-4 text-sky-600 shrink-0" />;
+  if (combined.includes('train') || combined.includes('transit') || combined.includes('railway')) {
     return <Train className="w-4 h-4 text-emerald-600 shrink-0" />;
   }
-  if (joined.includes('hotel') || joined.includes('lodging') || joined.includes('premise')) {
+  if (combined.includes('hotel') || combined.includes('lodging') || combined.includes('premise')) {
     return <Building2 className="w-4 h-4 text-purple-600 shrink-0" />;
   }
   return <MapPin className="w-4 h-4 text-amber-600 shrink-0" />;
@@ -137,8 +150,6 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   setPickupTime,
   returnDate,
   setReturnDate,
-  returnTime,
-  setReturnTime,
   localPackageId,
   setLocalPackageId,
   airportMode,
@@ -172,14 +183,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   // Secure WhatsApp OTP verification states
   const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(() => Boolean(currentUser));
+  const [showInlineOtpBox, setShowInlineOtpBox] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [otpToken, setOtpToken] = useState('');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpNotice, setOtpNotice] = useState('');
   const [otpError, setOtpError] = useState('');
   const [countdown, setCountdown] = useState(0);
   const prewarmedPhoneRef = useRef<string>('');
+  const inlineOtpInputRef = useRef<HTMLInputElement>(null);
 
   const pickupRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -188,6 +202,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   useEffect(() => {
     if (currentUser?.phone) {
       setIsPhoneVerified(true);
+      setShowInlineOtpBox(false);
       if (setCustomerMobile && !customerMobile) {
         setCustomerMobile(currentUser.phone);
       }
@@ -218,8 +233,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   // Automatically flush pending WhatsApp OTP while waiting for OTP & when customer returns from WhatsApp app
   useEffect(() => {
-    if (!showOtpModal || !customerMobile) return;
     const cleanPhone = sanitize10DigitPhone(customerMobile);
+    if ((!showOtpModal && !showInlineOtpBox) || cleanPhone.length !== 10) return;
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
@@ -227,10 +242,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       }
     };
 
-    const t1 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 3000);
-    const t2 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 6500);
-    const t3 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 11000);
-    const t4 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 16000);
+    const t1 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 2500);
+    const t2 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 6000);
+    const t3 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 10000);
+    const t4 = setTimeout(() => retriggerWhatsAppOtpFromToken(cleanPhone, otpToken).catch(() => {}), 15000);
 
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
@@ -242,7 +257,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [showOtpModal, customerMobile, otpToken]);
+  }, [showOtpModal, showInlineOtpBox, customerMobile, otpToken]);
 
   const handleSelectCategory = (cat: 'outstation' | 'local' | 'airport') => {
     setActiveMainCategory(cat);
@@ -278,13 +293,18 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     const timer = setTimeout(async () => {
       if (showPickupDropdown) {
         setIsLoadingPickup(true);
-        const results = await searchOlaPlaces(pickupCity);
-        if (active) {
-          setPickupPredictions(results);
-          setIsLoadingPickup(false);
+        try {
+          const results = await searchOlaPlaces(pickupCity);
+          if (active) {
+            setPickupPredictions(Array.isArray(results) ? results : []);
+          }
+        } catch {
+          if (active) setPickupPredictions([]);
+        } finally {
+          if (active) setIsLoadingPickup(false);
         }
       }
-    }, 150);
+    }, 120);
 
     return () => {
       active = false;
@@ -297,13 +317,18 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     const timer = setTimeout(async () => {
       if (showDropDropdown) {
         setIsLoadingDrop(true);
-        const results = await searchOlaPlaces(dropCity);
-        if (active) {
-          setDropPredictions(results);
-          setIsLoadingDrop(false);
+        try {
+          const results = await searchOlaPlaces(dropCity);
+          if (active) {
+            setDropPredictions(Array.isArray(results) ? results : []);
+          }
+        } catch {
+          if (active) setDropPredictions([]);
+        } finally {
+          if (active) setIsLoadingDrop(false);
         }
       }
-    }, 150);
+    }, 120);
 
     return () => {
       active = false;
@@ -313,20 +338,27 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   // Search Ola Places for active round-trip stop input
   const currentActiveStopQuery =
-    activeStopDropdownIndex !== null ? roundTripStops[activeStopDropdownIndex] || '' : '';
+    activeStopDropdownIndex !== null && roundTripStops[activeStopDropdownIndex] !== undefined
+      ? roundTripStops[activeStopDropdownIndex]
+      : '';
 
   useEffect(() => {
     let active = true;
     const timer = setTimeout(async () => {
       if (activeStopDropdownIndex !== null) {
         setIsLoadingStop(true);
-        const results = await searchOlaPlaces(currentActiveStopQuery);
-        if (active) {
-          setStopPredictions(results);
-          setIsLoadingStop(false);
+        try {
+          const results = await searchOlaPlaces(currentActiveStopQuery);
+          if (active) {
+            setStopPredictions(Array.isArray(results) ? results : []);
+          }
+        } catch {
+          if (active) setStopPredictions([]);
+        } finally {
+          if (active) setIsLoadingStop(false);
         }
       }
-    }, 150);
+    }, 120);
 
     return () => {
       active = false;
@@ -360,8 +392,25 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   const handleAddRoundTripStop = () => {
     if (!setRoundTripStops) return;
-    if (roundTripStops.length >= 5) return;
+    if (roundTripStops.length >= 6) return;
+    const nextIdx = roundTripStops.length;
     setRoundTripStops((prev) => [...prev, '']);
+    setTimeout(() => {
+      setActiveStopDropdownIndex(nextIdx);
+    }, 50);
+  };
+
+  const handleQuickAddStopCity = (cityStr: string) => {
+    if (!setRoundTripStops) return;
+    // If there is an empty stop slot, fill it; otherwise append a new stop
+    const emptyIdx = roundTripStops.findIndex((s) => !s.trim());
+    if (emptyIdx !== -1) {
+      setRoundTripStops((prev) => prev.map((s, i) => (i === emptyIdx ? cityStr : s)));
+      setActiveStopDropdownIndex(null);
+    } else if (roundTripStops.length < 6) {
+      setRoundTripStops((prev) => [...prev, cityStr]);
+      setActiveStopDropdownIndex(null);
+    }
   };
 
   const handleUpdateRoundTripStop = (index: number, value: string) => {
@@ -396,21 +445,24 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       return;
     }
 
+    setShowInlineOtpBox(true);
+    setShowOtpModal(true);
     setIsSendingOtp(true);
     setOtpError('');
-    setOtpNotice('');
+    setOtpNotice(`Live OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter 4-digit OTP below.`);
 
-    const res = await requestServerOtp(cleanNumber);
-    setIsSendingOtp(false);
+    try {
+      const res = await requestServerOtp(cleanNumber);
+      setIsSendingOtp(false);
 
-    if (res.success && res.token) {
-      setOtpToken(res.token);
-      setShowOtpModal(true);
-      setCountdown(30);
-      setOtpInput('');
-      setOtpNotice(`Live OTP dispatched to your WhatsApp (+91 ${cleanNumber})`);
-    } else {
-      setOtpError(res.message || 'Unable to send OTP right now. Please try again.');
+      if (res.success && res.token) {
+        setOtpToken(res.token);
+        setCountdown(25);
+      } else {
+        setOtpError(res.message || 'Unable to send OTP right now. Please tap Click Here to Get OTP.');
+      }
+    } catch {
+      setIsSendingOtp(false);
     }
   };
 
@@ -424,32 +476,35 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       return;
     }
 
+    // Immediately show inline OTP Input & Submit button so customer can enter OTP right away
     setOtpError('');
-    setIsSendingOtp(true);
+    setShowInlineOtpBox(true);
+    setCountdown(25);
+    setOtpNotice(`Live OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter 4-digit OTP & click Submit.`);
+    setTimeout(() => inlineOtpInputRef.current?.focus(), 100);
 
-    // Open WhatsApp bot link synchronously on user click so mobile browsers never block it
+    // Safely open WhatsApp link without crashing or navigating current page away
     triggerWhatsAppDeepLink(
       '919142526791',
       `Hi Safar India Cabs, please send my Login OTP for +91 ${cleanNumber}`
     );
 
-    if (!otpToken || prewarmedPhoneRef.current !== cleanNumber) {
-      const res = await requestServerOtp(cleanNumber);
-      if (res.success && res.token) {
-        setOtpToken(res.token);
+    setIsSendingOtp(true);
+    try {
+      if (!otpToken || prewarmedPhoneRef.current !== cleanNumber) {
+        const res = await requestServerOtp(cleanNumber);
+        if (res.success && res.token) {
+          setOtpToken(res.token);
+        }
+      } else {
+        retriggerWhatsAppOtpFromToken(cleanNumber, otpToken).catch(() => {});
       }
-    } else {
-      retriggerWhatsAppOtpFromToken(cleanNumber, otpToken).catch(() => {});
-    }
-
+    } catch {}
     setIsSendingOtp(false);
-    setShowOtpModal(true);
-    setCountdown(30);
-    setOtpInput('');
-    setOtpNotice(`Live OTP sent to your WhatsApp (+91 ${cleanNumber})`);
   };
 
-  const handleVerifyOtp = async () => {
+  const handleVerifyOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     const entered = otpInput.trim();
     if (entered.length !== 4) {
       setOtpError('Please enter the 4-digit OTP received on your WhatsApp');
@@ -457,10 +512,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     }
 
     const cleanNumber = sanitize10DigitPhone(customerMobile);
+    setIsVerifyingOtp(true);
+    setOtpError('');
     const verifyRes = await verifyServerOtp(cleanNumber, entered, otpToken);
+    setIsVerifyingOtp(false);
 
     if (verifyRes.success) {
       setIsPhoneVerified(true);
+      setShowInlineOtpBox(false);
       setShowOtpModal(false);
       setOtpError('');
 
@@ -486,6 +545,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     } else {
       setOtpError(
         verifyRes.message ||
+          verifyRes.error ||
           `Incorrect OTP. Please check your WhatsApp (+91 ${cleanNumber}) and try again.`
       );
     }
@@ -503,7 +563,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const today = new Date().toISOString().split('T')[0];
 
   // Combine dropCity + any roundTripStops so Hill Area detection and Extra KM rate reflect all stops
-  const validStops = roundTripStops.map((s) => s.trim()).filter(Boolean);
+  const validStops = roundTripStops.map((s) => (s || '').trim()).filter(Boolean);
   const combinedDropRoute =
     tripType === 'roundtrip' && validStops.length > 0
       ? [dropCity, ...validStops].join(' → ')
@@ -529,43 +589,66 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     isLoading: boolean,
     onSelect: (item: OlaPlacePrediction) => void,
     currentQuery: string
-  ) => (
-    <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-100">
-      <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-medium text-slate-500">
-        <span>
-          {currentQuery.trim().length >= 2 ? 'Matching Locations' : 'Popular Cities'}
-        </span>
-        {isLoading && <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />}
-      </div>
+  ) => {
+    const safePredictions = Array.isArray(predictions) ? predictions : [];
+    const safeQuery = (currentQuery || '').trim();
 
-      {predictions.length === 0 && !isLoading ? (
-        <div className="p-4 text-center text-xs text-slate-500">
-          No matching location found. You can type your exact city or address.
+    return (
+      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-100">
+        <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-medium text-slate-500">
+          <span>
+            {safeQuery.length >= 2 ? 'Matching Indian Cities & Locations' : 'Popular Indian Cities & Tourist Spots'}
+          </span>
+          {isLoading && <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />}
         </div>
-      ) : (
-        predictions.map((item) => (
-          <button
-            key={item.place_id}
-            type="button"
-            onClick={() => onSelect(item)}
-            className="w-full text-left px-4 py-3 hover:bg-amber-50/70 transition flex items-start gap-3 cursor-pointer"
-          >
-            <div className="mt-0.5 p-1.5 rounded-lg bg-slate-100">
-              {getPlaceIcon(item.types)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-slate-900 truncate">
-                {item.structured_formatting.main_text}
-              </div>
-              <div className="text-xs text-slate-500 truncate">
-                {item.structured_formatting.secondary_text}
-              </div>
-            </div>
-          </button>
-        ))
-      )}
-    </div>
-  );
+
+        {safePredictions.length === 0 && !isLoading ? (
+          <div className="p-4 text-center text-xs text-slate-500">
+            No matching location found. You can type your exact city or address.
+          </div>
+        ) : (
+          safePredictions.map((item, index) => {
+            if (!item) return null;
+            const mainLabel =
+              item.mainText ||
+              item.structured_formatting?.main_text ||
+              item.description ||
+              'Location';
+            const subLabel =
+              item.secondaryText ||
+              item.structured_formatting?.secondary_text ||
+              'India';
+            const itemKey = item.placeId || item.place_id || `${item.description || mainLabel}-${index}`;
+
+            return (
+              <button
+                key={itemKey}
+                type="button"
+                onMouseDown={(e) => {
+                  // Prevent input blur before selection completes
+                  e.preventDefault();
+                  onSelect(item);
+                }}
+                className="w-full text-left px-4 py-3 hover:bg-amber-50/70 transition flex items-start gap-3 cursor-pointer"
+              >
+                <div className="mt-0.5 p-1.5 rounded-lg bg-slate-100">
+                  {getPlaceIcon(item.types, item.category)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 truncate">
+                    {mainLabel}
+                  </div>
+                  <div className="text-xs text-slate-500 truncate">
+                    {subLabel}
+                  </div>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(15,23,42,0.12)] border border-slate-200/90 p-5 sm:p-8 relative z-20">
@@ -856,30 +939,33 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
         {/* MULTI-CITY / EXTRA STOPS BUILDER FOR ROUND TRIP */}
         {tripType === 'roundtrip' && (
-          <div ref={stopsContainerRef} className="space-y-2.5 pt-1">
+          <div ref={stopsContainerRef} className="space-y-3 pt-1">
             {roundTripStops.map((stopValue, idx) => (
               <div key={idx} className="relative flex items-center gap-2">
                 <div className="flex-1 relative">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">
-                    Stop {idx + 2} (Next City / Location to Visit)
+                    Stop {idx + 2} (Additional City / Sightseeing Location)
                   </label>
                   <div className="relative">
                     <MapPin className="w-4 h-4 text-amber-600 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
-                      value={stopValue}
+                      value={stopValue || ''}
                       onFocus={() => setActiveStopDropdownIndex(idx)}
                       onChange={(e) => {
                         handleUpdateRoundTripStop(idx, e.target.value);
                         setActiveStopDropdownIndex(idx);
                       }}
-                      placeholder={`Enter city or tourist spot #${idx + 2} (e.g. Mathura, Jaipur, Manali)`}
+                      placeholder={`Type city or tourist spot #${idx + 2} (e.g. Mathura, Jaipur, Manali)`}
                       className="w-full bg-amber-50/40 border border-amber-300 hover:border-amber-400 rounded-xl pl-10 pr-8 py-2.5 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition"
                     />
                     {stopValue && (
                       <button
                         type="button"
-                        onClick={() => handleUpdateRoundTripStop(idx, '')}
+                        onClick={() => {
+                          handleUpdateRoundTripStop(idx, '');
+                          setActiveStopDropdownIndex(idx);
+                        }}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -895,7 +981,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                         handleUpdateRoundTripStop(idx, item.description);
                         setActiveStopDropdownIndex(null);
                       },
-                      stopValue
+                      stopValue || ''
                     )}
                 </div>
 
@@ -910,19 +996,45 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               </div>
             ))}
 
-            {roundTripStops.length < 5 && (
-              <div className="flex items-center justify-between flex-wrap gap-2 bg-slate-50/90 border border-dashed border-slate-300 rounded-xl px-3.5 py-2">
-                <span className="text-xs text-slate-600 font-medium">
-                  Going to multiple cities or sightseeing places on your Round Trip?
-                </span>
-                <button
-                  type="button"
-                  onClick={handleAddRoundTripStop}
-                  className="inline-flex items-center gap-1.5 text-xs font-extrabold text-amber-800 hover:text-amber-950 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  + Add Another City / Location
-                </button>
+            {roundTripStops.length < 6 && (
+              <div className="bg-slate-50/90 border border-dashed border-slate-300 rounded-2xl p-3 space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-xs text-slate-700 font-semibold">
+                    Going to multiple cities or places on your Round Trip?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddRoundTripStop}
+                    className="inline-flex items-center gap-1.5 text-xs font-extrabold text-amber-900 bg-amber-200/80 hover:bg-amber-300 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    + Add Another City / Location
+                  </button>
+                </div>
+
+                {/* Quick 1-Tap Popular Stop Chips */}
+                <div className="flex items-center flex-wrap gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">
+                    Quick Add Stop:
+                  </span>
+                  {QUICK_ROUNDTRIP_STOPS.map((cityStr) => {
+                    const shortName = cityStr.split(',')[0];
+                    const alreadyAdded = roundTripStops.some((s) =>
+                      (s || '').toLowerCase().includes(shortName.toLowerCase())
+                    );
+                    if (alreadyAdded) return null;
+                    return (
+                      <button
+                        key={cityStr}
+                        type="button"
+                        onClick={() => handleQuickAddStopCity(cityStr)}
+                        className="text-[11px] font-semibold bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-900 border border-slate-200 hover:border-amber-300 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                      >
+                        + {shortName}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -932,7 +1044,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         <div
           className={`grid grid-cols-1 ${
             tripType === 'roundtrip' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
-          } gap-3 pt-1`}
+          } gap-3 pt-1 items-start`}
         >
           {/* Pickup Date */}
           <div>
@@ -1059,8 +1171,57 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         </div>
 
+        {/* INLINE 4-DIGIT OTP INPUT & SUBMIT BOX RIGHT BELOW MOBILE NUMBER */}
+        {!isPhoneVerified && (showInlineOtpBox || customerMobile.replace(/\D/g, '').length === 10) && (
+          <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Enter 4-Digit WhatsApp OTP to Verify (+91 {customerMobile})</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                {otpNotice || 'Click "Click Here to Get OTP" above, then enter the 4-digit OTP below and click Submit OTP.'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                ref={inlineOtpInputRef}
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={otpInput}
+                onChange={(e) => {
+                  setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4));
+                  setOtpError('');
+                }}
+                placeholder="4-Digit OTP"
+                className="w-32 bg-white border-2 border-emerald-400 rounded-xl px-3 py-2 text-center text-sm tracking-[0.25em] font-mono font-extrabold text-slate-900 focus:outline-none focus:border-emerald-600 placeholder:tracking-normal placeholder:font-sans placeholder:text-xs placeholder:text-slate-400"
+              />
+              <button
+                type="button"
+                disabled={isVerifyingOtp}
+                onClick={() => handleVerifyOtp()}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-amber-400 font-extrabold text-xs transition cursor-pointer shrink-0 flex items-center gap-1.5 shadow-xs"
+              >
+                {isVerifyingOtp ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Verifying...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Submit OTP</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
         {otpError && !showOtpModal && (
-          <div className="text-xs text-rose-600 font-medium px-1">{otpError}</div>
+          <div className="text-xs text-rose-600 font-semibold px-1">{otpError}</div>
         )}
 
         {/* Bottom Bar: Clean Route Distance + Dynamic Extra KM Rate & Primary CTA */}
@@ -1078,8 +1239,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               <>
                 <span className="text-slate-300">•</span>
                 <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                  Route: {pickupCity.split(',')[0]} → {dropCity.split(',')[0]} →{' '}
-                  {validStops.map((s) => s.split(',')[0]).join(' → ')} → {pickupCity.split(',')[0]}
+                  Route: {(pickupCity || 'Origin').split(',')[0]} → {(dropCity || 'Dest').split(',')[0]} →{' '}
+                  {validStops.map((s) => s.split(',')[0]).join(' → ')} → {(pickupCity || 'Origin').split(',')[0]}
                 </span>
               </>
             )}
@@ -1106,7 +1267,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         </div>
       </div>
 
-      {/* Secure Live WhatsApp OTP Verification Modal (Never shows OTP on screen) */}
+      {/* Secure Live WhatsApp OTP Verification Modal */}
       {showOtpModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95">
@@ -1175,19 +1336,27 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               maxLength={4}
               value={otpInput}
               onChange={(e) => {
-                setOtpInput(e.target.value.replace(/\D/g, ''));
+                setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4));
                 setOtpError('');
               }}
-              placeholder="• • • •"
-              className="w-full bg-slate-50 border-2 border-slate-300 rounded-2xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-slate-900 font-mono font-extrabold focus:outline-none focus:border-emerald-600 focus:bg-white"
+              placeholder="Enter 4-Digit OTP"
+              className="w-full bg-slate-50 border-2 border-slate-300 rounded-2xl px-4 py-3 text-center text-2xl tracking-[0.4em] text-slate-900 font-mono font-extrabold focus:outline-none focus:border-emerald-600 focus:bg-white placeholder:text-xs placeholder:tracking-normal placeholder:font-sans placeholder:text-slate-400"
             />
 
             <button
               type="button"
-              onClick={handleVerifyOtp}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm transition cursor-pointer"
+              disabled={isVerifyingOtp}
+              onClick={() => handleVerifyOtp()}
+              className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black py-3.5 rounded-xl text-sm transition cursor-pointer flex items-center justify-center gap-2"
             >
-              Verify & View Fares
+              {isVerifyingOtp ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Verifying OTP...</span>
+                </>
+              ) : (
+                <span>Submit OTP &amp; View Fares</span>
+              )}
             </button>
 
             <div className="flex items-center justify-between text-xs pt-1">
@@ -1198,13 +1367,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               >
                 Change Number
               </button>
+
               <button
                 type="button"
                 disabled={countdown > 0 || isSendingOtp}
                 onClick={handleSendOtp}
-                className="text-emerald-700 hover:text-emerald-800 disabled:text-slate-400 font-bold flex items-center gap-1 cursor-pointer"
+                className="text-emerald-700 hover:text-emerald-800 disabled:text-slate-400 font-bold cursor-pointer"
               >
-                <RefreshCw className={`w-3 h-3 ${isSendingOtp ? 'animate-spin' : ''}`} />
                 {countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
               </button>
             </div>

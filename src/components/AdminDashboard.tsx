@@ -616,11 +616,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {onClearDemoBookings && (
                     <button
                       onClick={() => {
-                        if (window.confirm('Clear all mock/demo bookings from system? This will keep only real customer bookings.')) {
-                          onClearDemoBookings();
-                        }
+                        onClearDemoBookings();
                       }}
-                      className="py-1 px-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1"
+                      className="py-1 px-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer"
                       title="Clear mock or test bookings from local storage"
                     >
                       <Trash2 className="w-3 h-3 text-rose-400" />

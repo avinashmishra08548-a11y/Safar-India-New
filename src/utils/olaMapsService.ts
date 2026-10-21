@@ -34,8 +34,14 @@ export interface Coordinates {
 export interface OlaPlacePrediction {
   description: string;
   placeId?: string;
+  place_id?: string;
   mainText: string;
   secondaryText: string;
+  structured_formatting?: {
+    main_text: string;
+    secondary_text: string;
+  };
+  types?: string[];
   lat?: number;
   lng?: number;
   category?: string;
@@ -102,10 +108,17 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
   const trimmed = (query || '').trim();
 
   if (!trimmed) {
-    const defaultCities = POPULAR_INDIAN_CITIES.slice(0, 6).map((c) => ({
+    const defaultCities = POPULAR_INDIAN_CITIES.slice(0, 8).map((c, idx) => ({
       description: `${c.name}, ${c.state}`,
+      placeId: `city_${idx}_${c.name}`,
+      place_id: `city_${idx}_${c.name}`,
       mainText: c.name,
       secondaryText: `${c.state}, India`,
+      structured_formatting: {
+        main_text: c.name,
+        secondary_text: `${c.state}, India`
+      },
+      types: ['locality'],
       lat: c.lat,
       lng: c.lon,
       source: 'indian_database' as const
@@ -113,10 +126,17 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
 
     const defaultAirports = POPULAR_INDIAN_LANDMARKS.filter((l) => l.category === 'airport')
       .slice(0, 2)
-      .map((l) => ({
+      .map((l, idx) => ({
         description: `${l.name}, ${l.city}`,
+        placeId: `air_${idx}_${l.city}`,
+        place_id: `air_${idx}_${l.city}`,
         mainText: l.name,
         secondaryText: `${l.city}, ${l.state}`,
+        structured_formatting: {
+          main_text: l.name,
+          secondary_text: `${l.city}, ${l.state}`
+        },
+        types: ['airport'],
         lat: l.lat,
         lng: l.lng,
         category: l.category,
@@ -133,7 +153,15 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
     const key = (pred.mainText + '|' + pred.secondaryText).toLowerCase();
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
-      results.push(pred);
+      results.push({
+        ...pred,
+        place_id: pred.placeId || pred.place_id || key,
+        structured_formatting: {
+          main_text: pred.mainText || pred.description,
+          secondary_text: pred.secondaryText || 'India'
+        },
+        types: pred.types || (pred.category ? [pred.category] : ['locality'])
+      });
     }
   };
 

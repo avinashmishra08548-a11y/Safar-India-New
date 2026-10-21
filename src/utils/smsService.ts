@@ -784,7 +784,7 @@ export async function verifyServerOtp(
   phoneNumber: string, 
   otpCode: string, 
   token: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; message?: string }> {
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
 
   // If client-side fallback token
@@ -795,19 +795,23 @@ export async function verifyServerOtp(
     const encodedOtp = parts[3];
 
     if (tokenPhone !== cleanPhone) {
-      return { success: false, error: 'Phone number mismatch. Request a new code.' };
+      const msg = 'Phone number mismatch. Request a new code.';
+      return { success: false, error: msg, message: msg };
     }
     if (Date.now() > expiresAt) {
-      return { success: false, error: 'Verification code has expired. Please request a new code.' };
+      const msg = 'Verification code has expired. Please request a new code.';
+      return { success: false, error: msg, message: msg };
     }
     try {
       const realOtp = atob(encodedOtp);
       if (otpCode.trim() === realOtp) {
-        return { success: true };
+        return { success: true, message: 'Verified' };
       }
-      return { success: false, error: 'Incorrect verification code. Please check your SMS.' };
+      const msg = 'Incorrect verification code. Please check your WhatsApp or SMS.';
+      return { success: false, error: msg, message: msg };
     } catch {
-      return { success: false, error: 'Invalid verification token.' };
+      const msg = 'Invalid verification token.';
+      return { success: false, error: msg, message: msg };
     }
   }
 
@@ -826,16 +830,20 @@ export async function verifyServerOtp(
 
     const data = await res.json().catch(() => null);
     if (res.ok && data && data.success && data.verified) {
-      return { success: true };
+      return { success: true, message: 'Verified' };
     }
+    const errMsg = data?.error || 'Incorrect verification code. Please check your WhatsApp or SMS.';
     return {
       success: false,
-      error: data?.error || 'Incorrect verification code. Please check your SMS.'
+      error: errMsg,
+      message: errMsg
     };
   } catch (err: any) {
+    const errMsg = 'Network error verifying code. Please try again.';
     return {
       success: false,
-      error: 'Network error verifying code. Please try again.'
+      error: errMsg,
+      message: errMsg
     };
   }
 }

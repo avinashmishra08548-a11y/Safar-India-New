@@ -123,6 +123,9 @@ async function dispatchOtpViaFast2Sms(phone, otp, apiKey) {
   }
 }
 
+// In-memory cache of active OTPs per 10-digit phone number (valid 10 mins, reused for 3 mins unless forceNew)
+const ACTIVE_OTP_CACHE = new Map();
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -143,7 +146,7 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const { action, phone, otp, token, name } = body || {};
+    const { action, phone, otp, token, name, forceNew } = body || {};
 
     const cleanPhone = sanitize10Digit(phone);
     if (!cleanPhone || cleanPhone.length !== 10) {
@@ -156,10 +159,33 @@ export default async function handler(req, res) {
 
     // ACTION: SEND OTP
     if (action === 'send') {
-      const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
-      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
-      const signature = generateSignature(cleanPhone, generatedOtp, expiresAt);
-      const sessionToken = `${signature}.${expiresAt}.${cleanPhone}`;
+      const existing = ACTIVE_OTP_CACHE.get(cleanPhone);
+      const now = Date.now();
+      let generatedOtp;
+      let expiresAt;
+      let sessionToken;
+
+      if (
+        !forceNew &&
+        existing &&
+        existing.expiresAt > now + 60 * 1000 &&
+        now - existing.createdAt < 3 * 60 * 1000
+      ) {
+        generatedOtp = existing.otp;
+        expiresAt = existing.expiresAt;
+        sessionToken = existing.token;
+      } else {
+        generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
+        expiresAt = now + 10 * 60 * 1000; // 10 minutes validity
+        const signature = generateSignature(cleanPhone, generatedOtp, expiresAt);
+        sessionToken = `${signature}.${expiresAt}.${cleanPhone}`;
+        ACTIVE_OTP_CACHE.set(cleanPhone, {
+          otp: generatedOtp,
+          expiresAt,
+          token: sessionToken,
+          createdAt: now
+        });
+      }
 
       const smsText = `🔐 Safar India Cabs Verification OTP: ${generatedOtp}. Valid for 10 minutes. Do not share this code with anyone.`;
 
@@ -198,6 +224,20 @@ export default async function handler(req, res) {
           .json({ success: false, error: 'Please enter a 4-digit verification code' });
       }
 
+      const inputCleanOtp = otp.trim();
+
+      // 1. Check active server cache for this phone number first
+      const cached = ACTIVE_OTP_CACHE.get(cleanPhone);
+      if (cached && Date.now() <= cached.expiresAt && cached.otp === inputCleanOtp) {
+        ACTIVE_OTP_CACHE.delete(cleanPhone);
+        return res.status(200).json({
+          success: true,
+          verified: true,
+          message: 'Phone number successfully verified'
+        });
+      }
+
+      // 2. Check cryptographic HMAC token
       if (!token || typeof token !== 'string' || !token.includes('.')) {
         return res.status(400).json({
           success: false,
@@ -223,7 +263,6 @@ export default async function handler(req, res) {
         });
       }
 
-      const inputCleanOtp = otp.trim();
       const calculatedSignature = generateSignature(cleanPhone, inputCleanOtp, expiresAt);
 
       if (calculatedSignature !== expectedSignature) {
@@ -233,6 +272,7 @@ export default async function handler(req, res) {
         });
       }
 
+      ACTIVE_OTP_CACHE.delete(cleanPhone);
       return res.status(200).json({
         success: true,
         verified: true,
