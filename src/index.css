@@ -6,10 +6,19 @@
   }
 }
 
-/* Prevent Zoom & Horizontal Overflow */
-html, body {
+/* Prevent Zoom & Horizontal Overflow without trapping vertical scroll on body */
+html {
   width: 100%;
-  height: 100%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body {
+  width: 100%;
+  min-height: 100vh;
   overflow-x: hidden;
   touch-action: manipulation;
   -webkit-text-size-adjust: 100%;

@@ -17,6 +17,7 @@ import { NavTabId } from './Header';
 
 interface FooterProps {
   activeNavTab?: NavTabId;
+  activeSectionId?: string;
   onNavigateTab?: (tab: NavTabId, targetSectionId?: string) => void;
   onOpenDriverPartner?: () => void;
   onSelectRoute?: (pickup: string, drop: string) => void;
@@ -24,6 +25,7 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({
   activeNavTab = 'booking',
+  activeSectionId,
   onNavigateTab,
   onOpenDriverPartner,
   onSelectRoute
@@ -112,7 +114,7 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="lg:col-span-4 space-y-4">
             <button
               type="button"
-              onClick={() => handleSectionSelect('booking')}
+              onClick={() => handleSectionSelect('booking', 'booking-section-top')}
               className="flex items-center gap-3 text-left cursor-pointer"
             >
               <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shadow-amber-500/20">
@@ -304,7 +306,7 @@ export const Footer: React.FC<FooterProps> = ({
               type="button"
               onClick={() => handleSectionSelect('about', 'about-company-top')}
               className={`transition cursor-pointer ${
-                activeNavTab === 'about'
+                activeNavTab === 'about' && activeSectionId !== 'fare-rules-section'
                   ? 'text-amber-700 font-extrabold underline underline-offset-4'
                   : 'hover:text-slate-900'
               }`}
@@ -316,7 +318,7 @@ export const Footer: React.FC<FooterProps> = ({
               type="button"
               onClick={() => handleSectionSelect('help', 'help-faqs-section')}
               className={`transition cursor-pointer ${
-                activeNavTab === 'help'
+                activeNavTab === 'help' && activeSectionId === 'help-faqs-section'
                   ? 'text-amber-700 font-extrabold underline underline-offset-4'
                   : 'hover:text-slate-900'
               }`}
@@ -328,8 +330,8 @@ export const Footer: React.FC<FooterProps> = ({
               type="button"
               onClick={() => handleSectionSelect('about', 'fare-rules-section')}
               className={`transition cursor-pointer ${
-                activeNavTab === 'about'
-                  ? 'text-amber-700 font-bold hover:text-amber-800'
+                activeNavTab === 'about' && activeSectionId === 'fare-rules-section'
+                  ? 'text-amber-700 font-extrabold underline underline-offset-4'
                   : 'hover:text-slate-900'
               }`}
             >
@@ -340,8 +342,8 @@ export const Footer: React.FC<FooterProps> = ({
               type="button"
               onClick={() => handleSectionSelect('help', 'customer-support-top')}
               className={`transition cursor-pointer ${
-                activeNavTab === 'help'
-                  ? 'text-amber-700 font-bold hover:text-amber-800'
+                activeNavTab === 'help' && activeSectionId !== 'help-faqs-section'
+                  ? 'text-amber-700 font-extrabold underline underline-offset-4'
                   : 'hover:text-slate-900'
               }`}
             >

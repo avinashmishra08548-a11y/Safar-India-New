@@ -50,31 +50,82 @@ import heroCabsIntercityImg from './assets/images/hero_cabs_intercity_1792165620
 export default function App() {
   // Navigation tabs: 'booking' | 'routes' | 'rides' | 'about' | 'help'
   const [activeTab, setActiveTab] = useState<NavTabId>('booking');
+  const [activeSectionId, setActiveSectionId] = useState<string>('booking-section-top');
+
+  const scrollAllContainersTo = (topPos: number, behavior: ScrollBehavior = 'smooth') => {
+    try {
+      window.scrollTo({ top: topPos, behavior });
+    } catch {
+      window.scrollTo(0, topPos);
+    }
+    try {
+      document.documentElement.scrollTo({ top: topPos, behavior });
+    } catch {
+      document.documentElement.scrollTop = topPos;
+    }
+    try {
+      document.body.scrollTo({ top: topPos, behavior });
+    } catch {
+      document.body.scrollTop = topPos;
+    }
+  };
 
   const scrollToSectionTop = (sectionId?: string, fallbackTop = 0) => {
-    window.setTimeout(() => {
-      if (sectionId) {
-        const el = document.getElementById(sectionId);
-        if (el) {
-          const stickyHeaderOffset = 84;
-          const elementTop = el.getBoundingClientRect().top + window.scrollY;
-          window.scrollTo({
-            top: Math.max(0, elementTop - stickyHeaderOffset),
-            behavior: 'smooth'
-          });
-          if (!el.hasAttribute('tabindex')) {
-            el.setAttribute('tabindex', '-1');
+    const topLevelSections = new Set([
+      'booking-section-top',
+      'routes-section-top',
+      'rides-section-top',
+      'about-company-top',
+      'customer-support-top'
+    ]);
+
+    const performScroll = () => {
+      if (!sectionId || topLevelSections.has(sectionId)) {
+        scrollAllContainersTo(0, 'smooth');
+        if (sectionId) {
+          const topEl = document.getElementById(sectionId);
+          if (topEl) {
+            if (!topEl.hasAttribute('tabindex')) {
+              topEl.setAttribute('tabindex', '-1');
+            }
+            topEl.focus({ preventScroll: true });
           }
-          el.focus({ preventScroll: true });
-          return;
         }
+        return;
       }
-      window.scrollTo({ top: fallbackTop, behavior: 'smooth' });
-    }, 60);
+
+      const el = document.getElementById(sectionId);
+      if (el) {
+        const headerEl = document.querySelector('header.safar-dark-header');
+        const stickyHeaderOffset = (headerEl ? headerEl.getBoundingClientRect().height : 72) + 14;
+        const currentScroll =
+          window.scrollY ||
+          window.pageYOffset ||
+          document.documentElement.scrollTop ||
+          document.body.scrollTop ||
+          0;
+        const elementTop = el.getBoundingClientRect().top + currentScroll;
+        const targetScrollTop = Math.max(0, elementTop - stickyHeaderOffset);
+
+        scrollAllContainersTo(targetScrollTop, 'smooth');
+
+        if (!el.hasAttribute('tabindex')) {
+          el.setAttribute('tabindex', '-1');
+        }
+        el.focus({ preventScroll: true });
+        return;
+      }
+
+      scrollAllContainersTo(fallbackTop, 'smooth');
+    };
+
+    window.requestAnimationFrame(() => {
+      window.setTimeout(performScroll, 40);
+      window.setTimeout(performScroll, 160);
+    });
   };
 
   const handleSwitchTab = (tab: NavTabId, targetSectionId?: string) => {
-    setActiveTab(tab);
     const defaultSectionMap: Record<NavTabId, string> = {
       booking: 'booking-section-top',
       routes: 'routes-section-top',
@@ -82,7 +133,10 @@ export default function App() {
       about: 'about-company-top',
       help: 'customer-support-top'
     };
-    scrollToSectionTop(targetSectionId || defaultSectionMap[tab], 0);
+    const resolvedSectionId = targetSectionId || defaultSectionMap[tab];
+    setActiveTab(tab);
+    setActiveSectionId(resolvedSectionId);
+    scrollToSectionTop(resolvedSectionId, 0);
   };
 
   // Customer Authentication state
@@ -574,14 +628,16 @@ export default function App() {
           </div>
         ) : activeTab === 'about' ? (
           <AboutSectionView
-            onNavigateToBooking={() => handleSwitchTab('booking')}
-            onNavigateToRoutes={() => handleSwitchTab('routes')}
+            focusedSectionId={activeSectionId}
+            onNavigateToBooking={() => handleSwitchTab('booking', 'booking-section-top')}
+            onNavigateToRoutes={() => handleSwitchTab('routes', 'routes-section-top')}
             onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
           />
         ) : activeTab === 'help' ? (
           <HelpSupportView
-            onNavigateToBooking={() => handleSwitchTab('booking')}
-            onNavigateToRides={() => handleSwitchTab('rides')}
+            focusedSectionId={activeSectionId}
+            onNavigateToBooking={() => handleSwitchTab('booking', 'booking-section-top')}
+            onNavigateToRides={() => handleSwitchTab('rides', 'rides-section-top')}
           />
         ) : (
           <div id="booking-section-top" className="space-y-14 sm:space-y-20 scroll-mt-24 outline-hidden">
@@ -800,6 +856,7 @@ export default function App() {
       {/* Footer with Interactive Section Switcher & Updated Official Contacts (Owner Portal Removed) */}
       <Footer
         activeNavTab={activeTab}
+        activeSectionId={activeSectionId}
         onNavigateTab={handleSwitchTab}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
         onSelectRoute={(from, to) => {

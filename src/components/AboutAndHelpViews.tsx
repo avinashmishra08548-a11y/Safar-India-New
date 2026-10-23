@@ -40,12 +40,14 @@ interface AboutSectionViewProps {
   onNavigateToBooking: () => void;
   onNavigateToRoutes: () => void;
   onOpenDriverPartner: () => void;
+  focusedSectionId?: string;
 }
 
 export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
   onNavigateToBooking,
   onNavigateToRoutes,
-  onOpenDriverPartner
+  onOpenDriverPartner,
+  focusedSectionId
 }) => {
   const companyStats = [
     { label: 'Indian Cities Covered', value: '150+', icon: MapPin },
@@ -239,15 +241,19 @@ export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
       {/* Fleet & Transparent Fare Structure Table */}
       <div
         id="fare-rules-section"
-        className="scroll-mt-24 bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5"
+        className={`scroll-mt-24 bg-white border rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5 transition-all ${
+          focusedSectionId === 'fare-rules-section'
+            ? 'border-amber-400 ring-2 ring-amber-400/40'
+            : 'border-slate-200'
+        }`}
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <span className="text-xs font-extrabold uppercase tracking-wider text-amber-700">
-              Our Verified Fleet &amp; Rates
+              Transparent Fare Rules &amp; Verified Fleet Rates
             </span>
             <h3 className="text-lg sm:text-xl font-black text-slate-950">
-              Clean AC Cabs for Every Group Size
+              Official Per-KM Rates &amp; Outstation Billing Rules
             </h3>
           </div>
           <button
@@ -285,6 +291,28 @@ export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
             </div>
           ))}
         </div>
+
+        {/* Standard Fare Rules Summary Box */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-2">
+          <div className="rounded-2xl bg-amber-50/60 border border-amber-200/80 p-3.5 space-y-1">
+            <div className="text-xs font-black text-slate-900">1. One-Way Trip Rule</div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Chargeable strictly for one-way distance (min 130 KM). Zero return fare &amp; zero return driver charges.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-emerald-50/60 border border-emerald-200/80 p-3.5 space-y-1">
+            <div className="text-xs font-black text-slate-900">2. Round-Trip 250 KM/Day Rule</div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Minimum 250 KM/day billing package plus standard driver allowance (₹300/day Sedan/SUV, ₹400/day Innova) &amp; night charge (₹300/night).
+            </p>
+          </div>
+          <div className="rounded-2xl bg-blue-50/60 border border-blue-200/80 p-3.5 space-y-1">
+            <div className="text-xs font-black text-slate-900">3. Tolls, State Tax &amp; Parking</div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Highway FASTag tolls, state border entry tax, and parking fees are payable as per actual receipts unless pre-included.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Advantages & Reviews */}
@@ -319,11 +347,13 @@ export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
 interface HelpSupportViewProps {
   onNavigateToBooking: () => void;
   onNavigateToRides: () => void;
+  focusedSectionId?: string;
 }
 
 export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
   onNavigateToBooking,
-  onNavigateToRides
+  onNavigateToRides,
+  focusedSectionId
 }) => {
   const quickSupportTopics = [
     {
@@ -585,7 +615,14 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
       </div>
 
       {/* Embedded FAQs & Billing Rules */}
-      <div id="help-faqs-section" className="scroll-mt-24">
+      <div
+        id="help-faqs-section"
+        className={`scroll-mt-24 rounded-3xl transition-all ${
+          focusedSectionId === 'help-faqs-section'
+            ? 'bg-white p-4 sm:p-6 border border-amber-400 ring-2 ring-amber-400/40 shadow-xs'
+            : ''
+        }`}
+      >
         <FaqSection />
       </div>
 
