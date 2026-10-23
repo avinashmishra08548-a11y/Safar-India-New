@@ -4,25 +4,6 @@ import fleetShowcaseImg from '../assets/images/cabs_fleet_showcase_1792165620669
 
 export const CABS_FLEET: CabVehicle[] = [
   {
-    id: 'hatchback',
-    name: 'Hatchback AC',
-    models: 'WagonR, Celerio, Tiago or equivalent',
-    category: 'Pocket Friendly',
-    ratePerKm: 9.5,
-    roundTripRatePerKm: 11.5,
-    extraKmRate: 10.5,
-    driverAllowancePerDay: 250,
-    statePermitTax: 200,
-    hillStationCharge: 250,
-    local8Hr80KmFare: 1599,
-    capacityPassengers: 4,
-    capacityLuggage: 2,
-    features: ['Chilled Air Conditioning', 'Zero Night Charges', 'Verified Commercial Driver', 'Sanitized Cabin'],
-    popular: false,
-    image: heroCabsImg,
-    description: 'SafarIndiaCabs budget-friendly compact AC cab. Ideal for solo travelers, couples, or short intercity drops.'
-  },
-  {
     id: 'sedan',
     name: 'Sedan AC (Dzire / Etios)',
     models: 'Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura',
@@ -40,6 +21,25 @@ export const CABS_FLEET: CabVehicle[] = [
     popular: true,
     image: fleetShowcaseImg,
     description: 'India\'s #1 intercity sedan choice. Comfortable for 4 passengers with separate boot luggage space.'
+  },
+  {
+    id: 'hatchback',
+    name: 'Hatchback AC',
+    models: 'WagonR, Celerio, Tiago or equivalent',
+    category: 'Pocket Friendly',
+    ratePerKm: 9.5,
+    roundTripRatePerKm: 11.5,
+    extraKmRate: 10.5,
+    driverAllowancePerDay: 250,
+    statePermitTax: 200,
+    hillStationCharge: 250,
+    local8Hr80KmFare: 1599,
+    capacityPassengers: 4,
+    capacityLuggage: 2,
+    features: ['Chilled Air Conditioning', 'Zero Night Charges', 'Verified Commercial Driver', 'Sanitized Cabin'],
+    popular: false,
+    image: heroCabsImg,
+    description: 'SafarIndiaCabs budget-friendly compact AC cab. Ideal for solo travelers, couples, or short intercity drops.'
   },
   {
     id: 'exec_sedan',

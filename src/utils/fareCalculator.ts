@@ -848,7 +848,7 @@ export function computeTripFare(params: {
     addonAssuredModel = false
   } = params;
 
-  const cab = CABS_FLEET.find((c) => c.id === cabId) || CABS_FLEET[1];
+  const cab = CABS_FLEET.find((c) => c.id === cabId) || CABS_FLEET[0];
 
   const oneWayRate = cab.ratePerKm;
   const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1);
