@@ -42,7 +42,7 @@
       "headers": [
         {
           "key": "Content-Type",
-          "value": "text/xml; charset=utf-8"
+          "value": "text/xml"
         },
         {
           "key": "Cache-Control",
@@ -74,6 +74,14 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
     {
       "source": "/((?!api/|assets/|robots\\.txt|sitemap\\.xml|favicon\\.svg|manifest\\.json|sw\\.js|logo\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png|apple-touch-icon\\.png).*)",
       "destination": "/index.html"
