@@ -158,13 +158,16 @@ export default function App() {
       const searchParams = new URLSearchParams(window.location.search);
       const actionParam = (searchParams.get('action') || '').trim().toLowerCase();
       const hashVal = (window.location.hash || '').trim().toLowerCase();
+      const pathname = (window.location.pathname || '').trim().toLowerCase().replace(/\/+$/, '');
       return (
         actionParam === 'review' ||
         actionParam === 'reviews' ||
         searchParams.has('review') ||
         searchParams.has('reviews') ||
         hashVal === '#reviews' ||
-        hashVal === '#review'
+        hashVal === '#review' ||
+        pathname === '/reviews' ||
+        pathname === '/review'
       );
     } catch {
       return false;
@@ -176,26 +179,77 @@ export default function App() {
   const [isCabsModalOpen, setIsCabsModalOpen] = useState(false);
   const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
 
-  useEffect(() => {
-    const checkReviewUrlTrigger = () => {
-      if (shouldOpenReviewsFromUrl()) {
-        setIsReviewsModalOpen(true);
-      }
-    };
-    checkReviewUrlTrigger();
-    window.addEventListener('hashchange', checkReviewUrlTrigger);
-    window.addEventListener('popstate', checkReviewUrlTrigger);
-    return () => {
-      window.removeEventListener('hashchange', checkReviewUrlTrigger);
-      window.removeEventListener('popstate', checkReviewUrlTrigger);
-    };
-  }, []);
-
   // Booking Engine form states
   const [tripType, setTripType] = useState<TripType>('oneway');
   const [pickupCity, setPickupCity] = useState('Delhi NCR');
   const [dropCity, setDropCity] = useState('Agra');
   const [roundTripStops, setRoundTripStops] = useState<string[]>([]);
+
+  useEffect(() => {
+    const applyRouteFromUrl = () => {
+      if (shouldOpenReviewsFromUrl()) {
+        setIsReviewsModalOpen(true);
+      }
+      try {
+        const pathname = (window.location.pathname || '').trim().toLowerCase().replace(/\/+$/, '');
+        if (!pathname || pathname === '/') return;
+
+        if (pathname === '/one-way-cab') {
+          setActiveTab('booking');
+          setTripType('oneway');
+        } else if (pathname === '/round-trip-cab') {
+          setActiveTab('booking');
+          setTripType('roundtrip');
+        } else if (pathname === '/local-cab-rental') {
+          setActiveTab('booking');
+          setTripType('local');
+        } else if (pathname === '/airport-taxi') {
+          setActiveTab('booking');
+          setTripType('airport');
+        } else if (pathname === '/popular-routes') {
+          setActiveTab('routes');
+          setActiveSectionId('routes-section-top');
+        } else if (pathname === '/about') {
+          setActiveTab('about');
+          setActiveSectionId('about-company-top');
+        } else if (pathname === '/help') {
+          setActiveTab('help');
+          setActiveSectionId('customer-support-top');
+        } else if (pathname === '/driver-partner') {
+          setIsDriverPartnerOpen(true);
+        } else {
+          const intercityRoutes: Record<string, { from: string; to: string }> = {
+            '/delhi-to-agra-cab': { from: 'Delhi NCR', to: 'Agra' },
+            '/delhi-to-jaipur-cab': { from: 'Delhi NCR', to: 'Jaipur' },
+            '/delhi-to-chandigarh-cab': { from: 'Delhi NCR', to: 'Chandigarh' },
+            '/delhi-to-haridwar-cab': { from: 'Delhi NCR', to: 'Haridwar' },
+            '/delhi-to-dehradun-cab': { from: 'Delhi NCR', to: 'Dehradun' },
+            '/delhi-to-manali-cab': { from: 'Delhi NCR', to: 'Manali' },
+            '/delhi-to-shimla-cab': { from: 'Delhi NCR', to: 'Shimla' },
+            '/delhi-to-nainital-cab': { from: 'Delhi NCR', to: 'Nainital' },
+            '/mumbai-to-pune-cab': { from: 'Mumbai', to: 'Pune' },
+            '/lucknow-to-ayodhya-cab': { from: 'Lucknow', to: 'Ayodhya' },
+          };
+          const matchedRoute = intercityRoutes[pathname];
+          if (matchedRoute) {
+            setActiveTab('booking');
+            setTripType('oneway');
+            setPickupCity(matchedRoute.from);
+            setDropCity(matchedRoute.to);
+          }
+        }
+      } catch {
+        // Ignore URL parsing errors
+      }
+    };
+    applyRouteFromUrl();
+    window.addEventListener('hashchange', applyRouteFromUrl);
+    window.addEventListener('popstate', applyRouteFromUrl);
+    return () => {
+      window.removeEventListener('hashchange', applyRouteFromUrl);
+      window.removeEventListener('popstate', applyRouteFromUrl);
+    };
+  }, []);
   
   // Date defaults: tomorrow
   const getTomorrowStr = () => {

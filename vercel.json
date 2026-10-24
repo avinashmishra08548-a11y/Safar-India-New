@@ -38,7 +38,33 @@
       ]
     },
     {
-      "source": "/(robots.txt|sitemap.xml|favicon.svg)",
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/xml; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=3600"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=3600"
+        }
+      ]
+    },
+    {
+      "source": "/favicon.svg",
       "headers": [
         {
           "key": "Cache-Control",
@@ -49,7 +75,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!api/|assets/|robots\\.txt|sitemap\\.xml|favicon\\.svg).*)",
+      "source": "/((?!api/|assets/|robots\\.txt|sitemap\\.xml|favicon\\.svg|manifest\\.json|sw\\.js|logo\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png|apple-touch-icon\\.png).*)",
       "destination": "/index.html"
     }
   ]
