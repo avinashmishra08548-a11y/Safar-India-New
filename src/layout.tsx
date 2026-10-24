@@ -50,6 +50,9 @@ export const metadata = {
     title: 'Safar Cabs',
   },
   applicationName: 'Safar Cabs',
+  verification: {
+    google: 'A9A1QLzfGL__HhuoC02Kj2WNh6DBBaCWV17f5L94pNU',
+  },
 };
 
 interface RootLayoutProps {
