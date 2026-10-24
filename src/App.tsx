@@ -550,23 +550,34 @@ export default function App() {
     status: 'confirmed' | 'completed' | 'cancelled',
     driverInfo?: { name: string; phone: string; carPlate: string; vehicleModel?: string }
   ) => {
-    setAllBookings(prev => prev.map(b => {
-      if (b.id === bookingId) {
-        return {
-          ...b,
-          status,
-          driverName: driverInfo?.name || b.driverName,
-          driverPhone: driverInfo?.phone || b.driverPhone,
-          driverVehicleModel: driverInfo?.vehicleModel || b.driverVehicleModel,
-          driverVehicleNo: driverInfo?.carPlate || b.driverVehicleNo,
-          driverAssignedAt: driverInfo ? new Date().toISOString() : b.driverAssignedAt,
-          notes: driverInfo 
-            ? `Driver: ${driverInfo.name} (${driverInfo.phone}) | ${driverInfo.vehicleModel || 'Cab'} (${driverInfo.carPlate})` 
-            : b.notes
-        };
+    setAllBookings(prev => {
+      let completedRecord: BookingRecord | null = null;
+      const next = prev.map(b => {
+        if (b.id === bookingId) {
+          const updated: BookingRecord = {
+            ...b,
+            status,
+            driverName: driverInfo?.name || b.driverName,
+            driverPhone: driverInfo?.phone || b.driverPhone,
+            driverVehicleModel: driverInfo?.vehicleModel || b.driverVehicleModel,
+            driverVehicleNo: driverInfo?.carPlate || b.driverVehicleNo,
+            driverAssignedAt: driverInfo ? new Date().toISOString() : b.driverAssignedAt,
+            notes: driverInfo 
+              ? `Driver: ${driverInfo.name} (${driverInfo.phone}) | ${driverInfo.vehicleModel || 'Cab'} (${driverInfo.carPlate})` 
+              : b.notes
+          };
+          if (status === 'completed') {
+            completedRecord = updated;
+          }
+          return updated;
+        }
+        return b;
+      });
+      if (completedRecord) {
+        setTimeout(() => setActiveVoucherBooking(completedRecord), 50);
       }
-      return b;
-    }));
+      return next;
+    });
 
     // Sync status change to backend
     fetch('/api/bookings', {
@@ -1159,6 +1170,16 @@ export default function App() {
         onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
         onChangePin={handleChangeOwnerPin}
         onClearDemoBookings={handleClearDemoBookings}
+        onOpenBookingReceipt={(b) => setActiveVoucherBooking(b)}
+        onCreateManualBooking={(newBooking) => {
+          setAllBookings(prev => [newBooking, ...prev]);
+          setActiveVoucherBooking(newBooking);
+          fetch('/api/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ booking: newBooking })
+          }).catch(() => {});
+        }}
       />
 
     </div>

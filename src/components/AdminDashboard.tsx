@@ -25,9 +25,12 @@ import {
   MapPin,
   IndianRupee,
   CheckCircle,
-  XCircle
+  XCircle,
+  FileText,
+  Plus
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
+import { generateBookingInvoicePdf } from './BookingConfirmationModal';
 import { formatINR } from '../utils/fareCalculator';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 import {
@@ -81,6 +84,8 @@ interface AdminDashboardProps {
   ) => void;
   onChangePin: (newPin: string) => void;
   onClearDemoBookings?: () => void;
+  onOpenBookingReceipt?: (booking: BookingRecord) => void;
+  onCreateManualBooking?: (booking: BookingRecord) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -89,7 +94,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   bookings,
   onUpdateBookingStatus,
   onChangePin,
-  onClearDemoBookings
+  onClearDemoBookings,
+  onOpenBookingReceipt,
+  onCreateManualBooking
 }) => {
   const [activeTab, setActiveTab] = useState<'bookings' | 'customers' | 'gateways' | 'security'>('bookings');
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -122,6 +129,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [driverCarPlate, setDriverCarPlate] = useState('');
   const [isSendingDriverSms, setIsSendingDriverSms] = useState(false);
   const [driverSmsSuccessNotice, setDriverSmsSuccessNotice] = useState('');
+
+  // Owner Instant Booking & Receipt Generator Form States
+  const [showQuickInvoiceForm, setShowQuickInvoiceForm] = useState(false);
+  const [quickCustName, setQuickCustName] = useState('');
+  const [quickCustPhone, setQuickCustPhone] = useState('');
+  const [quickPickup, setQuickPickup] = useState('Delhi NCR');
+  const [quickDrop, setQuickDrop] = useState('Agra');
+  const [quickDate, setQuickDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [quickTime, setQuickTime] = useState('08:00 AM');
+  const [quickVehicle, setQuickVehicle] = useState('Sedan AC (Dzire / Etios)');
+  const [quickDistanceKm, setQuickDistanceKm] = useState('230');
+  const [quickTotalFare, setQuickTotalFare] = useState('2800');
+  const [quickAdvancePaid, setQuickAdvancePaid] = useState('560');
+  const [quickFormError, setQuickFormError] = useState('');
 
   // Traccar Local Service + Cloud Fallback SMS Gateway management states
   const [traccarLocalEndpoint, setTraccarLocalEndpointState] = useState(() => getTraccarLocalEndpoint());
@@ -801,18 +822,255 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
                 </div>
 
-                {/* Search Input */}
-                <div className="relative w-full lg:w-72">
-                  <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`} />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search ID, customer, mobile or city..."
-                    className={`w-full border rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:outline-none ${inputBg}`}
-                  />
+                {/* Search Input & Quick Invoice Button */}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full lg:w-auto">
+                  <div className="relative flex-1 lg:w-64">
+                    <Search className={`w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`} />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search ID, customer, mobile or city..."
+                      className={`w-full border rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:outline-none ${inputBg}`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickInvoiceForm((prev) => !prev)}
+                    className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer whitespace-nowrap"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>{showQuickInvoiceForm ? 'Close Form' : 'Complete Booking & Receipt'}</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Owner Instant Booking & PDF Invoice Generator Form */}
+              {showQuickInvoiceForm && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    setQuickFormError('');
+                    const cleanName = quickCustName.trim();
+                    const cleanPhone = sanitize10DigitPhone(quickCustPhone);
+                    if (!cleanName) {
+                      setQuickFormError('Please enter Customer Name.');
+                      return;
+                    }
+                    if (cleanPhone.length !== 10) {
+                      setQuickFormError('Please enter a valid 10-digit Customer Phone number.');
+                      return;
+                    }
+                    const totalVal = Math.max(0, Number(quickTotalFare) || 0);
+                    const advanceVal = Math.max(0, Number(quickAdvancePaid) || 0);
+                    const remainingVal = Math.max(0, totalVal - advanceVal);
+                    const uniqueBookingId = `SIC-${Date.now().toString().slice(-5)}`;
+
+                    const newRecord: BookingRecord = {
+                      id: uniqueBookingId,
+                      tripType: 'oneway',
+                      pickupCity: quickPickup.trim() || 'Delhi NCR',
+                      dropCity: quickDrop.trim() || 'Agra',
+                      pickupAddress: quickPickup.trim() || 'Delhi NCR',
+                      dropAddress: quickDrop.trim() || 'Agra',
+                      pickupDate: quickDate || new Date().toISOString().split('T')[0],
+                      pickupTime: quickTime || '08:00 AM',
+                      cabId: 'sedan',
+                      cabName: quickVehicle,
+                      distanceKm: Math.max(10, Number(quickDistanceKm) || 200),
+                      baseFare: totalVal,
+                      driverAllowance: 0,
+                      tollsAndTaxes: 0,
+                      gstAmount: 0,
+                      totalFare: totalVal,
+                      advancePaid: advanceVal,
+                      balanceDue: remainingVal,
+                      paymentMode: remainingVal === 0 ? 'full' : 'advance_20',
+                      paymentMethod: 'Owner Panel Verified Booking',
+                      transactionId: `SIC-INV-${Date.now().toString().slice(-5)}`,
+                      customerName: cleanName,
+                      customerPhone: cleanPhone,
+                      status: 'completed',
+                      createdAt: new Date().toISOString(),
+                      notes: 'Completed & Verified via Safar India Cabs Owner Panel'
+                    };
+
+                    if (onCreateManualBooking) {
+                      onCreateManualBooking(newRecord);
+                    } else if (onOpenBookingReceipt) {
+                      onOpenBookingReceipt(newRecord);
+                    }
+                    setShowQuickInvoiceForm(false);
+                    setQuickCustName('');
+                    setQuickCustPhone('');
+                  }}
+                  className="bg-gradient-to-br from-[#081C44] to-[#0F172A] text-white border-2 border-amber-400 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xl"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/15 pb-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                        Safar India Cabs · Instant Receipt &amp; PDF Invoice Generator
+                      </div>
+                      <h3 className="text-sm sm:text-base font-black text-white">
+                        Complete Booking &amp; Generate Official PDF Receipt
+                      </h3>
+                    </div>
+                    <span className="text-xs font-mono font-bold bg-amber-400 text-slate-950 px-3 py-1 rounded-lg self-start sm:self-auto">
+                      Auto ID: SIC-{Date.now().toString().slice(-5)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                        Customer Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={quickCustName}
+                        onChange={(e) => setQuickCustName(e.target.value)}
+                        placeholder="e.g. Vikramjit Singh"
+                        className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white placeholder:text-slate-400 font-semibold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                        Customer Phone (10 Digits) *
+                      </label>
+                      <input
+                        type="tel"
+                        maxLength={10}
+                        value={quickCustPhone}
+                        onChange={(e) => setQuickCustPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        placeholder="e.g. 9876543210"
+                        className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white placeholder:text-slate-400 font-mono font-semibold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                        Pickup Location *
+                      </label>
+                      <input
+                        type="text"
+                        value={quickPickup}
+                        onChange={(e) => setQuickPickup(e.target.value)}
+                        placeholder="e.g. IGI Airport T3, New Delhi"
+                        className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white placeholder:text-slate-400 font-semibold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                        Drop Location *
+                      </label>
+                      <input
+                        type="text"
+                        value={quickDrop}
+                        onChange={(e) => setQuickDrop(e.target.value)}
+                        placeholder="e.g. Tajganj, Agra"
+                        className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-white placeholder:text-slate-400 font-semibold focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                        Trip Date &amp; Time
+                      </label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="date"
+                          value={quickDate}
+                          onChange={(e) => setQuickDate(e.target.value)}
+                          className="w-3/5 bg-white/10 border border-white/20 rounded-xl px-2.5 py-2 text-white font-semibold focus:outline-none focus:border-amber-400"
+                        />
+                        <input
+                          type="text"
+                          value={quickTime}
+                          onChange={(e) => setQuickTime(e.target.value)}
+                          placeholder="08:00 AM"
+                          className="w-2/5 bg-white/10 border border-white/20 rounded-xl px-2.5 py-2 text-white font-semibold focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                        Vehicle Type
+                      </label>
+                      <select
+                        value={quickVehicle}
+                        onChange={(e) => setQuickVehicle(e.target.value)}
+                        className="w-full bg-slate-900 border border-white/20 rounded-xl px-3 py-2 text-white font-semibold focus:outline-none focus:border-amber-400 cursor-pointer"
+                      >
+                        <option value="Sedan AC (Dzire / Etios)">Sedan AC (Dzire / Etios)</option>
+                        <option value="Hatchback AC">Hatchback AC</option>
+                        <option value="Prime Executive Sedan">Prime Executive Sedan</option>
+                        <option value="SUV AC (Ertiga / Carens)">SUV AC (Ertiga / Carens)</option>
+                        <option value="Assured Innova Crysta">Assured Innova Crysta</option>
+                        <option value="Tempo Traveller AC (12 Seater)">Tempo Traveller AC (12 Seater)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-300 mb-1">
+                        Estimated Fare (₹) &amp; Advance Paid (₹)
+                      </label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="number"
+                          value={quickTotalFare}
+                          onChange={(e) => setQuickTotalFare(e.target.value)}
+                          placeholder="Total ₹"
+                          className="w-1/2 bg-white/10 border border-white/20 rounded-xl px-2.5 py-2 text-white font-mono font-bold focus:outline-none focus:border-amber-400"
+                        />
+                        <input
+                          type="number"
+                          value={quickAdvancePaid}
+                          onChange={(e) => setQuickAdvancePaid(e.target.value)}
+                          placeholder="Advance ₹"
+                          className="w-1/2 bg-white/10 border border-white/20 rounded-xl px-2.5 py-2 text-emerald-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col justify-end">
+                      <div className="bg-amber-400/15 border border-amber-400/40 rounded-xl px-3 py-2 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-amber-300">Remaining:</span>
+                        <span className="text-sm font-black font-mono text-amber-400">
+                          {formatINR(
+                            Math.max(0, (Number(quickTotalFare) || 0) - (Number(quickAdvancePaid) || 0))
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {quickFormError && (
+                    <div className="text-xs font-bold text-rose-300 bg-rose-950/60 border border-rose-500/40 px-3 py-2 rounded-xl">
+                      {quickFormError}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickInvoiceForm(false)}
+                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Complete Booking &amp; Open Receipt / PDF Invoice</span>
+                    </button>
+                  </div>
+                </form>
+              )}
 
               {/* Bookings List */}
               <div className="space-y-3.5">
@@ -993,13 +1251,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex sm:flex-col lg:flex-row items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           {b.status === 'confirmed' && (
                             <>
                               <button
                                 type="button"
                                 onClick={() => handleOpenAssignModal(b)}
-                                className="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                                className="px-3 py-2 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
                               >
                                 <UserCheck className="w-3.5 h-3.5" />
                                 <span>{b.driverName ? 'Update Driver' : 'Assign Driver'}</span>
@@ -1008,16 +1266,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onUpdateBookingStatus(b.id, 'completed')}
-                                className={`px-3 py-2 rounded-xl border text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                                  isDark
-                                    ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
-                                    : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
-                                }`}
+                                className="px-3 py-2 rounded-xl bg-[#081C44] hover:bg-slate-800 text-amber-400 border border-amber-400/50 text-xs font-black transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                                title="Mark Booking Completed & Open Printable Receipt / PDF Invoice"
                               >
-                                Mark Completed
+                                <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Complete &amp; Receipt</span>
                               </button>
                             </>
                           )}
+
+                          {onOpenBookingReceipt && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenBookingReceipt(b)}
+                              className={`px-3 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                                isDark
+                                  ? 'bg-slate-800 border-slate-700 text-amber-300 hover:bg-slate-700'
+                                  : 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100'
+                              }`}
+                              title="Open Receipt Modal & Share on WhatsApp"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Receipt</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => generateBookingInvoicePdf(b)}
+                            className={`px-2.5 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                              isDark
+                                ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                            title="Download PDF Invoice"
+                          >
+                            <Download className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>PDF</span>
+                          </button>
                         </div>
                       </div>
                     </div>

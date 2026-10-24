@@ -201,7 +201,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
     const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
 
-    const bookingId = 'SIC-' + Math.floor(100000 + Math.random() * 900000);
+    const bookingId = `SIC-${Date.now().toString().slice(-5)}`;
     const bookingDraft: BookingRecord = {
       id: bookingId,
       tripType,
