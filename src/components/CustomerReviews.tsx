@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Star, CheckCircle, MessageSquarePlus, Send, X, Sparkles, User, MapPin, Car } from 'lucide-react';
+import {
+  Star,
+  CheckCircle,
+  MessageSquarePlus,
+  Send,
+  X,
+  Sparkles,
+  User,
+  MapPin,
+  Car,
+  Mail,
+  Settings,
+  AlertCircle,
+  ExternalLink
+} from 'lucide-react';
 import { CustomerUser } from '../types';
 
 export interface Review {
@@ -15,7 +29,48 @@ export interface Review {
 }
 
 const STORAGE_KEY = 'safar_customer_reviews_v1';
+const EMAIL_CONFIG_STORAGE_KEY = 'safar_review_email_config_v1';
 const REVIEWS_EVENT = 'safar-reviews-updated';
+
+export const REVIEW_ALERT_RECIPIENT_EMAIL = 'safarindiacabs01@gmail.com';
+
+export interface ReviewEmailConfig {
+  resendApiKey: string;
+  emailJsServiceId: string;
+  emailJsTemplateId: string;
+  emailJsPublicKey: string;
+}
+
+export function loadReviewEmailConfig(): ReviewEmailConfig {
+  try {
+    const raw = localStorage.getItem(EMAIL_CONFIG_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        resendApiKey: parsed.resendApiKey || '',
+        emailJsServiceId: parsed.emailJsServiceId || '',
+        emailJsTemplateId: parsed.emailJsTemplateId || '',
+        emailJsPublicKey: parsed.emailJsPublicKey || ''
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return {
+    resendApiKey: '',
+    emailJsServiceId: '',
+    emailJsTemplateId: '',
+    emailJsPublicKey: ''
+  };
+}
+
+export function saveReviewEmailConfig(cfg: ReviewEmailConfig): void {
+  try {
+    localStorage.setItem(EMAIL_CONFIG_STORAGE_KEY, JSON.stringify(cfg));
+  } catch {
+    // ignore
+  }
+}
 
 const DEFAULT_REVIEWS: Review[] = [
   {
@@ -100,20 +155,46 @@ export function saveNewReview(newRev: Review): Review[] {
   return updated;
 }
 
-export const REVIEW_ALERT_RECIPIENT_EMAIL = 'safarindiacabs01@gmail.com';
+export interface EmailDispatchResult {
+  delivered: boolean;
+  provider?: string;
+  needsActivation?: boolean;
+  activationMessage?: string;
+  whatsappAlertSent?: boolean;
+}
 
-export async function dispatchReviewEmailAlert(rev: Review): Promise<void> {
+export async function dispatchReviewEmailAlert(rev: Review): Promise<EmailDispatchResult> {
   const submittedAt = new Date().toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
     dateStyle: 'medium',
     timeStyle: 'short'
   });
 
-  const emailJsServiceId = (import.meta.env.VITE_EMAILJS_SERVICE_ID || '').trim();
-  const emailJsTemplateId = (import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '').trim();
-  const emailJsPublicKey = (import.meta.env.VITE_EMAILJS_PUBLIC_KEY || '').trim();
+  const savedCfg = loadReviewEmailConfig();
+  const emailJsServiceId = (
+    savedCfg.emailJsServiceId ||
+    import.meta.env.VITE_EMAILJS_SERVICE_ID ||
+    ''
+  ).trim();
+  const emailJsTemplateId = (
+    savedCfg.emailJsTemplateId ||
+    import.meta.env.VITE_EMAILJS_TEMPLATE_ID ||
+    ''
+  ).trim();
+  const emailJsPublicKey = (
+    savedCfg.emailJsPublicKey ||
+    import.meta.env.VITE_EMAILJS_PUBLIC_KEY ||
+    ''
+  ).trim();
+  const resendApiKey = (savedCfg.resendApiKey || '').trim();
 
-  // 1. Direct Client-side EmailJS API call if VITE_EMAILJS_* keys are configured
+  const emailSubject = `★ New ${rev.rating}-Star Review from ${rev.name} (${rev.city}) - Safar India Cabs`;
+  let clientDelivered = false;
+  let clientProvider = '';
+  let needsActivation = false;
+  let activationMessage = '';
+
+  // 1. Direct Client-side EmailJS API call if EmailJS keys are configured
   if (
     emailJsServiceId &&
     emailJsTemplateId &&
@@ -121,7 +202,7 @@ export async function dispatchReviewEmailAlert(rev: Review): Promise<void> {
     emailJsServiceId !== 'your_emailjs_service_id'
   ) {
     try {
-      await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      const ejsRes = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -139,18 +220,67 @@ export async function dispatchReviewEmailAlert(rev: Review): Promise<void> {
             rating: String(rev.rating),
             review_message: rev.review,
             message: rev.review,
-            submitted_at: submittedAt
+            submitted_at: submittedAt,
+            subject: emailSubject
           }
         })
       });
+      if (ejsRes.ok) {
+        clientDelivered = true;
+        clientProvider = 'emailjs';
+      }
     } catch {
-      // Fall through to backend Resend / EmailJS / Relay API
+      // Fall through to browser FormSubmit & backend Resend API
     }
   }
 
-  // 2. Serverless Backend API (/api/send-review-email -> Resend API / EmailJS / FormSubmit Relay to safarindiacabs01@gmail.com)
+  // 2. Direct Browser-Side FormSubmit AJAX Call (includes genuine Browser Origin & Referer headers)
+  if (!clientDelivered && !resendApiKey) {
+    try {
+      const formData = new FormData();
+      formData.append('_subject', emailSubject);
+      formData.append('_template', 'table');
+      formData.append('_captcha', 'false');
+      formData.append('Customer_Name', rev.name);
+      formData.append('City', rev.city);
+      formData.append('Trip_Route', rev.route);
+      formData.append('Cab_Category', rev.car);
+      formData.append('Star_Rating', `${rev.rating} / 5 Stars`);
+      formData.append('Review_Message', rev.review);
+      formData.append('Submitted_At', submittedAt);
+
+      const fsRes = await fetch(`https://formsubmit.co/ajax/${REVIEW_ALERT_RECIPIENT_EMAIL}`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json'
+        },
+        body: formData
+      });
+      const fsData = await fsRes.json().catch(() => null);
+      const isFsSuccess =
+        fsRes.ok &&
+        (fsData?.success === true || String(fsData?.success).toLowerCase() === 'true');
+      const msg = String(fsData?.message || '');
+
+      if (isFsSuccess) {
+        clientDelivered = true;
+        clientProvider = 'formsubmit_browser';
+      } else if (
+        msg.toLowerCase().includes('activate') ||
+        msg.toLowerCase().includes('activation') ||
+        msg.toLowerCase().includes('confirm')
+      ) {
+        needsActivation = true;
+        activationMessage = msg;
+      }
+    } catch {
+      // Fall through to backend
+    }
+  }
+
+  // 3. Serverless Backend API (/api/send-review-email -> Resend API / EmailJS / Admin WhatsApp Alert)
   try {
-    await fetch('/api/send-review-email', {
+    const apiRes = await fetch('/api/send-review-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -161,12 +291,61 @@ export async function dispatchReviewEmailAlert(rev: Review): Promise<void> {
         car: rev.car,
         rating: rev.rating,
         reviewMessage: rev.review,
-        date: submittedAt
+        date: submittedAt,
+        resendApiKey: resendApiKey || undefined,
+        emailJsServiceId: emailJsServiceId || undefined,
+        emailJsTemplateId: emailJsTemplateId || undefined,
+        emailJsPublicKey: emailJsPublicKey || undefined
       })
     });
+    const apiData = await apiRes.json().catch(() => null);
+    if (apiData?.success && apiData?.provider) {
+      return {
+        delivered: true,
+        provider: apiData.provider,
+        whatsappAlertSent: apiData.whatsappAlertSent
+      };
+    }
+    if (apiData?.needsFormSubmitActivation) {
+      needsActivation = true;
+      activationMessage = apiData.activationMessage || activationMessage;
+    }
+    return {
+      delivered: clientDelivered,
+      provider: clientProvider || undefined,
+      needsActivation,
+      activationMessage,
+      whatsappAlertSent: Boolean(apiData?.whatsappAlertSent)
+    };
   } catch {
-    // Ignore background network errors so UI submission remains instant
+    return {
+      delivered: clientDelivered,
+      provider: clientProvider || undefined,
+      needsActivation,
+      activationMessage
+    };
   }
+}
+
+export function buildDirectMailtoReviewUrl(rev: Review): string {
+  const subject = encodeURIComponent(
+    `★ New ${rev.rating}-Star Review from ${rev.name} (${rev.city}) - Safar India Cabs`
+  );
+  const body = encodeURIComponent(
+    [
+      `Safar India Cabs - Customer Review Alert`,
+      `----------------------------------------`,
+      `Customer Name: ${rev.name}`,
+      `City: ${rev.city}`,
+      `Trip Route: ${rev.route}`,
+      `Cab Travelled In: ${rev.car}`,
+      `Star Rating: ${rev.rating} / 5 Stars`,
+      ``,
+      `Review Message:`,
+      `"${rev.review}"`
+    ].join('\n')
+  );
+  return `mailto:${REVIEW_ALERT_RECIPIENT_EMAIL}?subject=${subject}&body=${body}`;
 }
 
 interface ReviewFormProps {
@@ -187,8 +366,16 @@ export const WriteReviewForm: React.FC<ReviewFormProps> = ({
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [activationNotice, setActivationNotice] = useState('');
+  const [lastSubmittedReview, setLastSubmittedReview] = useState<Review | null>(null);
+
+  // Optional EmailJS / Resend Settings panel for Owner
+  const [showEmailSettings, setShowEmailSettings] = useState(false);
+  const [emailConfig, setEmailConfig] = useState<ReviewEmailConfig>(() => loadReviewEmailConfig());
+  const [configSavedNotice, setConfigSavedNotice] = useState('');
 
   useEffect(() => {
     if (currentUser?.name && !name) {
@@ -204,10 +391,17 @@ export const WriteReviewForm: React.FC<ReviewFormProps> = ({
     5: '5/5 · Excellent Service!'
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSaveEmailConfig = () => {
+    saveReviewEmailConfig(emailConfig);
+    setConfigSavedNotice('Email API settings saved! Future reviews will use these credentials.');
+    setTimeout(() => setConfigSavedNotice(''), 4000);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+    setActivationNotice('');
 
     const cleanName = name.trim();
     const cleanReview = reviewText.trim();
@@ -239,173 +433,339 @@ export const WriteReviewForm: React.FC<ReviewFormProps> = ({
       isLatestUserReview: true
     };
 
+    setIsSubmitting(true);
     saveNewReview(newReview);
-    void dispatchReviewEmailAlert(newReview);
+    setLastSubmittedReview(newReview);
     setReviewText('');
     setRoute('');
-    setSuccessMsg('Dhanyawad! Aapka review latest reviews me sabse upar add ho gaya hai.');
+
     if (onReviewSubmitted) {
       onReviewSubmitted(newReview);
     }
-    setTimeout(() => setSuccessMsg(''), 5000);
+
+    const emailResult = await dispatchReviewEmailAlert(newReview);
+    setIsSubmitting(false);
+
+    if (emailResult.delivered) {
+      setSuccessMsg(
+        `Dhanyawad! Aapka review live ho gaya hai aur ${REVIEW_ALERT_RECIPIENT_EMAIL} par email alert bhej diya gaya hai.`
+      );
+    } else if (emailResult.needsActivation) {
+      setSuccessMsg('Dhanyawad! Aapka review Latest Reviews me sabse upar add ho gaya hai.');
+      setActivationNotice(
+        `Important (One-Time Gmail Activation): FormSubmit ne ${REVIEW_ALERT_RECIPIENT_EMAIL} ke Inbox / Spam folder me ek "Activate Form" email bheja hai. Kripya apna Gmail khol kar ek baar "Activate Form" button dabayein, ya Resend / EmailJS API key set karein.`
+      );
+    } else {
+      setSuccessMsg(
+        `Dhanyawad! Aapka review Latest Reviews me sabse upar add ho gaya hai${
+          emailResult.whatsappAlertSent ? ' aur Admin WhatsApp par alert bhej diya gaya hai.' : '.'
+        }`
+      );
+    }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className={`bg-white border border-amber-200/90 rounded-2xl ${
-        compact ? 'p-4' : 'p-5 sm:p-6'
-      } shadow-xs space-y-4`}
-    >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-        <div>
-          <h4 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
-            <MessageSquarePlus className="w-4 h-4 text-amber-600" />
-            <span>Write a Customer Review (Apna Review Dein)</span>
-          </h4>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            Share your cab &amp; driver experience with Safar India Cabs
-          </p>
-        </div>
-
-        {/* Interactive Star Selector */}
-        <div className="flex items-center gap-2 bg-amber-50/80 border border-amber-200 px-3 py-1.5 rounded-xl self-start sm:self-auto">
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map((starVal) => {
-              const active = (hoverRating || rating) >= starVal;
-              return (
-                <button
-                  key={starVal}
-                  type="button"
-                  onClick={() => setRating(starVal)}
-                  onMouseEnter={() => setHoverRating(starVal)}
-                  onMouseLeave={() => setHoverRating(0)}
-                  aria-label={`Rate ${starVal} stars`}
-                  className="p-0.5 transition transform hover:scale-110 cursor-pointer"
-                >
-                  <Star
-                    className={`w-5 h-5 ${
-                      active ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
-                    }`}
-                  />
-                </button>
-              );
-            })}
+    <div className="space-y-3">
+      <form
+        onSubmit={handleSubmit}
+        className={`bg-white border border-amber-200/90 rounded-2xl ${
+          compact ? 'p-4' : 'p-5 sm:p-6'
+        } shadow-xs space-y-4`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h4 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
+              <MessageSquarePlus className="w-4 h-4 text-amber-600" />
+              <span>Write a Customer Review (Apna Review Dein)</span>
+            </h4>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Share your experience · Auto-notifies{' '}
+              <span className="font-semibold text-slate-700">{REVIEW_ALERT_RECIPIENT_EMAIL}</span>
+            </p>
           </div>
-          <span className="text-[11px] font-extrabold text-amber-900 ml-1">
-            {ratingLabels[hoverRating || rating]}
-          </span>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div>
-          <label className="block text-[11px] font-bold text-slate-700 mb-1">
-            Your Name *
-          </label>
-          <div className="relative">
-            <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            {/* Interactive Star Selector */}
+            <div className="flex items-center gap-2 bg-amber-50/80 border border-amber-200 px-3 py-1.5 rounded-xl">
+              <div className="flex items-center gap-0.5">
+                {[1, 2, 3, 4, 5].map((starVal) => {
+                  const active = (hoverRating || rating) >= starVal;
+                  return (
+                    <button
+                      key={starVal}
+                      type="button"
+                      onClick={() => setRating(starVal)}
+                      onMouseEnter={() => setHoverRating(starVal)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      aria-label={`Rate ${starVal} stars`}
+                      className="p-0.5 transition transform hover:scale-110 cursor-pointer"
+                    >
+                      <Star
+                        className={`w-5 h-5 ${
+                          active ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="text-[11px] font-extrabold text-amber-900 ml-1">
+                {ratingLabels[hoverRating || rating]}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowEmailSettings((prev) => !prev)}
+              title="Configure EmailJS / Resend API Key for safarindiacabs01@gmail.com"
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible EmailJS / Resend Configuration Box */}
+        {showEmailSettings && (
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                <Mail className="w-4 h-4 text-amber-600" />
+                <span>Email Notification Setup ({REVIEW_ALERT_RECIPIENT_EMAIL})</span>
+              </div>
+              <span className="text-[10px] text-slate-500">Resend API or EmailJS</span>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Enter either your <strong>Resend API Key</strong> OR your{' '}
+              <strong>EmailJS Service ID, Template ID &amp; Public Key</strong> below to send instant
+              emails directly via your account:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                  Resend API Key (Optional: re_...)
+                </label>
+                <input
+                  type="password"
+                  value={emailConfig.resendApiKey}
+                  onChange={(e) =>
+                    setEmailConfig((prev) => ({ ...prev, resendApiKey: e.target.value }))
+                  }
+                  placeholder="re_123456789..."
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                  EmailJS Service ID (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={emailConfig.emailJsServiceId}
+                  onChange={(e) =>
+                    setEmailConfig((prev) => ({ ...prev, emailJsServiceId: e.target.value }))
+                  }
+                  placeholder="service_xxxxxxx"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                  EmailJS Template ID (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={emailConfig.emailJsTemplateId}
+                  onChange={(e) =>
+                    setEmailConfig((prev) => ({ ...prev, emailJsTemplateId: e.target.value }))
+                  }
+                  placeholder="template_xxxxxxx"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 mb-0.5">
+                  EmailJS Public Key (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={emailConfig.emailJsPublicKey}
+                  onChange={(e) =>
+                    setEmailConfig((prev) => ({ ...prev, emailJsPublicKey: e.target.value }))
+                  }
+                  placeholder="Public Key"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              {configSavedNotice ? (
+                <span className="text-[11px] font-bold text-emerald-700">{configSavedNotice}</span>
+              ) : (
+                <span className="text-[10px] text-slate-500">
+                  Without keys, FormSubmit free email relay &amp; WhatsApp Admin alert are used automatically.
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveEmailConfig}
+                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs transition cursor-pointer"
+              >
+                Save Email Settings
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              Your Name *
+            </label>
+            <div className="relative">
+              <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Rajesh Sharma"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              Your City
+            </label>
+            <div className="relative">
+              <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="e.g. Delhi NCR / Mumbai"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              Trip Route (From - To)
+            </label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Rajesh Sharma"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+              value={route}
+              onChange={(e) => setRoute(e.target.value)}
+              placeholder="e.g. Delhi to Agra"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
             />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+              Cab Travelled In
+            </label>
+            <div className="relative">
+              <Car className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={car}
+                onChange={(e) => setCar(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white cursor-pointer"
+              >
+                {CAB_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         <div>
           <label className="block text-[11px] font-bold text-slate-700 mb-1">
-            Your City
+            Your Review / Experience *
           </label>
-          <div className="relative">
-            <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="e.g. Delhi NCR / Mumbai"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-[11px] font-bold text-slate-700 mb-1">
-            Trip Route (From - To)
-          </label>
-          <input
-            type="text"
-            value={route}
-            onChange={(e) => setRoute(e.target.value)}
-            placeholder="e.g. Delhi to Agra"
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white"
+          <textarea
+            rows={3}
+            value={reviewText}
+            onChange={(e) => setReviewText(e.target.value)}
+            placeholder="Tell other travelers about cab cleanliness, driver behavior, on-time pickup, or fare transparency..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white resize-none"
           />
         </div>
 
-        <div>
-          <label className="block text-[11px] font-bold text-slate-700 mb-1">
-            Cab Travelled In
-          </label>
-          <div className="relative">
-            <Car className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <select
-              value={car}
-              onChange={(e) => setCar(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white cursor-pointer"
-            >
-              {CAB_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+        {errorMsg && (
+          <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
+            {errorMsg}
           </div>
+        )}
+
+        {successMsg && (
+          <div className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{successMsg}</span>
+            </div>
+            {lastSubmittedReview && (
+              <a
+                href={buildDirectMailtoReviewUrl(lastSubmittedReview)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-[11px] font-extrabold shrink-0 transition"
+              >
+                <Mail className="w-3 h-3" />
+                <span>Send Copy via Gmail App</span>
+              </a>
+            )}
+          </div>
+        )}
+
+        {activationNotice && (
+          <div className="text-xs bg-amber-50 border border-amber-300 text-amber-950 p-3 rounded-xl space-y-2">
+            <div className="flex items-start gap-2 font-bold">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>{activationNotice}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pl-6">
+              <a
+                href="https://mail.google.com"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-[11px] transition"
+              >
+                <span>Open Gmail ({REVIEW_ALERT_RECIPIENT_EMAIL})</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowEmailSettings(true)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-bold text-[11px] transition cursor-pointer"
+              >
+                <Settings className="w-3 h-3" />
+                <span>Or Enter Resend / EmailJS Key</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <span className="text-[11px] text-slate-500 flex items-center gap-1">
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Instant publish + Email Alert to {REVIEW_ALERT_RECIPIENT_EMAIL}</span>
+          </span>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs transition flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>{isSubmitting ? 'Posting & Sending Email...' : 'Post Review'}</span>
+          </button>
         </div>
-      </div>
-
-      <div>
-        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-          Your Review / Experience *
-        </label>
-        <textarea
-          rows={3}
-          value={reviewText}
-          onChange={(e) => setReviewText(e.target.value)}
-          placeholder="Tell other travelers about cab cleanliness, driver behavior, on-time pickup, or fare transparency..."
-          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white resize-none"
-        />
-      </div>
-
-      {errorMsg && (
-        <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
-          {errorMsg}
-        </div>
-      )}
-
-      {successMsg && (
-        <div className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl flex items-center gap-1.5">
-          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-3 pt-1">
-        <span className="text-[11px] text-slate-500 flex items-center gap-1">
-          <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-          <span>Instant publish to Latest Customer Reviews</span>
-        </span>
-
-        <button
-          type="submit"
-          className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs transition flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
-        >
-          <Send className="w-3.5 h-3.5" />
-          <span>Post Review</span>
-        </button>
-      </div>
-    </form>
+      </form>
+    </div>
   );
 };
 
