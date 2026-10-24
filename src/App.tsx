@@ -153,10 +153,43 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState('');
   const [isCustomerProfileOpen, setIsCustomerProfileOpen] = useState(false);
   const [pendingCabSelection, setPendingCabSelection] = useState<{ cab: CabVehicle; fare: FareCalculationResult } | null>(null);
+  const shouldOpenReviewsFromUrl = () => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const actionParam = (searchParams.get('action') || '').trim().toLowerCase();
+      const hashVal = (window.location.hash || '').trim().toLowerCase();
+      return (
+        actionParam === 'review' ||
+        actionParam === 'reviews' ||
+        searchParams.has('review') ||
+        searchParams.has('reviews') ||
+        hashVal === '#reviews' ||
+        hashVal === '#review'
+      );
+    } catch {
+      return false;
+    }
+  };
+
   const [isDriverPartnerOpen, setIsDriverPartnerOpen] = useState(false);
-  const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
+  const [isReviewsModalOpen, setIsReviewsModalOpen] = useState<boolean>(() => shouldOpenReviewsFromUrl());
   const [isCabsModalOpen, setIsCabsModalOpen] = useState(false);
   const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
+
+  useEffect(() => {
+    const checkReviewUrlTrigger = () => {
+      if (shouldOpenReviewsFromUrl()) {
+        setIsReviewsModalOpen(true);
+      }
+    };
+    checkReviewUrlTrigger();
+    window.addEventListener('hashchange', checkReviewUrlTrigger);
+    window.addEventListener('popstate', checkReviewUrlTrigger);
+    return () => {
+      window.removeEventListener('hashchange', checkReviewUrlTrigger);
+      window.removeEventListener('popstate', checkReviewUrlTrigger);
+    };
+  }, []);
 
   // Booking Engine form states
   const [tripType, setTripType] = useState<TripType>('oneway');
@@ -875,7 +908,23 @@ export default function App() {
       {/* Customer Reviews & Write Review Modal */}
       <CustomerReviewsModal
         isOpen={isReviewsModalOpen}
-        onClose={() => setIsReviewsModalOpen(false)}
+        onClose={() => {
+          setIsReviewsModalOpen(false);
+          try {
+            if (shouldOpenReviewsFromUrl()) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('action');
+              url.searchParams.delete('review');
+              url.searchParams.delete('reviews');
+              if (url.hash.toLowerCase() === '#reviews' || url.hash.toLowerCase() === '#review') {
+                url.hash = '';
+              }
+              window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+            }
+          } catch {
+            // ignore history errors
+          }
+        }}
         currentUser={currentUser}
       />
 
