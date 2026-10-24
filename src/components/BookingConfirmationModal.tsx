@@ -15,12 +15,13 @@ import {
   User,
   Phone,
   FileText,
-  Sparkles
+  Sparkles,
+  Star
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { BookingRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
-import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
+import { triggerWhatsAppDeepLink, buildCustomerReviewWhatsAppUrl } from '../utils/whatsapp';
 
 export const OFFICIAL_WHATSAPP_NUMBER = '917710080992';
 
@@ -654,8 +655,26 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
             </button>
           </div>
 
-          {/* Secondary Row: Send to Customer WhatsApp, Print, or View Rides */}
+          {/* Secondary Row: Send Review Request, Send Receipt to Customer WhatsApp, Print, or View Rides */}
           <div className="flex flex-wrap items-center gap-2">
+            {booking.customerPhone && (
+              <a
+                href={buildCustomerReviewWhatsAppUrl({
+                  customerName: booking.customerName,
+                  customerPhone: booking.customerPhone,
+                  pickupCity: booking.pickupCity,
+                  dropCity: booking.dropCity,
+                  bookingId: booking.id
+                })}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />
+                <span>Send Review Request (+91 {booking.customerPhone})</span>
+              </a>
+            )}
+
             {booking.customerPhone && (
               <button
                 type="button"
@@ -663,7 +682,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
               >
                 <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                <span>WhatsApp to Customer (+91 {booking.customerPhone})</span>
+                <span>WhatsApp Receipt</span>
               </button>
             )}
 

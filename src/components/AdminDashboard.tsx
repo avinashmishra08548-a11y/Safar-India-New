@@ -27,12 +27,18 @@ import {
   CheckCircle,
   XCircle,
   FileText,
-  Plus
+  Plus,
+  Star
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { generateBookingInvoicePdf } from './BookingConfirmationModal';
 import { formatINR } from '../utils/fareCalculator';
-import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
+import {
+  buildWhatsAppSchemeUrl,
+  triggerWhatsAppDeepLink,
+  buildCustomerReviewWhatsAppUrl,
+  triggerCustomerReviewWhatsApp
+} from '../utils/whatsapp';
 import {
   getTraccarLocalEndpoint,
   getTraccarLocalToken,
@@ -1265,14 +1271,42 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                               <button
                                 type="button"
-                                onClick={() => onUpdateBookingStatus(b.id, 'completed')}
+                                onClick={() => {
+                                  onUpdateBookingStatus(b.id, 'completed');
+                                  triggerCustomerReviewWhatsApp({
+                                    customerName: b.customerName,
+                                    customerPhone: b.customerPhone,
+                                    pickupCity: b.pickupCity,
+                                    dropCity: b.dropCity,
+                                    bookingId: b.id
+                                  });
+                                }}
                                 className="px-3 py-2 rounded-xl bg-[#081C44] hover:bg-slate-800 text-amber-400 border border-amber-400/50 text-xs font-black transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
-                                title="Mark Booking Completed & Open Printable Receipt / PDF Invoice"
+                                title="Mark Booking Completed, Open Receipt & Send WhatsApp Review Request"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
-                                <span>Complete &amp; Receipt</span>
+                                <span>Complete Trip</span>
                               </button>
                             </>
+                          )}
+
+                          {b.status !== 'cancelled' && b.customerPhone && (
+                            <a
+                              href={buildCustomerReviewWhatsAppUrl({
+                                customerName: b.customerName,
+                                customerPhone: b.customerPhone,
+                                pickupCity: b.pickupCity,
+                                dropCity: b.dropCity,
+                                bookingId: b.id
+                              })}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+                              title={`Send WhatsApp Review Request to +91 ${b.customerPhone}`}
+                            >
+                              <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300 shrink-0" />
+                              <span>Send Review Request</span>
+                            </a>
                           )}
 
                           {onOpenBookingReceipt && (
