@@ -9,7 +9,8 @@ import {
   MapPin,
   Clock,
   Info,
-  HelpCircle
+  HelpCircle,
+  Star
 } from 'lucide-react';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 import { SAFAR_CONTACT_INFO } from './AboutAndHelpViews';
@@ -20,6 +21,7 @@ interface FooterProps {
   activeSectionId?: string;
   onNavigateTab?: (tab: NavTabId, targetSectionId?: string) => void;
   onOpenDriverPartner?: () => void;
+  onOpenReviews?: () => void;
   onSelectRoute?: (pickup: string, drop: string) => void;
 }
 
@@ -28,6 +30,7 @@ export const Footer: React.FC<FooterProps> = ({
   activeSectionId,
   onNavigateTab,
   onOpenDriverPartner,
+  onOpenReviews,
   onSelectRoute
 }) => {
   const popularRoutes = [
@@ -104,6 +107,16 @@ export const Footer: React.FC<FooterProps> = ({
                   </button>
                 );
               })}
+              {onOpenReviews && (
+                <button
+                  type="button"
+                  onClick={onOpenReviews}
+                  className="px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 bg-amber-50 hover:bg-amber-400 text-amber-900 hover:text-slate-950 border border-amber-300 shadow-2xs"
+                >
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0" />
+                  <span>Customer Reviews &amp; Rate Us</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -282,6 +295,17 @@ export const Footer: React.FC<FooterProps> = ({
                 </div>
               </a>
 
+              {onOpenReviews && (
+                <button
+                  type="button"
+                  onClick={onOpenReviews}
+                  className="w-full py-2.5 px-3 bg-amber-400 hover:bg-amber-500 border border-amber-500/80 rounded-xl text-slate-950 font-black text-xs text-center transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <Star className="w-4 h-4 fill-slate-950 text-slate-950 shrink-0" />
+                  <span>Customer Reviews &amp; Write Review</span>
+                </button>
+              )}
+
               {onOpenDriverPartner && (
                 <button
                   type="button"
@@ -302,6 +326,19 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 font-semibold">
+            {onOpenReviews && (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenReviews}
+                  className="text-amber-700 hover:text-amber-800 font-extrabold flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                  <span>Customer Reviews</span>
+                </button>
+                <span>·</span>
+              </>
+            )}
             <button
               type="button"
               onClick={() => handleSectionSelect('about', 'about-company-top')}

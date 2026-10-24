@@ -36,7 +36,7 @@ import { BookingConfirmationModal } from './components/BookingConfirmationModal'
 import { MyBookingsView } from './components/MyBookingsView';
 import { PopularRoutesSection } from './components/PopularRoutesSection';
 import { CabBazarAdvantages } from './components/CabBazarAdvantages';
-import { CustomerReviews } from './components/CustomerReviews';
+import { CustomerReviews, CustomerReviewsModal } from './components/CustomerReviews';
 import { FaqSection } from './components/FaqSection';
 import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { DriverPartnerSection } from './components/DriverPartnerSection';
@@ -154,6 +154,7 @@ export default function App() {
   const [isCustomerProfileOpen, setIsCustomerProfileOpen] = useState(false);
   const [pendingCabSelection, setPendingCabSelection] = useState<{ cab: CabVehicle; fare: FareCalculationResult } | null>(null);
   const [isDriverPartnerOpen, setIsDriverPartnerOpen] = useState(false);
+  const [isReviewsModalOpen, setIsReviewsModalOpen] = useState(false);
   const [isCabsModalOpen, setIsCabsModalOpen] = useState(false);
   const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
 
@@ -784,7 +785,10 @@ export default function App() {
 
             {/* VERIFIED CUSTOMER REVIEWS */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <CustomerReviews />
+              <CustomerReviews
+                currentUser={currentUser}
+                onOpenReviewsModal={() => setIsReviewsModalOpen(true)}
+              />
             </div>
 
             {/* DRIVER / VENDOR PARTNER SECTION */}
@@ -859,12 +863,20 @@ export default function App() {
         activeSectionId={activeSectionId}
         onNavigateTab={handleSwitchTab}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
+        onOpenReviews={() => setIsReviewsModalOpen(true)}
         onSelectRoute={(from, to) => {
           setTripType('oneway');
           setPickupCity(from);
           setDropCity(to);
           handleSwitchTab('booking', 'booking-section-top');
         }}
+      />
+
+      {/* Customer Reviews & Write Review Modal */}
+      <CustomerReviewsModal
+        isOpen={isReviewsModalOpen}
+        onClose={() => setIsReviewsModalOpen(false)}
+        currentUser={currentUser}
       />
 
       {/* Driver / Vendor Partner Registration Modal */}
