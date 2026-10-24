@@ -100,6 +100,75 @@ export function saveNewReview(newRev: Review): Review[] {
   return updated;
 }
 
+export const REVIEW_ALERT_RECIPIENT_EMAIL = 'safarindiacabs01@gmail.com';
+
+export async function dispatchReviewEmailAlert(rev: Review): Promise<void> {
+  const submittedAt = new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  });
+
+  const emailJsServiceId = (import.meta.env.VITE_EMAILJS_SERVICE_ID || '').trim();
+  const emailJsTemplateId = (import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '').trim();
+  const emailJsPublicKey = (import.meta.env.VITE_EMAILJS_PUBLIC_KEY || '').trim();
+
+  // 1. Direct Client-side EmailJS API call if VITE_EMAILJS_* keys are configured
+  if (
+    emailJsServiceId &&
+    emailJsTemplateId &&
+    emailJsPublicKey &&
+    emailJsServiceId !== 'your_emailjs_service_id'
+  ) {
+    try {
+      await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          service_id: emailJsServiceId,
+          template_id: emailJsTemplateId,
+          user_id: emailJsPublicKey,
+          template_params: {
+            to_email: REVIEW_ALERT_RECIPIENT_EMAIL,
+            customer_name: rev.name,
+            from_name: rev.name,
+            city: rev.city,
+            route: rev.route,
+            car: rev.car,
+            star_rating: `${rev.rating} / 5 Stars`,
+            rating: String(rev.rating),
+            review_message: rev.review,
+            message: rev.review,
+            submitted_at: submittedAt
+          }
+        })
+      });
+    } catch {
+      // Fall through to backend Resend / EmailJS / Relay API
+    }
+  }
+
+  // 2. Serverless Backend API (/api/send-review-email -> Resend API / EmailJS / FormSubmit Relay to safarindiacabs01@gmail.com)
+  try {
+    await fetch('/api/send-review-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toEmail: REVIEW_ALERT_RECIPIENT_EMAIL,
+        customerName: rev.name,
+        city: rev.city,
+        route: rev.route,
+        car: rev.car,
+        rating: rev.rating,
+        reviewMessage: rev.review,
+        date: submittedAt
+      })
+    });
+  } catch {
+    // Ignore background network errors so UI submission remains instant
+  }
+}
+
 interface ReviewFormProps {
   currentUser?: CustomerUser | null;
   onReviewSubmitted?: (rev: Review) => void;
@@ -171,6 +240,7 @@ export const WriteReviewForm: React.FC<ReviewFormProps> = ({
     };
 
     saveNewReview(newReview);
+    void dispatchReviewEmailAlert(newReview);
     setReviewText('');
     setRoute('');
     setSuccessMsg('Dhanyawad! Aapka review latest reviews me sabse upar add ho gaya hai.');

@@ -35,6 +35,8 @@ export default defineConfig(() => {
                   handlerMod = await import('./api/verify-payment.js');
                 } else if (urlPath === '/api/send-whatsapp') {
                   handlerMod = await import('./api/send-whatsapp.js');
+                } else if (urlPath === '/api/send-review-email') {
+                  handlerMod = await import('./api/send-review-email.js');
                 }
                 if (handlerMod && handlerMod.default) {
                   let body = '';
