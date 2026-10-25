@@ -833,12 +833,12 @@ export interface PopularRouteDeal {
 }
 
 export const POPULAR_ROUTES: PopularRouteDeal[] = [
-  { from: 'Delhi NCR', to: 'Agra', distanceKm: 230, startingPrice: 2499, popularCar: 'Sedan (Dzire/Etios)', badge: 'Yamuna Expressway', duration: '3.5 Hrs' },
-  { from: 'Delhi NCR', to: 'Jaipur', distanceKm: 275, startingPrice: 2899, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-48 / Expressway', duration: '4.5 Hrs' },
-  { from: 'Mumbai', to: 'Pune', distanceKm: 150, startingPrice: 1799, popularCar: 'Hatchback / Sedan', badge: 'Mumbai-Pune Expwy', duration: '2.5 Hrs' },
-  { from: 'Bangalore (Bengaluru)', to: 'Mysore (Mysuru)', distanceKm: 145, startingPrice: 1749, popularCar: 'Sedan (Dzire/Etios)', badge: '10-Lane Expressway', duration: '2.0 Hrs' },
-  { from: 'Delhi NCR', to: 'Chandigarh', distanceKm: 245, startingPrice: 2649, popularCar: 'Sedan / SUV', badge: 'NH 44 Highway', duration: '4.0 Hrs' },
-  { from: 'Ahmedabad', to: 'Udaipur', distanceKm: 260, startingPrice: 2799, popularCar: 'Sedan (Dzire/Etios)', badge: 'Scenic Aravali', duration: '4.5 Hrs' },
-  { from: 'Lucknow', to: 'Ayodhya', distanceKm: 135, startingPrice: 1649, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-27 Expressway', duration: '2.5 Hrs' },
-  { from: 'Chennai', to: 'Pondicherry (Puducherry)', distanceKm: 150, startingPrice: 1799, popularCar: 'Sedan (Dzire/Etios)', badge: 'East Coast Road', duration: '3.0 Hrs' }
+  { from: 'Delhi NCR', to: 'Agra', distanceKm: 230, startingPrice: 3090, popularCar: 'Sedan (Dzire/Etios)', badge: 'Yamuna Expressway', duration: '3.5 Hrs' },
+  { from: 'Delhi NCR', to: 'Jaipur', distanceKm: 275, startingPrice: 3630, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-48 / Expressway', duration: '4.5 Hrs' },
+  { from: 'Mumbai', to: 'Pune', distanceKm: 150, startingPrice: 2315, popularCar: 'Hatchback / Sedan', badge: 'Mumbai-Pune Expwy', duration: '2.5 Hrs' },
+  { from: 'Bangalore (Bengaluru)', to: 'Mysore (Mysuru)', distanceKm: 145, startingPrice: 2249, popularCar: 'Sedan (Dzire/Etios)', badge: '10-Lane Expressway', duration: '2.0 Hrs' },
+  { from: 'Delhi NCR', to: 'Chandigarh', distanceKm: 245, startingPrice: 3275, popularCar: 'Sedan / SUV', badge: 'NH 44 Highway', duration: '4.0 Hrs' },
+  { from: 'Ahmedabad', to: 'Udaipur', distanceKm: 260, startingPrice: 3450, popularCar: 'Sedan (Dzire/Etios)', badge: 'Scenic Aravali', duration: '4.5 Hrs' },
+  { from: 'Lucknow', to: 'Ayodhya', distanceKm: 135, startingPrice: 2110, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-27 Expressway', duration: '2.5 Hrs' },
+  { from: 'Chennai', to: 'Pondicherry (Puducherry)', distanceKm: 150, startingPrice: 2315, popularCar: 'Sedan (Dzire/Etios)', badge: 'East Coast Road', duration: '3.0 Hrs' }
 ];

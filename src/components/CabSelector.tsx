@@ -94,12 +94,21 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             <span className="font-mono font-bold text-slate-900">
               Total: {sampleFare.billedDistanceKm} KM
             </span>
+            {tripType === 'oneway' && sampleFare.estimatedDropTime && (
+              <>
+                <span className="text-slate-300" aria-hidden="true">·</span>
+                <span className="font-semibold text-slate-700">
+                  Est. Drop: <strong className="text-slate-900">{sampleFare.estimatedDropTime}</strong>
+                  {sampleFare.isLateNightDrop ? ' (Night Drop)' : ''}
+                </span>
+              </>
+            )}
             <span className="text-slate-300" aria-hidden="true">·</span>
             <span className="inline-flex items-center gap-1 font-bold text-amber-800">
               {sampleFare.isHillAreaRoute && <Mountain className="w-3.5 h-3.5 text-amber-600" />}
               <span>
                 Extra KM: <strong className="font-mono text-slate-950">₹{sampleFare.extraKmRate}/km</strong>
-                {sampleFare.isHillAreaRoute ? ' (Hill Rate)' : ''}
+                {sampleFare.isHillAreaRoute ? ` (${sampleFare.hillTierLabel || 'Hill Rate'})` : sampleFare.isOuterRoute ? ` (${sampleFare.routeTierLabel})` : ''}
               </span>
             </span>
             {tripType === 'roundtrip' && (
@@ -344,9 +353,14 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               <div className="p-6 pt-4 border-t border-slate-100 bg-slate-50/50">
                 <div className="flex items-end justify-between mb-4">
                   <div>
-                    <span className="text-xs text-slate-400 line-through font-mono tabular-nums block">
-                      ₹{activeFare.originalFare.toLocaleString('en-IN')}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 line-through font-mono tabular-nums">
+                        ₹{activeFare.originalFare.toLocaleString('en-IN')}
+                      </span>
+                      <span className="text-[11px] font-bold text-emerald-700">
+                        Save ₹{activeFare.discountAmount.toLocaleString('en-IN')}
+                      </span>
+                    </div>
                     <div className="text-2xl font-black text-slate-900 font-mono tabular-nums tracking-tight">
                       ₹{activeFare.totalFare.toLocaleString('en-IN')}
                     </div>
