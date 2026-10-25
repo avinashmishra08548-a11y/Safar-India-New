@@ -1,15 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   Briefcase,
   Snowflake,
   CheckCircle2,
   Mountain,
-  Calendar
+  Calendar,
+  Tag,
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { CABS_FLEET } from '../data/cabsFleet';
-import { CabVehicle, TripType } from '../types';
-import { calculateTripFare, FareBreakdown } from '../utils/fareCalculator';
+import { CabVehicle, CustomerUser, TripType } from '../types';
+import {
+  calculateTripFare,
+  FareBreakdown,
+  PROMO_DISCOUNT_AMOUNT,
+  PROMO_SUCCESS_MESSAGE,
+  isDrVijayKumarMatch,
+  isValidFirst300Promo
+} from '../utils/fareCalculator';
 
 interface CabSelectorProps {
   tripType: TripType;
@@ -29,6 +39,12 @@ interface CabSelectorProps {
   localPackageId: string;
   includeTolls: boolean;
   setIncludeTolls: (val: boolean) => void;
+  promoCode?: string;
+  setPromoCode?: (code: string) => void;
+  isPromoApplied?: boolean;
+  setIsPromoApplied?: (applied: boolean) => void;
+  currentUser?: CustomerUser | null;
+  welcomeMessage?: string;
   onSelectCab: (cab: CabVehicle, fare: FareBreakdown) => void;
 }
 
@@ -53,9 +69,68 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
   localPackageId,
   includeTolls,
   setIncludeTolls,
+  promoCode: externalPromoCode,
+  setPromoCode: setExternalPromoCode,
+  isPromoApplied: externalIsPromoApplied,
+  setIsPromoApplied: setExternalIsPromoApplied,
+  currentUser,
+  welcomeMessage,
   onSelectCab
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
+
+  const [localPromoInput, setLocalPromoInput] = useState(externalPromoCode || '');
+  const [localPromoApplied, setLocalPromoApplied] = useState(Boolean(externalIsPromoApplied));
+  const [promoFeedback, setPromoFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(
+    externalIsPromoApplied ? { type: 'success', text: PROMO_SUCCESS_MESSAGE } : null
+  );
+
+  const activePromoInput = externalPromoCode !== undefined ? externalPromoCode : localPromoInput;
+  const setActivePromoInput = (val: string) => {
+    setLocalPromoInput(val);
+    setExternalPromoCode?.(val);
+  };
+
+  const activePromoApplied = externalIsPromoApplied !== undefined ? externalIsPromoApplied : localPromoApplied;
+  const setActivePromoApplied = (val: boolean) => {
+    setLocalPromoApplied(val);
+    setExternalIsPromoApplied?.(val);
+  };
+
+  // Automatically apply ₹300 discount if currentUser or welcomeMessage matches Dr. Vijay Kumar
+  useEffect(() => {
+    const welcomeOrUserText = `${currentUser?.name || ''} ${welcomeMessage || ''}`.trim();
+    if (isDrVijayKumarMatch(welcomeOrUserText)) {
+      if (!activePromoApplied) {
+        setActivePromoApplied(true);
+        if (!activePromoInput) {
+          setActivePromoInput('FIRST300');
+        }
+      }
+      setPromoFeedback({ type: 'success', text: PROMO_SUCCESS_MESSAGE });
+    } else if (externalIsPromoApplied) {
+      setPromoFeedback({ type: 'success', text: PROMO_SUCCESS_MESSAGE });
+    }
+  }, [currentUser?.name, welcomeMessage, externalIsPromoApplied]);
+
+  const handleApplyPromoCode = (overrideCode?: string) => {
+    const candidate = (overrideCode !== undefined ? overrideCode : activePromoInput).trim();
+    const welcomeOrUserText = `${currentUser?.name || ''} ${welcomeMessage || ''}`.trim();
+
+    if (isValidFirst300Promo(candidate, welcomeOrUserText)) {
+      setActivePromoInput(candidate.toUpperCase() === 'FIRST300' || !candidate ? 'FIRST300' : candidate);
+      setActivePromoApplied(true);
+      setPromoFeedback({ type: 'success', text: PROMO_SUCCESS_MESSAGE });
+    } else {
+      setActivePromoApplied(false);
+      setPromoFeedback({
+        type: 'error',
+        text: 'Invalid promo code. Enter FIRST300 to get ₹300 OFF.'
+      });
+    }
+  };
+
+  const promoDiscountValue = activePromoApplied ? PROMO_DISCOUNT_AMOUNT : 0;
 
   const sampleFare = calculateTripFare(
     'sedan',
@@ -68,13 +143,14 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
     includeTolls,
     pickupDate,
     pickupTime,
-    0
+    0,
+    promoDiscountValue
   );
 
   return (
     <section id="available-cabs-section" className="py-8">
       {/* Clean, Spacious Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-5">
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-5">
         <div>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
             Select Your Preferred Cab
@@ -183,6 +259,69 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         </div>
       </div>
 
+      {/* Promo Code & Welcome Offer Strip on Booking Summary */}
+      <div className="mb-7 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-900">
+            <Tag className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>
+              {currentUser?.name
+                ? `Welcome, ${currentUser.name}! Have a Promo Code?`
+                : 'Have a Promo Code? Get Instant ₹300 OFF'}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleApplyPromoCode('FIRST300')}
+              className="text-[11px] font-mono font-black bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md transition cursor-pointer"
+              title="Click to apply FIRST300"
+            >
+              FIRST300
+            </button>
+          </div>
+          {promoFeedback && (
+            <div
+              className={`text-xs font-bold flex items-center gap-1.5 ${
+                promoFeedback.type === 'success' ? 'text-emerald-700' : 'text-rose-600'
+              }`}
+            >
+              {promoFeedback.type === 'success' ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              )}
+              <span>{promoFeedback.text}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <input
+            type="text"
+            value={activePromoInput}
+            onChange={(e) => {
+              setActivePromoInput(e.target.value);
+              if (promoFeedback?.type === 'error') setPromoFeedback(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleApplyPromoCode();
+              }
+            }}
+            placeholder="Enter promo code (FIRST300)"
+            aria-label="Promo code"
+            className="flex-1 sm:w-52 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 uppercase placeholder:normal-case placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
+          />
+          <button
+            type="button"
+            onClick={() => handleApplyPromoCode()}
+            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-amber-400 text-white hover:text-slate-950 font-black text-xs transition cursor-pointer shrink-0"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+
       {/* Spacious Cab Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {CABS_FLEET.map((cab) => {
@@ -197,7 +336,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             true,
             pickupDate,
             pickupTime,
-            0
+            0,
+            promoDiscountValue
           );
           const fareWithoutToll = calculateTripFare(
             cab.id,
@@ -210,7 +350,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             false,
             pickupDate,
             pickupTime,
-            0
+            0,
+            promoDiscountValue
           );
           const activeFare = includeTolls ? fareWithToll : fareWithoutToll;
 

@@ -8,10 +8,19 @@ import {
   QrCode,
   Loader2,
   Smartphone,
-  AlertCircle
+  AlertCircle,
+  Tag
 } from 'lucide-react';
 import { CabVehicle, CustomerUser, TripType, BookingRecord } from '../types';
-import { computeTripFare, formatINR, FareCalculationResult } from '../utils/fareCalculator';
+import {
+  computeTripFare,
+  formatINR,
+  FareCalculationResult,
+  PROMO_DISCOUNT_AMOUNT,
+  PROMO_SUCCESS_MESSAGE,
+  isDrVijayKumarMatch,
+  isValidFirst300Promo
+} from '../utils/fareCalculator';
 import { sendDualBookingNotifications, sanitize10DigitPhone } from '../utils/smsService';
 import {
   launchRazorpayStandardCheckout,
@@ -37,6 +46,11 @@ interface BookingModalProps {
   airportMode: 'pickup' | 'drop';
   airportTerminal: string;
   currentUser: CustomerUser | null;
+  promoCode?: string;
+  setPromoCode?: (code: string) => void;
+  isPromoApplied?: boolean;
+  setIsPromoApplied?: (applied: boolean) => void;
+  welcomeMessage?: string;
   onBookingSuccess: (booking: BookingRecord) => void;
 }
 
@@ -72,6 +86,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   airportMode,
   airportTerminal,
   currentUser,
+  promoCode: externalPromoCode,
+  setPromoCode: setExternalPromoCode,
+  isPromoApplied: externalIsPromoApplied,
+  setIsPromoApplied: setExternalIsPromoApplied,
+  welcomeMessage,
   onBookingSuccess
 }) => {
   const [customerName, setCustomerName] = useState(currentUser?.name || '');
@@ -98,6 +117,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [addonAssuredModel, setAddonAssuredModel] = useState(false);
   const [addonPet, setAddonPet] = useState(false);
 
+  // Promo Code & Dr. Vijay Kumar Automatic ₹300 Discount States
+  const initialPromoApplied = Boolean(
+    externalIsPromoApplied ||
+      fareDetails.promoDiscount >= PROMO_DISCOUNT_AMOUNT ||
+      isValidFirst300Promo(externalPromoCode, `${currentUser?.name || ''} ${welcomeMessage || ''}`)
+  );
+  const [promoCodeInput, setPromoCodeInput] = useState<string>(
+    externalPromoCode || (initialPromoApplied ? 'FIRST300' : '')
+  );
+  const [promoApplied, setPromoApplied] = useState<boolean>(initialPromoApplied);
+  const [promoStatus, setPromoStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(
+    initialPromoApplied ? { type: 'success', message: PROMO_SUCCESS_MESSAGE } : null
+  );
+
   // Payment choice: 20% advance or 100% full
   const [paymentMode, setPaymentMode] = useState<'advance_20' | 'full'>('advance_20');
   const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('gpay');
@@ -122,6 +155,47 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [isOpen, currentUser, pickupCity, dropCity, tripType, fareDetails.tollsAndTaxes, returnDate, pickupDate, returnTime]);
 
+  // Automatically check if user name, welcome message, or external promo matches Dr. Vijay Kumar or FIRST300
+  useEffect(() => {
+    const combinedWelcomeOrName = `${customerName || ''} ${currentUser?.name || ''} ${welcomeMessage || ''}`.trim();
+    if (isDrVijayKumarMatch(combinedWelcomeOrName)) {
+      setPromoApplied(true);
+      setExternalIsPromoApplied?.(true);
+      if (!promoCodeInput.trim()) {
+        setPromoCodeInput('FIRST300');
+        setExternalPromoCode?.('FIRST300');
+      }
+      setPromoStatus({ type: 'success', message: PROMO_SUCCESS_MESSAGE });
+    } else if (externalIsPromoApplied || fareDetails.promoDiscount >= PROMO_DISCOUNT_AMOUNT) {
+      setPromoApplied(true);
+      if (!promoCodeInput.trim()) {
+        setPromoCodeInput(externalPromoCode || 'FIRST300');
+      }
+      setPromoStatus({ type: 'success', message: PROMO_SUCCESS_MESSAGE });
+    }
+  }, [customerName, currentUser?.name, welcomeMessage, externalIsPromoApplied, fareDetails.promoDiscount]);
+
+  const handleApplyPromo = (codeOverride?: string) => {
+    const rawCode = (codeOverride !== undefined ? codeOverride : promoCodeInput).trim();
+    const combinedWelcomeOrName = `${customerName || ''} ${currentUser?.name || ''} ${welcomeMessage || ''}`.trim();
+
+    if (isValidFirst300Promo(rawCode, combinedWelcomeOrName)) {
+      const normalizedDisplayCode = rawCode.toUpperCase() === 'FIRST300' || !rawCode ? 'FIRST300' : rawCode;
+      setPromoCodeInput(normalizedDisplayCode);
+      setExternalPromoCode?.(normalizedDisplayCode);
+      setPromoApplied(true);
+      setExternalIsPromoApplied?.(true);
+      setPromoStatus({ type: 'success', message: PROMO_SUCCESS_MESSAGE });
+    } else {
+      setPromoApplied(false);
+      setExternalIsPromoApplied?.(false);
+      setPromoStatus({
+        type: 'error',
+        message: 'Invalid promo code. Enter FIRST300 to get ₹300 OFF.'
+      });
+    }
+  };
+
   // Pre-warm Razorpay Checkout SDK & Android 11+ UPI Intent detection as soon as BookingModal opens
   useEffect(() => {
     if (isOpen) {
@@ -144,7 +218,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Live CabBazar fare calculation synchronized with server (including Hill Area, Outer Route, Pickup Time, Extra KM Slider)
+  // Live CabBazar fare calculation synchronized with server (including Hill Area, Outer Route, Pickup Time, Extra KM Slider & Promo Discount)
   const activeFare = computeTripFare({
     tripType,
     cabId: cab.id,
@@ -159,7 +233,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     includeTolls: includeTollsState,
     addonCarrier,
     addonPet,
-    addonAssuredModel
+    addonAssuredModel,
+    promoCode: promoApplied ? 'FIRST300' : '',
+    promoDiscount: promoApplied ? PROMO_DISCOUNT_AMOUNT : 0,
+    customerName
   });
 
   const payableNowAmount = paymentMode === 'advance_20' ? activeFare.advanceFare : activeFare.totalFare;
@@ -224,6 +301,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       driverAllowance: activeFare.driverAllowance,
       tollsAndTaxes: activeFare.tollsAndTaxes,
       gstAmount: activeFare.gstAmount,
+      discountAmount: activeFare.promoDiscount > 0 ? activeFare.promoDiscount : undefined,
+      promoCode: activeFare.promoCodeApplied || undefined,
       totalFare: activeFare.totalFare,
       advancePaid: payableNowAmount,
       balanceDue: balanceDueAmount,
@@ -243,6 +322,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       notes:
         [
           specialNotes.trim(),
+          activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
           extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
           addonCarrier ? 'Add-on: Roof Carrier' : '',
           addonAssuredModel ? 'Add-on: Assured New Model' : '',
@@ -291,6 +371,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       addonCarrier,
       addonPet,
       addonAssuredModel,
+      promoCode: activeFare.promoCodeApplied || undefined,
+      promoDiscount: activeFare.promoDiscount || 0,
       customerName: customerName.trim(),
       customerPhone: cleanPhone,
       customerEmail: customerEmail.trim() || undefined,
@@ -421,8 +503,90 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
             <div>
               <span className="text-[10px] text-slate-500 uppercase font-bold block">Total Fare</span>
-              <span className="text-emerald-700 font-black text-sm">{formatINR(activeFare.totalFare)}</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {activeFare.promoDiscount > 0 && (
+                  <span className="text-xs text-slate-400 line-through font-mono">
+                    {formatINR(activeFare.totalFareBeforePromo)}
+                  </span>
+                )}
+                <span className="text-emerald-700 font-black text-sm">{formatINR(activeFare.totalFare)}</span>
+              </div>
             </div>
+          </div>
+
+          {/* Promo Code Input Field & 'Apply' Button on Booking Summary */}
+          <div className="pt-2.5 border-t border-slate-200/80 space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <label
+                htmlFor="booking-promo-code-input"
+                className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px] sm:text-xs"
+              >
+                <Tag className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>Promo Code:</span>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPromo('FIRST300')}
+                  className="text-[10px] font-mono font-black bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded transition cursor-pointer"
+                  title="Tap to apply FIRST300"
+                >
+                  FIRST300 (-₹300)
+                </button>
+              </label>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="booking-promo-code-input"
+                  name="promoCode"
+                  type="text"
+                  value={promoCodeInput}
+                  onChange={(e) => {
+                    setPromoCodeInput(e.target.value);
+                    if (promoStatus?.type === 'error') setPromoStatus(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleApplyPromo();
+                    }
+                  }}
+                  placeholder="Enter promo code (FIRST300)"
+                  aria-label="Promo code"
+                  className="flex-1 sm:w-48 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900 uppercase placeholder:normal-case placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleApplyPromo()}
+                  className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-400 text-white hover:text-slate-950 font-black text-xs transition cursor-pointer shrink-0"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            {promoStatus && (
+              <div
+                role="status"
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 ${
+                  promoStatus.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-700'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  {promoStatus.type === 'success' ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{promoStatus.message}</span>
+                </span>
+                {promoStatus.type === 'success' && activeFare.promoDiscount > 0 && (
+                  <span className="font-mono font-black text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    -₹{activeFare.promoDiscount}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Clean 2-Option Fare Mode Selector (No Toll/Tax ₹ Amount Shown) */}

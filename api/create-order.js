@@ -196,7 +196,10 @@ export default async function handler(req, res) {
         includeTolls: Boolean(includeTolls),
         addonCarrier: Boolean(body.addonCarrier),
         addonPet: Boolean(body.addonPet),
-        addonAssuredModel: Boolean(body.addonAssuredModel)
+        addonAssuredModel: Boolean(body.addonAssuredModel),
+        promoCode: body.promoCode ? String(body.promoCode) : '',
+        promoDiscount: Number(body.promoDiscount || 0),
+        customerName: customerName ? String(customerName) : ''
       });
     } catch (fareErr) {
       console.error('[/api/create-order] Fare calculation error:', {
@@ -332,9 +335,9 @@ export default async function handler(req, res) {
         bookingId: bookingId.trim(),
         orderId: rzpData.id,
         amountInPaise: rzpData.amount,
-        totalFare: serverFare.totalFare,
-        advancePaid: serverPayableRupees,
-        balanceDue: serverBalanceDueRupees,
+        totalFare: finalTotalFare,
+        advancePaid: payableRupees,
+        balanceDue: finalBalanceDue,
         paymentMode,
         customerPhone: cleanPhone,
         tripType,
@@ -356,7 +359,7 @@ export default async function handler(req, res) {
         checkoutMode: 'order',
         orderId: rzpData.id,
         amount: rzpData.amount,
-        amountInRupees: serverPayableRupees,
+        amountInRupees: payableRupees,
         currency: rzpData.currency || 'INR',
         keyId: matchedKeyId,
         bookingId: bookingId.trim(),

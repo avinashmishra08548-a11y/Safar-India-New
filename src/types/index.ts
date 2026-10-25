@@ -45,6 +45,8 @@ export interface BookingRecord {
   driverAllowance: number;
   tollsAndTaxes: number;
   gstAmount: number;
+  discountAmount?: number;
+  promoCode?: string;
   totalFare: number;
   advancePaid: number;
   balanceDue: number;

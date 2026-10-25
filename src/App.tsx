@@ -24,7 +24,7 @@ import {
 import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
 import { CABS_FLEET } from './data/cabsFleet';
-import { computeTripFare, FareCalculationResult } from './utils/fareCalculator';
+import { computeTripFare, FareCalculationResult, isDrVijayKumarMatch } from './utils/fareCalculator';
 import { calculateExactRoadDistance, Coordinates } from './utils/olaMapsService';
 import { sanitize10DigitPhone } from './utils/smsService';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsapp';
@@ -272,6 +272,19 @@ export default function App() {
   const [airportTerminal, setAirportTerminal] = useState('');
   const [includeTolls, setIncludeTolls] = useState(false);
   const [extraKm, setExtraKm] = useState(0);
+  const [promoCode, setPromoCode] = useState<string>(() =>
+    isDrVijayKumarMatch(currentUser?.name) ? 'FIRST300' : ''
+  );
+  const [isPromoApplied, setIsPromoApplied] = useState<boolean>(() =>
+    isDrVijayKumarMatch(currentUser?.name)
+  );
+
+  useEffect(() => {
+    if (isDrVijayKumarMatch(currentUser?.name) || isDrVijayKumarMatch(authNotice)) {
+      setIsPromoApplied(true);
+      if (!promoCode) setPromoCode('FIRST300');
+    }
+  }, [currentUser?.name, authNotice]);
 
   const roundTripDays = useMemo(() => {
     if (tripType === 'roundtrip' && pickupDate && returnDate) {
@@ -867,6 +880,12 @@ export default function App() {
                 localPackageId={localPackageId}
                 includeTolls={includeTolls}
                 setIncludeTolls={setIncludeTolls}
+                promoCode={promoCode}
+                setPromoCode={setPromoCode}
+                isPromoApplied={isPromoApplied}
+                setIsPromoApplied={setIsPromoApplied}
+                currentUser={currentUser}
+                welcomeMessage={authNotice}
                 onSelectCab={handleSelectCab}
               />
             </div>
@@ -1044,6 +1063,12 @@ export default function App() {
               localPackageId={localPackageId}
               includeTolls={includeTolls}
               setIncludeTolls={setIncludeTolls}
+              promoCode={promoCode}
+              setPromoCode={setPromoCode}
+              isPromoApplied={isPromoApplied}
+              setIsPromoApplied={setIsPromoApplied}
+              currentUser={currentUser}
+              welcomeMessage={authNotice}
               onSelectCab={(cab, fare) => {
                 setIsCabsModalOpen(false);
                 handleSelectCab(cab, fare);
@@ -1071,6 +1096,11 @@ export default function App() {
           airportMode={airportMode}
           airportTerminal={airportTerminal}
           currentUser={currentUser}
+          promoCode={promoCode}
+          setPromoCode={setPromoCode}
+          isPromoApplied={isPromoApplied}
+          setIsPromoApplied={setIsPromoApplied}
+          welcomeMessage={authNotice}
           onBookingSuccess={handleBookingSuccess}
         />
       )}

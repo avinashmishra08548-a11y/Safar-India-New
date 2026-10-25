@@ -67,12 +67,43 @@ export interface FareCalculationResult {
   originalFare: number;
   discountAmount: number;
   advanceAmount: number;
+  promoDiscount: number;
+  promoCodeApplied: string;
+  totalFareBeforePromo: number;
   terrainBadge: string;
   routeDemandBadge: string;
   bookingLeadBadge: string;
 }
 
 export type FareBreakdown = FareCalculationResult;
+
+export const PROMO_DISCOUNT_AMOUNT = 300;
+export const PROMO_SUCCESS_MESSAGE = '₹300 discount applied successfully';
+
+export function isDrVijayKumarMatch(text?: string | null): boolean {
+  if (!text) return false;
+  const normalized = String(text)
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ');
+  return normalized.includes('dr vijay kumar') || normalized.includes('vijay kumar');
+}
+
+export function isValidFirst300Promo(
+  codeInput?: string | null,
+  customerNameOrWelcome?: string | null
+): boolean {
+  if (codeInput) {
+    const cleanCode = String(codeInput).trim().toUpperCase().replace(/\s+/g, '');
+    if (cleanCode === 'FIRST300') return true;
+    if (isDrVijayKumarMatch(codeInput)) return true;
+  }
+  if (customerNameOrWelcome && isDrVijayKumarMatch(customerNameOrWelcome)) {
+    return true;
+  }
+  return false;
+}
 
 // Daily High-Frequency Plains/Metro Hub Cities
 export const DAILY_ROUTE_HUB_KEYWORDS: string[] = [
@@ -993,6 +1024,9 @@ export function computeTripFare(params: {
   addonCarrier?: boolean;
   addonPet?: boolean;
   addonAssuredModel?: boolean;
+  promoCode?: string;
+  promoDiscount?: number | boolean;
+  customerName?: string;
 }): FareCalculationResult {
   const {
     tripType,
@@ -1008,7 +1042,10 @@ export function computeTripFare(params: {
     includeTolls = false,
     addonCarrier = false,
     addonPet = false,
-    addonAssuredModel = false
+    addonAssuredModel = false,
+    promoCode = '',
+    promoDiscount = 0,
+    customerName = ''
   } = params;
 
   const cab = CABS_FLEET.find((c) => c.id === cabId) || CABS_FLEET[0];
@@ -1271,12 +1308,22 @@ export function computeTripFare(params: {
   const taxableSubtotal = baseFare + driverAllowance + nightCharges + addonsTotal;
   const gstAmount = tripType === 'roundtrip' ? 0 : Math.round(taxableSubtotal * 0.05);
 
-  const totalFare = baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
+  const totalFareBeforePromo =
+    baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
+
+  const shouldApplyPromo =
+    promoDiscount === true ||
+    Number(promoDiscount) >= PROMO_DISCOUNT_AMOUNT ||
+    isValidFirst300Promo(promoCode, customerName);
+
+  const appliedPromoDiscount = shouldApplyPromo ? PROMO_DISCOUNT_AMOUNT : 0;
+  const promoCodeApplied = shouldApplyPromo ? 'FIRST300' : '';
+  const totalFare = Math.max(100, totalFareBeforePromo - appliedPromoDiscount);
 
   // Competitor Market Comparison Fare (CabBazar / Gozo / Savaari benchmark: ₹150 to ₹210 higher)
-  const competitorGap = totalFare >= 4500 ? 210 : totalFare >= 3200 ? 199 : 169;
-  const originalMarketFare = totalFare + competitorGap;
-  const savingsAmount = competitorGap;
+  const competitorGap = totalFareBeforePromo >= 4500 ? 210 : totalFareBeforePromo >= 3200 ? 199 : 169;
+  const originalMarketFare = totalFareBeforePromo + competitorGap;
+  const savingsAmount = competitorGap + appliedPromoDiscount;
   const savingsPercent = Math.max(4, Math.round((savingsAmount / originalMarketFare) * 100));
 
   const advanceFare = Math.round(totalFare * 0.20);
@@ -1341,6 +1388,9 @@ export function computeTripFare(params: {
     originalFare: originalMarketFare,
     discountAmount: savingsAmount,
     advanceAmount: advanceFare,
+    promoDiscount: appliedPromoDiscount,
+    promoCodeApplied,
+    totalFareBeforePromo,
     terrainBadge: hillTier !== 'none' ? hillTierLabel : '',
     routeDemandBadge: routeTierLabel,
     bookingLeadBadge: leadTimeLabel
@@ -1370,6 +1420,9 @@ export function calculateTripFare(
         addonPet?: boolean;
         addonAssuredModel?: boolean;
         days?: number;
+        promoCode?: string;
+        promoDiscount?: number | boolean;
+        customerName?: string;
       },
   tripType?: TripType,
   distanceKm?: number,
@@ -1380,7 +1433,8 @@ export function calculateTripFare(
   includeTolls?: boolean,
   pickupDate?: string,
   pickupTime?: string,
-  extraKm?: number
+  extraKm?: number,
+  promoDiscount?: number | boolean
 ): FareCalculationResult {
   if (typeof cabIdOrParams === 'object' && cabIdOrParams !== null) {
     return computeTripFare(cabIdOrParams);
@@ -1411,7 +1465,8 @@ export function calculateTripFare(
     pickupTime: pickupTime || '',
     returnDate: computedReturnDate,
     localPackageId: localPackageId || '8h_80k',
-    includeTolls: includeTolls !== undefined ? includeTolls : false
+    includeTolls: includeTolls !== undefined ? includeTolls : false,
+    promoDiscount: promoDiscount || 0
   });
 }
 

@@ -960,7 +960,10 @@ export function computeServerTripFare({
   includeTolls = false,
   addonCarrier = false,
   addonPet = false,
-  addonAssuredModel = false
+  addonAssuredModel = false,
+  promoCode = '',
+  promoDiscount = 0,
+  customerName = ''
 }) {
   const validTripTypes = ['oneway', 'roundtrip', 'local', 'airport'];
   if (!validTripTypes.includes(tripType)) {
@@ -1200,11 +1203,26 @@ export function computeServerTripFare({
   const taxableSubtotal = baseFare + driverAllowance + nightCharges + addonsTotal;
   const gstAmount = tripType === 'roundtrip' ? 0 : Math.round(taxableSubtotal * 0.05);
 
-  const totalFare = baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
+  const totalFareBeforePromo = baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
 
-  const competitorGap = totalFare >= 4500 ? 210 : totalFare >= 3200 ? 199 : 169;
-  const originalMarketFare = totalFare + competitorGap;
-  const savingsAmount = competitorGap;
+  const cleanPromoCode = String(promoCode || '').trim().toUpperCase().replace(/\s+/g, '');
+  const cleanNameNorm = String(customerName || '').trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ');
+  const cleanPromoNorm = String(promoCode || '').trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ');
+  const shouldApplyPromo =
+    promoDiscount === true ||
+    Number(promoDiscount) >= 300 ||
+    cleanPromoCode === 'FIRST300' ||
+    cleanNameNorm.includes('dr vijay kumar') ||
+    cleanNameNorm.includes('vijay kumar') ||
+    cleanPromoNorm.includes('dr vijay kumar') ||
+    cleanPromoNorm.includes('vijay kumar');
+
+  const appliedPromoDiscount = shouldApplyPromo ? 300 : 0;
+  const totalFare = Math.max(100, totalFareBeforePromo - appliedPromoDiscount);
+
+  const competitorGap = totalFareBeforePromo >= 4500 ? 210 : totalFareBeforePromo >= 3200 ? 199 : 169;
+  const originalMarketFare = totalFareBeforePromo + competitorGap;
+  const savingsAmount = competitorGap + appliedPromoDiscount;
   const savingsPercent = Math.max(4, Math.round((savingsAmount / originalMarketFare) * 100));
 
   const advanceFare = Math.round(totalFare * 0.20);
@@ -1238,6 +1256,8 @@ export function computeServerTripFare({
     expresswayName,
     addonsTotal,
     gstAmount,
+    promoDiscount: appliedPromoDiscount,
+    totalFareBeforePromo,
     totalFare,
     originalMarketFare,
     savingsAmount,
