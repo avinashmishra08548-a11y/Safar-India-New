@@ -529,8 +529,8 @@ const CANONICAL_CITY_ALIASES: Array<{ key: string; patterns: string[] }> = [
   { key: 'kullu', patterns: ['kullu'] },
   { key: 'kasol', patterns: ['kasol'] },
   { key: 'manikaran', patterns: ['manikaran'] },
-  { key: 'dharamshala', patterns: ['dharamshala'] },
-  { key: 'mcleodganj', patterns: ['mcleodganj'] },
+  { key: 'dharamshala', patterns: ['dharamshala', 'dharmshala', 'dharmshaala', 'dharamsala', 'gaggal', 'kangra'] },
+  { key: 'mcleodganj', patterns: ['mcleodganj', 'mcleod'] },
   { key: 'palampur', patterns: ['palampur'] },
   { key: 'dalhousie', patterns: ['dalhousie'] },
   { key: 'khajjiar', patterns: ['khajjiar'] },
@@ -591,7 +591,7 @@ const CANONICAL_CITY_ALIASES: Array<{ key: string; patterns: string[] }> = [
   { key: 'patiala', patterns: ['patiala'] },
   { key: 'ludhiana', patterns: ['ludhiana'] },
   { key: 'jalandhar', patterns: ['jalandhar'] },
-  { key: 'amritsar', patterns: ['amritsar', 'goldentemple', 'wagah'] },
+  { key: 'amritsar', patterns: ['amritsar', 'srigururamdas', 'gururamdas', 'rajasansi', 'goldentemple', 'wagah', 'atq'] },
   { key: 'pathankot', patterns: ['pathankot'] },
   { key: 'jammu', patterns: ['jammu'] },
   { key: 'katra', patterns: ['katra', 'vaishnodevi'] },
@@ -782,10 +782,8 @@ export function calculateTerrainHaversineKm(
 
   let detourFactor = 1.28;
   if (fromHill && toHill) {
-    // Deep mountain-to-mountain winding roads (e.g., Rudraprayag to Nainital: 109.2 km crow * 2.042 = 223 km)
     detourFactor = 2.042;
   } else if (fromHill || toHill) {
-    // Plains to hill climb ghat roads
     detourFactor = 1.58;
   } else if (crowDistance < 100) {
     detourFactor = 1.32;
@@ -818,7 +816,6 @@ export function estimateDistanceKm(fromCity: string, toCity: string): number {
     return Math.max(15, calc);
   }
 
-  // Reasonable intercity fallback
   return 180;
 }
 
@@ -833,12 +830,12 @@ export interface PopularRouteDeal {
 }
 
 export const POPULAR_ROUTES: PopularRouteDeal[] = [
-  { from: 'Delhi NCR', to: 'Agra', distanceKm: 230, startingPrice: 3090, popularCar: 'Sedan (Dzire/Etios)', badge: 'Yamuna Expressway', duration: '3.5 Hrs' },
-  { from: 'Delhi NCR', to: 'Jaipur', distanceKm: 275, startingPrice: 3630, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-48 / Expressway', duration: '4.5 Hrs' },
-  { from: 'Mumbai', to: 'Pune', distanceKm: 150, startingPrice: 2315, popularCar: 'Hatchback / Sedan', badge: 'Mumbai-Pune Expwy', duration: '2.5 Hrs' },
-  { from: 'Bangalore (Bengaluru)', to: 'Mysore (Mysuru)', distanceKm: 145, startingPrice: 2249, popularCar: 'Sedan (Dzire/Etios)', badge: '10-Lane Expressway', duration: '2.0 Hrs' },
-  { from: 'Delhi NCR', to: 'Chandigarh', distanceKm: 245, startingPrice: 3275, popularCar: 'Sedan / SUV', badge: 'NH 44 Highway', duration: '4.0 Hrs' },
-  { from: 'Ahmedabad', to: 'Udaipur', distanceKm: 260, startingPrice: 3450, popularCar: 'Sedan (Dzire/Etios)', badge: 'Scenic Aravali', duration: '4.5 Hrs' },
-  { from: 'Lucknow', to: 'Ayodhya', distanceKm: 135, startingPrice: 2110, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-27 Expressway', duration: '2.5 Hrs' },
-  { from: 'Chennai', to: 'Pondicherry (Puducherry)', distanceKm: 150, startingPrice: 2315, popularCar: 'Sedan (Dzire/Etios)', badge: 'East Coast Road', duration: '3.0 Hrs' }
+  { from: 'Delhi NCR', to: 'Agra', distanceKm: 230, startingPrice: 2757, popularCar: 'Sedan (Dzire/Etios)', badge: 'Yamuna Expressway', duration: '3.5 Hrs' },
+  { from: 'Delhi NCR', to: 'Jaipur', distanceKm: 275, startingPrice: 3239, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-48 / Expressway', duration: '4.5 Hrs' },
+  { from: 'Mumbai', to: 'Pune', distanceKm: 150, startingPrice: 1995, popularCar: 'Hatchback / Sedan', badge: 'Mumbai-Pune Expwy', duration: '2.5 Hrs' },
+  { from: 'Bangalore (Bengaluru)', to: 'Mysore (Mysuru)', distanceKm: 145, startingPrice: 1938, popularCar: 'Sedan (Dzire/Etios)', badge: '10-Lane Expressway', duration: '2.0 Hrs' },
+  { from: 'Delhi NCR', to: 'Chandigarh', distanceKm: 245, startingPrice: 2918, popularCar: 'Sedan / SUV', badge: 'NH 44 Highway', duration: '4.0 Hrs' },
+  { from: 'Ahmedabad', to: 'Udaipur', distanceKm: 260, startingPrice: 3079, popularCar: 'Sedan (Dzire/Etios)', badge: 'Scenic Aravali', duration: '4.5 Hrs' },
+  { from: 'Lucknow', to: 'Ayodhya', distanceKm: 135, startingPrice: 1824, popularCar: 'Sedan (Dzire/Etios)', badge: 'NH-27 Expressway', duration: '2.5 Hrs' },
+  { from: 'Chennai', to: 'Pondicherry (Puducherry)', distanceKm: 150, startingPrice: 1995, popularCar: 'Sedan (Dzire/Etios)', badge: 'East Coast Road', duration: '3.0 Hrs' }
 ];
