@@ -272,15 +272,18 @@ export default async function handler(req, res) {
         booking_id: bookingId.trim(),
         trip_type: String(tripType),
         cab_id: String(cabId),
-        pickup_city: String(pickupCity).slice(0, 60),
-        drop_city: String(dropCity || pickupCity).slice(0, 60),
-        pickup_date: `${pickupDate} ${pickupTime}`.slice(0, 60),
+        pickup_city: String(pickupCity).slice(0, 120),
+        drop_city: String(dropCity || pickupCity).slice(0, 120),
+        pickup_address: String(pickupAddress || pickupCity).slice(0, 200),
+        drop_address: String(body.dropAddress || dropCity || pickupCity).slice(0, 200),
+        pickup_date: String(pickupDate).slice(0, 30),
+        pickup_time: String(pickupTime).slice(0, 30),
+        distance_km: String(serverFare.distanceKm || distanceKm || 230),
         payment_mode: String(paymentMode),
-        expected_amount_paise: String(amountInPaise),
         total_fare_rupees: String(finalTotalFare),
         advance_paid_rupees: String(payableRupees),
         balance_due_rupees: String(finalBalanceDue),
-        customer_phone: cleanPhone
+        customer_info: `${String(customerName).trim().slice(0, 80)}|${cleanPhone}|${String(customerEmail || '').trim().slice(0, 80)}`
       }
     };
 

@@ -517,22 +517,90 @@ export default function App() {
     ];
   });
 
+  // Helper to merge local and backend bookings without losing new bookings or driver assignments
+  const mergeBookingsList = (
+    localList: BookingRecord[],
+    remoteList: BookingRecord[]
+  ): BookingRecord[] => {
+    const mapById = new Map<string, BookingRecord>();
+
+    const upsert = (item: BookingRecord) => {
+      if (!item || !item.id || item.id.includes('DEMO') || item.id.includes('TEST')) return;
+      const existing = mapById.get(item.id);
+      if (!existing) {
+        mapById.set(item.id, item);
+        return;
+      }
+      const merged: BookingRecord = {
+        ...existing,
+        ...item,
+        driverName: item.driverName || existing.driverName,
+        driverPhone: item.driverPhone || existing.driverPhone,
+        driverVehicleModel: item.driverVehicleModel || existing.driverVehicleModel,
+        driverVehicleNo: item.driverVehicleNo || existing.driverVehicleNo,
+        driverAssignedAt: item.driverAssignedAt || existing.driverAssignedAt,
+        notes: item.notes || existing.notes
+      };
+      if (existing.status === 'completed' || item.status === 'completed') {
+        merged.status = 'completed';
+      } else if (existing.status === 'cancelled' || item.status === 'cancelled') {
+        merged.status = 'cancelled';
+      }
+      mapById.set(item.id, merged);
+    };
+
+    for (const b of remoteList) upsert(b);
+    for (const b of localList) upsert(b);
+
+    return Array.from(mapById.values()).sort((a, b) => {
+      const tA = Date.parse(a.createdAt || '') || 0;
+      const tB = Date.parse(b.createdAt || '') || 0;
+      return tB - tA;
+    });
+  };
+
+  const refreshAllBookings = async (force = false) => {
+    try {
+      let currentLocal: BookingRecord[] = [];
+      try {
+        const saved = localStorage.getItem('safar_bookings');
+        if (saved) currentLocal = JSON.parse(saved);
+      } catch {}
+
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sync_client_bookings',
+          bookings: currentLocal.length > 0 ? currentLocal : allBookings,
+          force
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data && data.success && Array.isArray(data.bookings)) {
+          setAllBookings(prev => mergeBookingsList(prev, data.bookings));
+          return;
+        }
+      }
+
+      const fallbackRes = await fetch(force ? '/api/bookings?force=1' : '/api/bookings');
+      if (fallbackRes.ok) {
+        const data = await fallbackRes.json().catch(() => null);
+        if (data && data.success && Array.isArray(data.bookings)) {
+          setAllBookings(prev => mergeBookingsList(prev, data.bookings));
+        }
+      }
+    } catch (e) {
+      console.info('Backend /api/bookings sync notice, using local cache:', e);
+    }
+  };
+
   // Sync real persistent bookings from serverless backend on mount
   useEffect(() => {
-    async function syncBackendBookings() {
-      try {
-        const res = await fetch('/api/bookings');
-        if (res.ok) {
-          const data = await res.json().catch(() => null);
-          if (data && data.success && Array.isArray(data.bookings) && data.bookings.length > 0) {
-            setAllBookings(data.bookings);
-          }
-        }
-      } catch (e) {
-        console.info('Backend /api/bookings sync notice, using local cache:', e);
-      }
-    }
-    syncBackendBookings();
+    refreshAllBookings(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Save master bookings to localStorage
@@ -570,7 +638,13 @@ export default function App() {
   };
 
   const handleBookingSuccess = (newBooking: BookingRecord) => {
-    setAllBookings(prev => [newBooking, ...prev]);
+    setAllBookings(prev => {
+      const next = mergeBookingsList([newBooking, ...prev], [newBooking]);
+      try {
+        localStorage.setItem('safar_bookings', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     setSelectedCabForCheckout(null);
     setActiveVoucherBooking(newBooking);
     // Sync with serverless backend
@@ -693,11 +767,24 @@ export default function App() {
     } catch {}
   };
 
+  // Automatically sync bookings when Owner Panel opens and every 15s while open
+  useEffect(() => {
+    if (!isAdminDashboardOpen) return;
+    refreshAllBookings(true);
+    const interval = setInterval(() => {
+      refreshAllBookings(true);
+    }, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdminDashboardOpen]);
+
   const handleUpdateBookingStatusByAdmin = (
     bookingId: string, 
     status: 'confirmed' | 'completed' | 'cancelled',
     driverInfo?: { name: string; phone: string; carPlate: string; vehicleModel?: string }
   ) => {
+    let targetUpdatedBooking: BookingRecord | null = null;
+
     setAllBookings(prev => {
       let completedRecord: BookingRecord | null = null;
       const next = prev.map(b => {
@@ -714,6 +801,7 @@ export default function App() {
               ? `Driver: ${driverInfo.name} (${driverInfo.phone}) | ${driverInfo.vehicleModel || 'Cab'} (${driverInfo.carPlate})` 
               : b.notes
           };
+          targetUpdatedBooking = updated;
           if (status === 'completed') {
             completedRecord = updated;
           }
@@ -721,17 +809,26 @@ export default function App() {
         }
         return b;
       });
+      try {
+        localStorage.setItem('safar_bookings', JSON.stringify(next));
+      } catch {}
       if (completedRecord) {
         setTimeout(() => setActiveVoucherBooking(completedRecord), 50);
       }
       return next;
     });
 
-    // Sync status change to backend
+    // Sync status change and full booking record to backend
     fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update_status', bookingId, status, driverInfo })
+      body: JSON.stringify({
+        action: 'update_status',
+        bookingId,
+        status,
+        driverInfo,
+        booking: targetUpdatedBooking
+      })
     }).catch(() => {});
   };
 
@@ -1388,10 +1485,19 @@ export default function App() {
             onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
             onChangePin={handleChangeOwnerPin}
             onClearDemoBookings={handleClearDemoBookings}
+            onRefreshBookings={() => refreshAllBookings(true)}
             onOpenBookingReceipt={(b) => setActiveVoucherBooking(b)}
             onCreateManualBooking={(newBooking) => {
-              setAllBookings(prev => [newBooking, ...prev]);
-              setActiveVoucherBooking(newBooking);
+              setAllBookings(prev => {
+                const next = mergeBookingsList([newBooking, ...prev], [newBooking]);
+                try {
+                  localStorage.setItem('safar_bookings', JSON.stringify(next));
+                } catch {}
+                return next;
+              });
+              if (newBooking.status === 'completed') {
+                setActiveVoucherBooking(newBooking);
+              }
               fetch('/api/bookings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

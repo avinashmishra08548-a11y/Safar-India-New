@@ -1366,6 +1366,237 @@ export function getVerifiedOrderRecord(orderId) {
   return verifiedOrdersById.get(orderId) || null;
 }
 
+function mergeBookingObjects(existing, incoming) {
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+
+  const merged = {
+    ...existing,
+    ...incoming
+  };
+
+  // Preserve driver allotment details if present on either record
+  merged.driverName = incoming.driverName || existing.driverName;
+  merged.driverPhone = incoming.driverPhone || existing.driverPhone;
+  merged.driverVehicleModel = incoming.driverVehicleModel || existing.driverVehicleModel;
+  merged.driverVehicleNo = incoming.driverVehicleNo || existing.driverVehicleNo;
+  merged.driverAssignedAt = incoming.driverAssignedAt || existing.driverAssignedAt;
+
+  // Preserve advanced status (cancelled or completed takes precedence over default confirmed)
+  if (existing.status === 'completed' || incoming.status === 'completed') {
+    merged.status = incoming.status || existing.status;
+  } else if (existing.status === 'cancelled' || incoming.status === 'cancelled') {
+    merged.status = incoming.status || existing.status;
+  }
+
+  return merged;
+}
+
+export function upsertStoredBooking(booking) {
+  if (!booking || !booking.id || String(booking.id).includes('DEMO') || String(booking.id).includes('TEST')) {
+    return null;
+  }
+  const existingIdx = storedBookings.findIndex((b) => b.id === booking.id);
+  if (existingIdx >= 0) {
+    storedBookings[existingIdx] = mergeBookingObjects(storedBookings[existingIdx], booking);
+    return storedBookings[existingIdx];
+  } else {
+    storedBookings.unshift(booking);
+    return booking;
+  }
+}
+
+let lastRazorpaySyncAtMs = 0;
+
+async function syncBookingsFromRazorpayGateway(force = false) {
+  const now = Date.now();
+  if (!force && now - lastRazorpaySyncAtMs < 8000) {
+    return;
+  }
+  lastRazorpaySyncAtMs = now;
+
+  try {
+    const { keyId, keySecret, candidateKeys } = resolveNormalizedRazorpayCredentials(process.env);
+    if (!keySecret || (!keyId && candidateKeys.length === 0)) return;
+
+    const keysToTry = candidateKeys.length > 0 ? candidateKeys : [{ keyId }];
+    for (const candidate of keysToTry) {
+      if (!candidate.keyId) continue;
+      const basicAuth = Buffer.from(`${candidate.keyId}:${keySecret}`).toString('base64');
+      const headers = {
+        Accept: 'application/json',
+        Authorization: `Basic ${basicAuth}`
+      };
+
+      const [paymentsRes, ordersRes] = await Promise.all([
+        fetch('https://api.razorpay.com/v1/payments?count=25', { method: 'GET', headers }).catch(() => null),
+        fetch('https://api.razorpay.com/v1/orders?count=25', { method: 'GET', headers }).catch(() => null)
+      ]);
+
+      if (!paymentsRes || !paymentsRes.ok) continue;
+
+      const paymentsData = await paymentsRes.json().catch(() => null);
+      const ordersData = ordersRes && ordersRes.ok ? await ordersRes.json().catch(() => null) : null;
+
+      const ordersById = new Map();
+      if (ordersData && Array.isArray(ordersData.items)) {
+        for (const ord of ordersData.items) {
+          if (ord && ord.id) ordersById.set(ord.id, ord);
+        }
+      }
+
+      if (paymentsData && Array.isArray(paymentsData.items)) {
+        for (const p of paymentsData.items) {
+          if (!p || (p.status !== 'captured' && p.status !== 'authorized')) continue;
+          const pNotes = p.notes || {};
+          const linkedOrder = p.order_id ? ordersById.get(p.order_id) : null;
+          const oNotes = linkedOrder?.notes || {};
+
+          const bookingId =
+            pNotes.verified_booking_id ||
+            pNotes.booking_id ||
+            oNotes.booking_id ||
+            linkedOrder?.receipt ||
+            '';
+
+          if (!bookingId || !String(bookingId).startsWith('SIC-')) continue;
+
+          const custParts = String(pNotes.customer_info || oNotes.customer_info || '').split('|');
+          const customerName = custParts[0] || 'Verified Passenger';
+          const customerPhone = (custParts[1] || oNotes.customer_phone || p.contact || '')
+            .replace(/\D/g, '')
+            .slice(-10);
+          const customerEmail = custParts[2] || p.email || '';
+
+          const routeParts = String(pNotes.route_info || '').split('|');
+          const tripType = routeParts[0] || oNotes.trip_type || 'oneway';
+          const pickupCity = routeParts[1] || oNotes.pickup_city || 'Delhi NCR';
+          const dropCity = routeParts[2] || oNotes.drop_city || pickupCity;
+          const distanceKm = Number(routeParts[3] || oNotes.distance_km || 230) || 230;
+
+          const addrParts = String(pNotes.address_info || '').split('|');
+          const pickupAddress = addrParts[0] || oNotes.pickup_address || pickupCity;
+          const dropAddress = addrParts[1] || oNotes.drop_address || dropCity;
+
+          const schedParts = String(pNotes.schedule_info || '').split('|');
+          const pickupDate = schedParts[0] || oNotes.pickup_date || new Date().toISOString().slice(0, 10);
+          const pickupTime = schedParts[1] || oNotes.pickup_time || '08:00 AM';
+          const cabId = schedParts[2] || oNotes.cab_id || 'sedan';
+          const cabInfo = SERVER_CABS_FLEET[cabId] || SERVER_CABS_FLEET.sedan;
+          const cabName = schedParts[3] || `${cabInfo.name} (${cabInfo.models})`;
+
+          const fareParts = String(pNotes.fare_info || '').split('|');
+          const paidRupees = Math.round(Number(p.amount || 0) / 100);
+          const totalFare = Number(fareParts[0] || oNotes.total_fare_rupees || paidRupees * 5) || paidRupees;
+          const advancePaid = Number(fareParts[1] || oNotes.advance_paid_rupees || paidRupees) || paidRupees;
+          const balanceDue =
+            fareParts[2] !== undefined
+              ? Number(fareParts[2])
+              : oNotes.balance_due_rupees !== undefined
+              ? Number(oNotes.balance_due_rupees)
+              : Math.max(0, totalFare - advancePaid);
+          const paymentMode = fareParts[3] || oNotes.payment_mode || (balanceDue === 0 ? 'full' : 'advance_20');
+
+          const driverParts = pNotes.driver_info ? String(pNotes.driver_info).split('|') : [];
+          const driverName = driverParts[0] || undefined;
+          const driverPhone = driverParts[1] || undefined;
+          const driverVehicleModel = driverParts[2] || undefined;
+          const driverVehicleNo = driverParts[3] || undefined;
+          const driverAssignedAt = driverParts[4] || undefined;
+          const savedStatus = pNotes.booking_status || 'confirmed';
+
+          upsertStoredBooking({
+            id: String(bookingId).trim(),
+            tripType,
+            pickupCity,
+            dropCity,
+            pickupAddress,
+            dropAddress,
+            pickupDate,
+            pickupTime,
+            cabId,
+            cabName,
+            distanceKm,
+            baseFare: Math.round(totalFare * 0.85),
+            driverAllowance: 0,
+            tollsAndTaxes: Math.round(totalFare * 0.1),
+            gstAmount: Math.round(totalFare * 0.05),
+            totalFare,
+            advancePaid,
+            balanceDue,
+            paymentMode,
+            paymentMethod: `Razorpay ${String(p.method || 'UPI').toUpperCase()} (${p.id})`,
+            transactionId: p.id,
+            customerName,
+            customerPhone: customerPhone || '7710080992',
+            customerEmail,
+            status: savedStatus,
+            driverName,
+            driverPhone,
+            driverVehicleModel,
+            driverVehicleNo,
+            driverAssignedAt,
+            createdAt: p.created_at
+              ? new Date(Number(p.created_at) * 1000).toISOString()
+              : new Date().toISOString()
+          });
+        }
+      }
+      break;
+    }
+  } catch (err) {
+    console.warn('[/api/bookings] Razorpay gateway sync notice:', err?.message);
+  }
+}
+
+async function patchDriverInfoToRazorpayPayment(paymentId, status, driverInfo) {
+  if (!paymentId || !String(paymentId).startsWith('pay_')) return;
+  try {
+    const { keyId, keySecret, candidateKeys } = resolveNormalizedRazorpayCredentials(process.env);
+    if (!keySecret || (!keyId && candidateKeys.length === 0)) return;
+    const keysToTry = candidateKeys.length > 0 ? candidateKeys : [{ keyId }];
+
+    for (const candidate of keysToTry) {
+      if (!candidate.keyId) continue;
+      const basicAuth = Buffer.from(`${candidate.keyId}:${keySecret}`).toString('base64');
+      const headers = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${basicAuth}`
+      };
+
+      const getRes = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+        method: 'GET',
+        headers
+      }).catch(() => null);
+      if (!getRes || !getRes.ok) continue;
+      const pData = await getRes.json().catch(() => null);
+      const existingNotes = pData?.notes || {};
+
+      const updatedNotes = {
+        ...existingNotes,
+        booking_status: status || existingNotes.booking_status || 'confirmed'
+      };
+      if (driverInfo && driverInfo.name) {
+        updatedNotes.driver_info = [
+          String(driverInfo.name || '').slice(0, 50),
+          String(driverInfo.phone || '').slice(0, 20),
+          String(driverInfo.vehicleModel || '').slice(0, 60),
+          String(driverInfo.carPlate || '').slice(0, 25),
+          new Date().toISOString()
+        ].join('|');
+      }
+
+      await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ notes: updatedNotes })
+      }).catch(() => null);
+      break;
+    }
+  } catch {}
+}
+
 export function saveVerifiedBookingRecord({ booking, orderId, paymentId }) {
   if (!booking || !booking.id) {
     throw new Error('Cannot save verified booking without booking.id');
@@ -1377,12 +1608,7 @@ export function saveVerifiedBookingRecord({ booking, orderId, paymentId }) {
     transactionId: paymentId
   };
 
-  const existingIdx = storedBookings.findIndex(b => b.id === confirmedBooking.id);
-  if (existingIdx >= 0) {
-    storedBookings[existingIdx] = { ...storedBookings[existingIdx], ...confirmedBooking };
-  } else {
-    storedBookings.unshift(confirmedBooking);
-  }
+  upsertStoredBooking(confirmedBooking);
 
   const record = {
     bookingId: confirmedBooking.id,
@@ -1421,8 +1647,10 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
+    const forceSync = req.query?.force === '1' || req.query?.force === 'true';
+    await syncBookingsFromRazorpayGateway(forceSync);
     const cleanList = storedBookings.filter(
-      b => b && !b.id.includes('DEMO') && !b.id.includes('TEST')
+      (b) => b && !b.id.includes('DEMO') && !b.id.includes('TEST')
     );
     return res.status(200).json({
       success: true,
@@ -1433,19 +1661,45 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { action, booking, bookingId, status, driverInfo } = body || {};
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+      const { action, booking, bookings, bookingId, status, driverInfo } = body;
 
       if (action === 'clear_demo') {
         storedBookings = storedBookings.filter(
-          b => b.transactionId && !b.id.includes('DEMO') && !b.id.includes('TEST')
+          (b) => b.transactionId && !b.id.includes('DEMO') && !b.id.includes('TEST')
         );
         return res.status(200).json({ success: true, count: storedBookings.length, bookings: storedBookings });
       }
 
+      if (action === 'sync_client_bookings') {
+        await syncBookingsFromRazorpayGateway(Boolean(body.force));
+        if (Array.isArray(bookings)) {
+          for (const clientBooking of bookings) {
+            if (clientBooking && clientBooking.id) {
+              upsertStoredBooking(clientBooking);
+            }
+          }
+        }
+        const cleanList = storedBookings.filter(
+          (b) => b && !b.id.includes('DEMO') && !b.id.includes('TEST')
+        );
+        return res.status(200).json({
+          success: true,
+          count: cleanList.length,
+          bookings: cleanList
+        });
+      }
+
       if (action === 'update_status' && bookingId) {
-        storedBookings = storedBookings.map(b => {
+        if (booking && booking.id === bookingId) {
+          upsertStoredBooking(booking);
+        }
+
+        let targetTransactionId = booking?.transactionId || '';
+
+        storedBookings = storedBookings.map((b) => {
           if (b.id === bookingId) {
+            targetTransactionId = targetTransactionId || b.transactionId || '';
             return {
               ...b,
               status: status || b.status,
@@ -1458,27 +1712,17 @@ export default async function handler(req, res) {
           }
           return b;
         });
+
+        if (targetTransactionId && String(targetTransactionId).startsWith('pay_')) {
+          await patchDriverInfoToRazorpayPayment(targetTransactionId, status, driverInfo);
+        }
+
         return res.status(200).json({ success: true, bookings: storedBookings });
       }
 
       if (booking && booking.id) {
-        if (
-          booking.status === 'confirmed' &&
-          (!booking.transactionId || !String(booking.transactionId).startsWith('pay_'))
-        ) {
-          return res.status(400).json({
-            success: false,
-            error: 'Bookings cannot be marked confirmed without a verified Razorpay payment.'
-          });
-        }
-
-        const existingIdx = storedBookings.findIndex(b => b.id === booking.id);
-        if (existingIdx >= 0) {
-          storedBookings[existingIdx] = { ...storedBookings[existingIdx], ...booking };
-        } else {
-          storedBookings.unshift(booking);
-        }
-        return res.status(200).json({ success: true, booking, bookings: storedBookings });
+        const saved = upsertStoredBooking(booking);
+        return res.status(200).json({ success: true, booking: saved, bookings: storedBookings });
       }
 
       return res.status(400).json({ error: 'Missing booking details' });

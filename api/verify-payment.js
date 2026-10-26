@@ -189,6 +189,23 @@ export default async function handler(req, res) {
                   rzpPayment = capturedData;
                 }
               }
+              try {
+                await fetch(`${RAZORPAY_API_BASE}/payments/${encodeURIComponent(cleanPaymentId)}`, {
+                  method: 'PATCH',
+                  headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    notes: {
+                      ...(rzpPayment.notes || {}),
+                      verified_booking_id: cleanBookingId,
+                      customer_info: `${String(bookingDraft.customerName || 'Traveler').slice(0, 70)}|${expectedCustomerPhone}|${String(bookingDraft.customerEmail || '').slice(0, 70)}`,
+                      route_info: `${String(bookingDraft.tripType || 'oneway')}|${String(bookingDraft.pickupCity || '')}|${String(bookingDraft.dropCity || '')}|${String(bookingDraft.distanceKm || 230)}`,
+                      address_info: `${String(bookingDraft.pickupAddress || '').slice(0, 110)}|${String(bookingDraft.dropAddress || '').slice(0, 110)}`,
+                      schedule_info: `${String(bookingDraft.pickupDate || '')}|${String(bookingDraft.pickupTime || '')}|${String(bookingDraft.cabId || 'sedan')}|${String(bookingDraft.cabName || 'Sedan AC').slice(0, 60)}`,
+                      fare_info: `${expectedTotalFare}|${expectedAdvancePaid}|${expectedBalanceDue}|${expectedPaymentMode}`
+                    }
+                  })
+                });
+              } catch {}
               break;
             }
           }
@@ -395,9 +412,13 @@ export default async function handler(req, res) {
         orderNotes.payment_mode ??
         bookingDraft.paymentMode
     );
+    const parsedCustomerPhoneFromInfo = orderNotes.customer_info
+      ? String(orderNotes.customer_info).split('|')[1] || ''
+      : '';
     const expectedCustomerPhone = sanitize10Digit(
-      pendingOrder?.customerPhone ??
-        orderNotes.customer_phone ??
+      pendingOrder?.customerPhone ||
+        orderNotes.customer_phone ||
+        parsedCustomerPhoneFromInfo ||
         bookingDraft.customerPhone
     );
     const expectedTripType = String(
@@ -513,7 +534,12 @@ export default async function handler(req, res) {
             notes: {
               ...paymentNotes,
               verified_booking_id: cleanBookingId,
-              verified_at: new Date().toISOString()
+              verified_at: new Date().toISOString(),
+              customer_info: `${String(bookingDraft.customerName || 'Traveler').slice(0, 70)}|${expectedCustomerPhone}|${String(bookingDraft.customerEmail || '').slice(0, 70)}`,
+              route_info: `${String(bookingDraft.tripType || 'oneway')}|${String(bookingDraft.pickupCity || '')}|${String(bookingDraft.dropCity || '')}|${String(bookingDraft.distanceKm || 230)}`,
+              address_info: `${String(bookingDraft.pickupAddress || '').slice(0, 110)}|${String(bookingDraft.dropAddress || '').slice(0, 110)}`,
+              schedule_info: `${String(bookingDraft.pickupDate || '')}|${String(bookingDraft.pickupTime || '')}|${String(bookingDraft.cabId || 'sedan')}|${String(bookingDraft.cabName || 'Sedan AC').slice(0, 60)}`,
+              fare_info: `${expectedTotalFare}|${expectedAdvancePaid}|${expectedBalanceDue}|${expectedPaymentMode}`
             }
           })
         });
