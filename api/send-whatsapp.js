@@ -381,34 +381,51 @@ export async function sendWhatsAppCloudMessage(
     lastFlushedAt: now
   });
 
-  // Step 1: Try Official Meta Template first (delivers outside 24h window without duplicate text)
-  const templateResult = await dispatchWhatsAppTemplateWithFallback(
-    apiUrl,
-    activeToken,
-    formattedTo,
-    messageText,
-    templateConfig
-  );
+  const isRichBoxDrawingCard = String(messageText || '').includes('┌──');
 
+  let templateResult = { success: false, status: null, templateName: null, messageId: null, data: null, error: null };
   let textResult = { success: false, status: null, messageId: null, data: null, error: null };
 
-  // Step 2: Only send Raw Text if template dispatch did not succeed
-  if (!templateResult.success) {
+  if (isRichBoxDrawingCard) {
+    // Step 1 (Box-Drawing Cards): Send Rich Multi-Line Text first so exact box formatting is preserved
     textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
+    if (!textResult.success) {
+      templateResult = await dispatchWhatsAppTemplateWithFallback(
+        apiUrl,
+        activeToken,
+        formattedTo,
+        messageText,
+        templateConfig
+      );
+    }
+  } else {
+    // Step 1 (OTP / Standard): Try Official Meta Template first (delivers outside 24h window without duplicate text)
+    templateResult = await dispatchWhatsAppTemplateWithFallback(
+      apiUrl,
+      activeToken,
+      formattedTo,
+      messageText,
+      templateConfig
+    );
+
+    // Step 2: Only send Raw Text if template dispatch did not succeed
+    if (!templateResult.success) {
+      textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
+    }
   }
 
   const overallSuccess = Boolean(templateResult.success || textResult.success);
 
   const finalResult = {
     success: overallSuccess,
-    status: templateResult.status || textResult.status || (overallSuccess ? 200 : 502),
+    status: textResult.status || templateResult.status || (overallSuccess ? 200 : 502),
     to: formattedTo,
     phoneNumberId: activePhoneId,
     templateDispatched: Boolean(templateResult.success),
     templateName: templateResult.templateName || null,
     textDispatched: Boolean(textResult.success),
-    messageId: templateResult.messageId || textResult.messageId || null,
-    data: templateResult.data || textResult.data || null,
+    messageId: textResult.messageId || templateResult.messageId || null,
+    data: textResult.data || templateResult.data || null,
     error: overallSuccess ? undefined : textResult.error || templateResult.error
   };
 

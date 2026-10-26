@@ -88,6 +88,224 @@ function sanitizeTemplateParamClient(val: unknown): string {
   return str.slice(0, 900) || '-';
 }
 
+export function formatWhatsAppDateTime(rawDateTime?: string, rawTime?: string): string {
+  const input = String(rawDateTime || '').trim();
+  if (!input) return rawTime ? `@ ${rawTime.trim()}` : 'Scheduled Time';
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Convert YYYY-MM-DD (with optional "at HH:MM AM" or "@ HH:MM AM") into "26 Oct 2026 @ 07:00 AM"
+  const isoMatch = input.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s*(?:at|@|·)?\s*(.+))?$/i);
+  if (isoMatch) {
+    const year = isoMatch[1];
+    const monthIdx = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    const timePart = (isoMatch[4] || rawTime || '').trim();
+    const monthName = months[monthIdx] || isoMatch[2];
+    const formattedDate = `${day} ${monthName} ${year}`;
+    return timePart ? `${formattedDate} @ ${timePart}` : formattedDate;
+  }
+
+  if (/\s+at\s+/i.test(input)) {
+    return input.replace(/\s+at\s+/i, ' @ ');
+  }
+
+  if (rawTime && !input.includes('@')) {
+    return `${input} @ ${rawTime.trim()}`;
+  }
+
+  return input;
+}
+
+export function formatWhatsAppAmount(val: number | string | undefined): string {
+  const num = Number(String(val ?? 0).replace(/[^0-9.-]/g, ''));
+  if (!Number.isFinite(num)) return '0';
+  return Math.round(num).toLocaleString('en-IN');
+}
+
+export function formatCabCategoryFull(cabClass?: string): string {
+  const raw = String(cabClass || 'Hatchback AC (WagonR, Celerio, Tiago or equivalent)').trim();
+  if (/^hatchback\s*ac$/i.test(raw)) {
+    return 'Hatchback AC (WagonR, Celerio, Tiago or equivalent)';
+  }
+  if (/^sedan\s*ac$/i.test(raw)) {
+    return 'Sedan AC (Dzire, Etios, Aura or equivalent)';
+  }
+  if (/^suv\s*ac$/i.test(raw)) {
+    return 'SUV AC (Maruti Ertiga, Kia Carens or equivalent)';
+  }
+  // Avoid nested/double parentheses like "Sedan AC (Dzire / Etios) (Maruti Suzuki Dzire...)"
+  const doubleParen = raw.match(/^([^(]+)\([^)]*\)\s*\(([^)]+)\)$/);
+  if (doubleParen) {
+    return `${doubleParen[1].trim()} (${doubleParen[2].trim()})`;
+  }
+  return raw;
+}
+
+export function formatShortVehicleName(vehicleModel?: string, cabClass?: string): string {
+  const raw = String(vehicleModel || cabClass || 'Hatchback AC').trim();
+  const withoutParens = raw.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return withoutParens || 'Hatchback AC';
+}
+
+export function formatClean10DigitPhone(phone?: string): string {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length >= 10) return digits.slice(-10);
+  return digits || String(phone || '').trim();
+}
+
+/**
+ * 1) Customer Booking Confirmation Message (Box-Drawing Design)
+ */
+export function formatWhatsAppBookingConfirmationMessage(params: {
+  customerName?: string;
+  bookingId: string;
+  pickup: string;
+  drop: string;
+  travelDateTime?: string;
+  cabCategory?: string;
+  totalFare: number | string;
+  advancePaid?: number | string;
+  balancePayable?: number | string;
+}): string {
+  const cleanId = String(params.bookingId || 'SIC').replace(/^#/, '').trim();
+  const customerName = (params.customerName || 'Traveler').trim();
+  const dateAndTime = formatWhatsAppDateTime(params.travelDateTime);
+  const cabCategory = formatCabCategoryFull(params.cabCategory);
+  const totalStr = formatWhatsAppAmount(params.totalFare);
+  const advanceStr = formatWhatsAppAmount(params.advancePaid ?? 0);
+  const balanceStr = formatWhatsAppAmount(params.balancePayable ?? 0);
+
+  return [
+    `🚗 SAFARINDIACABS | BOOKING CONFIRMATION`,
+    `Dear ${customerName},`,
+    `Greetings from SafarIndiaCabs!`,
+    `Your booking has been successfully confirmed. Please find your trip details below:`,
+    `┌──────────────────────────┐`,
+    `TRIP DETAILS`,
+    `├──────────────────────────┤`,
+    `• Booking ID: ${cleanId}`,
+    `• Pickup Location: ${params.pickup}`,
+    `• Drop Location: ${params.drop}`,
+    `• Date & Time: ${dateAndTime}`,
+    `• Cab Category: ${cabCategory}`,
+    `└──────────────────────────┘`,
+    `💵 FARE & PAYMENT BREAKUP`,
+    `• Total Fare: ₹${totalStr}/- (All Inclusive)`,
+    `• Advance Paid: ₹${advanceStr}/-`,
+    `• Balance Payable: ₹${balanceStr}/- (Payable to driver)`,
+    ``,
+    `📞 CUSTOMER SUPPORT`,
+    `• Helpline: +91-7710080992`,
+    `• Website: https://safarindiacabs.com`,
+    ``,
+    `We wish you a pleasant, safe, and comfortable journey! 🚖`
+  ].join('\n');
+}
+
+/**
+ * 2) Customer Driver & Vehicle Allotment Message (Box-Drawing Design)
+ */
+export function formatWhatsAppDriverAllotmentCustomerMessage(params: {
+  customerName?: string;
+  bookingId: string;
+  pickup: string;
+  drop: string;
+  travelDateTime?: string;
+  driverName: string;
+  driverPhone: string;
+  vehicleCategory?: string;
+  vehicleNumber: string;
+}): string {
+  const cleanId = String(params.bookingId || 'SIC').replace(/^#/, '').trim();
+  const customerName = (params.customerName || 'Traveler').trim();
+  const dateAndTime = formatWhatsAppDateTime(params.travelDateTime);
+  const cleanDriverPhone = formatClean10DigitPhone(params.driverPhone);
+  const vehicleCategory = formatCabCategoryFull(params.vehicleCategory);
+  const vehicleNumber = String(params.vehicleNumber || 'Assigned').trim().toUpperCase();
+
+  return [
+    `👨‍✈️ SAFARINDIACABS | DRIVER ALLOTMENT`,
+    ``,
+    `Dear ${customerName},`,
+    ``,
+    `Greetings from SafarIndiaCabs!`,
+    `Your driver and vehicle have been assigned for your upcoming trip. Details below:`,
+    ``,
+    `┌──────────────────────────┐`,
+    `TRIP SUMMARY`,
+    `├──────────────────────────┤`,
+    `• Booking ID: ${cleanId}`,
+    `• Route: ${params.pickup} to ${params.drop}`,
+    `• Pickup Date & Time: ${dateAndTime}`,
+    `└──────────────────────────┘`,
+    ``,
+    `🚗 DRIVER & VEHICLE DETAILS`,
+    `• Driver Name: ${(params.driverName || 'Assigned Driver').trim()}`,
+    `• Driver Contact: +91 ${cleanDriverPhone}`,
+    `• Vehicle Category: ${vehicleCategory}`,
+    `• Vehicle Number: ${vehicleNumber}`,
+    ``,
+    `Have a safe, comfortable, and pleasant journey! 🚖`
+  ].join('\n');
+}
+
+/**
+ * 3) Driver Duty Allotment Message (Box-Drawing Design)
+ */
+export function formatWhatsAppDriverDutyAllotmentMessage(params: {
+  driverName: string;
+  bookingId: string;
+  customerName?: string;
+  customerPhone: string;
+  pickup: string;
+  drop: string;
+  travelDateTime?: string;
+  vehicleModel?: string;
+  cabClass?: string;
+  vehicleNumber?: string;
+  balanceAmount?: number | string;
+}): string {
+  const cleanId = String(params.bookingId || 'SIC').replace(/^#/, '').trim();
+  const rawDriverName = (params.driverName || 'Driver Partner').trim().replace(/\s+ji$/i, '');
+  const customerName = (params.customerName || 'Customer').trim();
+  const cleanCustomerPhone = formatClean10DigitPhone(params.customerPhone);
+  const dateAndTime = formatWhatsAppDateTime(params.travelDateTime);
+  const shortVehicle = formatShortVehicleName(params.vehicleModel, params.cabClass);
+  const regNo = String(params.vehicleNumber || 'Assigned').trim().toUpperCase();
+  const balanceStr = formatWhatsAppAmount(params.balanceAmount ?? 0);
+
+  return [
+    `🚖 SAFARINDIACABS | DRIVER DUTY ALLOTMENT`,
+    ``,
+    `Dear ${rawDriverName} ji,`,
+    ``,
+    `Your pickup duty has been confirmed by SafarIndiaCabs. Details are given below:`,
+    ``,
+    `┌──────────────────────────┐`,
+    `TRIP DETAILS`,
+    `├──────────────────────────┤`,
+    `• Booking ID: ${cleanId}`,
+    `• Customer Name: ${customerName}`,
+    `• Customer Mobile: +91 ${cleanCustomerPhone}`,
+    `• Pickup Location: ${params.pickup}`,
+    `• Drop Location: ${params.drop}`,
+    `• Date & Time: ${dateAndTime}`,
+    `• Vehicle: ${shortVehicle} (${regNo})`,
+    `└──────────────────────────┘`,
+    ``,
+    `💵 PAYMENT COLLECTION`,
+    `• Collect Balance: ₹${balanceStr}/- (Collect from customer)`,
+    ``,
+    `📌 Important Instructions:`,
+    `Call the customer immediately and reach the pickup location before time. Keep the vehicle clean and strictly follow the non-smoking/non-drinking policy.`,
+    ``,
+    `📞 HELP & SUPPORT`,
+    `• Helpline: +91-7710080992`,
+    `• Website: https://safarindiacabs.com`
+  ].join('\n');
+}
+
 export class WhatsAppService {
   public static readonly PHONE_NUMBER_ID = DEFAULT_WHATSAPP_PHONE_ID;
   public static readonly ACCESS_TOKEN = DEFAULT_WHATSAPP_ACCESS_TOKEN;
@@ -161,40 +379,21 @@ export class WhatsAppService {
     const phone = this.formatPhoneNumber(customerPhone);
     const cleanId = String(bookingId).replace(/^#/, '');
     const customerName = details?.customerName || 'Traveler';
-    const customerGreeting = details?.customerName
-      ? `Hello *${details.customerName}*, your`
-      : 'Your';
-    const dateLine = details?.travelDateTime
-      ? `🗓️ Date & Time: *${details.travelDateTime}*\n`
-      : '';
-    const cabLine = details?.cabClass ? `🚕 Cab Category: *${details.cabClass}*\n` : '';
-    const addressLine = details?.pickupAddress
-      ? `🏠 Pickup Address: ${details.pickupAddress}\n`
-      : '';
-    const advanceLine =
-      details?.paidAmount !== undefined ? `✅ Advance Paid: *₹${details.paidAmount}*\n` : '';
-    const balanceLine =
-      details?.balanceAmount !== undefined
-        ? `💵 Balance Payable at Trip: *₹${details.balanceAmount}*\n`
-        : '';
 
-    const messageText =
-      `✅ *Booking Confirmed - Safar India Cabs*\n\n` +
-      `${customerGreeting} cab booking is confirmed!\n\n` +
-      `📋 *Complete Booking Details:*\n` +
-      `• Booking ID: *#${cleanId}*\n` +
-      `📍 Pickup: *${pickup}*\n` +
-      `🏁 Drop: *${drop}*\n` +
-      dateLine +
-      cabLine +
-      addressLine +
-      `\n💰 *Fare Breakdown:*\n` +
-      `• Total Fare: *₹${fare}*\n` +
-      advanceLine +
-      balanceLine +
-      `\n🚗 Driver and vehicle details will be shared on your WhatsApp shortly before pickup.\n` +
-      `📞 24/7 Helpline: +91 7710080992\n` +
-      `Thank you for choosing *Safar India Cabs*!`;
+    const messageText = formatWhatsAppBookingConfirmationMessage({
+      customerName,
+      bookingId: cleanId,
+      pickup,
+      drop,
+      travelDateTime: details?.travelDateTime,
+      cabCategory: details?.cabClass,
+      totalFare: fare,
+      advancePaid: details?.paidAmount ?? 0,
+      balancePayable: details?.balanceAmount ?? 0
+    });
+
+    const formattedDate = formatWhatsAppDateTime(details?.travelDateTime);
+    const formattedCab = formatCabCategoryFull(details?.cabClass);
 
     const templateConfig: WhatsAppTemplateConfig = {
       name: 'safar_booking_confirmed_v1',
@@ -206,11 +405,11 @@ export class WhatsAppService {
         cleanId,
         pickup,
         drop,
-        details?.travelDateTime || 'Scheduled Time',
-        details?.cabClass || 'Commercial Cab',
-        String(fare),
-        String(details?.paidAmount ?? 0),
-        String(details?.balanceAmount ?? 0)
+        formattedDate,
+        formattedCab,
+        `₹${formatWhatsAppAmount(fare)}/-`,
+        `₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
+        `₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`
       ],
       backups: [
         {
@@ -218,7 +417,7 @@ export class WhatsAppService {
           language: 'en_US',
           params: [
             customerName,
-            `#${cleanId} (${pickup} to ${drop} on ${details?.travelDateTime || 'Scheduled Time'})`
+            `${cleanId} (${pickup} to ${drop} on ${formattedDate})`
           ]
         },
         {
@@ -227,7 +426,7 @@ export class WhatsAppService {
           params: [
             customerName,
             cleanId,
-            `Pickup: ${pickup} to ${drop} on ${details?.travelDateTime || 'Scheduled Time'} | Total: Rs. ${fare}`
+            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`
           ]
         }
       ]
@@ -251,33 +450,29 @@ export class WhatsAppService {
   ): Promise<boolean> {
     const phone = this.formatPhoneNumber(adminPhone);
     const cleanId = String(bookingId).replace(/^#/, '');
-    const dateLine = details?.travelDateTime
-      ? `🗓️ Date & Time: *${details.travelDateTime}*\n`
-      : '';
-    const cabLine = details?.cabClass ? `🚕 Cab Booked: *${details.cabClass}*\n` : '';
-    const addressLine = details?.pickupAddress
-      ? `🏠 Pickup Address: ${details.pickupAddress}\n`
-      : '';
-    const totalLine =
-      details?.totalFare !== undefined ? `💰 Total Fare: *₹${details.totalFare}*\n` : '';
-    const advanceLine =
-      details?.paidAmount !== undefined ? `✅ Advance Paid: *₹${details.paidAmount}*\n` : '';
-    const balanceLine =
-      details?.balanceAmount !== undefined ? `💵 Balance Due: *₹${details.balanceAmount}*\n` : '';
+    const formattedDate = formatWhatsAppDateTime(details?.travelDateTime);
+    const formattedCab = formatCabCategoryFull(details?.cabClass);
 
-    const messageText =
-      `🚨 *New Booking Alert! (Safar India Cabs)*\n\n` +
-      `Booking ID: *#${cleanId}*\n` +
-      `👤 Customer: *${customerName}* (+91 ${customerPhone})\n` +
-      `📍 Pickup: *${pickup}*\n` +
-      `🏁 Drop: *${drop}*\n` +
-      addressLine +
-      dateLine +
-      cabLine +
-      totalLine +
-      advanceLine +
-      balanceLine +
-      `\n⚡ Booking has been updated in the Owner Panel. Please assign a driver from the Owner Panel immediately.`;
+    const messageText = [
+      `🚨 SAFARINDIACABS | NEW BOOKING ALERT`,
+      `┌──────────────────────────┐`,
+      `TRIP DETAILS`,
+      `├──────────────────────────┤`,
+      `• Booking ID: ${cleanId}`,
+      `• Customer: ${customerName} (+91 ${customerPhone})`,
+      `• Pickup Location: ${pickup}`,
+      ...(details?.pickupAddress ? [`• Pickup Address: ${details.pickupAddress}`] : []),
+      `• Drop Location: ${drop}`,
+      `• Date & Time: ${formattedDate}`,
+      `• Cab Category: ${formattedCab}`,
+      `└──────────────────────────┘`,
+      `💵 FARE & PAYMENT BREAKUP`,
+      `• Total Fare: ₹${formatWhatsAppAmount(details?.totalFare ?? 0)}/- (All Inclusive)`,
+      `• Advance Paid: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
+      `• Balance Payable: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`,
+      ``,
+      `⚡ Please assign a driver from the Owner Panel.`
+    ].join('\n');
 
     const templateConfig: WhatsAppTemplateConfig = {
       name: 'safar_admin_booking_alert_v1',
@@ -290,8 +485,8 @@ export class WhatsAppService {
         `+91 ${customerPhone}`,
         pickup,
         drop,
-        details?.travelDateTime || 'Scheduled Time',
-        details?.cabClass || 'Commercial Cab',
+        formattedDate,
+        formattedCab,
         String(details?.totalFare ?? 0),
         String(details?.paidAmount ?? 0),
         String(details?.balanceAmount ?? 0)
@@ -317,33 +512,24 @@ export class WhatsAppService {
   ): Promise<boolean> {
     const phone = this.formatPhoneNumber(driverPhone);
     const cleanId = String(bookingId).replace(/^#/, '');
-    const dateLine = details?.travelDateTime
-      ? `• Pickup Date & Time: *${details.travelDateTime}*\n`
-      : '';
-    const vehicleStr = `${details?.vehicleModel || 'Cab'}${details?.vehicleNumber ? ` (${details.vehicleNumber})` : ''}`;
-    const vehicleLine =
-      details?.vehicleModel || details?.vehicleNumber
-        ? `• Assigned Vehicle: *${vehicleStr}*\n`
-        : '';
-    const balanceLine =
-      details?.balanceAmount !== undefined
-        ? `• Collect Balance at Drop: *₹${details.balanceAmount}*\n`
-        : '';
 
-    const messageText =
-      `🚖 *SafarIndiaCabs Driver Partner ${driverName}*\n\n` +
-      `Your Pickup is confirmed! Please timely complete the trip.\n\n` +
-      `📋 *Complete Trip Info:*\n` +
-      `• Booking ID: *#${cleanId}*\n` +
-      `• Customer Name: *${customerName}*\n` +
-      `• Customer Mobile: *+91 ${customerPhone}*\n` +
-      `• Pickup Location: *${pickup}*\n` +
-      `• Drop Location: *${drop}*\n` +
-      dateLine +
-      vehicleLine +
-      balanceLine +
-      `\nPlease contact the customer promptly and reach pickup on time. Drive safely!\n` +
-      `📞 Dispatch Helpline: +91 7710080992`;
+    const messageText = formatWhatsAppDriverDutyAllotmentMessage({
+      driverName,
+      bookingId: cleanId,
+      customerName,
+      customerPhone,
+      pickup,
+      drop,
+      travelDateTime: details?.travelDateTime,
+      vehicleModel: details?.vehicleModel,
+      cabClass: details?.cabClass,
+      vehicleNumber: details?.vehicleNumber,
+      balanceAmount: details?.balanceAmount
+    });
+
+    const formattedDate = formatWhatsAppDateTime(details?.travelDateTime);
+    const shortVehicle = formatShortVehicleName(details?.vehicleModel, details?.cabClass);
+    const vehicleStr = `${shortVehicle} (${details?.vehicleNumber || 'Assigned'})`;
 
     const templateConfig: WhatsAppTemplateConfig = {
       name: 'safar_driver_pickup_details',
@@ -354,12 +540,12 @@ export class WhatsAppService {
         driverName || 'Driver Partner',
         cleanId,
         customerName,
-        `+91 ${customerPhone}`,
+        `+91 ${formatClean10DigitPhone(customerPhone)}`,
         pickup,
         drop,
-        details?.travelDateTime || 'Scheduled Time',
+        formattedDate,
         vehicleStr,
-        String(details?.balanceAmount ?? 0)
+        `₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`
       ],
       backups: [
         {
@@ -368,7 +554,7 @@ export class WhatsAppService {
           params: [
             driverName || 'Driver Partner',
             cleanId,
-            `NEW PICKUP DUTY - Customer: ${customerName} (+91 ${customerPhone}) | Pickup: ${pickup} to ${drop} (${details?.travelDateTime || 'Scheduled'}) | Vehicle: ${vehicleStr} | Collect Balance: Rs. ${details?.balanceAmount ?? 0}`
+            `DRIVER DUTY ALLOTMENT - Customer: ${customerName} (+91 ${formatClean10DigitPhone(customerPhone)}) | Pickup: ${pickup} to ${drop} (${formattedDate}) | Vehicle: ${vehicleStr} | Collect Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`
           ]
         }
       ]
@@ -392,6 +578,7 @@ export class WhatsAppService {
       pickup?: string;
       drop?: string;
       travelDateTime?: string;
+      cabClass?: string;
       balanceAmount?: number | string;
     },
     callback?: WhatsAppCallback
@@ -399,31 +586,21 @@ export class WhatsAppService {
     const phone = this.formatPhoneNumber(customerPhone);
     const cleanId = details?.bookingId ? String(details.bookingId).replace(/^#/, '') : 'SIC';
     const customerName = details?.customerName || 'Traveler';
-    const greeting = details?.customerName ? `Hello *${details.customerName}*, your` : 'Your';
-    const tripBlock =
-      cleanId || details?.pickup
-        ? `\n📋 *Trip Details:*\n` +
-          (cleanId ? `• Booking ID: *#${cleanId}*\n` : '') +
-          (details?.pickup && details?.drop
-            ? `• Route: *${details.pickup}* ➔ *${details.drop}*\n`
-            : '') +
-          (details?.travelDateTime ? `• Date & Time: *${details.travelDateTime}*\n` : '') +
-          (details?.balanceAmount !== undefined
-            ? `• Balance Payable: *₹${details.balanceAmount}*\n`
-            : '')
-        : '';
 
-    const messageText =
-      `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\n` +
-      `${greeting} ride is ready. Here are your complete driver & vehicle details:\n\n` +
-      `👨‍✈️ *Driver Name:* ${driverName}\n` +
-      `📞 *Driver Contact:* +91 ${driverPhoneNo}\n` +
-      `🚙 *Vehicle Model:* ${vehicleName}\n` +
-      `🔢 *Vehicle Number:* ${vehicleNumber}\n` +
-      tripBlock +
-      `\nYour driver partner will contact you shortly before pickup.\n` +
-      `📞 24/7 Helpline: +91 7710080992\n` +
-      `Have a safe and happy journey with *Safar India Cabs*!`;
+    const messageText = formatWhatsAppDriverAllotmentCustomerMessage({
+      customerName,
+      bookingId: cleanId,
+      pickup: details?.pickup || 'Pickup',
+      drop: details?.drop || 'Drop',
+      travelDateTime: details?.travelDateTime,
+      driverName,
+      driverPhone: driverPhoneNo,
+      vehicleCategory: details?.cabClass || vehicleName,
+      vehicleNumber
+    });
+
+    const formattedDate = formatWhatsAppDateTime(details?.travelDateTime);
+    const formattedCategory = formatCabCategoryFull(details?.cabClass || vehicleName);
 
     const templateConfig: WhatsAppTemplateConfig = {
       name: 'safar_customer_driver_details',
@@ -434,13 +611,13 @@ export class WhatsAppService {
         customerName,
         cleanId,
         driverName,
-        `+91 ${driverPhoneNo}`,
-        vehicleName,
+        `+91 ${formatClean10DigitPhone(driverPhoneNo)}`,
+        formattedCategory,
         vehicleNumber,
         details?.pickup || 'Pickup',
         details?.drop || 'Drop',
-        details?.travelDateTime || 'Scheduled Time',
-        String(details?.balanceAmount ?? 0)
+        formattedDate,
+        `₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`
       ],
       backups: [
         {
@@ -449,7 +626,7 @@ export class WhatsAppService {
           params: [
             customerName,
             cleanId,
-            `Driver: ${driverName} (+91 ${driverPhoneNo}) | Vehicle: ${vehicleName} (${vehicleNumber}) | Route: ${details?.pickup || ''} to ${details?.drop || ''}`
+            `DRIVER ALLOTMENT - Driver: ${driverName} (+91 ${formatClean10DigitPhone(driverPhoneNo)}) | Vehicle: ${formattedCategory} (${vehicleNumber}) | Route: ${details?.pickup || ''} to ${details?.drop || ''} (${formattedDate})`
           ]
         }
       ]
@@ -498,8 +675,40 @@ export class WhatsAppService {
       // Only fall through to direct Meta Graph API call if /api/send-whatsapp is unreachable
     }
 
-    // 2. Static-mode fallback: Direct Meta WhatsApp Cloud API request (single attempt, no duplicate loop)
+    // 2. Static-mode fallback: Direct Meta WhatsApp Cloud API request
     const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
+    const isRichFormattedCard = messageText.includes('┌──');
+
+    // For rich box-drawing trip cards, send the raw text message first so formatting is preserved
+    if (isRichFormattedCard) {
+      const textPayload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: formattedPhone,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: messageText
+        }
+      };
+
+      try {
+        const res = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/json'
+          },
+          body: JSON.stringify(textPayload)
+        });
+
+        if (res.status === 200 || res.status === 201) {
+          callback?.onSuccess('Message Sent Successfully');
+          return true;
+        }
+      } catch {}
+    }
 
     if (templateConfig && templateConfig.name) {
       const tplPayload = {

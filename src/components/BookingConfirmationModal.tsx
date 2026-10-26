@@ -22,45 +22,22 @@ import { jsPDF } from 'jspdf';
 import { BookingRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { triggerWhatsAppDeepLink, buildCustomerReviewWhatsAppUrl } from '../utils/whatsapp';
+import { formatWhatsAppBookingConfirmationMessage } from '../utils/whatsappService';
 
 export const OFFICIAL_WHATSAPP_NUMBER = '917710080992';
 
 export function buildFormattedReceiptWhatsAppMessage(booking: BookingRecord): string {
-  const isCompleted = booking.status === 'completed';
-  const headerLine = isCompleted
-    ? `*SAFAR INDIA CABS - COMPLETED TRIP RECEIPT & INVOICE*`
-    : `*SAFAR INDIA CABS - OFFICIAL BOOKING RECEIPT*`;
-
-  const lines = [
-    headerLine,
-    `----------------------------------`,
-    `*Booking ID:* ${booking.id}`,
-    `*Status:* ${booking.status.toUpperCase()}`,
-    `*Customer Name:* ${booking.customerName}`,
-    `*Phone:* +91 ${booking.customerPhone}`,
-    `*Trip Type:* ${booking.tripType.toUpperCase()}`,
-    `*Pickup Location:* ${booking.pickupAddress ? `${booking.pickupAddress}, ${booking.pickupCity}` : booking.pickupCity}${booking.landmark ? ` (Near: ${booking.landmark})` : ''}`,
-    `*Drop Location:* ${booking.dropAddress ? `${booking.dropAddress}, ${booking.dropCity}` : booking.dropCity}`,
-    `*Trip Date & Time:* ${booking.pickupDate} at ${booking.pickupTime}`,
-    ...(booking.returnDate ? [`*Return Date:* ${booking.returnDate} ${booking.returnTime || ''}`] : []),
-    `*Vehicle Type:* ${booking.cabName}`,
-    `*Est. Distance:* ${booking.distanceKm} KM`,
-    ...(booking.driverName
-      ? [
-          `*Assigned Driver:* ${booking.driverName} (+91 ${booking.driverPhone || ''})`,
-          `*Vehicle Plate:* ${booking.driverVehicleNo || 'Commercial AITP'}`
-        ]
-      : []),
-    `----------------------------------`,
-    `*Estimated Total Fare:* Rs. ${Number(booking.totalFare || 0).toLocaleString('en-IN')}`,
-    `*Advance Paid:* Rs. ${Number(booking.advancePaid || 0).toLocaleString('en-IN')}`,
-    `*Remaining Amount:* Rs. ${Number(booking.balanceDue || 0).toLocaleString('en-IN')}`,
-    `----------------------------------`,
-    `*24x7 Helpline:* +91 77100 80992`,
-    `*Web:* https://safarindiacabs.com`
-  ];
-
-  return lines.join('\n');
+  return formatWhatsAppBookingConfirmationMessage({
+    customerName: booking.customerName,
+    bookingId: booking.id,
+    pickup: booking.pickupCity,
+    drop: booking.dropCity,
+    travelDateTime: `${booking.pickupDate} at ${booking.pickupTime}`,
+    cabCategory: booking.cabName,
+    totalFare: booking.totalFare || 0,
+    advancePaid: booking.advancePaid || 0,
+    balancePayable: booking.balanceDue || 0
+  });
 }
 
 /**

@@ -76,7 +76,10 @@ import {
   getWhatsAppPhoneId,
   getWhatsAppAccessToken,
   setWhatsAppConfig,
-  whatsAppService
+  whatsAppService,
+  formatWhatsAppBookingConfirmationMessage,
+  formatWhatsAppDriverAllotmentCustomerMessage,
+  formatWhatsAppDriverDutyAllotmentMessage
 } from '../utils/whatsappService';
 
 interface AdminDashboardProps {
@@ -1128,13 +1131,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                           <a
                             href={buildWhatsAppSchemeUrl(
-                              `Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`,
+                              b.driverName
+                                ? formatWhatsAppDriverAllotmentCustomerMessage({
+                                    customerName: b.customerName,
+                                    bookingId: b.id,
+                                    pickup: b.pickupCity,
+                                    drop: b.dropCity,
+                                    travelDateTime: `${b.pickupDate} at ${b.pickupTime}`,
+                                    driverName: b.driverName,
+                                    driverPhone: b.driverPhone || '',
+                                    vehicleCategory: b.cabName || b.driverVehicleModel,
+                                    vehicleNumber: b.driverVehicleNo || 'Assigned'
+                                  })
+                                : formatWhatsAppBookingConfirmationMessage({
+                                    customerName: b.customerName,
+                                    bookingId: b.id,
+                                    pickup: b.pickupCity,
+                                    drop: b.dropCity,
+                                    travelDateTime: `${b.pickupDate} at ${b.pickupTime}`,
+                                    cabCategory: b.cabName,
+                                    totalFare: b.totalFare,
+                                    advancePaid: b.advancePaid,
+                                    balancePayable: b.balanceDue
+                                  }),
                               b.customerPhone
                             )}
                             onClick={(e) =>
                               triggerWhatsAppDeepLink(
                                 e,
-                                `Hello ${b.customerName}, this is Safar India Cabs regarding your booking ${b.id}`,
+                                b.driverName
+                                  ? formatWhatsAppDriverAllotmentCustomerMessage({
+                                      customerName: b.customerName,
+                                      bookingId: b.id,
+                                      pickup: b.pickupCity,
+                                      drop: b.dropCity,
+                                      travelDateTime: `${b.pickupDate} at ${b.pickupTime}`,
+                                      driverName: b.driverName,
+                                      driverPhone: b.driverPhone || '',
+                                      vehicleCategory: b.cabName || b.driverVehicleModel,
+                                      vehicleNumber: b.driverVehicleNo || 'Assigned'
+                                    })
+                                  : formatWhatsAppBookingConfirmationMessage({
+                                      customerName: b.customerName,
+                                      bookingId: b.id,
+                                      pickup: b.pickupCity,
+                                      drop: b.dropCity,
+                                      travelDateTime: `${b.pickupDate} at ${b.pickupTime}`,
+                                      cabCategory: b.cabName,
+                                      totalFare: b.totalFare,
+                                      advancePaid: b.advancePaid,
+                                      balancePayable: b.balanceDue
+                                    }),
                                 b.customerPhone
                               )
                             }
@@ -2083,7 +2130,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex flex-wrap gap-2">
                   <a
                     href={buildWhatsAppSchemeUrl(
-                      `🚖 *SafarIndiaCabs Driver Partner ${driverName || 'Partner'}*\n\nYour Pickup is confirmed! Please timely complete the trip.\n\n• Booking ID: *#${String(selectedBookingForDriver.id).replace(/^#/, '')}*\n• Customer: *${selectedBookingForDriver.customerName}* (+91 ${selectedBookingForDriver.customerPhone})\n• Route: *${selectedBookingForDriver.pickupCity}* to *${selectedBookingForDriver.dropCity}*\n• Pickup: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n• Vehicle: *${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Assigned'})*\n• Collect Balance at Drop: *₹${selectedBookingForDriver.balanceDue}*`,
+                      formatWhatsAppDriverDutyAllotmentMessage({
+                        driverName: driverName || 'Partner',
+                        bookingId: selectedBookingForDriver.id,
+                        customerName: selectedBookingForDriver.customerName,
+                        customerPhone: selectedBookingForDriver.customerPhone,
+                        pickup: selectedBookingForDriver.pickupCity,
+                        drop: selectedBookingForDriver.dropCity,
+                        travelDateTime: `${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}`,
+                        vehicleModel: driverVehicleModel || selectedBookingForDriver.cabName,
+                        cabClass: selectedBookingForDriver.cabName,
+                        vehicleNumber: driverCarPlate || 'Assigned',
+                        balanceAmount: selectedBookingForDriver.balanceDue
+                      }),
                       sanitize10DigitPhone(driverPhone)
                     )}
                     onClick={(e) => {
@@ -2091,7 +2150,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       if (targetPhone.length === 10) {
                         triggerWhatsAppDeepLink(
                           e,
-                          `🚖 *SafarIndiaCabs Driver Partner ${driverName || 'Partner'}*\n\nYour Pickup is confirmed! Please timely complete the trip.\n\n• Booking ID: *#${String(selectedBookingForDriver.id).replace(/^#/, '')}*\n• Customer: *${selectedBookingForDriver.customerName}* (+91 ${selectedBookingForDriver.customerPhone})\n• Route: *${selectedBookingForDriver.pickupCity}* to *${selectedBookingForDriver.dropCity}*\n• Pickup: *${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}*\n• Vehicle: *${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Assigned'})*\n• Collect Balance at Drop: *₹${selectedBookingForDriver.balanceDue}*`,
+                          formatWhatsAppDriverDutyAllotmentMessage({
+                            driverName: driverName || 'Partner',
+                            bookingId: selectedBookingForDriver.id,
+                            customerName: selectedBookingForDriver.customerName,
+                            customerPhone: selectedBookingForDriver.customerPhone,
+                            pickup: selectedBookingForDriver.pickupCity,
+                            drop: selectedBookingForDriver.dropCity,
+                            travelDateTime: `${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}`,
+                            vehicleModel: driverVehicleModel || selectedBookingForDriver.cabName,
+                            cabClass: selectedBookingForDriver.cabName,
+                            vehicleNumber: driverCarPlate || 'Assigned',
+                            balanceAmount: selectedBookingForDriver.balanceDue
+                          }),
                           targetPhone
                         );
                       } else {
@@ -2106,13 +2177,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   <a
                     href={buildWhatsAppSchemeUrl(
-                      `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\nHello *${selectedBookingForDriver.customerName}*, your ride is ready:\n\n👨‍✈️ *Driver:* ${driverName || 'Assigned'} (+91 ${driverPhone || 'Shared'})\n🚙 *Vehicle:* ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n📋 *Booking ID:* #${String(selectedBookingForDriver.id).replace(/^#/, '')}\n📍 *Route:* ${selectedBookingForDriver.pickupCity} ➔ ${selectedBookingForDriver.dropCity}\n💰 *Balance Payable:* ₹${selectedBookingForDriver.balanceDue}`,
+                      formatWhatsAppDriverAllotmentCustomerMessage({
+                        customerName: selectedBookingForDriver.customerName,
+                        bookingId: selectedBookingForDriver.id,
+                        pickup: selectedBookingForDriver.pickupCity,
+                        drop: selectedBookingForDriver.dropCity,
+                        travelDateTime: `${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}`,
+                        driverName: driverName || 'Assigned',
+                        driverPhone: driverPhone || 'Shared',
+                        vehicleCategory: selectedBookingForDriver.cabName || driverVehicleModel,
+                        vehicleNumber: driverCarPlate || 'Allocated'
+                      }),
                       selectedBookingForDriver.customerPhone
                     )}
                     onClick={(e) =>
                       triggerWhatsAppDeepLink(
                         e,
-                        `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\nHello *${selectedBookingForDriver.customerName}*, your ride is ready:\n\n👨‍✈️ *Driver:* ${driverName || 'Assigned'} (+91 ${driverPhone || 'Shared'})\n🚙 *Vehicle:* ${driverVehicleModel || selectedBookingForDriver.cabName} (${driverCarPlate || 'Allocated'})\n📋 *Booking ID:* #${String(selectedBookingForDriver.id).replace(/^#/, '')}\n📍 *Route:* ${selectedBookingForDriver.pickupCity} ➔ ${selectedBookingForDriver.dropCity}\n💰 *Balance Payable:* ₹${selectedBookingForDriver.balanceDue}`,
+                        formatWhatsAppDriverAllotmentCustomerMessage({
+                          customerName: selectedBookingForDriver.customerName,
+                          bookingId: selectedBookingForDriver.id,
+                          pickup: selectedBookingForDriver.pickupCity,
+                          drop: selectedBookingForDriver.dropCity,
+                          travelDateTime: `${selectedBookingForDriver.pickupDate} at ${selectedBookingForDriver.pickupTime}`,
+                          driverName: driverName || 'Assigned',
+                          driverPhone: driverPhone || 'Shared',
+                          vehicleCategory: selectedBookingForDriver.cabName || driverVehicleModel,
+                          vehicleNumber: driverCarPlate || 'Allocated'
+                        }),
                         selectedBookingForDriver.customerPhone
                       )
                     }

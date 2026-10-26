@@ -118,53 +118,93 @@ export default async function handler(req, res) {
     }
 
     const cleanDriverPhone = sanitize10Digit(driverPhone);
-    const vehicle = vehicleModel || cabName || 'Cab';
-    const regNo = (registrationNumber || vehicleNo || 'Assigned').toUpperCase();
-    const dateFormatted = travelDateTime || travelDate || 'Scheduled Time';
-    const cab = cabClass || cabName || 'Commercial Cab';
+    const rawVehicleCategory = cabClass || cabName || vehicleModel || 'Hatchback AC (WagonR, Celerio, Tiago or equivalent)';
+    const vehicleCategoryFull = /^hatchback\s*ac$/i.test(String(rawVehicleCategory).trim())
+      ? 'Hatchback AC (WagonR, Celerio, Tiago or equivalent)'
+      : String(rawVehicleCategory).replace(/^([^(]+)\([^)]*\)\s*\(([^)]+)\)$/, '$1($2)').trim();
+    const shortVehicle =
+      String(vehicleModel || cabClass || cabName || 'Hatchback AC')
+        .replace(/\s*\([^)]*\)\s*/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim() || 'Hatchback AC';
+    const regNo = String(registrationNumber || vehicleNo || 'Assigned').trim().toUpperCase();
+    const rawDate = travelDateTime || travelDate || 'Scheduled Time';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const isoMatch = String(rawDate).trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:\s*(?:at|@|·)?\s*(.+))?$/i);
+    const dateFormatted = isoMatch
+      ? `${parseInt(isoMatch[3], 10)} ${months[parseInt(isoMatch[2], 10) - 1] || isoMatch[2]} ${isoMatch[1]}${isoMatch[4] ? ` @ ${isoMatch[4].trim()}` : ''}`
+      : String(rawDate).replace(/\s+at\s+/i, ' @ ').trim();
+
     const balance = balanceAmount ?? balanceDue ?? 0;
-    const cleanId = String(bookingId || 'SIC').replace(/^#/, '');
+    const balanceNum = Number(String(balance).replace(/[^0-9.-]/g, ''));
+    const balanceFormatted = Number.isFinite(balanceNum) ? Math.round(balanceNum).toLocaleString('en-IN') : '0';
+    const cleanId = String(bookingId || 'SIC').replace(/^#/, '').trim();
+    const cleanDriverName = String(driverName || 'Driver Partner').trim().replace(/\s+ji$/i, '');
 
     const apiKey = process.env.FAST2SMS_API_KEY || DEFAULT_KEY;
 
     // 1. SMS Templates for Driver & Customer
-    const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: #${cleanId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${pickup}\nDrop: ${drop}\nDate/Time: ${dateFormatted}\nCab: ${cab} (${regNo})\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
+    const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${pickup}\nDrop: ${drop}\nDate/Time: ${dateFormatted}\nCab: ${shortVehicle} (${regNo})\n\nCollect Balance at Drop: ₹${balanceFormatted}/-\nPlease contact customer promptly.`;
 
-    const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: #${cleanId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${dateFormatted}\n\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : driverPhone}\nVehicle: ${vehicle} (${regNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
+    const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${cleanId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${dateFormatted}\n\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : driverPhone}\nVehicle: ${shortVehicle} (${regNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
 
-    // 2. WhatsApp Rich Text Templates for Customer & Driver
-    const waCustomerMessage =
-      `🚗 *Driver & Vehicle Assigned! - Safar India Cabs*\n\n` +
-      `Hello *${customerName}*, your ride is ready. Here are your complete driver & vehicle details:\n\n` +
-      `👨‍✈️ *Driver Name:* ${driverName}\n` +
-      `📞 *Driver Contact:* +91 ${cleanDriverPhone || driverPhone}\n` +
-      `🚙 *Vehicle Model:* ${vehicle}\n` +
-      `🔢 *Vehicle Number:* ${regNo}\n\n` +
-      `📋 *Trip Details:*\n` +
-      `• Booking ID: *#${cleanId}*\n` +
-      `• Route: *${pickup}* ➔ *${drop}*\n` +
-      `• Date & Time: *${dateFormatted}*\n` +
-      `• Balance Payable: *₹${balance}*\n\n` +
-      `Your driver partner will contact you shortly before pickup.\n` +
-      `📞 24/7 Helpline: +91 7710080992\n` +
-      `Have a safe and happy journey with *Safar India Cabs*!`;
+    // 2. WhatsApp Rich Text Templates for Customer & Driver (Box-Drawing Design)
+    const waCustomerMessage = [
+      `👨‍✈️ SAFARINDIACABS | DRIVER ALLOTMENT`,
+      ``,
+      `Dear ${String(customerName || 'Traveler').trim()},`,
+      ``,
+      `Greetings from SafarIndiaCabs!`,
+      `Your driver and vehicle have been assigned for your upcoming trip. Details below:`,
+      ``,
+      `┌──────────────────────────┐`,
+      `TRIP SUMMARY`,
+      `├──────────────────────────┤`,
+      `• Booking ID: ${cleanId}`,
+      `• Route: ${pickup} to ${drop}`,
+      `• Pickup Date & Time: ${dateFormatted}`,
+      `└──────────────────────────┘`,
+      ``,
+      `🚗 DRIVER & VEHICLE DETAILS`,
+      `• Driver Name: ${String(driverName || 'Assigned Driver').trim()}`,
+      `• Driver Contact: +91 ${cleanDriverPhone || driverPhone}`,
+      `• Vehicle Category: ${vehicleCategoryFull}`,
+      `• Vehicle Number: ${regNo}`,
+      ``,
+      `Have a safe, comfortable, and pleasant journey! 🚖`
+    ].join('\n');
 
-    const waDriverMessage =
-      `🚖 *SafarIndiaCabs Driver Partner ${driverName}*\n\n` +
-      `Your Pickup is confirmed! Please timely complete the trip.\n\n` +
-      `📋 *Complete Trip Info:*\n` +
-      `• Booking ID: *#${cleanId}*\n` +
-      `• Customer Name: *${customerName}*\n` +
-      `• Customer Mobile: *+91 ${cleanCustomerPhone}*\n` +
-      `• Pickup Location: *${pickup}*\n` +
-      `• Drop Location: *${drop}*\n` +
-      `• Pickup Date & Time: *${dateFormatted}*\n` +
-      `• Assigned Vehicle: *${vehicle} (${regNo})*\n` +
-      `• Collect Balance at Drop: *₹${balance}*\n\n` +
-      `Please contact the customer promptly and reach pickup on time. Drive safely!\n` +
-      `📞 Dispatch Helpline: +91 7710080992`;
+    const waDriverMessage = [
+      `🚖 SAFARINDIACABS | DRIVER DUTY ALLOTMENT`,
+      ``,
+      `Dear ${cleanDriverName} ji,`,
+      ``,
+      `Your pickup duty has been confirmed by SafarIndiaCabs. Details are given below:`,
+      ``,
+      `┌──────────────────────────┐`,
+      `TRIP DETAILS`,
+      `├──────────────────────────┤`,
+      `• Booking ID: ${cleanId}`,
+      `• Customer Name: ${String(customerName || 'Customer').trim()}`,
+      `• Customer Mobile: +91 ${cleanCustomerPhone}`,
+      `• Pickup Location: ${pickup}`,
+      `• Drop Location: ${drop}`,
+      `• Date & Time: ${dateFormatted}`,
+      `• Vehicle: ${shortVehicle} (${regNo})`,
+      `└──────────────────────────┘`,
+      ``,
+      `💵 PAYMENT COLLECTION`,
+      `• Collect Balance: ₹${balanceFormatted}/- (Collect from customer)`,
+      ``,
+      `📌 Important Instructions:`,
+      `Call the customer immediately and reach the pickup location before time. Keep the vehicle clean and strictly follow the non-smoking/non-drinking policy.`,
+      ``,
+      `📞 HELP & SUPPORT`,
+      `• Helpline: +91-7710080992`,
+      `• Website: https://safarindiacabs.com`
+    ].join('\n');
 
-    // 3. Official Meta WhatsApp Template Configurations (deliver outside 24h chat window without needing "Hi/Hello")
+    // 3. Official Meta WhatsApp Template Configurations
     const customerTemplateConfig = {
       name: 'safar_customer_driver_details',
       language: 'en_US',
@@ -175,12 +215,12 @@ export default async function handler(req, res) {
         cleanId,
         driverName || 'Assigned Driver',
         `+91 ${cleanDriverPhone || driverPhone}`,
-        vehicle,
+        vehicleCategoryFull,
         regNo,
         pickup,
         drop,
         dateFormatted,
-        String(balance)
+        `₹${balanceFormatted}/-`
       ],
       backups: [
         {
@@ -189,7 +229,7 @@ export default async function handler(req, res) {
           params: [
             customerName,
             cleanId,
-            `Driver: ${driverName} (+91 ${cleanDriverPhone || driverPhone}) | Vehicle: ${vehicle} (${regNo}) | Route: ${pickup} to ${drop} on ${dateFormatted} | Balance: Rs. ${balance}`
+            `DRIVER ALLOTMENT - Driver: ${driverName} (+91 ${cleanDriverPhone || driverPhone}) | Vehicle: ${vehicleCategoryFull} (${regNo}) | Route: ${pickup} to ${drop} (${dateFormatted})`
           ]
         }
       ]
@@ -208,8 +248,8 @@ export default async function handler(req, res) {
         pickup,
         drop,
         dateFormatted,
-        `${vehicle} (${regNo})`,
-        String(balance)
+        `${shortVehicle} (${regNo})`,
+        `₹${balanceFormatted}/-`
       ],
       backups: [
         {
@@ -218,7 +258,7 @@ export default async function handler(req, res) {
           params: [
             driverName || 'Driver Partner',
             cleanId,
-            `NEW PICKUP DUTY - Customer: ${customerName} (+91 ${cleanCustomerPhone}) | Pickup: ${pickup} to ${drop} on ${dateFormatted} | Vehicle: ${vehicle} (${regNo}) | Collect Balance: Rs. ${balance}`
+            `DRIVER DUTY ALLOTMENT - Customer: ${customerName} (+91 ${cleanCustomerPhone}) | Pickup: ${pickup} to ${drop} (${dateFormatted}) | Vehicle: ${shortVehicle} (${regNo}) | Collect Balance: ₹${balanceFormatted}/-`
           ]
         }
       ]

@@ -99,56 +99,87 @@ export default async function handler(req, res) {
     const customerPhone = sanitize10Digit(booking.customerPhone);
     const adminPhone = ADMIN_PHONE_NUMBER;
 
-    const cabClass = booking.cabClass || booking.cabName || 'Commercial Cab';
+    const rawCabClass = booking.cabClass || booking.cabName || 'Hatchback AC (WagonR, Celerio, Tiago or equivalent)';
+    const cabClass = /^hatchback\s*ac$/i.test(String(rawCabClass).trim())
+      ? 'Hatchback AC (WagonR, Celerio, Tiago or equivalent)'
+      : String(rawCabClass).replace(/^([^(]+)\([^)]*\)\s*\(([^)]+)\)$/, '$1($2)').trim();
     const totalFare =
       booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
     const verifiedAdvance =
       booking.paidAmount ?? booking.verifiedAdvance ?? booking.advancePaid ?? 0;
     const balance = booking.balanceAmount ?? booking.balance ?? booking.balanceDue ?? 0;
-    const travelDateTime =
+    const rawTravelDateTime =
       booking.travelDateTime || `${booking.pickupDate} at ${booking.pickupTime}`;
-    const cleanId = String(booking.id).replace(/^#/, '');
-    const customerName = booking.customerName || 'Traveler';
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const isoMatch = String(rawTravelDateTime).trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:\s*(?:at|@|·)?\s*(.+))?$/i);
+    const travelDateTime = isoMatch
+      ? `${parseInt(isoMatch[3], 10)} ${months[parseInt(isoMatch[2], 10) - 1] || isoMatch[2]} ${isoMatch[1]}${isoMatch[4] ? ` @ ${isoMatch[4].trim()}` : ''}`
+      : String(rawTravelDateTime).replace(/\s+at\s+/i, ' @ ').trim();
+
+    const formatAmt = (v) => {
+      const n = Number(String(v ?? 0).replace(/[^0-9.-]/g, ''));
+      return Number.isFinite(n) ? Math.round(n).toLocaleString('en-IN') : '0';
+    };
+
+    const totalFareStr = formatAmt(totalFare);
+    const advanceStr = formatAmt(verifiedAdvance);
+    const balanceStr = formatAmt(balance);
+    const cleanId = String(booking.id).replace(/^#/, '').trim();
+    const customerName = (booking.customerName || 'Traveler').trim();
 
     // 1. SMS Templates
-    const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: #${cleanId}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${verifiedAdvance}\nBalance Payable: ₹${balance}\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
+    const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${cleanId}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFareStr}/-\nAdvance Paid: ₹${advanceStr}/-\nBalance Payable: ₹${balanceStr}/-\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
 
-    const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: #${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${verifiedAdvance}\nBalance Due: ₹${balance}`;
+    const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advanceStr}/-\nBalance Due: ₹${balanceStr}/-`;
 
-    // 2. WhatsApp Rich Text Templates
-    const addressLine = booking.pickupAddress ? `🏠 Pickup Address: ${booking.pickupAddress}\n` : '';
+    // 2. WhatsApp Rich Text Templates (Box-Drawing Design)
+    const waCustomerMessage = [
+      `🚗 SAFARINDIACABS | BOOKING CONFIRMATION`,
+      `Dear ${customerName},`,
+      `Greetings from SafarIndiaCabs!`,
+      `Your booking has been successfully confirmed. Please find your trip details below:`,
+      `┌──────────────────────────┐`,
+      `TRIP DETAILS`,
+      `├──────────────────────────┤`,
+      `• Booking ID: ${cleanId}`,
+      `• Pickup Location: ${booking.pickupCity}`,
+      `• Drop Location: ${booking.dropCity}`,
+      `• Date & Time: ${travelDateTime}`,
+      `• Cab Category: ${cabClass}`,
+      `└──────────────────────────┘`,
+      `💵 FARE & PAYMENT BREAKUP`,
+      `• Total Fare: ₹${totalFareStr}/- (All Inclusive)`,
+      `• Advance Paid: ₹${advanceStr}/-`,
+      `• Balance Payable: ₹${balanceStr}/- (Payable to driver)`,
+      ``,
+      `📞 CUSTOMER SUPPORT`,
+      `• Helpline: +91-7710080992`,
+      `• Website: https://safarindiacabs.com`,
+      ``,
+      `We wish you a pleasant, safe, and comfortable journey! 🚖`
+    ].join('\n');
 
-    const waCustomerMessage =
-      `✅ *Booking Confirmed - Safar India Cabs*\n\n` +
-      `Hello *${customerName}*, your cab booking is confirmed!\n\n` +
-      `📋 *Complete Booking Details:*\n` +
-      `• Booking ID: *#${cleanId}*\n` +
-      `📍 Pickup: *${booking.pickupCity}*\n` +
-      `🏁 Drop: *${booking.dropCity}*\n` +
-      `🗓️ Date & Time: *${travelDateTime}*\n` +
-      `🚕 Cab Category: *${cabClass}*\n` +
-      addressLine +
-      `\n💰 *Fare Breakdown:*\n` +
-      `• Total Fare: *₹${totalFare}*\n` +
-      `✅ Advance Paid: *₹${verifiedAdvance}*\n` +
-      `💵 Balance Payable at Trip: *₹${balance}*\n\n` +
-      `🚗 Driver and vehicle details will be shared on your WhatsApp shortly before pickup.\n` +
-      `📞 24/7 Helpline: +91 7710080992\n` +
-      `Thank you for choosing *Safar India Cabs*!`;
-
-    const waAdminMessage =
-      `🚨 *New Booking Alert! (Safar India Cabs)*\n\n` +
-      `Booking ID: *#${cleanId}*\n` +
-      `👤 Customer: *${customerName}* (+91 ${customerPhone})\n` +
-      `📍 Pickup: *${booking.pickupCity}*\n` +
-      `🏁 Drop: *${booking.dropCity}*\n` +
-      addressLine +
-      `🗓️ Date & Time: *${travelDateTime}*\n` +
-      `🚕 Cab Booked: *${cabClass}*\n` +
-      `💰 Total Fare: *₹${totalFare}*\n` +
-      `✅ Advance Paid: *₹${verifiedAdvance}*\n` +
-      `💵 Balance Due: *₹${balance}*\n\n` +
-      `⚡ Booking has been updated in the Owner Panel. Please assign a driver from the Owner Panel immediately.`;
+    const waAdminMessage = [
+      `🚨 SAFARINDIACABS | NEW BOOKING ALERT`,
+      `┌──────────────────────────┐`,
+      `TRIP DETAILS`,
+      `├──────────────────────────┤`,
+      `• Booking ID: ${cleanId}`,
+      `• Customer: ${customerName} (+91 ${customerPhone})`,
+      `• Pickup Location: ${booking.pickupCity}`,
+      ...(booking.pickupAddress ? [`• Pickup Address: ${booking.pickupAddress}`] : []),
+      `• Drop Location: ${booking.dropCity}`,
+      `• Date & Time: ${travelDateTime}`,
+      `• Cab Category: ${cabClass}`,
+      `└──────────────────────────┘`,
+      `💵 FARE & PAYMENT BREAKUP`,
+      `• Total Fare: ₹${totalFareStr}/- (All Inclusive)`,
+      `• Advance Paid: ₹${advanceStr}/-`,
+      `• Balance Payable: ₹${balanceStr}/-`,
+      ``,
+      `⚡ Please assign a driver from the Owner Panel.`
+    ].join('\n');
 
     // 3. Official Meta WhatsApp Template Configurations
     const customerTemplateConfig = {
@@ -163,9 +194,9 @@ export default async function handler(req, res) {
         booking.dropCity,
         travelDateTime,
         cabClass,
-        String(totalFare),
-        String(verifiedAdvance),
-        String(balance)
+        `₹${totalFareStr}/-`,
+        `₹${advanceStr}/-`,
+        `₹${balanceStr}/-`
       ],
       backups: [
         {
@@ -173,7 +204,7 @@ export default async function handler(req, res) {
           language: 'en_US',
           params: [
             customerName,
-            `#${cleanId} (${booking.pickupCity} to ${booking.dropCity} on ${travelDateTime}, Cab: ${cabClass})`
+            `${cleanId} (${booking.pickupCity} to ${booking.dropCity} on ${travelDateTime}, Cab: ${cabClass})`
           ]
         },
         {
@@ -182,7 +213,7 @@ export default async function handler(req, res) {
           params: [
             customerName,
             cleanId,
-            `Route: ${booking.pickupCity} to ${booking.dropCity} on ${travelDateTime} | Cab: ${cabClass} | Total: Rs. ${totalFare} (Paid: Rs. ${verifiedAdvance}, Balance: Rs. ${balance})`
+            `Route: ${booking.pickupCity} to ${booking.dropCity} (${travelDateTime}) | Cab: ${cabClass} | Total: ₹${totalFareStr}/- (Advance: ₹${advanceStr}/-, Balance: ₹${balanceStr}/-)`
           ]
         }
       ]

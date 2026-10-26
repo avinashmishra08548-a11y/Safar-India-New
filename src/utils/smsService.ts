@@ -654,6 +654,7 @@ export async function sendDriverAssignmentSms(params: {
         pickup: params.pickup,
         drop: params.drop,
         travelDateTime: params.travelDate,
+        cabClass,
         balanceAmount: balance
       }
     )

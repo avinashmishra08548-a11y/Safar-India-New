@@ -191,7 +191,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setExternalIsPromoApplied?.(false);
       setPromoStatus({
         type: 'error',
-        message: 'Invalid promo code. Enter FIRST300 to get ₹300 OFF.'
+        message: 'Invalid promo code. Please enter a valid code.'
       });
     }
   };
@@ -522,15 +522,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px] sm:text-xs"
               >
                 <Tag className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span>Promo Code:</span>
-                <button
-                  type="button"
-                  onClick={() => handleApplyPromo('FIRST300')}
-                  className="text-[10px] font-mono font-black bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded transition cursor-pointer"
-                  title="Tap to apply FIRST300"
-                >
-                  FIRST300 (-₹300)
-                </button>
+                <span>Have a Promo Code?</span>
               </label>
 
               <div className="flex items-center gap-2">
@@ -549,7 +541,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                       handleApplyPromo();
                     }
                   }}
-                  placeholder="Enter promo code (FIRST300)"
+                  placeholder="Enter promo code"
                   aria-label="Promo code"
                   className="flex-1 sm:w-48 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-slate-900 uppercase placeholder:normal-case placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-amber-500"
                 />

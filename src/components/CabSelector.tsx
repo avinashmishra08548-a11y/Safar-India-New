@@ -125,7 +125,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
       setActivePromoApplied(false);
       setPromoFeedback({
         type: 'error',
-        text: 'Invalid promo code. Enter FIRST300 to get ₹300 OFF.'
+        text: 'Invalid promo code. Please enter a valid code.'
       });
     }
   };
@@ -267,16 +267,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             <span>
               {currentUser?.name
                 ? `Welcome, ${currentUser.name}! Have a Promo Code?`
-                : 'Have a Promo Code? Get Instant ₹300 OFF'}
+                : 'Have a Promo Code?'}
             </span>
-            <button
-              type="button"
-              onClick={() => handleApplyPromoCode('FIRST300')}
-              className="text-[11px] font-mono font-black bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md transition cursor-pointer"
-              title="Click to apply FIRST300"
-            >
-              FIRST300
-            </button>
           </div>
           {promoFeedback && (
             <div
@@ -308,7 +300,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 handleApplyPromoCode();
               }
             }}
-            placeholder="Enter promo code (FIRST300)"
+            placeholder="Enter promo code"
             aria-label="Promo code"
             className="flex-1 sm:w-52 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 uppercase placeholder:normal-case placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
           />
