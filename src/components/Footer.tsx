@@ -141,7 +141,7 @@ export const Footer: React.FC<FooterProps> = ({
                   <span className="text-amber-500 mx-0.5 font-mono">.</span>
                   <span className="text-amber-500">CABS</span>
                 </div>
-                <div className="text-[10px] tracking-[0.25em] font-extrabold text-amber-600 uppercase -mt-0.5">
+                <div className="text-[10px] tracking-[0.25em] font-extrabold text-amber-700 uppercase -mt-0.5">
                   Travel Smart
                 </div>
               </div>
@@ -207,9 +207,9 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Column 2: Popular Intercity Routes (5 cols) */}
           <div className="lg:col-span-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
                 Popular Intercity Routes
-              </h4>
+              </h3>
               <button
                 type="button"
                 onClick={() => handleSectionSelect('routes', 'routes-section-top')}
@@ -226,9 +226,9 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={() => {
                     if (onSelectRoute) onSelectRoute(r.from, r.to);
                   }}
-                  className="text-left text-slate-600 hover:text-amber-700 transition flex items-center gap-1 group truncate font-medium cursor-pointer"
+                  className="text-left text-slate-700 hover:text-amber-700 transition flex items-center gap-1 group truncate font-medium cursor-pointer"
                 >
-                  <ChevronRight className="w-3 h-3 text-slate-400 group-hover:text-amber-600 shrink-0" />
+                  <ChevronRight className="w-3 h-3 text-slate-500 group-hover:text-amber-700 shrink-0" />
                   <span className="truncate">
                     {r.from} ➔ {r.to}
                   </span>
@@ -239,9 +239,9 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* Column 3: 24/7 Helpline, WhatsApp, Email & Partner (3 cols) */}
           <div className="lg:col-span-3 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
               24/7 Help &amp; Contact
-            </h4>
+            </h3>
             <div className="space-y-2 text-slate-700">
               <a
                 href={SAFAR_CONTACT_INFO.telHref}
@@ -320,7 +320,7 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
 
         {/* Bottom Strip: Copyright & Interactive Policy Links (Owner Panel Removed from Footer) */}
-        <div className="border-t border-slate-200 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+        <div className="border-t border-slate-200 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-600">
           <div>
             © {new Date().getFullYear()} <strong>Safar India Cabs</strong> (safarindiacabs.com). All rights reserved. Travel Smart.
           </div>

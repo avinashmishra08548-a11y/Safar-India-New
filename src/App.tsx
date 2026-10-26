@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import { 
   Car, 
   MapPin, 
@@ -31,21 +31,42 @@ import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsap
 import { Header, NavTabId } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
-import { BookingModal } from './components/BookingModal';
-import { BookingConfirmationModal } from './components/BookingConfirmationModal';
-import { MyBookingsView } from './components/MyBookingsView';
 import { PopularRoutesSection } from './components/PopularRoutesSection';
 import { CabBazarAdvantages } from './components/CabBazarAdvantages';
-import { CustomerReviews, CustomerReviewsModal } from './components/CustomerReviews';
+import { CustomerReviews } from './components/CustomerReviews';
 import { FaqSection } from './components/FaqSection';
-import { CustomerAuthModal } from './components/CustomerAuthModal';
 import { DriverPartnerSection } from './components/DriverPartnerSection';
-import { DriverPartnerModal } from './components/DriverPartnerModal';
-import { AdminDashboard } from './components/AdminDashboard';
 import { Footer } from './components/Footer';
-import { AboutSectionView, HelpSupportView } from './components/AboutAndHelpViews';
-import cabsFleetShowcaseImg from './assets/images/cabs_fleet_showcase_1792165620669.jpg';
-import heroCabsIntercityImg from './assets/images/hero_cabs_intercity_1792165620723.jpg';
+
+const BookingModal = lazy(() =>
+  import('./components/BookingModal').then((m) => ({ default: m.BookingModal }))
+);
+const BookingConfirmationModal = lazy(() =>
+  import('./components/BookingConfirmationModal').then((m) => ({
+    default: m.BookingConfirmationModal
+  }))
+);
+const MyBookingsView = lazy(() =>
+  import('./components/MyBookingsView').then((m) => ({ default: m.MyBookingsView }))
+);
+const CustomerReviewsModal = lazy(() =>
+  import('./components/CustomerReviews').then((m) => ({ default: m.CustomerReviewsModal }))
+);
+const CustomerAuthModal = lazy(() =>
+  import('./components/CustomerAuthModal').then((m) => ({ default: m.CustomerAuthModal }))
+);
+const DriverPartnerModal = lazy(() =>
+  import('./components/DriverPartnerModal').then((m) => ({ default: m.DriverPartnerModal }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const AboutSectionView = lazy(() =>
+  import('./components/AboutAndHelpViews').then((m) => ({ default: m.AboutSectionView }))
+);
+const HelpSupportView = lazy(() =>
+  import('./components/AboutAndHelpViews').then((m) => ({ default: m.HelpSupportView }))
+);
 
 export default function App() {
   // Navigation tabs: 'booking' | 'routes' | 'rides' | 'about' | 'help'
@@ -697,17 +718,19 @@ export default function App() {
             id="rides-section-top"
             className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-in fade-in scroll-mt-24 outline-hidden"
           >
-            <MyBookingsView
-              currentUser={currentUser}
-              bookings={currentUserBookings}
-              onOpenLogin={() => {
-                setAuthPrompt('Please login with your mobile number to view your rides & tax invoices.');
-                setIsAuthModalOpen(true);
-              }}
-              onSelectBookingForInvoice={(b) => setActiveVoucherBooking(b)}
-              onCancelBooking={handleCancelBooking}
-              onNavigateToBooking={() => handleSwitchTab('booking')}
-            />
+            <Suspense fallback={<div className="py-12 text-center text-sm text-slate-600 font-semibold">Loading your rides...</div>}>
+              <MyBookingsView
+                currentUser={currentUser}
+                bookings={currentUserBookings}
+                onOpenLogin={() => {
+                  setAuthPrompt('Please login with your mobile number to view your rides & tax invoices.');
+                  setIsAuthModalOpen(true);
+                }}
+                onSelectBookingForInvoice={(b) => setActiveVoucherBooking(b)}
+                onCancelBooking={handleCancelBooking}
+                onNavigateToBooking={() => handleSwitchTab('booking')}
+              />
+            </Suspense>
           </div>
         ) : activeTab === 'routes' ? (
           <div
@@ -739,18 +762,22 @@ export default function App() {
             <DriverPartnerSection onOpenPartnerModal={() => setIsDriverPartnerOpen(true)} />
           </div>
         ) : activeTab === 'about' ? (
-          <AboutSectionView
-            focusedSectionId={activeSectionId}
-            onNavigateToBooking={() => handleSwitchTab('booking', 'booking-section-top')}
-            onNavigateToRoutes={() => handleSwitchTab('routes', 'routes-section-top')}
-            onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
-          />
+          <Suspense fallback={<div className="py-12 text-center text-sm text-slate-600 font-semibold">Loading company details...</div>}>
+            <AboutSectionView
+              focusedSectionId={activeSectionId}
+              onNavigateToBooking={() => handleSwitchTab('booking', 'booking-section-top')}
+              onNavigateToRoutes={() => handleSwitchTab('routes', 'routes-section-top')}
+              onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
+            />
+          </Suspense>
         ) : activeTab === 'help' ? (
-          <HelpSupportView
-            focusedSectionId={activeSectionId}
-            onNavigateToBooking={() => handleSwitchTab('booking', 'booking-section-top')}
-            onNavigateToRides={() => handleSwitchTab('rides', 'rides-section-top')}
-          />
+          <Suspense fallback={<div className="py-12 text-center text-sm text-slate-600 font-semibold">Loading help center...</div>}>
+            <HelpSupportView
+              focusedSectionId={activeSectionId}
+              onNavigateToBooking={() => handleSwitchTab('booking', 'booking-section-top')}
+              onNavigateToRides={() => handleSwitchTab('rides', 'rides-section-top')}
+            />
+          </Suspense>
         ) : (
           <div id="booking-section-top" className="space-y-14 sm:space-y-20 scroll-mt-24 outline-hidden">
             
@@ -760,12 +787,12 @@ export default function App() {
                 
                 {/* Clean, Spacious Hero Header */}
                 <div className="max-w-3xl mb-8 sm:mb-10">
-                  <p className="text-xs sm:text-sm font-bold text-amber-700 tracking-wide mb-2">
+                  <p className="text-xs sm:text-sm font-bold text-amber-800 tracking-wide mb-2">
                     A1 Cab Services · All India Outstation &amp; Local Rentals
                   </p>
                   <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight leading-[1.12]">
                     Outstation &amp; Local Cabs with{' '}
-                    <span className="text-amber-500">Guaranteed Low Fares</span>
+                    <span className="text-amber-700">Guaranteed Low Fares</span>
                   </h1>
                   <p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl">
                     Verified AC commercial sedans, SUVs, and Innova Crysta with experienced highway chauffeurs.
@@ -820,18 +847,17 @@ export default function App() {
                   {/* Right Column: Official Safar India Cabs Banner & Clean Key Assurances */}
                   <div className="lg:col-span-5 space-y-5">
                     
-                    {/* Official Brand Banner Card */}
+                    {/* Official Brand Banner Card (LCP Element — Prioritized WebP) */}
                     <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 shadow-lg bg-[#081C44]">
                       <img
-                        src="/assets/aistudio/IMG-20261018-WA0004_d330717e.jpg"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          if (!target.dataset.fallbackApplied) {
-                            target.dataset.fallbackApplied = 'true';
-                            target.src = heroCabsIntercityImg || cabsFleetShowcaseImg;
-                          }
-                        }}
-                        referrerPolicy="no-referrer"
+                        src="/assets/aistudio/hero-banner-800.webp"
+                        srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
+                        sizes="(max-width: 768px) 92vw, 440px"
+                        width={800}
+                        height={450}
+                        fetchPriority="high"
+                        loading="eager"
+                        decoding="async"
                         alt="Safar India Cabs — Your Journey, Our Priority"
                         className="w-full h-auto aspect-[16/9] object-cover block"
                       />
@@ -841,15 +867,15 @@ export default function App() {
                     <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs grid grid-cols-3 gap-4 text-center divide-x divide-slate-100">
                       <div className="px-2">
                         <div className="text-base sm:text-lg font-black text-slate-950">One-Way</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Zero Return Fare</div>
+                        <div className="text-xs text-slate-600 mt-0.5">Zero Return Fare</div>
                       </div>
                       <div className="px-2">
-                        <div className="text-base sm:text-lg font-black text-amber-600">20% Advance</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Instant Booking</div>
+                        <div className="text-base sm:text-lg font-black text-amber-700">20% Advance</div>
+                        <div className="text-xs text-slate-600 mt-0.5">Instant Booking</div>
                       </div>
                       <div className="px-2">
                         <div className="text-base sm:text-lg font-black text-slate-950">Free Cancel</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Up to 6 Hrs Prior</div>
+                        <div className="text-xs text-slate-600 mt-0.5">Up to 6 Hrs Prior</div>
                       </div>
                     </div>
 
@@ -990,33 +1016,41 @@ export default function App() {
       />
 
       {/* Customer Reviews & Write Review Modal */}
-      <CustomerReviewsModal
-        isOpen={isReviewsModalOpen}
-        onClose={() => {
-          setIsReviewsModalOpen(false);
-          try {
-            if (shouldOpenReviewsFromUrl()) {
-              const url = new URL(window.location.href);
-              url.searchParams.delete('action');
-              url.searchParams.delete('review');
-              url.searchParams.delete('reviews');
-              if (url.hash.toLowerCase() === '#reviews' || url.hash.toLowerCase() === '#review') {
-                url.hash = '';
+      {isReviewsModalOpen && (
+        <Suspense fallback={null}>
+          <CustomerReviewsModal
+            isOpen={isReviewsModalOpen}
+            onClose={() => {
+              setIsReviewsModalOpen(false);
+              try {
+                if (shouldOpenReviewsFromUrl()) {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete('action');
+                  url.searchParams.delete('review');
+                  url.searchParams.delete('reviews');
+                  if (url.hash.toLowerCase() === '#reviews' || url.hash.toLowerCase() === '#review') {
+                    url.hash = '';
+                  }
+                  window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+                }
+              } catch {
+                // ignore history errors
               }
-              window.history.replaceState({}, '', url.pathname + url.search + url.hash);
-            }
-          } catch {
-            // ignore history errors
-          }
-        }}
-        currentUser={currentUser}
-      />
+            }}
+            currentUser={currentUser}
+          />
+        </Suspense>
+      )}
 
       {/* Driver / Vendor Partner Registration Modal */}
-      <DriverPartnerModal
-        isOpen={isDriverPartnerOpen}
-        onClose={() => setIsDriverPartnerOpen(false)}
-      />
+      {isDriverPartnerOpen && (
+        <Suspense fallback={null}>
+          <DriverPartnerModal
+            isOpen={isDriverPartnerOpen}
+            onClose={() => setIsDriverPartnerOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Available Cabs Selection Modal */}
       {isCabsModalOpen && (
@@ -1080,38 +1114,42 @@ export default function App() {
 
       {/* Booking Drawer / Traveler Details Modal */}
       {selectedCabForCheckout && (
-        <BookingModal
-          isOpen={true}
-          onClose={() => setSelectedCabForCheckout(null)}
-          cab={selectedCabForCheckout.cab}
-          fareDetails={selectedCabForCheckout.fare}
-          tripType={tripType}
-          pickupCity={pickupCity}
-          dropCity={effectiveDropCity}
-          pickupDate={pickupDate}
-          pickupTime={pickupTime}
-          returnDate={returnDate}
-          returnTime={returnTime}
-          localPackageId={localPackageId}
-          airportMode={airportMode}
-          airportTerminal={airportTerminal}
-          currentUser={currentUser}
-          promoCode={promoCode}
-          setPromoCode={setPromoCode}
-          isPromoApplied={isPromoApplied}
-          setIsPromoApplied={setIsPromoApplied}
-          welcomeMessage={authNotice}
-          onBookingSuccess={handleBookingSuccess}
-        />
+        <Suspense fallback={null}>
+          <BookingModal
+            isOpen={true}
+            onClose={() => setSelectedCabForCheckout(null)}
+            cab={selectedCabForCheckout.cab}
+            fareDetails={selectedCabForCheckout.fare}
+            tripType={tripType}
+            pickupCity={pickupCity}
+            dropCity={effectiveDropCity}
+            pickupDate={pickupDate}
+            pickupTime={pickupTime}
+            returnDate={returnDate}
+            returnTime={returnTime}
+            localPackageId={localPackageId}
+            airportMode={airportMode}
+            airportTerminal={airportTerminal}
+            currentUser={currentUser}
+            promoCode={promoCode}
+            setPromoCode={setPromoCode}
+            isPromoApplied={isPromoApplied}
+            setIsPromoApplied={setIsPromoApplied}
+            welcomeMessage={authNotice}
+            onBookingSuccess={handleBookingSuccess}
+          />
+        </Suspense>
       )}
 
       {/* Booking Confirmation / Tax Invoice Voucher Modal */}
       {activeVoucherBooking && (
-        <BookingConfirmationModal
-          booking={activeVoucherBooking}
-          onClose={() => setActiveVoucherBooking(null)}
-          onViewMyRides={() => setActiveTab('rides')}
-        />
+        <Suspense fallback={null}>
+          <BookingConfirmationModal
+            booking={activeVoucherBooking}
+            onClose={() => setActiveVoucherBooking(null)}
+            onViewMyRides={() => setActiveTab('rides')}
+          />
+        </Suspense>
       )}
 
       {/* Customer Account & Profile Modal */}
@@ -1181,15 +1219,19 @@ export default function App() {
       )}
 
       {/* Customer Mobile OTP Login Modal */}
-      <CustomerAuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => {
-          setIsAuthModalOpen(false);
-          setAuthPrompt('');
-        }}
-        authPrompt={authPrompt}
-        onLoginSuccess={handleLoginSuccess}
-      />
+      {isAuthModalOpen && (
+        <Suspense fallback={null}>
+          <CustomerAuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => {
+              setIsAuthModalOpen(false);
+              setAuthPrompt('');
+            }}
+            authPrompt={authPrompt}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </Suspense>
+      )}
 
       {/* Auth Floating Notification */}
       {authNotice && (
@@ -1204,12 +1246,14 @@ export default function App() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-60 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl max-w-xs w-full p-6 text-center space-y-4 shadow-2xl relative">
             <button
+              type="button"
+              aria-label="Close owner PIN modal"
               onClick={() => {
                 setIsAdminPinModalOpen(false);
                 setAdminPinError('');
                 setAdminPinInput('');
               }}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-800"
             >
               ✕
             </button>
@@ -1217,8 +1261,8 @@ export default function App() {
               <ShieldCheck className="w-6 h-6 text-amber-600" />
             </div>
             <div>
-              <h4 className="text-base font-extrabold text-slate-900">Owner Access PIN</h4>
-              <p className="text-xs text-slate-500 mt-0.5">Enter secret security PIN to manage bookings</p>
+              <h3 className="text-base font-extrabold text-slate-900">Owner Access PIN</h3>
+              <p className="text-xs text-slate-600 mt-0.5">Enter secret security PIN to manage bookings</p>
             </div>
             {adminPinError && (
               <div className="text-xs text-rose-700 bg-rose-50 py-1.5 px-2 rounded-lg border border-rose-200">
@@ -1228,6 +1272,7 @@ export default function App() {
             <form onSubmit={handleVerifyAdminPin} className="space-y-3">
               <input
                 type="password"
+                aria-label="Owner 4-digit security PIN"
                 maxLength={4}
                 autoFocus
                 value={adminPinInput}
@@ -1247,24 +1292,28 @@ export default function App() {
       )}
 
       {/* Admin Dashboard */}
-      <AdminDashboard
-        isOpen={isAdminDashboardOpen}
-        onClose={() => setIsAdminDashboardOpen(false)}
-        bookings={allBookings}
-        onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
-        onChangePin={handleChangeOwnerPin}
-        onClearDemoBookings={handleClearDemoBookings}
-        onOpenBookingReceipt={(b) => setActiveVoucherBooking(b)}
-        onCreateManualBooking={(newBooking) => {
-          setAllBookings(prev => [newBooking, ...prev]);
-          setActiveVoucherBooking(newBooking);
-          fetch('/api/bookings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ booking: newBooking })
-          }).catch(() => {});
-        }}
-      />
+      {isAdminDashboardOpen && (
+        <Suspense fallback={null}>
+          <AdminDashboard
+            isOpen={isAdminDashboardOpen}
+            onClose={() => setIsAdminDashboardOpen(false)}
+            bookings={allBookings}
+            onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
+            onChangePin={handleChangeOwnerPin}
+            onClearDemoBookings={handleClearDemoBookings}
+            onOpenBookingReceipt={(b) => setActiveVoucherBooking(b)}
+            onCreateManualBooking={(newBooking) => {
+              setAllBookings(prev => [newBooking, ...prev]);
+              setActiveVoucherBooking(newBooking);
+              fetch('/api/bookings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ booking: newBooking })
+              }).catch(() => {});
+            }}
+          />
+        </Suspense>
+      )}
 
     </div>
   );

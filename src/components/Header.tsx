@@ -124,9 +124,11 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2.5 text-left transition-transform active:scale-98 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <img
-                src="/assets/aistudio/file_000000007f788211880d40783635e995_5f28509a.png"
+                src="/assets/aistudio/logo-96.webp"
                 alt="SafarIndiaCabs Logo"
-                referrerPolicy="no-referrer"
+                width={40}
+                height={40}
+                decoding="async"
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover bg-white p-0.5 shrink-0"
               />
               <div>
@@ -134,7 +136,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="text-white">SafarIndia</span>
                   <span className="text-amber-400">Cabs</span>
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider uppercase block mt-0.5">
+                <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase block mt-0.5">
                   Outstation &amp; Local Taxi
                 </span>
               </div>

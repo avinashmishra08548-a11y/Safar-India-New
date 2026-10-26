@@ -1,6 +1,6 @@
 import { CabVehicle } from '../types';
-import heroCabsImg from '../assets/images/hero_cabs_intercity_1792165620723.jpg';
-import fleetShowcaseImg from '../assets/images/cabs_fleet_showcase_1792165620669.jpg';
+import heroCabsImg from '../assets/images/hero_cabs_intercity.webp';
+import fleetShowcaseImg from '../assets/images/cabs_fleet_showcase.webp';
 
 export const CABS_FLEET: CabVehicle[] = [
   {

@@ -25,25 +25,34 @@ export const PopularRoutesSection: React.FC<PopularRoutesSectionProps> = ({ onSe
         {POPULAR_ROUTES.map((route, idx) => (
           <div
             key={idx}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelectRoute(route)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectRoute(route);
+              }
+            }}
+            aria-label={`Book cab from ${route.from} to ${route.to}, starting from ${formatINR(route.startingPrice)}`}
             className="bg-white border border-slate-200/90 hover:border-amber-400 rounded-2xl p-5 transition-all duration-200 cursor-pointer shadow-xs hover:shadow-md group flex flex-col justify-between"
           >
             <div>
-              <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
+              <div className="flex items-center justify-between text-xs text-slate-600 mb-3">
                 <span className="text-amber-700 font-bold">{route.badge}</span>
-                <span className="flex items-center gap-1 text-slate-400 font-medium">
+                <span className="flex items-center gap-1 text-slate-600 font-medium">
                   <Clock className="w-3.5 h-3.5" />
                   {route.duration}
                 </span>
               </div>
 
               <div className="space-y-1.5">
-                <div className="text-base font-extrabold text-slate-900 group-hover:text-amber-600 transition-colors flex items-center gap-2">
+                <div className="text-base font-extrabold text-slate-900 group-hover:text-amber-700 transition-colors flex items-center gap-2">
                   <span>{route.from}</span>
-                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-4 h-4 text-slate-500 group-hover:translate-x-1 transition-transform" />
                   <span>{route.to}</span>
                 </div>
-                <div className="text-xs text-slate-500 flex items-center gap-2 font-medium">
+                <div className="text-xs text-slate-600 flex items-center gap-2 font-medium">
                   <span className="font-mono">{route.distanceKm} KM</span>
                   <span>·</span>
                   <span>{route.popularCar}</span>
@@ -53,10 +62,10 @@ export const PopularRoutesSection: React.FC<PopularRoutesSectionProps> = ({ onSe
 
             <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between">
               <div>
-                <span className="text-[11px] text-slate-400 block font-medium">Starting From</span>
+                <span className="text-[11px] text-slate-600 block font-medium">Starting From</span>
                 <span className="text-lg font-black text-slate-950 font-mono tabular-nums">{formatINR(route.startingPrice)}</span>
               </div>
-              <span className="text-xs font-bold text-slate-900 group-hover:text-amber-600 flex items-center gap-1 transition">
+              <span className="text-xs font-bold text-slate-900 group-hover:text-amber-700 flex items-center gap-1 transition">
                 <span>Book</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </span>

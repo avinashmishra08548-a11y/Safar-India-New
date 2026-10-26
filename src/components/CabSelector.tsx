@@ -263,12 +263,12 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
       <div className="mb-7 bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-900">
-            <Tag className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>
+            <Tag className="w-4 h-4 text-amber-600 shrink-0" />
+            <label htmlFor="booking-summary-promo-input" className="cursor-pointer">
               {currentUser?.name
                 ? `Welcome, ${currentUser.name}! Have a Promo Code?`
                 : 'Have a Promo Code?'}
-            </span>
+            </label>
           </div>
           {promoFeedback && (
             <div
@@ -288,6 +288,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <input
+            id="booking-summary-promo-input"
             type="text"
             value={activePromoInput}
             onChange={(e) => {
@@ -301,8 +302,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               }
             }}
             placeholder="Enter promo code"
-            aria-label="Promo code"
-            className="flex-1 sm:w-52 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 uppercase placeholder:normal-case placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-amber-500 focus:bg-white"
+            aria-label="Enter promo code"
+            className="flex-1 sm:w-52 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-slate-900 uppercase placeholder:normal-case placeholder:font-sans placeholder:font-medium placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:bg-white"
           />
           <button
             type="button"
@@ -374,9 +375,11 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   <img
                     src={cab.image}
                     alt={cab.name}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+                    width={360}
+                    height={201}
                     loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/15 to-transparent" />
                   <div className="absolute bottom-3 left-3.5 right-3.5 flex items-end justify-between">
@@ -487,7 +490,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 <div className="flex items-end justify-between mb-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400 line-through font-mono tabular-nums">
+                      <span className="text-xs text-slate-500 line-through font-mono tabular-nums">
                         ₹{activeFare.originalFare.toLocaleString('en-IN')}
                       </span>
                       <span className="text-[11px] font-bold text-emerald-700">
@@ -500,7 +503,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[11px] text-slate-500 block">20% Advance</span>
+                    <span className="text-[11px] text-slate-600 block">20% Advance</span>
                     <span className="text-sm font-black text-amber-700 font-mono tabular-nums">
                       ₹{activeFare.advanceAmount.toLocaleString('en-IN')}
                     </span>

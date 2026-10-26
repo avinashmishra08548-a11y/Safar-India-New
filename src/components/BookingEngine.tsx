@@ -745,13 +745,22 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             ref={pickupRef}
             className={`${tripType === 'local' ? 'sm:col-span-6' : 'sm:col-span-5'} relative`}
           >
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            <label
+              htmlFor={
+                tripType === 'airport' && airportMode === 'pickup'
+                  ? 'booking-pickup-airport-select'
+                  : 'booking-pickup-city-input'
+              }
+              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+            >
               {tripType === 'airport' && airportMode === 'pickup' ? 'Airport Terminal' : 'From (Pickup City)'}
             </label>
 
             {tripType === 'airport' && airportMode === 'pickup' ? (
               <div className="relative">
                 <select
+                  id="booking-pickup-airport-select"
+                  aria-label="Airport Terminal"
                   value={airportTerminal}
                   onChange={(e) => {
                     setAirportTerminal(e.target.value);
@@ -766,12 +775,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             ) : (
               <div className="relative">
                 <MapPin className="w-4 h-4 text-amber-600 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="booking-pickup-city-input"
+                  aria-label="Pickup city or location"
                   type="text"
                   value={pickupCity}
                   onFocus={() => setShowPickupDropdown(true)}
@@ -786,12 +797,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 {pickupCity && (
                   <button
                     type="button"
+                    aria-label="Clear pickup location"
                     onClick={() => {
                       setPickupCity('');
                       if (setPickupCoords) setPickupCoords(null);
                       setShowPickupDropdown(true);
                     }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -809,8 +821,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               <button
                 type="button"
                 onClick={handleSwapCities}
+                aria-label="Swap Pickup and Destination"
                 title="Swap Pickup & Destination"
-                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-amber-400 text-slate-600 hover:text-slate-950 border border-slate-200 flex items-center justify-center transition cursor-pointer"
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-amber-400 text-slate-700 hover:text-slate-950 border border-slate-200 flex items-center justify-center transition cursor-pointer"
               >
                 <ArrowRightLeft className="w-4 h-4" />
               </button>
@@ -820,11 +833,16 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           {/* TO / DESTINATION OR LOCAL PACKAGE */}
           {tripType === 'local' ? (
             <div className="sm:col-span-5">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              <label
+                htmlFor="booking-rental-package-select"
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+              >
                 Rental Package
               </label>
               <div className="relative">
                 <select
+                  id="booking-rental-package-select"
+                  aria-label="Rental Package"
                   value={localPackageId}
                   onChange={(e) => setLocalPackageId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none"
@@ -835,12 +853,19 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
           ) : (
             <div ref={dropRef} className="sm:col-span-5 relative">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              <label
+                htmlFor={
+                  tripType === 'airport' && airportMode === 'drop'
+                    ? 'booking-drop-airport-select'
+                    : 'booking-drop-city-input'
+                }
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+              >
                 {tripType === 'airport' && airportMode === 'drop'
                   ? 'Destination Airport'
                   : tripType === 'roundtrip' && roundTripStops.length > 0
@@ -851,6 +876,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               {tripType === 'airport' && airportMode === 'drop' ? (
                 <div className="relative">
                   <select
+                    id="booking-drop-airport-select"
+                    aria-label="Destination Airport"
                     value={airportTerminal}
                     onChange={(e) => {
                       setAirportTerminal(e.target.value);
@@ -865,12 +892,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               ) : (
                 <div className="relative">
                   <MapPin className="w-4 h-4 text-emerald-600 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
+                    id="booking-drop-city-input"
+                    aria-label="Destination city or location"
                     type="text"
                     value={dropCity}
                     onFocus={() => setShowDropDropdown(true)}
@@ -885,12 +914,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   {dropCity && (
                     <button
                       type="button"
+                      aria-label="Clear destination location"
                       onClick={() => {
                         setDropCity('');
                         if (setDropCoords) setDropCoords(null);
                         setShowDropDropdown(true);
                       }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -1033,12 +1063,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         >
           {/* Pickup Date */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            <label
+              htmlFor="booking-pickup-date-input"
+              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+            >
               Pickup Date
             </label>
             <div className="relative">
-              <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
+                id="booking-pickup-date-input"
+                aria-label="Pickup Date"
                 type="date"
                 min={today}
                 value={pickupDate}
@@ -1051,12 +1086,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           {/* Return Date (only for Round Trip) */}
           {tripType === 'roundtrip' && (
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              <label
+                htmlFor="booking-return-date-input"
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+              >
                 Return Date ({tripDays} {tripDays === 1 ? 'Day' : 'Days'})
               </label>
               <div className="relative">
-                <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="booking-return-date-input"
+                  aria-label="Return Date"
                   type="date"
                   min={pickupDate || today}
                   value={returnDate}
@@ -1069,12 +1109,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
           {/* Pickup Time */}
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            <label
+              htmlFor="booking-pickup-time-select"
+              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+            >
               Pickup Time
             </label>
             <div className="relative">
-              <Clock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Clock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <select
+                id="booking-pickup-time-select"
+                aria-label="Pickup Time"
                 value={pickupTime}
                 onChange={(e) => setPickupTime(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none"
@@ -1085,7 +1130,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
 
@@ -1095,7 +1140,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               <div>
                 <label
                   htmlFor="booking-customer-name-input"
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1"
+                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
                 >
                   Customer Name <span className="text-rose-600">*</span>
                 </label>
@@ -1117,13 +1162,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             <div>
               <label
                 htmlFor="booking-mobile-input"
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1"
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
               >
                 Mobile Number (WhatsApp) <span className="text-rose-600">*</span>
               </label>
               <div className="relative flex items-center">
-                <Smartphone className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
-                <span className="absolute left-9 text-xs font-bold text-slate-400 pointer-events-none">
+                <Smartphone className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
+                <span className="absolute left-9 text-xs font-bold text-slate-600 pointer-events-none">
                   +91
                 </span>
                 <input

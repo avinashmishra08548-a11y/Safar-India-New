@@ -18,7 +18,6 @@ import {
   Sparkles,
   Star
 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
 import { BookingRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { triggerWhatsAppDeepLink, buildCustomerReviewWhatsAppUrl } from '../utils/whatsapp';
@@ -43,7 +42,8 @@ export function buildFormattedReceiptWhatsAppMessage(booking: BookingRecord): st
 /**
  * Generates and downloads an executive Navy Blue & Golden PDF Invoice for a BookingRecord using jsPDF
  */
-export function generateBookingInvoicePdf(booking: BookingRecord): void {
+export async function generateBookingInvoicePdf(booking: BookingRecord): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

@@ -83,8 +83,13 @@ export default defineConfig(() => {
           manualChunks(id) {
             if (id.includes('node_modules')) {
               if (id.includes('lucide-react')) return 'lucide-icons';
-              if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
-              return 'vendor';
+              if (
+                id.includes('/react/') ||
+                id.includes('/react-dom/') ||
+                id.includes('/scheduler/')
+              ) {
+                return 'react-vendor';
+              }
             }
           },
         },
