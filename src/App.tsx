@@ -67,6 +67,10 @@ const AboutSectionView = lazy(() =>
 const HelpSupportView = lazy(() =>
   import('./components/AboutAndHelpViews').then((m) => ({ default: m.HelpSupportView }))
 );
+const LegalPoliciesModal = lazy(() =>
+  import('./components/LegalPoliciesModal').then((m) => ({ default: m.LegalPoliciesModal }))
+);
+import type { LegalPolicyTab } from './components/LegalPoliciesModal';
 
 export default function App() {
   // Navigation tabs: 'booking' | 'routes' | 'rides' | 'about' | 'help'
@@ -198,6 +202,7 @@ export default function App() {
   const [isDriverPartnerOpen, setIsDriverPartnerOpen] = useState(false);
   const [isReviewsModalOpen, setIsReviewsModalOpen] = useState<boolean>(() => shouldOpenReviewsFromUrl());
   const [isCabsModalOpen, setIsCabsModalOpen] = useState(false);
+  const [legalPolicyModalTab, setLegalPolicyModalTab] = useState<LegalPolicyTab | null>(null);
   const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
 
   // Booking Engine form states
@@ -212,8 +217,39 @@ export default function App() {
         setIsReviewsModalOpen(true);
       }
       try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const policyParam = (searchParams.get('policy') || '').trim().toLowerCase();
+        if (policyParam === 'privacy' || policyParam === 'privacy-policy') {
+          setLegalPolicyModalTab('privacy');
+        } else if (policyParam === 'terms' || policyParam === 'terms-and-conditions') {
+          setLegalPolicyModalTab('terms');
+        } else if (policyParam === 'refund' || policyParam === 'cancellation') {
+          setLegalPolicyModalTab('refund');
+        } else if (policyParam === 'contact') {
+          setLegalPolicyModalTab('contact');
+        } else if (policyParam === 'delete-account' || policyParam === 'delete') {
+          setLegalPolicyModalTab('delete-account');
+        }
+
         const pathname = (window.location.pathname || '').trim().toLowerCase().replace(/\/+$/, '');
         if (!pathname || pathname === '/') return;
+
+        if (pathname === '/privacy-policy' || pathname === '/privacy') {
+          setLegalPolicyModalTab('privacy');
+          return;
+        } else if (pathname === '/terms-and-conditions' || pathname === '/terms') {
+          setLegalPolicyModalTab('terms');
+          return;
+        } else if (pathname === '/refund-policy' || pathname === '/cancellation-policy') {
+          setLegalPolicyModalTab('refund');
+          return;
+        } else if (pathname === '/contact-us' || pathname === '/contact') {
+          setLegalPolicyModalTab('contact');
+          return;
+        } else if (pathname === '/delete-account' || pathname === '/data-deletion') {
+          setLegalPolicyModalTab('delete-account');
+          return;
+        }
 
         if (pathname === '/one-way-cab') {
           setActiveTab('booking');
@@ -599,6 +635,30 @@ export default function App() {
     setActiveTab('booking');
   };
 
+  const handleDeleteCustomerAccount = (phoneToDelete: string) => {
+    const cleanTarget = sanitize10DigitPhone(phoneToDelete);
+    // Purge matching bookings from local device cache
+    setAllBookings((prev) => {
+      const remaining = prev.filter((b) => sanitize10DigitPhone(b.customerPhone) !== cleanTarget);
+      try {
+        localStorage.setItem('safar_bookings', JSON.stringify(remaining));
+      } catch {}
+      return remaining;
+    });
+    // If currently logged-in user matches, log out and purge user session
+    if (currentUser && sanitize10DigitPhone(currentUser.phone) === cleanTarget) {
+      setCurrentUser(null);
+      setCustomerMobile('');
+      setIsCustomerProfileOpen(false);
+      try {
+        localStorage.removeItem('safar_user');
+        sessionStorage.clear();
+      } catch {}
+    }
+    setAuthNotice('Your account and personal data have been deleted.');
+    setTimeout(() => setAuthNotice(''), 5000);
+  };
+
   // Admin Dashboard States & Handlers
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
@@ -708,6 +768,7 @@ export default function App() {
         activeNavTab={activeTab}
         onOpenAdmin={() => setIsAdminPinModalOpen(true)}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
+        onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
       />
 
       {/* Main Content Area */}
@@ -776,6 +837,7 @@ export default function App() {
               focusedSectionId={activeSectionId}
               onNavigateToBooking={() => handleSwitchTab('booking', 'booking-section-top')}
               onNavigateToRides={() => handleSwitchTab('rides', 'rides-section-top')}
+              onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
             />
           </Suspense>
         ) : (
@@ -1007,6 +1069,7 @@ export default function App() {
         onNavigateTab={handleSwitchTab}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
         onOpenReviews={() => setIsReviewsModalOpen(true)}
+        onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
         onSelectRoute={(from, to) => {
           setTripType('oneway');
           setPickupCity(from);
@@ -1014,6 +1077,19 @@ export default function App() {
           handleSwitchTab('booking', 'booking-section-top');
         }}
       />
+
+      {/* Legal Policies, Play Store Compliance & Account Deletion Modal */}
+      {legalPolicyModalTab && (
+        <Suspense fallback={null}>
+          <LegalPoliciesModal
+            isOpen={Boolean(legalPolicyModalTab)}
+            initialTab={legalPolicyModalTab}
+            onClose={() => setLegalPolicyModalTab(null)}
+            currentUser={currentUser}
+            onDeleteAccountData={handleDeleteCustomerAccount}
+          />
+        </Suspense>
+      )}
 
       {/* Customer Reviews & Write Review Modal */}
       {isReviewsModalOpen && (
@@ -1212,6 +1288,17 @@ export default function App() {
               >
                 <LogOut className="w-4 h-4 text-rose-600" />
                 <span>Logout from Account</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCustomerProfileOpen(false);
+                  setLegalPolicyModalTab('delete-account');
+                }}
+                className="w-full py-2 text-rose-700 hover:underline font-bold text-[11px] text-center cursor-pointer"
+              >
+                Request Account &amp; Personal Data Deletion
               </button>
             </div>
           </div>

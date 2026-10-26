@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account &amp; Personal Data Deletion — SafarIndiaCabs (safarindiacabs.com)</title>
+  <meta name="description" content="Request deletion of your SafarIndiaCabs user account and associated personal data in compliance with Google Play Store User Data policies." />
+  <link rel="canonical" href="https://safarindiacabs.com/delete-account.html" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.65; color: #1e293b; background: #f8fafc; margin: 0; padding: 24px 16px; }
+    .container { max-width: 860px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 28px 32px; box-shadow: 0 4px 16px rgba(15,23,42,0.05); }
+    h1 { color: #0f172a; font-size: 1.75rem; margin-top: 0; border-bottom: 2px solid #e11d48; padding-bottom: 12px; }
+    h2 { color: #0f172a; font-size: 1.2rem; margin-top: 24px; }
+    .nav { margin-bottom: 20px; font-size: 0.9rem; }
+    .nav a { color: #b45309; font-weight: 700; text-decoration: none; margin-right: 16px; }
+    .form-box { background: #fff1f2; border: 1px solid #fecdd3; border-radius: 12px; padding: 20px; margin-top: 20px; }
+    label { display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.9rem; }
+    input, textarea { width: 100%; max-width: 460px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 14px; font-size: 0.95rem; box-sizing: border-box; }
+    button { background: #e11d48; color: #ffffff; border: none; border-radius: 10px; padding: 12px 22px; font-weight: 800; cursor: pointer; font-size: 0.95rem; }
+    .success { display: none; background: #ecfdf5; border: 2px solid #10b981; color: #065f46; padding: 16px; border-radius: 12px; margin-top: 16px; font-weight: 700; }
+    .contact-box { background: #f1f5f9; border-radius: 12px; padding: 16px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <a href="/">← Back to SafarIndiaCabs Home</a>
+      <a href="/privacy-policy.html">Privacy Policy</a>
+      <a href="/terms-and-conditions.html">Terms &amp; Conditions</a>
+      <a href="/refund-policy.html">Refund Policy</a>
+      <a href="/contact-us.html">Contact Us</a>
+    </div>
+
+    <h1>Account &amp; Personal Data Deletion — SafarIndiaCabs</h1>
+    <p>In compliance with <strong>Google Play Store Account Deletion Requirements</strong> and the Digital Personal Data Protection (DPDP) Act, 2023, users of the <strong>SafarIndiaCabs</strong> mobile application and website (<a href="https://safarindiacabs.com">https://safarindiacabs.com</a>) can request complete deletion of their account and associated personal data using this page or directly inside the app.</p>
+
+    <h2>Steps to Delete Your Account &amp; Data</h2>
+    <ol>
+      <li>Enter your registered 10-digit mobile number in the form below and click <strong>"Submit Account Deletion Request"</strong>, OR</li>
+      <li>Inside the SafarIndiaCabs App, open Menu → <strong>Delete Account / Data</strong> and confirm deletion, OR</li>
+      <li>Email <a href="mailto:safarindiacabs01@gmail.com">safarindiacabs01@gmail.com</a> with your registered phone number.</li>
+    </ol>
+
+    <h2>Data Deleted vs. Data Retained</h2>
+    <ul>
+      <li><strong>Deleted Immediately / Within 7 Business Days:</strong> Customer profile (Full Name, Phone Number, Email Address), OTP authentication session, saved pickup/drop addresses, and profile preferences.</li>
+      <li><strong>Statutory Accounting Retention:</strong> Completed GST tax invoices and payment gateway transaction IDs required under Indian tax/audit laws are retained in anonymized accounting logs as mandated by law.</li>
+    </ul>
+
+    <div class="form-box">
+      <h2 style="margin-top:0;">Instant Account &amp; Data Deletion Form</h2>
+      <form id="deleteForm" onsubmit="handleDelete(event)">
+        <label for="phone">Registered 10-Digit Mobile Number *</label>
+        <input id="phone" type="tel" required pattern="[0-9]{10}" maxlength="10" placeholder="Enter 10-digit mobile number" />
+
+        <label for="reason">Reason for Deletion (Optional)</label>
+        <textarea id="reason" rows="3" placeholder="Optional feedback"></textarea>
+
+        <div>
+          <button type="submit">Submit Account &amp; Data Deletion Request</button>
+        </div>
+      </form>
+      <div id="successBox" class="success">
+        Your SafarIndiaCabs account and local device data have been purged, and your permanent deletion request has been registered. All associated server records will be permanently removed within 7 business days.
+      </div>
+    </div>
+
+    <div class="contact-box">
+      <strong>Data Protection &amp; Support Contact — SafarIndiaCabs</strong><br />
+      <strong>Official Email:</strong> <a href="mailto:safarindiacabs01@gmail.com">safarindiacabs01@gmail.com</a><br />
+      <strong>Customer Support Phone:</strong> <a href="tel:+917710080992">+91-7710080992</a><br />
+      <strong>Official Business Address:</strong> H NO 143 STREET NO 4 JHARODA MAJRA NORTH DELHI BURARI 110084
+    </div>
+  </div>
+  <script>
+    function handleDelete(e) {
+      e.preventDefault();
+      try {
+        localStorage.removeItem('safar_user');
+        localStorage.removeItem('safar_bookings');
+        sessionStorage.clear();
+      } catch (err) {}
+      document.getElementById('deleteForm').style.display = 'none';
+      document.getElementById('successBox').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

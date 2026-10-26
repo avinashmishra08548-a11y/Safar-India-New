@@ -29,6 +29,7 @@ interface HeaderProps {
   activeNavTab: NavTabId;
   onOpenAdmin?: () => void;
   onOpenDriverPartner: () => void;
+  onOpenLegalPolicy?: (tab: 'privacy' | 'terms' | 'refund' | 'contact' | 'delete-account') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -38,7 +39,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateTab,
   activeNavTab,
   onOpenAdmin,
-  onOpenDriverPartner
+  onOpenDriverPartner,
+  onOpenLegalPolicy
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -376,6 +378,67 @@ export const Header: React.FC<HeaderProps> = ({
                 </a>
               </div>
             </div>
+
+            {/* Legal Policies & Play Store Data Safety Links Inside 3-Line Menu */}
+            {onOpenLegalPolicy && (
+              <div className="pt-3 border-t border-slate-800 space-y-2">
+                <div className="px-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Legal Policies &amp; Play Store Data Safety
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenLegalPolicy('privacy');
+                    }}
+                    className="py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl text-center cursor-pointer"
+                  >
+                    Privacy Policy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenLegalPolicy('terms');
+                    }}
+                    className="py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl text-center cursor-pointer"
+                  >
+                    Terms &amp; Conditions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenLegalPolicy('refund');
+                    }}
+                    className="py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl text-center cursor-pointer"
+                  >
+                    Refund Policy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenLegalPolicy('contact');
+                    }}
+                    className="py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl text-center cursor-pointer"
+                  >
+                    Contact &amp; Address
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenLegalPolicy('delete-account');
+                    }}
+                    className="col-span-2 sm:col-span-1 py-2 px-3 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-bold text-xs rounded-xl text-center cursor-pointer"
+                  >
+                    Delete Account / Data
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Owner Control Dashboard (Exclusively in 3-Line Menu, Removed from Footer) */}
             {onOpenAdmin && (

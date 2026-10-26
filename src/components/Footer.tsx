@@ -22,6 +22,7 @@ interface FooterProps {
   onNavigateTab?: (tab: NavTabId, targetSectionId?: string) => void;
   onOpenDriverPartner?: () => void;
   onOpenReviews?: () => void;
+  onOpenLegalPolicy?: (tab: 'privacy' | 'terms' | 'refund' | 'contact' | 'delete-account') => void;
   onSelectRoute?: (pickup: string, drop: string) => void;
 }
 
@@ -31,6 +32,7 @@ export const Footer: React.FC<FooterProps> = ({
   onNavigateTab,
   onOpenDriverPartner,
   onOpenReviews,
+  onOpenLegalPolicy,
   onSelectRoute
 }) => {
   const popularRoutes = [
@@ -295,6 +297,20 @@ export const Footer: React.FC<FooterProps> = ({
                 </div>
               </a>
 
+              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white border border-slate-200 text-slate-900 shadow-2xs">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <MapPin className="w-4 h-4 text-emerald-700" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">
+                    Registered Office Address
+                  </div>
+                  <address className="not-italic font-semibold text-[11px] text-slate-800 leading-snug">
+                    {SAFAR_CONTACT_INFO.address}
+                  </address>
+                </div>
+              </div>
+
               {onOpenReviews && (
                 <button
                   type="button"
@@ -386,6 +402,50 @@ export const Footer: React.FC<FooterProps> = ({
             >
               Customer Support
             </button>
+            {onOpenLegalPolicy && (
+              <>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenLegalPolicy('privacy')}
+                  className="hover:text-amber-700 font-bold transition cursor-pointer"
+                >
+                  Privacy Policy
+                </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenLegalPolicy('terms')}
+                  className="hover:text-amber-700 font-bold transition cursor-pointer"
+                >
+                  Terms &amp; Conditions
+                </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenLegalPolicy('refund')}
+                  className="hover:text-amber-700 font-bold transition cursor-pointer"
+                >
+                  Cancellation &amp; Refund Policy
+                </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenLegalPolicy('contact')}
+                  className="hover:text-amber-700 font-bold transition cursor-pointer"
+                >
+                  Contact Us
+                </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onOpenLegalPolicy('delete-account')}
+                  className="text-rose-700 hover:text-rose-800 font-bold transition cursor-pointer"
+                >
+                  Delete Account / Data
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

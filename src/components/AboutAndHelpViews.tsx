@@ -28,8 +28,9 @@ export const SAFAR_CONTACT_INFO = {
   phoneRaw: '7710080992',
   telHref: 'tel:+917710080992',
   whatsappRaw: '7710080992',
-  email: 'Safarindiacabs01@gmail.com',
-  mailtoHref: 'mailto:Safarindiacabs01@gmail.com',
+  email: 'safarindiacabs01@gmail.com',
+  mailtoHref: 'mailto:safarindiacabs01@gmail.com',
+  address: 'H NO 143 STREET NO 4 JHARODA MAJRA NORTH DELHI BURARI 110084',
   instagramUrl: 'https://www.instagram.com/safarindiacabs01?psln=ODd0bmttYnc3NGky',
   instagramHandle: '@safarindiacabs01',
   facebookUrl: 'https://www.facebook.com/share/1ETNJWXeo7/',
@@ -347,12 +348,14 @@ export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
 interface HelpSupportViewProps {
   onNavigateToBooking: () => void;
   onNavigateToRides: () => void;
+  onOpenLegalPolicy?: (tab: 'privacy' | 'terms' | 'refund' | 'contact' | 'delete-account') => void;
   focusedSectionId?: string;
 }
 
 export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
   onNavigateToBooking,
   onNavigateToRides,
+  onOpenLegalPolicy,
   focusedSectionId
 }) => {
   const quickSupportTopics = [
@@ -568,6 +571,59 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
             </div>
             <ArrowRight className="w-4 h-4 text-amber-700 shrink-0 mt-1" />
           </button>
+        </div>
+
+        {/* Official Registered Office Address & Legal Compliance Strip */}
+        <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center shrink-0">
+              <MapPin className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">
+                Official Registered Business Address
+              </span>
+              <address className="not-italic text-sm sm:text-base font-black text-slate-950 mt-0.5">
+                {SAFAR_CONTACT_INFO.address}
+              </address>
+              <span className="text-xs text-slate-500 font-medium mt-0.5 block">
+                Email: {SAFAR_CONTACT_INFO.email} · Customer Care: +91-7710080992
+              </span>
+            </div>
+          </div>
+
+          {onOpenLegalPolicy && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onOpenLegalPolicy('privacy')}
+                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-amber-400 text-slate-800 hover:text-slate-950 font-extrabold text-xs transition cursor-pointer"
+              >
+                Privacy Policy
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenLegalPolicy('terms')}
+                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-amber-400 text-slate-800 hover:text-slate-950 font-extrabold text-xs transition cursor-pointer"
+              >
+                Terms &amp; Conditions
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenLegalPolicy('refund')}
+                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-amber-400 text-slate-800 hover:text-slate-950 font-extrabold text-xs transition cursor-pointer"
+              >
+                Refund Policy
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenLegalPolicy('delete-account')}
+                className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 font-extrabold text-xs transition cursor-pointer"
+              >
+                Delete Account / Data
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
