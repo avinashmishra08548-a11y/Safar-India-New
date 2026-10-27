@@ -6,54 +6,53 @@
   }
 }
 
-/* Prevent Zoom & Horizontal Overflow without trapping vertical scroll on body */
-html {
-  width: 100%;
-  overflow-x: hidden;
-  scroll-behavior: smooth;
-  -webkit-text-size-adjust: 100%;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
+/* Lock outer document overflow so only the inner main view scrolls independently */
+html,
 body {
   width: 100%;
-  min-height: 100vh;
-  overflow-x: hidden;
-  touch-action: manipulation;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
   margin: 0 !important;
   padding: 0 !important;
+  background-color: #F8FAFC;
 }
 
-/* 1. Dark Prominent Sticky Header with Safe-Area Top Breathing Space */
+#root {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 1. Dark Prominent Fixed Top Header with Safe-Area Top Breathing Space */
 header.safar-dark-header {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 1000 !important;
-  background-color: #0b0b0e !important;
-  padding-top: max(10px, env(safe-area-inset-top, 10px)) !important;
-  padding-bottom: 10px !important;
-  margin-top: 0 !important;
+  position: relative;
+  z-index: 1000;
+  background-color: #0b0f19;
+  padding-top: env(safe-area-inset-top, 0px);
+  flex-shrink: 0;
 }
 
-/* 2. Bottom Navigation & Ads Margin Padding so no footer text, form fields, or buttons hide behind nav bar */
-body,
-main,
-#app-content {
-  padding-bottom: 140px !important;
+/* 2. Independent Scrollable Inner Main Content Container */
+main.safar-main-scroll {
+  flex: 1 1 0%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
-footer {
-  padding-bottom: 140px !important;
-}
-
-/* 3. Booking / Checkout Modal Bottom Padding so yellow 'Pay & Confirm' button stays safely above bottom bar/ads */
+/* 3. Booking / Checkout Modal Bottom Padding so yellow 'Pay & Confirm' button stays safely above bottom bar */
 .booking-modal-container {
-  padding-bottom: 130px !important;
+  padding-bottom: 96px !important;
 }
 
-/* 4. Razorpay Modal / Iframe Overlap Fix so it displays cleanly above bottom Ad Banner */
+/* 4. Razorpay Modal / Iframe Overlap Fix */
 .razorpay-container {
   z-index: 2147483647 !important;
   padding-bottom: 60px !important;
@@ -71,39 +70,29 @@ footer {
   margin-bottom: 55px !important;
 }
 
-/* 5. Floating WhatsApp Chat Button Position (Well above Bottom Nav & Ads) */
-.whatsapp-float,
-div[class*="whatsapp"] {
+/* 5. Floating WhatsApp Chat Button Position (Well above Bottom Nav) */
+.whatsapp-float {
   position: fixed !important;
-  bottom: 120px !important; /* Bottom Navigation Bar aur Ads se kafi upar */
-  right: 20px !important;
-  z-index: 9999 !important;
+  bottom: 84px !important;
+  right: 16px !important;
+  z-index: 900 !important;
 }
 
-/* 6. Bottom Navigation Bar Fixed Position above Ads */
-nav.fixed-bottom, 
-.bottom-nav, 
-footer nav,
-div[class*="bottom-nav"] {
-  position: fixed !important;
-  bottom: 50px !important;
-  left: 0 !important;
-  right: 0 !important;
-  width: 100% !important;
-  z-index: 999999 !important;
-  background: #ffffff !important;
-  border-top: 1px solid #e5e7eb !important;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
-}
-
-/* Print styles for booking invoice / tax voucher */
+/* 6. Print styles for booking invoice / GST tax voucher */
 @media print {
+  html,
+  body,
+  #root,
+  main.safar-main-scroll {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
   body * {
     visibility: hidden;
   }
-  #printable-voucher, #printable-voucher * {
+  #printable-voucher,
+  #printable-voucher * {
     visibility: visible;
   }
   #printable-voucher {
@@ -128,14 +117,14 @@ div[class*="bottom-nav"] {
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #233148;
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b82f6;
+  background: rgba(100, 116, 139, 0.6);
 }

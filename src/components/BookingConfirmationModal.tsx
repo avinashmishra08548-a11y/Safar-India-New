@@ -74,31 +74,35 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
-  doc.text('SAFAR INDIA CABS', margin, 18);
+  doc.text('SAFAR INDIA CABS', margin, 16);
 
   doc.setTextColor(251, 191, 36); // Golden subtitle
-  doc.setFontSize(9.5);
-  doc.text('TRAVEL SMART  |  ALL INDIA OUTSTATION & LOCAL AC CAB RENTALS', margin, 25);
+  doc.setFontSize(9);
+  doc.text('OFFICIAL GST TAX INVOICE  |  GSTIN: 07AABCS1429B1Z5  |  SAC: 996412', margin, 22.5);
 
   doc.setTextColor(203, 213, 225);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.text('24x7 Helpline: +91 77100 80992  |  Email: safarindiacabs01@gmail.com  |  safarindiacabs.com', margin, 32);
+  doc.setFontSize(8);
+  doc.text('Regd Office: H NO 143 Street No 4, Jharoda Majra, Burari, North Delhi - 110084', margin, 28.5);
+  doc.text('24x7 Helpline: +91 77100 80992  |  Email: safarindiacabs01@gmail.com  |  safarindiacabs.com', margin, 34);
 
   // Right side of Header: Tax Invoice & Booking ID Badge
+  const invoiceNo = `INV-${booking.id.replace('SIC-', '')}`;
   doc.setFillColor(goldR, goldG, goldB);
-  doc.roundedRect(pageWidth - margin - 58, 10, 58, 22, 3, 3, 'F');
+  doc.roundedRect(pageWidth - margin - 58, 9, 58, 24, 3, 3, 'F');
   doc.setTextColor(8, 28, 68);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.text(
-    booking.status === 'completed' ? 'COMPLETED TRIP INVOICE' : 'BOOKING RECEIPT',
+    booking.status === 'completed' ? 'GST TAX INVOICE' : 'GST BOOKING VOUCHER',
     pageWidth - margin - 29,
-    17,
+    15.5,
     { align: 'center' }
   );
-  doc.setFontSize(12);
-  doc.text(booking.id, pageWidth - margin - 29, 25.5, { align: 'center' });
+  doc.setFontSize(11);
+  doc.text(booking.id, pageWidth - margin - 29, 22.5, { align: 'center' });
+  doc.setFontSize(7.5);
+  doc.text(`Invoice: ${invoiceNo}`, pageWidth - margin - 29, 28.5, { align: 'center' });
 
   let y = 54;
 
@@ -260,10 +264,14 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
 
   y += 8.5;
 
+  const computedGst = booking.gstAmount || Math.round((booking.baseFare || booking.totalFare) * 0.05);
+  const cgstAmt = Math.floor(computedGst / 2);
+  const sgstAmt = computedGst - cgstAmt;
+
   const rows: Array<{ label: string; value: string; bold?: boolean; highlight?: 'gold' | 'green' }> = [
     {
       label: `Base Trip Fare & Fuel (${booking.distanceKm} KM Included)`,
-      value: `Rs. ${Number(booking.baseFare || booking.totalFare).toLocaleString('en-IN')}`
+      value: `Rs. ${Number(booking.baseFare || booking.totalFare - computedGst).toLocaleString('en-IN')}`
     },
     ...(booking.driverAllowance
       ? [
@@ -281,31 +289,37 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
           }
         ]
       : []),
-    ...(booking.gstAmount
-      ? [
-          {
-            label: 'GST (5% Commercial Passenger Transport)',
-            value: `Rs. ${Number(booking.gstAmount).toLocaleString('en-IN')}`
-          }
-        ]
-      : []),
     {
-      label: 'Estimated Total Fare',
+      label: 'CGST @ 2.5% (SAC 996412 - Passenger Cab Service)',
+      value: `Rs. ${Number(cgstAmt).toLocaleString('en-IN')}`
+    },
+    {
+      label: 'SGST @ 2.5% (SAC 996412 - Passenger Cab Service)',
+      value: `Rs. ${Number(sgstAmt).toLocaleString('en-IN')}`
+    },
+    {
+      label: 'Total Invoice Amount (Inclusive of 5% GST)',
       value: `Rs. ${Number(booking.totalFare || 0).toLocaleString('en-IN')}`,
       bold: true
     },
     {
-      label: 'Advance Paid Online',
-      value: `Rs. ${Number(booking.advancePaid || 0).toLocaleString('en-IN')} (PAID)`,
+      label: booking.status === 'completed' ? 'Total Amount Paid (100% Settled)' : 'Advance Paid Online',
+      value:
+        booking.status === 'completed'
+          ? `Rs. ${Number(booking.totalFare || 0).toLocaleString('en-IN')} (PAID IN FULL)`
+          : `Rs. ${Number(booking.advancePaid || 0).toLocaleString('en-IN')} (PAID)`,
       bold: true,
       highlight: 'green'
     },
     {
       label:
         booking.status === 'completed'
-          ? 'Remaining Amount (Collected at Trip Completion)'
-          : 'Remaining Amount (Payable to Driver during Trip)',
-      value: `Rs. ${Number(booking.balanceDue || 0).toLocaleString('en-IN')}`,
+          ? 'Balance Due (Settled at Trip Completion)'
+          : 'Remaining Balance (Payable to Driver during Trip)',
+      value:
+        booking.status === 'completed'
+          ? 'Rs. 0 (NIL)'
+          : `Rs. ${Number(booking.balanceDue || 0).toLocaleString('en-IN')}`,
       bold: true,
       highlight: 'gold'
     }
@@ -363,7 +377,7 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
     y + 19
   );
 
-  doc.save(`SafarIndiaCabs_Invoice_${booking.id}.pdf`);
+  doc.save(`SafarIndiaCabs_GST_Invoice_${booking.id}.pdf`);
 }
 
 interface BookingConfirmationModalProps {
@@ -616,10 +630,10 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               type="button"
               onClick={handleDownloadPdf}
               disabled={isDownloadingPdf}
-              className="w-full py-3.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
+              className="w-full min-h-[48px] py-3.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
             >
               <Download className="w-4 h-4 text-slate-950 shrink-0" />
-              <span>{isDownloadingPdf ? 'Generating PDF...' : 'Download PDF Invoice'}</span>
+              <span>{isDownloadingPdf ? 'Generating GST Invoice PDF...' : 'Download GST Bill / Invoice (PDF)'}</span>
             </button>
 
             <button

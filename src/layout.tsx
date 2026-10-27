@@ -86,7 +86,7 @@ export const RootLayout: React.FC<RootLayoutProps> = ({ children }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 antialiased flex flex-col selection:bg-amber-400 selection:text-slate-950">
+    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#F8FAFC] text-slate-900 antialiased flex flex-col selection:bg-amber-400 selection:text-slate-950">
       {children}
       <OfflineIndicator />
     </div>

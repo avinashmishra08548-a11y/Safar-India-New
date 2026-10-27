@@ -42,6 +42,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [otpTouched, setOtpTouched] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
   const [smsDeliveryInfo, setSmsDeliveryInfo] = useState('');
 
@@ -50,14 +53,12 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const otpInputRef = useRef<HTMLInputElement>(null);
 
-  // Countdown timer for Resend OTP (prevents repeated accidental OTP dispatches)
   useEffect(() => {
     if (resendSeconds <= 0) return;
     const timer = setTimeout(() => setResendSeconds((prev) => Math.max(0, prev - 1)), 1000);
     return () => clearTimeout(timer);
   }, [resendSeconds]);
 
-  // Reset modal state cleanly when opened
   useEffect(() => {
     if (isOpen) {
       setErrorMsg('');
@@ -77,24 +78,47 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     return trimmed.length >= 2 && /[a-zA-Z\u0900-\u097F]/.test(trimmed);
   };
 
+  const getPhoneInlineError = (rawVal: string, forceCheck = false): string => {
+    const digits = (rawVal || '').replace(/\D/g, '');
+    if (!digits) {
+      return forceCheck ? 'Mobile number is required. Please enter your 10-digit WhatsApp number.' : '';
+    }
+    if (!/^[6-9]/.test(digits)) {
+      return 'Invalid mobile number: Indian mobile numbers must start with 6, 7, 8, or 9.';
+    }
+    if (digits.length < 10 && (forceCheck || phoneTouched || digits.length >= 1)) {
+      return `Incomplete mobile number (${digits.length}/10 digits). Please enter all 10 digits.`;
+    }
+    return '';
+  };
+
+  const getOtpInlineError = (rawOtp: string, forceCheck = false): string => {
+    const digits = (rawOtp || '').replace(/\D/g, '');
+    if (!digits) {
+      return forceCheck ? 'OTP is required. Please enter the 4-digit OTP sent to your WhatsApp.' : '';
+    }
+    if (digits.length < 4 && (forceCheck || otpTouched || digits.length >= 1)) {
+      return `Incomplete OTP (${digits.length}/4 digits). Please enter all 4 digits.`;
+    }
+    return '';
+  };
+
   const handleNameChange = (val: string) => {
     setName(val);
     if (errorMsg) setErrorMsg('');
   };
 
   const handlePhoneChange = (val: string) => {
-    const clean = sanitize10DigitPhone(val);
+    const clean = val.replace(/\D/g, '').slice(0, 10);
     setPhone(clean);
     if (errorMsg) setErrorMsg('');
 
-    // If phone number changes after requesting OTP, reset OTP session for the new number
     if (clean.length < 10) {
       setOtpRequested(false);
       setOtpToken('');
       setSmsDeliveryInfo('');
       setResendSeconds(0);
     } else if (clean.length === 10) {
-      // Auto-fill returning customer's saved name if available and name field is currently empty
       try {
         const raw = localStorage.getItem('safar_registered_customers');
         const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
@@ -106,8 +130,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     }
   };
 
-  // Single-dispatch "Get OTP on WhatsApp" handler — strictly validates mandatory Customer Name & 10-digit Phone first
   const handleGetOtpOnWhatsApp = async (isResend: boolean = false) => {
+    setNameTouched(true);
+    setPhoneTouched(true);
+
     const cleanName = name.trim();
     if (!isValidCustomerName(cleanName)) {
       setErrorMsg('Customer Name is mandatory. Please enter your valid full name (at least 2 characters) to request an OTP.');
@@ -115,14 +141,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
+    const phoneErr = getPhoneInlineError(phone, true);
     const cleanPhone = sanitize10DigitPhone(phone);
-    if (cleanPhone.length !== 10) {
-      setErrorMsg('Please enter your valid 10-digit WhatsApp mobile number.');
+    if (phoneErr || cleanPhone.length !== 10) {
+      setErrorMsg(phoneErr || 'Please enter your valid 10-digit WhatsApp mobile number.');
       phoneInputRef.current?.focus();
       return;
     }
 
-    // Block concurrent or cooldown clicks so multiple OTPs are never sent
     if (sendingLockRef.current || isSending) return;
     if (isResend && resendSeconds > 0) return;
     if (!isResend && otpRequested && resendSeconds > 0 && otpToken) {
@@ -164,6 +190,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNameTouched(true);
+    setPhoneTouched(true);
+    setOtpTouched(true);
 
     const cleanName = name.trim();
     if (!isValidCustomerName(cleanName)) {
@@ -172,33 +201,34 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       return;
     }
 
+    const phoneErr = getPhoneInlineError(phone, true);
     const cleanPhone = sanitize10DigitPhone(phone);
-    if (cleanPhone.length !== 10) {
-      setErrorMsg('Please enter a valid 10-digit WhatsApp mobile number.');
+    if (phoneErr || cleanPhone.length !== 10) {
+      setErrorMsg(phoneErr || 'Please enter a valid 10-digit WhatsApp mobile number.');
       phoneInputRef.current?.focus();
       return;
     }
 
-    // If user pressed Enter/Submit before requesting OTP, trigger Get OTP first
     if (!otpRequested || !otpToken) {
       await handleGetOtpOnWhatsApp(false);
       return;
     }
 
     const cleanOtp = otp.replace(/\D/g, '').trim();
-    if (cleanOtp.length !== 4) {
-      setErrorMsg('Please enter the 4-digit OTP sent to your WhatsApp.');
+    const otpErr = getOtpInlineError(cleanOtp, true);
+    if (otpErr || cleanOtp.length !== 4) {
+      setErrorMsg(otpErr || 'Please enter the 4-digit OTP sent to your WhatsApp.');
       otpInputRef.current?.focus();
       return;
     }
 
     if (otpExpiresAt > 0 && Date.now() > otpExpiresAt) {
-      setErrorMsg('OTP has expired. Please click "Resend OTP" to get a fresh code.');
+      setErrorMsg('OTP has expired. Please tap "Resend OTP" to get a fresh code.');
       return;
     }
 
     if (failedAttempts >= 5) {
-      setErrorMsg('Too many incorrect attempts. Please click "Resend OTP".');
+      setErrorMsg('Too many incorrect attempts. Please tap "Resend OTP".');
       return;
     }
 
@@ -213,26 +243,25 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
       const remaining = Math.max(0, 4 - failedAttempts);
       setErrorMsg(
         remaining > 0
-          ? `Incorrect OTP. Please check your WhatsApp (+91 ${cleanPhone}). (${remaining} attempts left)`
-          : 'Too many incorrect attempts. Please click "Resend OTP".'
+          ? `Incorrect OTP entered. Please check your WhatsApp (+91 ${cleanPhone}). (${remaining} attempts left)`
+          : 'Too many incorrect attempts. Please tap "Resend OTP".'
       );
       return;
     }
 
     const user: CustomerUser = {
+      id: `CUST-${cleanPhone}`,
       name: cleanName,
       phone: cleanPhone,
-      email: email.trim() || undefined
+      email: email.trim() || undefined,
+      createdAt: new Date().toISOString()
     };
 
     try {
       const raw = localStorage.getItem('safar_registered_customers');
       let list: CustomerUser[] = raw ? JSON.parse(raw) : [];
       list = list.filter((u) => sanitize10DigitPhone(u.phone) !== user.phone);
-      list.push({
-        ...user,
-        registrationDate: new Date().toISOString()
-      } as any);
+      list.unshift(user);
       localStorage.setItem('safar_registered_customers', JSON.stringify(list));
     } catch {}
 
@@ -242,15 +271,17 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
 
   const cleanPhoneLen = sanitize10DigitPhone(phone).length;
   const nameIsValid = isValidCustomerName(name);
+  const livePhoneErr = getPhoneInlineError(phone, false);
+  const liveOtpErr = otpRequested ? getOtpInlineError(otp, false) : '';
   const isOtpCooldownActive = otpRequested && resendSeconds > 0;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000000] flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-[1000000] flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95 my-auto">
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-xl bg-slate-100 transition cursor-pointer"
+          className="absolute top-4 right-4 min-w-[40px] min-h-[40px] text-slate-500 hover:text-slate-800 p-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition cursor-pointer flex items-center justify-center"
           aria-label="Close login modal"
         >
           <X className="w-5 h-5" />
@@ -261,10 +292,10 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <Smartphone className="w-6 h-6 text-emerald-600" />
           </div>
           <h3 className="text-lg font-extrabold text-slate-900">
-            Customer Login / Sign-Up
+            Customer Login / Persistent Session
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Enter your full name &amp; WhatsApp number to receive a 4-digit verification OTP
+            Login once with your mobile number to keep your ride history &amp; GST bills synced
           </p>
         </div>
 
@@ -278,7 +309,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         {errorMsg && (
           <div
             role="alert"
-            className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2 font-semibold"
+            className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs flex items-start gap-2 font-bold animate-in fade-in"
           >
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
@@ -286,7 +317,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
         )}
 
         {smsDeliveryInfo && (
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2 font-semibold">
+          <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2 font-semibold">
             <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{smsDeliveryInfo}</span>
           </div>
@@ -310,15 +341,22 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 type="text"
                 required
                 value={name}
+                onBlur={() => setNameTouched(true)}
                 onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="Enter your full name (e.g. Rahul Sharma)"
-                className={`w-full bg-slate-50 border rounded-xl pl-10 pr-3.5 py-3 text-slate-900 text-sm font-semibold focus:outline-none focus:bg-white transition ${
-                  name.length > 0 && !nameIsValid
-                    ? 'border-rose-400 focus:border-rose-500'
+                placeholder="Enter your full name (e.g. Aman Kumar)"
+                className={`w-full min-h-[48px] bg-slate-50 border rounded-xl pl-10 pr-3.5 py-3 text-slate-900 text-sm font-semibold focus:outline-none focus:bg-white transition ${
+                  (name.length > 0 || nameTouched) && !nameIsValid
+                    ? 'border-rose-500 bg-rose-50/40 focus:border-rose-600 ring-2 ring-rose-500/15'
                     : 'border-slate-300 focus:border-emerald-600'
                 }`}
               />
             </div>
+            {(name.length > 0 || nameTouched) && !nameIsValid && (
+              <p role="alert" className="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Please enter your full name (minimum 2 letters).</span>
+              </p>
+            )}
           </div>
 
           {/* 2. WHATSAPP MOBILE NUMBER INPUT */}
@@ -342,18 +380,34 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 required
                 maxLength={10}
                 value={phone}
+                onBlur={() => setPhoneTouched(true)}
                 onChange={(e) => handlePhoneChange(e.target.value)}
                 placeholder="Enter 10-digit WhatsApp number"
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-11 pr-3 py-3 text-slate-900 text-sm font-mono font-bold focus:outline-none focus:border-emerald-600 focus:bg-white"
+                aria-invalid={Boolean(livePhoneErr)}
+                className={`w-full min-h-[48px] bg-slate-50 border rounded-xl pl-11 pr-3 py-3 text-slate-900 text-sm font-mono font-bold focus:outline-none focus:bg-white transition ${
+                  livePhoneErr
+                    ? 'border-rose-500 bg-rose-50/40 focus:border-rose-600 ring-2 ring-rose-500/15'
+                    : 'border-slate-300 focus:border-emerald-600'
+                }`}
               />
             </div>
+
+            {livePhoneErr && (
+              <div
+                role="alert"
+                className="mt-1.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-start gap-1.5 animate-in fade-in"
+              >
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                <span>{livePhoneErr}</span>
+              </div>
+            )}
 
             {/* PROMINENT "GET OTP ON WHATSAPP" BUTTON */}
             <button
               type="button"
               onClick={() => handleGetOtpOnWhatsApp(false)}
               disabled={isSending || isOtpCooldownActive}
-              className={`mt-2.5 w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-white transition shadow-sm ${
+              className={`mt-3 w-full min-h-[48px] flex items-center justify-between px-4 py-3 rounded-xl text-white transition shadow-sm ${
                 isSending || isOtpCooldownActive
                   ? 'bg-emerald-600/80 opacity-90 cursor-not-allowed'
                   : nameIsValid && cleanPhoneLen === 10
@@ -362,7 +416,11 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               }`}
             >
               <span className="flex items-center gap-2 text-xs font-extrabold">
-                <MessageSquare className="w-4 h-4 text-white shrink-0" />
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 text-white animate-spin shrink-0" />
+                ) : (
+                  <MessageSquare className="w-4 h-4 text-white shrink-0" />
+                )}
                 <span>
                   {isSending
                     ? 'Sending OTP to your WhatsApp...'
@@ -371,7 +429,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                     : 'Get OTP on WhatsApp'}
                 </span>
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-950 bg-amber-400 px-2.5 py-1 rounded-lg">
+              <span className="inline-flex items-center gap-1 text-[11px] font-black text-slate-950 bg-amber-400 px-3 py-1 rounded-lg">
                 {isSending ? (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin" /> Sending
@@ -417,23 +475,36 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
               autoComplete="one-time-code"
               maxLength={4}
               value={otp}
+              onBlur={() => setOtpTouched(true)}
               onChange={(e) => {
                 setOtp(e.target.value.replace(/\D/g, '').slice(0, 4));
                 setErrorMsg('');
               }}
               placeholder="Enter 4-Digit OTP (e.g. 1234)"
-              className="w-full bg-white border-2 border-slate-300 rounded-xl px-4 py-3 text-center text-xl tracking-[0.35em] text-slate-900 font-mono font-extrabold focus:outline-none focus:border-emerald-600 placeholder:text-xs placeholder:tracking-normal placeholder:font-sans placeholder:font-semibold placeholder:text-slate-400"
+              aria-invalid={Boolean(liveOtpErr)}
+              className={`w-full min-h-[50px] bg-white border-2 rounded-xl px-4 py-3 text-center text-xl tracking-[0.35em] text-slate-900 font-mono font-extrabold focus:outline-none placeholder:text-xs placeholder:tracking-normal placeholder:font-sans placeholder:font-semibold placeholder:text-slate-400 transition ${
+                liveOtpErr
+                  ? 'border-rose-500 bg-rose-50/40 focus:border-rose-600 ring-2 ring-rose-500/15'
+                  : 'border-slate-300 focus:border-emerald-600'
+              }`}
             />
+
+            {liveOtpErr && (
+              <p role="alert" className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{liveOtpErr}</span>
+              </p>
+            )}
 
             <button
               type="submit"
               disabled={isVerifying || isSending}
-              className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black py-3.5 rounded-xl text-sm shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+              className="w-full min-h-[50px] bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black py-3.5 rounded-xl text-sm shadow-md transition cursor-pointer flex items-center justify-center gap-2"
             >
               {isVerifying ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                  <span>Verifying OTP...</span>
+                  <span>Verifying OTP &amp; Saving Session...</span>
                 </>
               ) : (
                 <>

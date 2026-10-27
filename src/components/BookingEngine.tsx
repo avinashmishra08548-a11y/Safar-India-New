@@ -19,7 +19,8 @@ import {
   Mountain,
   Plus,
   Trash2,
-  ArrowRight
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react';
 import { TripType, CustomerUser } from '../types';
 import { searchOlaPlaces, OlaPlacePrediction, Coordinates } from '../utils/olaMapsService';
@@ -183,7 +184,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const [stopPredictions, setStopPredictions] = useState<OlaPlacePrediction[]>([]);
   const [isLoadingStop, setIsLoadingStop] = useState(false);
 
-  // Secure WhatsApp OTP verification states
+  // Secure WhatsApp OTP verification & form validation states
   const [inlineCustomerName, setInlineCustomerName] = useState<string>(() => currentUser?.name || '');
   const [isPhoneVerified, setIsPhoneVerified] = useState<boolean>(() => Boolean(currentUser));
   const [showInlineOtpBox, setShowInlineOtpBox] = useState(false);
@@ -192,8 +193,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const [otpToken, setOtpToken] = useState('');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isSearchingCabs, setIsSearchingCabs] = useState(false);
   const [otpNotice, setOtpNotice] = useState('');
   const [otpError, setOtpError] = useState('');
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [nameTouched, setNameTouched] = useState(false);
+  const [otpFieldError, setOtpFieldError] = useState('');
+  const [routeError, setRouteError] = useState('');
   const [countdown, setCountdown] = useState(0);
   const sendingOtpLockRef = useRef<boolean>(false);
   const inlineOtpInputRef = useRef<HTMLInputElement>(null);
@@ -403,8 +409,26 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     }
   };
 
+  const getPhoneValidationMessage = (rawPhone: string, forceCheck = false): string => {
+    const clean = (rawPhone || '').replace(/\D/g, '');
+    if (!clean) {
+      return forceCheck ? 'Mobile number is required. Please enter your 10-digit WhatsApp number.' : '';
+    }
+    if (!/^[6-9]/.test(clean)) {
+      return 'Invalid mobile number: Indian mobile numbers must start with 6, 7, 8, or 9.';
+    }
+    if (clean.length < 10 && (forceCheck || phoneTouched || clean.length >= 1)) {
+      return `Incomplete mobile number (${clean.length}/10 digits). Please enter all 10 digits.`;
+    }
+    return '';
+  };
+
   // Single-dispatch WhatsApp OTP handler — strictly validates mandatory Customer Name & 10-digit Phone first
   const handleSendOtp = async (isResend: boolean = false) => {
+    setNameTouched(true);
+    setPhoneTouched(true);
+    setOtpFieldError('');
+
     const cleanName = (inlineCustomerName || currentUser?.name || '').trim();
     if (!cleanName || cleanName.length < 2 || !/[a-zA-Z\u0900-\u097F]/.test(cleanName)) {
       setOtpError('Customer Name is mandatory. Please enter your full name (at least 2 characters) before requesting an OTP.');
@@ -413,9 +437,18 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       return;
     }
 
-    const cleanNumber = sanitize10DigitPhone(customerMobile);
+    const rawDigits = (customerMobile || '').replace(/\D/g, '');
+    const phoneErr = getPhoneValidationMessage(rawDigits, true);
+    if (phoneErr || rawDigits.length !== 10) {
+      setOtpError(phoneErr || 'Please enter a valid 10-digit WhatsApp mobile number.');
+      const mobileEl = document.getElementById('booking-mobile-input');
+      if (mobileEl) mobileEl.focus();
+      return;
+    }
+
+    const cleanNumber = sanitize10DigitPhone(rawDigits);
     if (cleanNumber.length !== 10) {
-      setOtpError('Please enter your 10-digit WhatsApp mobile number first.');
+      setOtpError('Please enter a valid 10-digit WhatsApp mobile number starting with 6-9.');
       const mobileEl = document.getElementById('booking-mobile-input');
       if (mobileEl) mobileEl.focus();
       return;
@@ -443,7 +476,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         setOtpToken(res.token);
         if (isResend) setOtpInput('');
         setOtpNotice(
-          `Hello ${cleanName}, 4-digit OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter it below & click Submit OTP.`
+          `Hello ${cleanName}, 4-digit OTP sent to your WhatsApp (+91 ${cleanNumber}). Enter it below & tap Submit OTP.`
         );
         setCountdown(30);
         setTimeout(() => inlineOtpInputRef.current?.focus(), 80);
@@ -464,6 +497,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   const handleVerifyOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    setNameTouched(true);
+    setPhoneTouched(true);
+
     const cleanName = (inlineCustomerName || currentUser?.name || '').trim();
     if (!cleanName || cleanName.length < 2 || !/[a-zA-Z\u0900-\u097F]/.test(cleanName)) {
       setOtpError('Customer Name is mandatory. Please enter your full name before verifying OTP.');
@@ -474,7 +510,11 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
     const entered = otpInput.replace(/\D/g, '').trim();
     if (entered.length !== 4) {
-      setOtpError('Please enter the 4-digit OTP received on your WhatsApp');
+      const msg = entered.length === 0
+        ? 'OTP is required. Please enter the 4-digit OTP sent to your WhatsApp.'
+        : `Incomplete OTP (${entered.length}/4 digits). Please enter all 4 digits.`;
+      setOtpFieldError(msg);
+      setOtpError(msg);
       inlineOtpInputRef.current?.focus();
       return;
     }
@@ -487,6 +527,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
     setIsVerifyingOtp(true);
     setOtpError('');
+    setOtpFieldError('');
     const verifyRes = await verifyServerOtp(cleanNumber, entered, otpToken);
     setIsVerifyingOtp(false);
 
@@ -495,6 +536,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       setShowInlineOtpBox(false);
       setShowOtpModal(false);
       setOtpError('');
+      setOtpFieldError('');
 
       const loggedInCustomer: CustomerUser = {
         id: `CUST-${cleanNumber}`,
@@ -515,16 +557,45 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         onLoginSuccess(loggedInCustomer);
       }
     } else {
-      setOtpError(
+      const failMsg =
         verifyRes.message ||
-          verifyRes.error ||
-          `Incorrect OTP. Please check your WhatsApp (+91 ${cleanNumber}) and try again.`
-      );
+        verifyRes.error ||
+        `Invalid OTP entered. Please check your WhatsApp (+91 ${cleanNumber}) and enter the correct 4-digit code.`;
+      setOtpFieldError(failMsg);
+      setOtpError(failMsg);
     }
   };
 
   const handleExploreSubmit = () => {
-    onExploreCabs();
+    setRouteError('');
+    const cleanPickup = (pickupCity || '').trim();
+    const cleanDrop = (dropCity || '').trim();
+
+    if (!cleanPickup || cleanPickup.length < 2) {
+      setRouteError('Please enter a valid Pickup City / Location before searching cabs.');
+      document.getElementById('booking-pickup-city-input')?.focus();
+      return;
+    }
+    if (tripType !== 'local' && (!cleanDrop || cleanDrop.length < 2)) {
+      setRouteError('Please enter a valid Destination City / Location before searching cabs.');
+      document.getElementById('booking-drop-city-input')?.focus();
+      return;
+    }
+
+    // If user typed a partial phone number, immediately highlight the error
+    const rawDigits = (customerMobile || '').replace(/\D/g, '');
+    if (rawDigits.length > 0 && rawDigits.length < 10) {
+      setPhoneTouched(true);
+      setOtpError(`Incomplete mobile number (${rawDigits.length}/10 digits). Please enter a complete 10-digit mobile number.`);
+      document.getElementById('booking-mobile-input')?.focus();
+      return;
+    }
+
+    setIsSearchingCabs(true);
+    setTimeout(() => {
+      setIsSearchingCabs(false);
+      onExploreCabs();
+    }, 380);
   };
 
   const today = new Date().toISOString().split('T')[0];
@@ -1135,12 +1206,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
 
           {/* Customer Full Name & WhatsApp Number */}
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {!isPhoneVerified && (
               <div>
                 <label
                   htmlFor="booking-customer-name-input"
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
+                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
                 >
                   Customer Name <span className="text-rose-600">*</span>
                 </label>
@@ -1149,77 +1220,124 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   type="text"
                   required
                   value={inlineCustomerName}
+                  onBlur={() => setNameTouched(true)}
                   onChange={(e) => {
                     setInlineCustomerName(e.target.value);
                     if (otpError) setOtpError('');
                   }}
                   placeholder="Enter your full name *"
-                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2.5 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                  className={`w-full min-h-[48px] bg-slate-50 border rounded-xl px-3.5 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:bg-white transition ${
+                    nameTouched && inlineCustomerName.trim().length > 0 && inlineCustomerName.trim().length < 2
+                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/15'
+                      : 'border-slate-200 hover:border-slate-300 focus:border-amber-500'
+                  }`}
                 />
+                {nameTouched && inlineCustomerName.trim().length > 0 && inlineCustomerName.trim().length < 2 && (
+                  <p role="alert" className="mt-1 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Please enter at least 2 characters for your full name.</span>
+                  </p>
+                )}
               </div>
             )}
 
             <div>
               <label
                 htmlFor="booking-mobile-input"
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1"
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
               >
                 Mobile Number (WhatsApp) <span className="text-rose-600">*</span>
               </label>
-              <div className="relative flex items-center">
-                <Smartphone className="w-4 h-4 text-slate-500 absolute left-3.5 pointer-events-none" />
-                <span className="absolute left-9 text-xs font-bold text-slate-600 pointer-events-none">
-                  +91
-                </span>
-                <input
-                  id="booking-mobile-input"
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={customerMobile}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
-                    if (setCustomerMobile) setCustomerMobile(val);
-                    if (currentUser?.phone !== val) {
-                      setIsPhoneVerified(false);
-                      setShowInlineOtpBox(false);
-                      setOtpToken('');
-                      setCountdown(0);
-                    }
-                    if (val.length === 10 && !inlineCustomerName.trim()) {
-                      try {
-                        const raw = localStorage.getItem('safar_registered_customers');
-                        const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
-                        const existing = list.find((u) => sanitize10DigitPhone(u.phone) === val);
-                        if (existing?.name && !existing.name.startsWith('Traveler')) {
-                          setInlineCustomerName(existing.name);
-                        }
-                      } catch {}
-                    }
-                    setOtpError('');
-                  }}
-                  placeholder="10-digit number"
-                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-16 pr-20 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
-                />
-                {customerMobile.length === 10 && (
-                  <div className="absolute right-1.5">
-                    {isPhoneVerified ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3" /> Verified
+              {(() => {
+                const rawDigits = (customerMobile || '').replace(/\D/g, '');
+                const livePhoneError = getPhoneValidationMessage(rawDigits, false);
+                const hasPhoneError = Boolean(livePhoneError);
+
+                return (
+                  <>
+                    <div className="relative flex items-center">
+                      <Smartphone className={`w-4 h-4 absolute left-3.5 pointer-events-none ${hasPhoneError ? 'text-rose-500' : 'text-slate-500'}`} />
+                      <span className="absolute left-9 text-xs font-bold text-slate-600 pointer-events-none">
+                        +91
                       </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleSendOtp(false)}
-                        disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
-                        className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/70 text-white font-bold text-[11px] transition cursor-pointer disabled:cursor-not-allowed"
+                      <input
+                        id="booking-mobile-input"
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        value={customerMobile}
+                        onBlur={() => setPhoneTouched(true)}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          if (setCustomerMobile) setCustomerMobile(val);
+                          if (currentUser?.phone !== val) {
+                            setIsPhoneVerified(false);
+                            setShowInlineOtpBox(false);
+                            setOtpToken('');
+                            setCountdown(0);
+                          }
+                          if (val.length === 10 && !inlineCustomerName.trim()) {
+                            try {
+                              const raw = localStorage.getItem('safar_registered_customers');
+                              const list: CustomerUser[] = raw ? JSON.parse(raw) : [];
+                              const existing = list.find((u) => sanitize10DigitPhone(u.phone) === val);
+                              if (existing?.name && !existing.name.startsWith('Traveler')) {
+                                setInlineCustomerName(existing.name);
+                              }
+                            } catch {}
+                          }
+                          setOtpError('');
+                        }}
+                        placeholder="10-digit WhatsApp number"
+                        aria-invalid={hasPhoneError}
+                        className={`w-full min-h-[48px] bg-slate-50 border rounded-xl pl-16 pr-24 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:bg-white transition ${
+                          hasPhoneError
+                            ? 'border-rose-500 bg-rose-50/40 focus:border-rose-600 ring-2 ring-rose-500/15'
+                            : 'border-slate-200 hover:border-slate-300 focus:border-amber-500'
+                        }`}
+                      />
+                      {rawDigits.length === 10 && !hasPhoneError && (
+                        <div className="absolute right-1.5">
+                          {isPhoneVerified ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSendOtp(false)}
+                              disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
+                              className="min-h-[36px] px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/70 text-white font-bold text-[11px] transition cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                              {isSendingOtp ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  <span>Sending</span>
+                                </>
+                              ) : showInlineOtpBox && countdown > 0 ? (
+                                `${countdown}s`
+                              ) : (
+                                'Get OTP'
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Immediate Inline Phone Validation Error */}
+                    {hasPhoneError && (
+                      <div
+                        role="alert"
+                        className="mt-1.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-start gap-1.5 animate-in fade-in"
                       >
-                        {isSendingOtp ? '...' : showInlineOtpBox && countdown > 0 ? `${countdown}s` : 'Get OTP'}
-                      </button>
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                        <span>{livePhoneError}</span>
+                      </div>
                     )}
-                  </div>
-                )}
-              </div>
+                  </>
+                );
+              })()}
 
               {/* PROMINENT "CLICK HERE TO GET OTP" BUTTON RIGHT BELOW MOBILE NUMBER */}
               {!isPhoneVerified && (
@@ -1227,24 +1345,32 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   type="button"
                   onClick={() => handleSendOtp(false)}
                   disabled={isSendingOtp || (showInlineOtpBox && countdown > 0)}
-                  className="mt-2 w-full flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-80 border border-emerald-300 text-emerald-900 transition cursor-pointer disabled:cursor-not-allowed group"
+                  className="mt-2.5 w-full min-h-[46px] flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-80 border border-emerald-300 text-emerald-900 transition cursor-pointer disabled:cursor-not-allowed group"
                 >
-                  <span className="flex items-center gap-1.5 text-[11px] font-extrabold text-emerald-800">
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="flex items-center gap-2 text-xs font-extrabold text-emerald-800">
+                    {isSendingOtp ? (
+                      <Loader2 className="w-4 h-4 text-emerald-600 animate-spin shrink-0" />
+                    ) : (
+                      <MessageSquare className="w-4 h-4 text-emerald-600 shrink-0" />
+                    )}
                     <span>
                       {isSendingOtp
-                        ? 'Sending OTP to WhatsApp...'
+                        ? 'Sending 4-Digit OTP to WhatsApp...'
                         : showInlineOtpBox && countdown > 0
                         ? `OTP Sent to WhatsApp ✓`
-                        : 'Click Here to Get OTP on WhatsApp'}
+                        : 'Get OTP on WhatsApp'}
                     </span>
                   </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-white bg-emerald-600 group-hover:bg-emerald-700 px-2 py-0.5 rounded-md">
-                    {showInlineOtpBox && countdown > 0 ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-black text-white bg-emerald-600 group-hover:bg-emerald-700 px-3 py-1 rounded-lg">
+                    {isSendingOtp ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" /> Sending...
+                      </>
+                    ) : showInlineOtpBox && countdown > 0 ? (
                       `Wait ${countdown}s`
                     ) : (
                       <>
-                        Get OTP <ArrowRight className="w-2.5 h-2.5" />
+                        Get OTP <ArrowRight className="w-3 h-3" />
                       </>
                     )}
                   </span>
@@ -1256,67 +1382,82 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
         {/* INLINE 4-DIGIT OTP INPUT & SUBMIT BOX RIGHT BELOW MOBILE NUMBER */}
         {!isPhoneVerified && showInlineOtpBox && (
-          <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Enter 4-Digit WhatsApp OTP to Verify (+91 {customerMobile})</span>
+          <div className="p-4 rounded-2xl bg-emerald-50/80 border-2 border-emerald-300 space-y-3 animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Enter 4-Digit WhatsApp OTP to Verify (+91 {customerMobile})</span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  {otpNotice || 'Enter the 4-digit OTP received on your WhatsApp below and tap Submit OTP.'}
+                </p>
               </div>
-              <p className="text-[11px] text-slate-600">
-                {otpNotice || 'Enter the 4-digit OTP received on your WhatsApp below and click Submit OTP.'}
-              </p>
-            </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <input
-                ref={inlineOtpInputRef}
-                type="text"
-                inputMode="numeric"
-                maxLength={4}
-                value={otpInput}
-                onChange={(e) => {
-                  setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4));
-                  setOtpError('');
-                }}
-                placeholder="4-Digit OTP"
-                className="w-32 bg-white border-2 border-emerald-400 rounded-xl px-3 py-2 text-center text-sm tracking-[0.25em] font-mono font-extrabold text-slate-900 focus:outline-none focus:border-emerald-600 placeholder:tracking-normal placeholder:font-sans placeholder:text-xs placeholder:text-slate-400"
-              />
-              <button
-                type="button"
-                disabled={isVerifyingOtp || isSendingOtp}
-                onClick={() => handleVerifyOtp()}
-                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-amber-400 font-extrabold text-xs transition cursor-pointer shrink-0 flex items-center gap-1.5 shadow-xs"
-              >
-                {isVerifyingOtp ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Verifying...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Submit OTP</span>
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                disabled={countdown > 0 || isSendingOtp}
-                onClick={() => handleSendOtp(true)}
-                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 disabled:text-slate-400 px-2 py-1 cursor-pointer disabled:cursor-not-allowed"
-              >
-                {countdown > 0 ? `Resend (${countdown}s)` : 'Resend OTP'}
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <input
+                  ref={inlineOtpInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={otpInput}
+                  aria-label="4-Digit WhatsApp OTP"
+                  aria-invalid={Boolean(otpFieldError)}
+                  onChange={(e) => {
+                    setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4));
+                    setOtpError('');
+                    setOtpFieldError('');
+                  }}
+                  placeholder="4-Digit OTP"
+                  className={`w-36 min-h-[46px] bg-white border-2 rounded-xl px-3.5 py-2.5 text-center text-base tracking-[0.25em] font-mono font-extrabold text-slate-900 focus:outline-none placeholder:tracking-normal placeholder:font-sans placeholder:text-xs placeholder:text-slate-400 transition ${
+                    otpFieldError
+                      ? 'border-rose-500 bg-rose-50/50 focus:border-rose-600 ring-2 ring-rose-500/20'
+                      : 'border-emerald-400 focus:border-emerald-600'
+                  }`}
+                />
+                <button
+                  type="button"
+                  disabled={isVerifyingOtp || isSendingOtp}
+                  onClick={() => handleVerifyOtp()}
+                  className="min-h-[46px] px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-amber-400 font-extrabold text-xs transition cursor-pointer shrink-0 flex items-center gap-2 shadow-xs"
+                >
+                  {isVerifyingOtp ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Submit OTP</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  disabled={countdown > 0 || isSendingOtp}
+                  onClick={() => handleSendOtp(true)}
+                  className="min-h-[42px] text-xs font-bold text-emerald-700 hover:text-emerald-900 disabled:text-slate-400 px-2.5 py-1.5 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {countdown > 0 ? `Resend (${countdown}s)` : 'Resend OTP'}
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {otpError && (
-          <div className="text-xs text-rose-600 font-semibold px-1">{otpError}</div>
+        {(otpError || routeError) && (
+          <div
+            role="alert"
+            className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-bold flex items-start gap-2 animate-in fade-in"
+          >
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span>{otpError || routeError}</span>
+          </div>
         )}
 
         {/* Bottom Bar: Clean Route Distance + Dynamic Extra KM Rate & Primary CTA */}
-        <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t border-slate-100">
+        <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-slate-600">
             <span className="font-bold text-slate-900">
               Total Distance: {routePreviewFare.billedDistanceKm} KM
@@ -1350,10 +1491,21 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
           <button
             type="button"
+            disabled={isSearchingCabs}
             onClick={handleExploreSubmit}
-            className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold px-7 py-3.5 rounded-xl text-sm shadow-sm transition cursor-pointer shrink-0"
+            className="min-h-[52px] bg-amber-400 hover:bg-amber-500 disabled:bg-amber-300 text-slate-950 font-black px-8 py-4 rounded-2xl text-sm shadow-md transition active:scale-98 cursor-pointer shrink-0 flex items-center justify-center gap-2.5"
           >
-            Search Available Cabs →
+            {isSearchingCabs ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin text-slate-950 shrink-0" />
+                <span>Searching Available Cabs...</span>
+              </>
+            ) : (
+              <>
+                <Car className="w-5 h-5 text-slate-950 shrink-0" />
+                <span>Search Available Cabs →</span>
+              </>
+            )}
           </button>
         </div>
       </div>
