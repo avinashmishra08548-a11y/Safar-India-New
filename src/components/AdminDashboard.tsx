@@ -31,6 +31,7 @@ import {
   Star
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
+import { downloadProductionAab, downloadProductionApk, downloadReleaseKeystore } from '../utils/aabBinaryData';
 import { generateBookingInvoicePdf } from './BookingConfirmationModal';
 import { formatINR } from '../utils/fareCalculator';
 import {
@@ -742,6 +743,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               type="button"
+              onClick={downloadProductionAab}
+              className="py-1.5 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs"
+              title="Download signed production Android App Bundle (.aab) for Google Play Console"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-950" />
+              <span>Download Play Store .AAB</span>
+            </button>
+
+            <button
+              type="button"
               onClick={exportCSV}
               className={`py-1.5 px-3 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 isDark
@@ -772,6 +783,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           {/* TAB 1: BOOKINGS & DISPATCH */}
           {activeTab === 'bookings' && (
             <div className="space-y-6">
+              {/* Google Play Console Production .AAB Download Card */}
+              <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 sm:p-5 border border-emerald-500/40 shadow-md">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-400 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                      Google Play Console Ready · Signed Release Bundle
+                    </div>
+                    <h3 className="text-sm sm:text-base font-black text-white">
+                      Safarindiacabs (.AAB) — Package: <span className="text-amber-300 font-mono">com.safarindiacabs.app</span>
+                    </h3>
+                    <p className="text-xs text-slate-300">
+                      Target SDK 36 (Android 16) · Compile SDK 36 · Min SDK 24 · Version 1.0.3 (Code 4) · Updated Icon &amp; SHA-256 Signed
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={downloadProductionAab}
+                      className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download Production .AAB (v1.0.3 · Code 4 · SDK 36)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadProductionApk}
+                      className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Download .APK</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadReleaseKeystore}
+                      className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Release Keystore</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* 3-Step Live Booking & WhatsApp Dispatch Workflow Banner */}
               <div className="bg-gradient-to-r from-[#081C44] via-[#0B2559] to-[#0F172A] text-white rounded-2xl p-4 sm:p-5 border border-amber-400/40 shadow-lg">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

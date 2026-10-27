@@ -127,19 +127,20 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <img
                 src="/assets/aistudio/logo-96.webp"
-                alt="SafarIndiaCabs Logo"
+                alt="Safarindiacabs Logo"
                 width={40}
                 height={40}
                 decoding="async"
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover bg-white p-0.5 shrink-0"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white p-0.5 shrink-0"
               />
               <div>
                 <span className="font-black tracking-tight text-base sm:text-xl leading-none block">
-                  <span className="text-white">SafarIndia</span>
-                  <span className="text-amber-400">Cabs</span>
+                  <span className="text-white">Safar</span>
+                  <span className="text-amber-400">india</span>
+                  <span className="text-white">cabs</span>
                 </span>
                 <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase block mt-0.5">
-                  Outstation &amp; Local Taxi
+                  A1 Cab Services • N. India
                 </span>
               </div>
             </button>

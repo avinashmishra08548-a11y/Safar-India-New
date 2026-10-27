@@ -1,0 +1,39 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.safarindiacabs.app'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.safarindiacabs.app"
+        minSdk 24
+        targetSdk 36
+        versionCode 4
+        versionName "1.0.3"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("safarindiacabs-release.keystore")
+            storePassword "safarindiacabs2026"
+            keyAlias "safarindiacabs"
+            keyPassword "safarindiacabs2026"
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

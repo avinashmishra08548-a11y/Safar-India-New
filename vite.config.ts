@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 import { defineConfig } from 'vite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -15,6 +16,39 @@ export default defineConfig(() => {
         name: 'api-serverless-middleware',
         configureServer(server) {
           server.middlewares.use(async (req, res, next) => {
+            if (req.url) {
+              const cleanUrl = req.url.split('?')[0];
+              if (
+                cleanUrl === '/com.safarindiacabs.app-release.aab' ||
+                cleanUrl === '/com.safarindiacabs.app.aab' ||
+                cleanUrl === '/safarindiacabs.aab'
+              ) {
+                const aabPath = path.resolve(__dirname, 'public/com.safarindiacabs.app-release.aab');
+                if (fs.existsSync(aabPath)) {
+                  const buf = fs.readFileSync(aabPath);
+                  res.statusCode = 200;
+                  res.setHeader('Content-Type', 'application/octet-stream');
+                  res.setHeader('Content-Disposition', 'attachment; filename="com.safarindiacabs.app-release.aab"');
+                  res.setHeader('Content-Length', String(buf.length));
+                  res.setHeader('Cache-Control', 'no-store');
+                  res.end(buf);
+                  return;
+                }
+              }
+              if (cleanUrl === '/com.safarindiacabs.app-release.apk') {
+                const apkPath = path.resolve(__dirname, 'public/com.safarindiacabs.app-release.apk');
+                if (fs.existsSync(apkPath)) {
+                  const buf = fs.readFileSync(apkPath);
+                  res.statusCode = 200;
+                  res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+                  res.setHeader('Content-Disposition', 'attachment; filename="com.safarindiacabs.app-release.apk"');
+                  res.setHeader('Content-Length', String(buf.length));
+                  res.setHeader('Cache-Control', 'no-store');
+                  res.end(buf);
+                  return;
+                }
+              }
+            }
             if (req.url && req.url.startsWith('/api/')) {
               const urlPath = req.url.split('?')[0];
               try {

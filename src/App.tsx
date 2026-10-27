@@ -22,6 +22,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
+import { downloadProductionAab, downloadProductionApk } from './utils/aabBinaryData';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
 import { CABS_FLEET } from './data/cabsFleet';
 import { computeTripFare, FareCalculationResult, isDrVijayKumarMatch } from './utils/fareCalculator';
@@ -855,7 +856,36 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
-      
+      {/* Direct 1-Click Google Play Console .AAB Download Bar */}
+      <div className="bg-slate-950 text-white border-b border-amber-400/30 px-4 py-2 text-xs">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">
+              Play Console Ready
+            </span>
+            <span className="font-bold text-slate-200">
+              Production Binary Android App Bundle (<span className="text-amber-300 font-mono">com.safarindiacabs.app-release.aab</span> · <span className="text-emerald-400">Safarindiacabs · v1.0.3 / versionCode: 4 / SDK 36</span>)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={downloadProductionAab}
+              className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] transition cursor-pointer"
+            >
+              ⬇ Download Binary .AAB (v1.0.3 · Code 4 · SDK 36)
+            </button>
+            <button
+              type="button"
+              onClick={downloadProductionApk}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-[11px] transition cursor-pointer"
+            >
+              ⬇ Download .APK
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <Header
         currentUser={currentUser}

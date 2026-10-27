@@ -71,6 +71,41 @@
           "value": "public, max-age=86400, stale-while-revalidate=3600"
         }
       ]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "source": "/com.safarindiacabs.app-release.aab",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/octet-stream"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"com.safarindiacabs.app-release.aab\""
+        }
+      ]
+    },
+    {
+      "source": "/com.safarindiacabs.app-release.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"com.safarindiacabs.app-release.apk\""
+        }
+      ]
     }
   ],
   "rewrites": [
@@ -83,7 +118,23 @@
       "destination": "/robots.txt"
     },
     {
-      "source": "/((?!api/|assets/|robots\\.txt|sitemap\\.xml|privacy-policy\\.html|terms-and-conditions\\.html|refund-policy\\.html|delete-account\\.html|contact-us\\.html|favicon\\.svg|manifest\\.json|sw\\.js|logo\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png|apple-touch-icon\\.png).*)",
+      "source": "/.well-known/assetlinks.json",
+      "destination": "/.well-known/assetlinks.json"
+    },
+    {
+      "source": "/com.safarindiacabs.app-release.aab",
+      "destination": "/com.safarindiacabs.app-release.aab"
+    },
+    {
+      "source": "/com.safarindiacabs.app-release.apk",
+      "destination": "/com.safarindiacabs.app-release.apk"
+    },
+    {
+      "source": "/safarindiacabs-release.keystore",
+      "destination": "/safarindiacabs-release.keystore"
+    },
+    {
+      "source": "/((?!api/|assets/|\\.well-known/|com\\.safarindiacabs\\.app-release\\.aab|com\\.safarindiacabs\\.app-release\\.apk|safarindiacabs-release\\.keystore|robots\\.txt|sitemap\\.xml|privacy-policy\\.html|terms-and-conditions\\.html|refund-policy\\.html|delete-account\\.html|contact-us\\.html|favicon\\.svg|manifest\\.json|sw\\.js|logo\\.png|icon-192\\.png|icon-512\\.png|icon-512-maskable\\.png|apple-touch-icon\\.png).*)",
       "destination": "/index.html"
     }
   ]

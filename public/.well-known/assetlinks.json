@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.safarindiacabs.app",
+      "sha256_cert_fingerprints": [
+        "22:24:78:4F:33:7C:71:EB:78:CA:65:42:0F:BE:EF:52:4B:69:61:6D:49:4C:3F:A3:F7:44:05:24:EA:27:30:96"
+      ]
+    }
+  }
+]
