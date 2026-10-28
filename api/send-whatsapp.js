@@ -381,37 +381,21 @@ export async function sendWhatsAppCloudMessage(
     lastFlushedAt: now
   });
 
-  const isRichBoxDrawingCard = String(messageText || '').includes('┌──');
-
   let templateResult = { success: false, status: null, templateName: null, messageId: null, data: null, error: null };
   let textResult = { success: false, status: null, messageId: null, data: null, error: null };
 
-  if (isRichBoxDrawingCard) {
-    // Step 1 (Box-Drawing Cards): Send Rich Multi-Line Text first so exact box formatting is preserved
-    textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
-    if (!textResult.success) {
-      templateResult = await dispatchWhatsAppTemplateWithFallback(
-        apiUrl,
-        activeToken,
-        formattedTo,
-        messageText,
-        templateConfig
-      );
-    }
-  } else {
-    // Step 1 (OTP / Standard): Try Official Meta Template first (delivers outside 24h window without duplicate text)
-    templateResult = await dispatchWhatsAppTemplateWithFallback(
-      apiUrl,
-      activeToken,
-      formattedTo,
-      messageText,
-      templateConfig
-    );
+  // Step 1: Always try Official Meta Template first (guarantees 100% delivery even when customer has no 24h chat window open)
+  templateResult = await dispatchWhatsAppTemplateWithFallback(
+    apiUrl,
+    activeToken,
+    formattedTo,
+    messageText,
+    templateConfig
+  );
 
-    // Step 2: Only send Raw Text if template dispatch did not succeed
-    if (!templateResult.success) {
-      textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
-    }
+  // Step 2: Also send Raw Text if template dispatch did not succeed (or if no template was configured)
+  if (!templateResult.success) {
+    textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
   }
 
   const overallSuccess = Boolean(templateResult.success || textResult.success);

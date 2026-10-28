@@ -18,6 +18,7 @@ import {
   verifyOrderVerificationToken
 } from './bookings.js';
 import { sanitize10Digit } from './send-sms.js';
+import { dispatchBookingConfirmationNotifications } from './send-booking-sms.js';
 
 const RAZORPAY_API_BASE = 'https://api.razorpay.com/v1';
 
@@ -253,10 +254,19 @@ export default async function handler(req, res) {
         amountInPaise: expectedAmountPaise
       });
 
+      // Immediately dispatch Customer Booking Confirmation & Admin Alert WhatsApp/SMS on server
+      let notificationResult = null;
+      try {
+        notificationResult = await dispatchBookingConfirmationNotifications(confirmedBooking);
+      } catch (notifyErr) {
+        console.warn('[/api/verify-payment] Server booking notification notice:', notifyErr?.message);
+      }
+
       return res.status(200).json({
         success: true,
         verified: true,
         booking: confirmedBooking,
+        notifications: notificationResult,
         payment: {
           id: cleanPaymentId,
           orderId: null,
@@ -573,10 +583,19 @@ export default async function handler(req, res) {
       }
     });
 
+    // Immediately dispatch Customer Booking Confirmation & Admin Alert WhatsApp/SMS on server
+    let notificationResult = null;
+    try {
+      notificationResult = await dispatchBookingConfirmationNotifications(confirmedBooking);
+    } catch (notifyErr) {
+      console.warn('[/api/verify-payment] Server booking notification notice:', notifyErr?.message);
+    }
+
     return res.status(200).json({
       success: true,
       verified: true,
       booking: confirmedBooking,
+      notifications: notificationResult,
       payment: {
         id: rzpPayment.id,
         orderId: rzpPayment.order_id,

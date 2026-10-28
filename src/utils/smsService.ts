@@ -479,12 +479,34 @@ export async function sendDualBookingNotifications(booking: {
       if (apiRes.ok) {
         const data = await apiRes.json().catch(() => null);
         if (data && data.success) {
+          // If backend response indicates customer WhatsApp wasn't dispatched yet, send via whatsAppService immediately
+          if (!data.customer?.whatsappDispatched) {
+            await Promise.allSettled([
+              whatsAppService.sendBookingConfirmationToCustomer(
+                cleanCustomerPhone,
+                booking.id,
+                booking.pickupCity,
+                booking.dropCity,
+                totalFare,
+                {
+                  customerName: booking.customerName,
+                  pickupAddress: booking.pickupAddress,
+                  dropAddress: booking.dropAddress,
+                  travelDateTime: travelDate,
+                  cabClass,
+                  paidAmount: advance,
+                  balanceAmount: balance
+                }
+              )
+            ]);
+          }
+
           return {
             success: true,
             source: 'backend_api',
             customerSms: {
               success: data.customer?.dispatched ?? true,
-              message: `Booking confirmation SMS sent to +91 ${cleanCustomerPhone} via Fast2SMS`,
+              message: `Booking confirmation sent to +91 ${cleanCustomerPhone}`,
               endpointUsed: FAST2SMS_ENDPOINT,
               numbersSent: cleanCustomerPhone,
               statusCode: 200

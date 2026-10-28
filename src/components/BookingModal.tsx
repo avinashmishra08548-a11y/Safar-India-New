@@ -46,6 +46,8 @@ interface BookingModalProps {
   airportMode: 'pickup' | 'drop';
   airportTerminal: string;
   currentUser: CustomerUser | null;
+  parkingExtra?: boolean;
+  setParkingExtra?: (val: boolean) => void;
   promoCode?: string;
   setPromoCode?: (code: string) => void;
   isPromoApplied?: boolean;
@@ -86,6 +88,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   airportMode,
   airportTerminal,
   currentUser,
+  parkingExtra: externalParkingExtra,
+  setParkingExtra: setExternalParkingExtra,
   promoCode: externalPromoCode,
   setPromoCode: setExternalPromoCode,
   isPromoApplied: externalIsPromoApplied,
@@ -106,10 +110,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [gstNumber, setGstNumber] = useState(currentUser?.gstNumber || '');
   const [gstCompanyName, setGstCompanyName] = useState(currentUser?.companyName || '');
 
-  // SafarIndiaCabs 2-Option Fare Mode: Include Toll + State Tax OR Toll + State Tax Extra (Alag Se)
+  // SafarIndiaCabs Fare Mode: Include Toll + State Tax OR Toll + State Tax Extra (Alag Se) + Parking Extra If Applicable (Default Selected)
   const [includeTollsState, setIncludeTollsState] = useState<boolean>(
     tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0
   );
+  const [parkingExtraState, setParkingExtraState] = useState<boolean>(
+    externalParkingExtra !== undefined ? externalParkingExtra : true
+  );
+  const toggleParkingExtra = (val: boolean) => {
+    setParkingExtraState(val);
+    setExternalParkingExtra?.(val);
+  };
   const [extraKmState] = useState<number>(fareDetails.extraKm || 0);
   const [returnDateState, setReturnDateState] = useState<string>(returnDate || pickupDate);
   const [returnTimeState, setReturnTimeState] = useState<string>(returnTime || '06:00 PM');
@@ -322,6 +333,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       notes:
         [
           specialNotes.trim(),
+          parkingExtraState ? 'PARKING EXTRA IF APPLICABLE' : '',
           activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
           extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
           addonCarrier ? 'Add-on: Roof Carrier' : '',
@@ -581,11 +593,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             )}
           </div>
 
-          {/* Clean 2-Option Fare Mode Selector (No Toll/Tax ₹ Amount Shown) */}
+          {/* Fare Mode Selector + Parking Extra If Applicable (Default Selected) */}
           {tripType !== 'local' && (
             <div className="pt-2.5 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
               <span className="font-bold text-slate-700">Select Fare Mode:</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
                 <button
                   type="button"
                   onClick={() => setIncludeTollsState(true)}
@@ -608,6 +620,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   }`}
                 >
                   <span>Toll Extra (Alag Se)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleParkingExtra(!parkingExtraState)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
+                    parkingExtraState
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:text-slate-950'
+                  }`}
+                >
+                  <CheckCircle className="w-3 h-3 shrink-0" />
+                  <span>PARKING EXTRA IF APPLICABLE</span>
                 </button>
               </div>
             </div>
@@ -809,6 +833,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   </span>
                 </div>
               )}
+
+              <label className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-300 bg-emerald-50/80 cursor-pointer hover:border-emerald-500 transition">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={parkingExtraState}
+                    onChange={(e) => toggleParkingExtra(e.target.checked)}
+                    className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="font-extrabold text-emerald-950">PARKING EXTRA IF APPLICABLE</span>
+                </span>
+                <span className="font-bold text-[11px] text-emerald-700">
+                  {parkingExtraState ? 'Selected ✓' : 'Optional'}
+                </span>
+              </label>
 
               <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
                 <span className="flex items-center gap-2">

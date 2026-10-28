@@ -324,6 +324,7 @@ export default function App() {
   const [airportMode, setAirportMode] = useState<'pickup' | 'drop'>('drop');
   const [airportTerminal, setAirportTerminal] = useState('');
   const [includeTolls, setIncludeTolls] = useState(false);
+  const [parkingExtra, setParkingExtra] = useState(true);
   const [extraKm, setExtraKm] = useState(0);
   const [promoCode, setPromoCode] = useState<string>(() =>
     isDrVijayKumarMatch(currentUser?.name) ? 'FIRST300' : ''
@@ -1056,7 +1057,7 @@ export default function App() {
                     Google Play Console Ready
                   </span>
                   <h3 className="text-sm sm:text-base font-black text-white">
-                    Safarindiacabs Android App Bundle (<span className="text-amber-400 font-mono">com.safarindiacabs.app</span> · v1.0.3 · SDK 36)
+                    Safarindiacabs Android App Bundle (<span className="text-amber-400 font-mono">com.safarindiacabs.app</span> · v1.0.4 (5) · SDK 36)
                   </h3>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
@@ -1378,6 +1379,8 @@ export default function App() {
               localPackageId={localPackageId}
               includeTolls={includeTolls}
               setIncludeTolls={setIncludeTolls}
+              parkingExtra={parkingExtra}
+              setParkingExtra={setParkingExtra}
               promoCode={promoCode}
               setPromoCode={setPromoCode}
               isPromoApplied={isPromoApplied}
@@ -1412,6 +1415,8 @@ export default function App() {
             airportMode={airportMode}
             airportTerminal={airportTerminal}
             currentUser={currentUser}
+            parkingExtra={parkingExtra}
+            setParkingExtra={setParkingExtra}
             promoCode={promoCode}
             setPromoCode={setPromoCode}
             isPromoApplied={isPromoApplied}

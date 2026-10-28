@@ -294,15 +294,27 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
 
-            {activeNavTab !== 'booking' && (
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => handleNavClick('booking')}
-                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/30 font-extrabold text-xs transition shrink-0 cursor-pointer"
+                onClick={downloadProductionAab}
+                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] sm:text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer shadow-xs"
+                title="Download Signed Google Play Production App Bundle (.aab) v1.0.4 (versionCode 5)"
               >
-                Book Cab →
+                <Download className="w-3.5 h-3.5 text-slate-950 shrink-0" />
+                <span>Download .AAB</span>
               </button>
-            )}
+
+              {activeNavTab !== 'booking' && (
+                <button
+                  type="button"
+                  onClick={() => handleNavClick('booking')}
+                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/30 font-extrabold text-xs transition shrink-0 cursor-pointer"
+                >
+                  Book Cab →
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -627,7 +639,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* 3. Anchored Drawer Bottom Footer (Prevents Infinite Scroll Past Last Option) */}
             <div className="shrink-0 px-4 py-3 border-t border-slate-800 bg-[#070A12] flex items-center justify-between text-[11px] text-slate-400">
-              <span className="font-bold text-slate-300">Safarindiacabs v1.0.3</span>
+              <span className="font-bold text-slate-300">Safarindiacabs v1.0.4 (5)</span>
               <span className="font-mono text-amber-400">+91-7710080992</span>
             </div>
           </aside>

@@ -191,9 +191,9 @@ export function formatWhatsAppBookingConfirmationMessage(params: {
     `• Cab Category: ${cabCategory}`,
     `└──────────────────────────┘`,
     `💵 FARE & PAYMENT BREAKUP`,
-    `• Total Fare: ₹${totalStr}/- (All Inclusive)`,
+    `• Total Fare: ₹${totalStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Payable to driver)`,
+    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Parking Extra If Applicable)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
     `• Helpline: +91-7710080992`,
@@ -407,9 +407,9 @@ export class WhatsAppService {
         drop,
         formattedDate,
         formattedCab,
-        `₹${formatWhatsAppAmount(fare)}/-`,
-        `₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
-        `₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`
+        `${formatWhatsAppAmount(fare)}/-`,
+        `${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
+        `${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Parking Extra If Applicable)`
       ],
       backups: [
         {
@@ -426,7 +426,7 @@ export class WhatsAppService {
           params: [
             customerName,
             cleanId,
-            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`
+            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Parking Extra If Applicable)`
           ]
         }
       ]
@@ -676,80 +676,60 @@ export class WhatsAppService {
     }
 
     // 2. Static-mode fallback: Direct Meta WhatsApp Cloud API request
+    // Always try approved Official Template first so delivery succeeds even without a 24h chat window
     const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
-    const isRichFormattedCard = messageText.includes('┌──');
-
-    // For rich box-drawing trip cards, send the raw text message first so formatting is preserved
-    if (isRichFormattedCard) {
-      const textPayload = {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: formattedPhone,
-        type: 'text',
-        text: {
-          preview_url: false,
-          body: messageText
-        }
-      };
-
-      try {
-        const res = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${activeToken}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-          },
-          body: JSON.stringify(textPayload)
-        });
-
-        if (res.status === 200 || res.status === 201) {
-          callback?.onSuccess('Message Sent Successfully');
-          return true;
-        }
-      } catch {}
-    }
 
     if (templateConfig && templateConfig.name) {
-      const tplPayload = {
-        messaging_product: 'whatsapp',
-        recipient_type: 'individual',
-        to: formattedPhone,
-        type: 'template',
-        template: {
+      const candidateTemplates = [
+        {
           name: templateConfig.name,
-          language: { code: templateConfig.language || 'en_US' },
-          ...(templateConfig.params && templateConfig.params.length > 0
-            ? {
-                components: [
-                  {
-                    type: 'body',
-                    parameters: templateConfig.params.map((p) => ({
-                      type: 'text',
-                      text: sanitizeTemplateParamClient(p)
-                    }))
-                  }
-                ]
-              }
-            : {})
-        }
-      };
+          language: templateConfig.language || 'en_US',
+          params: templateConfig.params || []
+        },
+        ...(templateConfig.backups || [])
+      ];
 
-      try {
-        const tplRes = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${activeToken}`,
-            'Content-Type': 'application/json',
-            Accept: 'application/json'
-          },
-          body: JSON.stringify(tplPayload)
-        });
-        if (tplRes.status === 200 || tplRes.status === 201) {
-          callback?.onSuccess('Message Sent Successfully');
-          return true;
-        }
-      } catch {}
+      for (const tpl of candidateTemplates) {
+        const tplPayload = {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: formattedPhone,
+          type: 'template',
+          template: {
+            name: tpl.name,
+            language: { code: tpl.language || 'en_US' },
+            ...(tpl.params && tpl.params.length > 0
+              ? {
+                  components: [
+                    {
+                      type: 'body',
+                      parameters: tpl.params.map((p) => ({
+                        type: 'text',
+                        text: sanitizeTemplateParamClient(p)
+                      }))
+                    }
+                  ]
+                }
+              : {})
+          }
+        };
+
+        try {
+          const tplRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${activeToken}`,
+              'Content-Type': 'application/json',
+              Accept: 'application/json'
+            },
+            body: JSON.stringify(tplPayload)
+          });
+          if (tplRes.status === 200 || tplRes.status === 201) {
+            callback?.onSuccess('Message Sent Successfully');
+            return true;
+          }
+        } catch {}
+      }
     }
 
     const payload = {
