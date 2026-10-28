@@ -144,10 +144,13 @@ public class UpiPaymentHelper {
             Intent intent;
             if (upiUrl.startsWith("intent://")) {
                 intent = Intent.parseUri(upiUrl, Intent.URI_INTENT_SCHEME);
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                intent.setComponent(null);
+                intent.setSelector(null);
             } else {
                 intent = new Intent(Intent.ACTION_VIEW, Uri.parse(upiUrl));
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
             }
-            intent.addCategory(Intent.CATEGORY_BROWSABLE);
 
             if (preferredPackage != null && !preferredPackage.trim().isEmpty()
                     && isUpiAppInstalled(activity, preferredPackage.trim())) {
@@ -161,6 +164,9 @@ public class UpiPaymentHelper {
                     // Fallback to generic chooser without package restriction
                     try {
                         Intent fallback = new Intent(Intent.ACTION_VIEW, Uri.parse(upiUrl));
+                        fallback.addCategory(Intent.CATEGORY_BROWSABLE);
+                        fallback.setComponent(null);
+                        fallback.setSelector(null);
                         activity.startActivityForResult(
                                 Intent.createChooser(fallback, "Pay with UPI App"),
                                 UPI_PAYMENT_REQUEST_CODE
@@ -206,8 +212,12 @@ public class UpiPaymentHelper {
             Intent intent;
             if (lower.startsWith("intent://")) {
                 intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME);
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                intent.setComponent(null);
+                intent.setSelector(null);
             } else {
                 intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
             }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             activity.startActivity(intent);

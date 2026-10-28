@@ -639,7 +639,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* 3. Anchored Drawer Bottom Footer (Prevents Infinite Scroll Past Last Option) */}
             <div className="shrink-0 px-4 py-3 border-t border-slate-800 bg-[#070A12] flex items-center justify-between text-[11px] text-slate-400">
-              <span className="font-bold text-slate-300">Safarindiacabs v1.0.4 (5)</span>
+              <span className="font-bold text-slate-300">Safarindiacabs v1.0.5 (6)</span>
               <span className="font-mono text-amber-400">+91-7710080992</span>
             </div>
           </aside>

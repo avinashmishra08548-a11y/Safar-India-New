@@ -22,6 +22,10 @@ import { BookingRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { triggerWhatsAppDeepLink, buildCustomerReviewWhatsAppUrl } from '../utils/whatsapp';
 import { formatWhatsAppBookingConfirmationMessage } from '../utils/whatsappService';
+import {
+  renderOfficialRubberStampDataUrl,
+  renderDefaultProprietorSignatureDataUrl
+} from './OwnerBillGenerator';
 
 export const OFFICIAL_WHATSAPP_NUMBER = '917710080992';
 
@@ -74,17 +78,17 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
-  doc.text('SAFAR INDIA CABS', margin, 16);
+  doc.text('SAFARINDIACABS', margin, 16);
 
   doc.setTextColor(251, 191, 36); // Golden subtitle
   doc.setFontSize(9);
-  doc.text('OFFICIAL GST TAX INVOICE  |  GSTIN: 07AABCS1429B1Z5  |  SAC: 996412', margin, 22.5);
+  doc.text('OFFICIAL GST TAX INVOICE  |  GSTIN: 07DQHPA3025F1ZD  |  PROP: AMAN MISHRA  |  SAC: 996412', margin, 22.5);
 
   doc.setTextColor(203, 213, 225);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('Regd Office: H NO 143 Street No 4, Jharoda Majra, Burari, North Delhi - 110084', margin, 28.5);
-  doc.text('24x7 Helpline: +91 77100 80992  |  Email: safarindiacabs01@gmail.com  |  safarindiacabs.com', margin, 34);
+  doc.text('Regd Office: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', margin, 28.5);
+  doc.text('24x7 Helpline: +91 7710080992  |  Email: Safarindiacabs01@gmail.com  |  safarindiacabs.com', margin, 34);
 
   // Right side of Header: Tax Invoice & Booking ID Badge
   const invoiceNo = `INV-${booking.id.replace('SIC-', '')}`;
@@ -354,28 +358,39 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
 
   y += 10;
 
-  // 6. Footer Assurance & Authorized Signatory
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(margin, y, contentWidth, 24, 3, 3, 'F');
+  // 6. Footer Assurance, Official Rubber Mohar & Proprietor Signature
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, y, contentWidth, 38, 2.5, 2.5, 'FD');
 
-  doc.setTextColor(251, 191, 36);
+  doc.setTextColor(8, 28, 68);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('THANK YOU FOR RIDING WITH SAFAR INDIA CABS!', margin + 5, y + 7.5);
+  doc.text('THANK YOU FOR RIDING WITH SAFARINDIACABS!', margin + 5, y + 8);
 
-  doc.setTextColor(226, 232, 240);
+  doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(
-    '• Zero Night Driving Charges   • Verified Commercial Chauffeurs   • 24x7 Highway Assistance',
-    margin + 5,
-    y + 13.5
-  );
-  doc.text(
-    'For support, invoice queries, or return cab bookings, WhatsApp or Call +91 77100 80992.',
-    margin + 5,
-    y + 19
-  );
+  doc.setFontSize(7.8);
+  doc.text('• GSTIN: 07DQHPA3025F1ZD   • Proprietor: Aman Mishra   • Verified Commercial Cab Invoice', margin + 5, y + 14.5);
+  doc.text('• Regd Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', margin + 5, y + 20.5);
+  doc.text('• Helpline: +91 7710080992   |   Email: Safarindiacabs01@gmail.com', margin + 5, y + 26.5);
+
+  try {
+    const stampUrl = renderOfficialRubberStampDataUrl('circular', 'SafarIndiaCabs', '07DQHPA3025F1ZD', 'Aman Mishra');
+    if (stampUrl) {
+      doc.addImage(stampUrl, 'PNG', pageWidth - margin - 68, y + 3, 28, 28);
+    }
+    const customSig = localStorage.getItem('safar_owner_custom_signature_v1');
+    const sigUrl = customSig || renderDefaultProprietorSignatureDataUrl('Aman Mishra');
+    if (sigUrl) {
+      doc.addImage(sigUrl, 'PNG', pageWidth - margin - 42, y + 9, 36, 14);
+    }
+  } catch {}
+
+  doc.setTextColor(8, 28, 68);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.8);
+  doc.text('Prop. Aman Mishra (For SafarIndiaCabs)', pageWidth - margin - 35, y + 34, { align: 'center' });
 
   doc.save(`SafarIndiaCabs_GST_Invoice_${booking.id}.pdf`);
 }
@@ -616,6 +631,41 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   <span className="font-black text-amber-800 text-base font-mono">
                     {formatINR(booking.balanceDue)}
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Official Rubber Mohar & Proprietor Aman Mishra Pre-filled Signature */}
+            <div className="border border-blue-200 bg-blue-50/30 rounded-2xl p-3.5 flex items-center justify-between gap-3">
+              <div className="space-y-0.5 text-[10px] text-slate-600 max-w-[52%]">
+                <div className="font-black uppercase text-[#081C44] text-[11px]">
+                  SafarIndiaCabs · Verified GST Receipt
+                </div>
+                <div className="font-bold text-blue-900">GSTIN: 07DQHPA3025F1ZD</div>
+                <div>Prop: Aman Mishra · +91 7710080992</div>
+                <div className="leading-snug">
+                  H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center shrink-0">
+                <div className="text-[9.5px] font-black uppercase text-[#081C44] tracking-wider">
+                  For SafarIndiaCabs
+                </div>
+                <div className="relative flex items-center justify-center h-20 w-40">
+                  <img
+                    src={renderOfficialRubberStampDataUrl('circular', 'SafarIndiaCabs', '07DQHPA3025F1ZD', 'Aman Mishra')}
+                    alt="SafarIndiaCabs Official Rubber Mohar"
+                    className="w-20 h-20 object-contain opacity-90 select-none pointer-events-none"
+                  />
+                  <img
+                    src={renderDefaultProprietorSignatureDataUrl('Aman Mishra')}
+                    alt="Aman Mishra Signature"
+                    className="absolute right-0 bottom-1 w-28 h-12 object-contain select-none pointer-events-none"
+                  />
+                </div>
+                <div className="text-[9.5px] font-extrabold text-slate-900 border-t border-slate-300 pt-0.5 w-full text-center">
+                  Prop. Aman Mishra (Signatory)
                 </div>
               </div>
             </div>

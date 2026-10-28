@@ -33,6 +33,7 @@ import {
 import { BookingRecord, CustomerUser } from '../types';
 import { downloadProductionAab, downloadProductionApk, downloadReleaseKeystore } from '../utils/aabBinaryData';
 import { generateBookingInvoicePdf } from './BookingConfirmationModal';
+import { OwnerBillGenerator } from './OwnerBillGenerator';
 import { formatINR } from '../utils/fareCalculator';
 import {
   buildWhatsAppSchemeUrl,
@@ -110,7 +111,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenBookingReceipt,
   onCreateManualBooking
 }) => {
-  const [activeTab, setActiveTab] = useState<'bookings' | 'customers' | 'gateways' | 'security'>('bookings');
+  const [activeTab, setActiveTab] = useState<
+    'bookings' | 'bill_generator' | 'customers' | 'gateways' | 'security'
+  >('bookings');
+  const [prefillBillBooking, setPrefillBillBooking] = useState<BookingRecord | null>(null);
   const [isDark, setIsDark] = useState<boolean>(() => {
     try {
       return localStorage.getItem('safar_owner_theme') === 'dark';
@@ -685,6 +689,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveTab('bill_generator')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                activeTab === 'bill_generator'
+                  ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                  : `${textSecondary} hover:${textPrimary}`
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Bill Generator (Mohar &amp; Sign)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('customers')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer whitespace-nowrap ${
                 activeTab === 'customers'
@@ -794,7 +811,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       Safarindiacabs (.AAB) — Package: <span className="text-amber-300 font-mono">com.safarindiacabs.app</span>
                     </h3>
                     <p className="text-xs text-slate-300">
-                      Target SDK 36 (Android 16) · Compile SDK 36 · Min SDK 24 · Version 1.0.3 (Code 4) · Updated Icon &amp; SHA-256 Signed
+                      Target SDK 36 (Android 16) · Compile SDK 36 · Min SDK 24 · Version 1.0.5 (Code 6) · Cross-App Scripting Fixed &amp; Upload Key Signed
                     </p>
                   </div>
 
@@ -805,7 +822,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
                     >
                       <Download className="w-4 h-4" />
-                      <span>Download Production .AAB (v1.0.3 · Code 4 · SDK 36)</span>
+                      <span>Download Production .AAB (v1.0.5 · Code 6 · SDK 36)</span>
                     </button>
                     <button
                       type="button"
@@ -1567,6 +1584,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                             <button
                               type="button"
+                              onClick={() => {
+                                setPrefillBillBooking(b);
+                                setActiveTab('bill_generator');
+                              }}
+                              className="px-3 py-2 rounded-xl bg-[#081C44] hover:bg-slate-800 text-amber-300 border border-amber-400/40 text-xs font-black transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                              title="Open Custom Bill Generator with Official Rubber Mohar & Sign"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Custom Bill (Mohar)</span>
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={() => generateBookingInvoicePdf(b)}
                               className={`px-2.5 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                                 isDark
@@ -1679,6 +1709,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
               </div>
             </div>
+          )}
+
+          {/* TAB: CUSTOM GST BILL GENERATOR (WITH OFFICIAL RUBBER MOHAR & PROPRIETOR SIGN) */}
+          {activeTab === 'bill_generator' && (
+            <OwnerBillGenerator
+              isDark={isDark}
+              prefillBooking={prefillBillBooking}
+              onClearPrefill={() => setPrefillBillBooking(null)}
+            />
           )}
 
           {/* TAB 2: CUSTOMERS DIRECTORY */}
