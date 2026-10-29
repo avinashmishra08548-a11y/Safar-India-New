@@ -9,21 +9,20 @@ import {
   Trash2,
   CheckCircle2,
   MessageSquare,
-  Sparkles,
   User,
-  Building2,
   Car,
-  MapPin,
-  Calendar,
   IndianRupee,
   Stamp,
   PenTool,
   History,
-  Copy
+  ShieldCheck
 } from 'lucide-react';
 import { BookingRecord } from '../types';
 import { triggerWhatsAppDeepLink, buildWhatsAppSchemeUrl } from '../utils/whatsapp';
-import { OFFICIAL_AMAN_MISHRA_SIGNATURE_DATA_URL } from '../utils/officialSignatureData';
+import {
+  OFFICIAL_AMAN_MISHRA_SIGNATURE_DATA_URL,
+  OFFICIAL_SAFAR_LOGO_DATA_URL
+} from '../utils/officialSignatureData';
 
 export interface CustomBillData {
   id: string;
@@ -79,10 +78,11 @@ export interface CustomBillData {
   taxType: 'cgst_sgst' | 'igst';
   advancePaid: number;
   notes: string;
+  digitalSignTimestamp: string;
   createdAt: string;
 }
 
-const STORAGE_KEY_BILLS = 'safar_custom_generated_bills_v1';
+const STORAGE_KEY_BILLS = 'safar_custom_generated_bills_v2';
 const STORAGE_KEY_SIGNATURE = 'safar_owner_custom_signature_v1';
 const STORAGE_KEY_STAMP_STYLE = 'safar_owner_stamp_style_v1';
 
@@ -95,6 +95,16 @@ export const OFFICIAL_COMPANY_DEFAULTS = {
   companyAddress: 'H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084',
   sacCode: '996412'
 };
+
+export function formatDigitalSignTimestamp(dateObj = new Date()): string {
+  const yyyy = dateObj.getFullYear();
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const dd = String(dateObj.getDate()).padStart(2, '0');
+  const hh = String(dateObj.getHours()).padStart(2, '0');
+  const min = String(dateObj.getMinutes()).padStart(2, '0');
+  const ss = String(dateObj.getSeconds()).padStart(2, '0');
+  return `${yyyy}.${mm}.${dd} ${hh}:${min}:${ss} IST`;
+}
 
 /**
  * Converts a non-negative integer into Indian English words for GST Invoices
@@ -187,39 +197,34 @@ export function renderOfficialRubberStampDataUrl(
 
     ctx.save();
     ctx.translate(260, 120);
-    ctx.rotate(-0.04);
+    ctx.rotate(-0.035);
 
-    const inkColor = '#1E3A8A'; // Classic Royal Blue Stamp Pad Ink
+    const inkColor = '#1E3A8A';
     ctx.strokeStyle = inkColor;
     ctx.fillStyle = inkColor;
 
-    // Outer double border
     ctx.lineWidth = 6;
     ctx.strokeRect(-235, -95, 470, 190);
     ctx.lineWidth = 2.2;
     ctx.strokeRect(-225, -85, 450, 170);
 
-    // Company Title
-    ctx.font = '900 28px "Arial Black", Impact, sans-serif';
+    ctx.font = '900 26px "Arial Black", Impact, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`For ${companyName.toUpperCase()}`, 0, -46);
+    ctx.fillText(`For ${companyName.toUpperCase()}`, 0, -48);
 
-    // Divider line
     ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.moveTo(-200, -32);
-    ctx.lineTo(200, -32);
+    ctx.moveTo(-200, -34);
+    ctx.lineTo(200, -34);
     ctx.stroke();
 
-    // Sub-details
-    ctx.font = 'bold 16px Arial, sans-serif';
-    ctx.fillText(`GSTIN: ${gstin}  •  NORTH DELHI - 110084`, 0, -8);
-
     ctx.font = 'bold 15px Arial, sans-serif';
-    ctx.fillText('JHARODA MAJRA, BURARI • MOB: 7710080992', 0, 16);
+    ctx.fillText(`GSTIN: ${gstin}  •  NORTH DELHI - 110084`, 0, -10);
 
-    // Proprietor / Signatory line
-    ctx.font = '900 18px Arial, sans-serif';
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.fillText('JHARODA MAJRA, BURARI • MOB: 7710080992', 0, 14);
+
+    ctx.font = '900 17px Arial, sans-serif';
     ctx.fillText(`PROP. ${proprietor.toUpperCase()} (AUTHORISED SIGNATORY)`, 0, 66);
 
     ctx.restore();
@@ -234,11 +239,11 @@ export function renderOfficialRubberStampDataUrl(
 
   const cx = 210;
   const cy = 210;
-  const ink = '#1D4ED8'; // Authentic Blue Stamp Pad Ink
+  const ink = '#1D4ED8';
 
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(-0.08); // Slight natural hand-stamped tilt
+  ctx.rotate(-0.07);
 
   ctx.strokeStyle = ink;
   ctx.fillStyle = ink;
@@ -261,7 +266,6 @@ export function renderOfficialRubberStampDataUrl(
   ctx.arc(0, 0, 118, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Helper to draw curved text along top arc
   const drawTopArcText = (text: string, radius: number, startAngle: number, endAngle: number, fontSize: number) => {
     ctx.save();
     ctx.font = `900 ${fontSize}px Arial, sans-serif`;
@@ -280,7 +284,6 @@ export function renderOfficialRubberStampDataUrl(
     ctx.restore();
   };
 
-  // Helper to draw curved text along bottom arc (upright reading left-to-right)
   const drawBottomArcText = (
     text: string,
     radius: number,
@@ -305,13 +308,9 @@ export function renderOfficialRubberStampDataUrl(
     ctx.restore();
   };
 
-  // Top Curved Text: ★ SAFAR INDIA CABS ★
   drawTopArcText('★ SAFAR INDIA CABS ★', 144, -Math.PI * 0.72, Math.PI * 0.72, 22);
-
-  // Bottom Curved Text: BURARI, NORTH DELHI - 110084
   drawBottomArcText('NORTH DELHI - 110084', 144, Math.PI * 0.66, -Math.PI * 0.66, 18);
 
-  // Center Horizontal Banner Box
   ctx.lineWidth = 2.5;
   ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
   ctx.fillRect(-114, -40, 228, 80);
@@ -328,7 +327,6 @@ export function renderOfficialRubberStampDataUrl(
   ctx.font = '900 13.5px Arial, sans-serif';
   ctx.fillText(`PROP: ${proprietor.toUpperCase()}`, 0, 26);
 
-  // Top & Bottom inner stars/emblems
   ctx.font = 'bold 13px Arial, sans-serif';
   ctx.fillText('A1 CAB SERVICES', 0, -68);
   ctx.fillText('MOB: 7710080992', 0, 76);
@@ -370,7 +368,6 @@ function processUploadedSignatureImage(file: File): Promise<string> {
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
-          // Convert near-white paper pixels to transparent so signature overlays cleanly on stamp
           const brightness = (r + g + b) / 3;
           if (brightness > 215) {
             data[i + 3] = 0;
@@ -444,7 +441,9 @@ export function calculateBillTotals(bill: CustomBillData) {
 }
 
 /**
- * Generates and downloads an official A4 PDF Tax Invoice with Rubber Stamp ("Mohar") & Proprietor Signature
+ * Generates and downloads a clean, professional Light-Theme Corporate A4 GST Tax Invoice PDF
+ * featuring the SafarIndiaCabs Logo, Itemized Table, "Digitally signed by..." block,
+ * Official Blue Rubber Mohar, and Proprietor Aman Mishra's Handwritten Signature.
  */
 export async function downloadCustomBillPdf(
   bill: CustomBillData,
@@ -460,196 +459,221 @@ export async function downloadCustomBillPdf(
 
   const totals = calculateBillTotals(bill);
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 12;
   const contentWidth = pageWidth - margin * 2;
 
-  const navyR = 8,
-    navyG = 28,
-    navyB = 68;
-  const goldR = 245,
-    goldG = 158,
-    goldB = 11;
-
-  // 1. Top Navy Header Banner
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.rect(0, 0, pageWidth, 44, 'F');
-  doc.setFillColor(goldR, goldG, goldB);
-  doc.rect(0, 44, pageWidth, 2.2, 'F');
-
-  // Left: Company Branding & Official Details
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(21);
-  doc.text(bill.companyName.toUpperCase(), margin, 14);
-
-  doc.setTextColor(251, 191, 36);
-  doc.setFontSize(9.5);
-  doc.text(
-    `GSTIN: ${bill.companyGstin}   |   PROPRIETOR: ${bill.proprietorName.toUpperCase()}   |   SAC: ${bill.sacCode}`,
-    margin,
-    21
-  );
-
-  doc.setTextColor(226, 232, 240);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.2);
-  doc.text(`Regd. Office: ${bill.companyAddress}`, margin, 27.5);
-  doc.text(
-    `Mob / WhatsApp: +91 ${bill.companyPhone}   |   Email: ${bill.companyEmail}   |   Web: www.safarindiacabs.com`,
-    margin,
-    33.5
-  );
-  doc.setTextColor(148, 163, 184);
-  doc.setFontSize(7.5);
-  doc.text('A1 Commercial Cab & Corporate Travel Services Across North India', margin, 39.5);
-
-  // Right: Tax Invoice Badge Box
-  doc.setFillColor(goldR, goldG, goldB);
-  doc.roundedRect(pageWidth - margin - 62, 8, 62, 28, 2.5, 2.5, 'F');
-  doc.setTextColor(8, 28, 68);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text('TAX INVOICE / BILL', pageWidth - margin - 31, 14.5, { align: 'center' });
-  doc.setFontSize(10.5);
-  doc.text(bill.invoiceNo, pageWidth - margin - 31, 21.5, { align: 'center' });
-  doc.setFontSize(7.8);
-  doc.text(`Date: ${bill.invoiceDate}`, pageWidth - margin - 31, 27.5, { align: 'center' });
-  doc.text(`Ref: ${bill.bookingRef}`, pageWidth - margin - 31, 32.8, { align: 'center' });
-
-  let y = 52;
-
-  // 2. Two-Column Billed To (Customer / Company) & Trip / Vehicle Summary
-  const colW = (contentWidth - 5) / 2;
-
-  // Left Box: Billed To (Customer & Company Claim Details)
+  // Outer clean corporate page border on crisp white sheet
   doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, y, colW, 42, 2, 2, 'FD');
+  doc.setLineWidth(0.4);
+  doc.rect(margin - 2, 8, contentWidth + 4, pageHeight - 16);
 
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(margin, y, colW, 7.5, 1.5, 1.5, 'F');
-  doc.setTextColor(251, 191, 36);
+  // Top Amber-Gold & Royal Blue Accent Hairline at very top of invoice box
+  doc.setFillColor(15, 23, 42);
+  doc.rect(margin - 2, 8, (contentWidth + 4) * 0.68, 2.2, 'F');
+  doc.setFillColor(245, 158, 11);
+  doc.rect(margin - 2 + (contentWidth + 4) * 0.68, 8, (contentWidth + 4) * 0.32, 2.2, 'F');
+
+  let y = 14;
+
+  // 1. LIGHT-THEME EXECUTIVE HEADER: Official Logo (Left) + Company Details (Center-Left) + Tax Invoice Box (Right)
+  try {
+    if (OFFICIAL_SAFAR_LOGO_DATA_URL) {
+      doc.addImage(OFFICIAL_SAFAR_LOGO_DATA_URL, 'PNG', margin, y, 28, 28);
+    }
+  } catch {}
+
+  const compX = margin + 31;
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('BILLED TO (CUSTOMER / CORPORATE CLAIM)', margin + 3.5, y + 5.2);
+  doc.setFontSize(17.5);
+  doc.text(bill.companyName.toUpperCase(), compX, y + 6.5);
+
+  doc.setTextColor(180, 83, 9);
+  doc.setFontSize(8.2);
+  doc.text('A1 COMMERCIAL CAB & CORPORATE TRAVEL SERVICES • NORTH INDIA', compX, y + 11.2);
+
+  doc.setTextColor(30, 41, 59);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.6);
+  doc.text(`GSTIN: ${bill.companyGstin}   |   Proprietor: ${bill.proprietorName}`, compX, y + 16.5);
+
+  doc.setTextColor(71, 85, 105);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.8);
+  doc.text(`Regd. Address: ${bill.companyAddress}`, compX, y + 21.3);
+  doc.text(
+    `Phone / WhatsApp: +91 ${bill.companyPhone}   |   Email: ${bill.companyEmail}   |   Web: www.safarindiacabs.com`,
+    compX,
+    y + 26
+  );
+
+  // Right Box: Light-Themed "TAX INVOICE" Metadata Card
+  const invBoxW = 60;
+  const invBoxX = pageWidth - margin - invBoxW;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(invBoxX, y, invBoxW, 28, 2, 2, 'FD');
+
+  doc.setFillColor(254, 243, 199);
+  doc.roundedRect(invBoxX, y, invBoxW, 7.5, 2, 2, 'F');
+  doc.setTextColor(146, 64, 14);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.8);
+  doc.text('GST TAX INVOICE', invBoxX + invBoxW / 2, y + 5.1, { align: 'center' });
 
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  doc.text(bill.customerName || 'Valued Passenger', margin + 3.5, y + 14);
+  doc.setFontSize(9.5);
+  doc.text(`Invoice No: ${bill.invoiceNo}`, invBoxX + 3, y + 13);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.3);
+  doc.setFontSize(8);
   doc.setTextColor(51, 65, 85);
-  let custY = y + 19.5;
+  doc.text(`Invoice Date: ${bill.invoiceDate}`, invBoxX + 3, y + 18);
+  doc.text(`Duty / Ref ID: ${bill.bookingRef}`, invBoxX + 3, y + 22.5);
+  doc.text(`SAC Code: ${bill.sacCode} (Cab Service)`, invBoxX + 3, y + 26.5);
+
+  y += 32;
+
+  // Horizontal Separator
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 4;
+
+  // 2. Two-Column Light-Theme Cards: Billed To (Customer/Company) & Trip / Vehicle Details
+  const colW = (contentWidth - 4) / 2;
+
+  // Left Box: Billed To
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, y, colW, 38, 1.8, 1.8, 'FD');
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, y, colW, 7, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, y + 7, margin + colW, y + 7);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.text('BILLED TO (PASSENGER / CORPORATE DETAILS)', margin + 3, y + 4.8);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.8);
+  doc.text(bill.customerName || 'Valued Passenger', margin + 3, y + 13);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.1);
+  doc.setTextColor(51, 65, 85);
+  let custY = y + 18;
   if (bill.customerCompany) {
     doc.setFont('helvetica', 'bold');
-    doc.text(`Company: ${bill.customerCompany}`, margin + 3.5, custY);
+    doc.text(`Company: ${bill.customerCompany}`, margin + 3, custY);
     doc.setFont('helvetica', 'normal');
-    custY += 5;
+    custY += 4.8;
   }
   if (bill.customerGstin) {
-    doc.text(`Customer GSTIN: ${bill.customerGstin}`, margin + 3.5, custY);
-    custY += 5;
+    doc.text(`Customer GSTIN: ${bill.customerGstin}`, margin + 3, custY);
+    custY += 4.8;
   }
   if (bill.employeeIdOrDept) {
-    doc.text(`Emp ID / Dept: ${bill.employeeIdOrDept}`, margin + 3.5, custY);
-    custY += 5;
+    doc.text(`Employee ID / Dept: ${bill.employeeIdOrDept}`, margin + 3, custY);
+    custY += 4.8;
   }
   doc.text(
     `Mobile: ${bill.customerPhone ? '+91 ' + bill.customerPhone : 'N/A'}${
       bill.customerEmail ? '  |  ' + bill.customerEmail : ''
     }`,
-    margin + 3.5,
+    margin + 3,
     custY
   );
-  if (bill.customerAddress && custY + 5 <= y + 39) {
-    const addrLines = doc.splitTextToSize(`Address: ${bill.customerAddress}`, colW - 7);
-    doc.text(addrLines[0], margin + 3.5, custY + 5);
+  if (bill.customerAddress && custY + 4.8 <= y + 36) {
+    const addrLines = doc.splitTextToSize(`Address: ${bill.customerAddress}`, colW - 6);
+    doc.text(addrLines[0], margin + 3, custY + 4.8);
   }
 
-  // Right Box: Vehicle, Chauffeur & Duty Summary
-  const rightX = margin + colW + 5;
+  // Right Box: Vehicle & Trip Details
+  const rightX = margin + colW + 4;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(rightX, y, colW, 42, 2, 2, 'FD');
+  doc.roundedRect(rightX, y, colW, 38, 1.8, 1.8, 'FD');
 
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(rightX, y, colW, 7.5, 1.5, 1.5, 'F');
-  doc.setTextColor(251, 191, 36);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('VEHICLE & CHAUFFEUR DUTY DETAILS', rightX + 3.5, y + 5.2);
+  doc.setFillColor(241, 245, 249);
+  doc.rect(rightX, y, colW, 7, 'F');
+  doc.line(rightX, y + 7, rightX + colW, y + 7);
 
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(9.5);
-  doc.text(`Vehicle: ${(bill.vehicleModel || 'Sedan AC').slice(0, 38)}`, rightX + 3.5, y + 14);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.text('VEHICLE, CHAUFFEUR & JOURNEY SUMMARY', rightX + 3, y + 4.8);
+
+  doc.setFontSize(9.2);
+  doc.text(`Vehicle: ${(bill.vehicleModel || 'Sedan AC').slice(0, 38)}`, rightX + 3, y + 13);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.3);
+  doc.setFontSize(8.1);
   doc.setTextColor(51, 65, 85);
   doc.text(
-    `Vehicle Reg. No: ${bill.vehicleNumber || 'Commercial Cab'}   |   Type: ${bill.tripType}`,
-    rightX + 3.5,
-    y + 19.5
+    `Vehicle Reg. No: ${bill.vehicleNumber || 'Commercial Cab'}   |   Duty: ${bill.tripType}`,
+    rightX + 3,
+    y + 18
   );
   doc.text(
-    `Driver: ${bill.driverName || 'Verified Chauffeur'}${
+    `Chauffeur: ${bill.driverName || 'Verified Chauffeur'}${
       bill.driverPhone ? ' (+91 ' + bill.driverPhone + ')' : ''
     }`,
-    rightX + 3.5,
-    y + 25
+    rightX + 3,
+    y + 22.8
   );
   doc.text(
     `Travel Date: ${bill.pickupDate}${bill.pickupTime ? ' at ' + bill.pickupTime : ''}${
       bill.returnDate ? ' to ' + bill.returnDate : ''
     }`,
-    rightX + 3.5,
-    y + 30.5
+    rightX + 3,
+    y + 27.6
   );
   doc.text(
     `Total Distance: ${bill.totalKm || 0} KM   |   Duration: ${bill.totalDays || 1} Day(s)`,
-    rightX + 3.5,
-    y + 36
+    rightX + 3,
+    y + 32.4
   );
 
-  y += 47;
+  y += 42;
 
-  // 3. Route & Itinerary Box
+  // 3. Light-Themed Route Itinerary Strip
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, y, contentWidth, 24, 2, 2, 'FD');
-
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(margin, y, contentWidth, 7, 1.5, 1.5, 'F');
-  doc.setTextColor(251, 191, 36);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.3);
-  doc.text('JOURNEY ROUTE & PICKUP / DROP PARTICULARS', margin + 3.5, y + 4.8);
+  doc.roundedRect(margin, y, contentWidth, 16, 1.8, 1.8, 'FD');
 
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(8.5);
-  doc.text('Pickup Location:', margin + 3.5, y + 13);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.text('PICKUP LOCATION:', margin + 3, y + 6.2);
   doc.setFont('helvetica', 'normal');
-  doc.text((bill.pickupLocation || '-').slice(0, 85), margin + 32, y + 13);
+  doc.text((bill.pickupLocation || '-').slice(0, 82), margin + 34, y + 6.2);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Drop Location:', margin + 3.5, y + 19.5);
+  doc.text('DROP LOCATION:', margin + 3, y + 12.2);
   doc.setFont('helvetica', 'normal');
   const dropWithVia = `${bill.dropLocation || '-'}${bill.viaRoute ? ` (Via: ${bill.viaRoute})` : ''}`;
-  doc.text(dropWithVia.slice(0, 85), margin + 32, y + 19.5);
+  doc.text(dropWithVia.slice(0, 82), margin + 34, y + 12.2);
 
-  y += 29;
+  y += 20;
 
-  // 4. Itemized Fare & Tax Table
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(margin, y, contentWidth, 8, 1.5, 1.5, 'F');
-  doc.setTextColor(251, 191, 36);
+  // 4. Clean Light-Themed Itemized GST Invoice Table
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(148, 163, 184);
+  doc.rect(margin, y, contentWidth, 8, 'FD');
+
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('S.NO', margin + 3, y + 5.4);
-  doc.text('DESCRIPTION OF CAB / TRAVEL SERVICE', margin + 16, y + 5.4);
-  doc.text('SAC', pageWidth - margin - 48, y + 5.4);
-  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 5.4, { align: 'right' });
+  doc.setFontSize(8.2);
+  doc.text('S.NO', margin + 3, y + 5.3);
+  doc.text('DESCRIPTION OF CAB / TRAVEL SERVICE', margin + 15, y + 5.3);
+  doc.text('SAC CODE', pageWidth - margin - 52, y + 5.3);
+  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 5.3, { align: 'right' });
 
   y += 8;
 
@@ -703,31 +727,31 @@ export async function downloadCustomBillPdf(
   }
 
   lineItems.forEach((item, idx) => {
-    doc.setFillColor(idx % 2 === 0 ? 255 : 248, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 252);
+    doc.setFillColor(255, 255, 255);
     doc.setDrawColor(226, 232, 240);
-    doc.rect(margin, y, contentWidth, 8.5, 'FD');
+    doc.rect(margin, y, contentWidth, 8, 'FD');
 
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
-    doc.text(String(idx + 1), margin + 4, y + 5.7);
-    doc.text(item.desc.slice(0, 74), margin + 16, y + 5.7);
-    doc.text(bill.sacCode, pageWidth - margin - 48, y + 5.7);
+    doc.setFontSize(8.3);
+    doc.text(String(idx + 1), margin + 4, y + 5.3);
+    doc.text(item.desc.slice(0, 74), margin + 15, y + 5.3);
+    doc.text(bill.sacCode, pageWidth - margin - 48, y + 5.3);
 
     doc.setFont('helvetica', 'bold');
     const formattedAmt =
       item.amount < 0
-        ? `- Rs. ${Math.abs(item.amount).toLocaleString('en-IN')}.00`
-        : `Rs. ${item.amount.toLocaleString('en-IN')}.00`;
-    doc.text(formattedAmt, pageWidth - margin - 3.5, y + 5.7, { align: 'right' });
-    y += 8.5;
+        ? `- INR ${Math.abs(item.amount).toLocaleString('en-IN')}.00`
+        : `INR ${item.amount.toLocaleString('en-IN')}.00`;
+    doc.text(formattedAmt, pageWidth - margin - 3.5, y + 5.3, { align: 'right' });
+    y += 8;
   });
 
   // Tax & Summary Rows
-  const summaryRows: Array<{ label: string; value: string; bold?: boolean; highlight?: 'gold' | 'green' }> = [
+  const summaryRows: Array<{ label: string; value: string; bold?: boolean; highlight?: 'total' | 'paid' }> = [
     {
       label: 'Taxable Service Value',
-      value: `Rs. ${totals.taxableAmount.toLocaleString('en-IN')}.00`,
+      value: `INR ${totals.taxableAmount.toLocaleString('en-IN')}.00`,
       bold: true
     }
   ];
@@ -737,117 +761,149 @@ export async function downloadCustomBillPdf(
       summaryRows.push(
         {
           label: 'CGST @ 2.5% (Central Goods & Services Tax)',
-          value: `Rs. ${totals.cgst.toLocaleString('en-IN')}.00`
+          value: `INR ${totals.cgst.toLocaleString('en-IN')}.00`
         },
         {
           label: 'SGST @ 2.5% (State Goods & Services Tax)',
-          value: `Rs. ${totals.sgst.toLocaleString('en-IN')}.00`
+          value: `INR ${totals.sgst.toLocaleString('en-IN')}.00`
         }
       );
     } else {
       summaryRows.push({
         label: 'IGST @ 5.0% (Integrated Goods & Services Tax)',
-        value: `Rs. ${totals.igst.toLocaleString('en-IN')}.00`
+        value: `INR ${totals.igst.toLocaleString('en-IN')}.00`
       });
     }
   }
 
   summaryRows.push(
     {
-      label: 'GRAND TOTAL INVOICE AMOUNT',
-      value: `Rs. ${totals.grandTotal.toLocaleString('en-IN')}.00`,
+      label: 'TOTAL INVOICE AMOUNT',
+      value: `INR ${totals.grandTotal.toLocaleString('en-IN')}.00`,
       bold: true,
-      highlight: 'gold'
+      highlight: 'total'
     },
     {
-      label: `Amount Received (${bill.paymentMode}${bill.transactionRef ? ' - Ref: ' + bill.transactionRef : ''})`,
-      value: `Rs. ${totals.advance.toLocaleString('en-IN')}.00 (${bill.paymentStatus})`,
+      label: `Amount Settled (${bill.paymentMode}${bill.transactionRef ? ' - Ref: ' + bill.transactionRef : ''})`,
+      value: `INR ${totals.advance.toLocaleString('en-IN')}.00 (${bill.paymentStatus})`,
       bold: true,
-      highlight: 'green'
+      highlight: 'paid'
     },
     {
-      label: 'Net Balance Payable',
-      value: totals.balanceDue === 0 ? 'Rs. 0.00 (NIL - PAID IN FULL)' : `Rs. ${totals.balanceDue.toLocaleString('en-IN')}.00`,
+      label: 'Balance Payable',
+      value:
+        totals.balanceDue === 0
+          ? 'INR 0.00 (NIL - PAID IN FULL)'
+          : `INR ${totals.balanceDue.toLocaleString('en-IN')}.00`,
       bold: true
     }
   );
 
   for (const row of summaryRows) {
-    if (row.highlight === 'gold') {
-      doc.setFillColor(254, 243, 199);
-    } else if (row.highlight === 'green') {
-      doc.setFillColor(236, 253, 245);
+    if (row.highlight === 'total') {
+      doc.setFillColor(248, 250, 252);
+    } else if (row.highlight === 'paid') {
+      doc.setFillColor(240, 253, 244);
     } else {
       doc.setFillColor(255, 255, 255);
     }
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(margin, y, contentWidth, 8.2, 'FD');
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(margin, y, contentWidth, 7.8, 'FD');
 
-    if (row.highlight === 'gold') {
-      doc.setTextColor(146, 64, 14);
-    } else if (row.highlight === 'green') {
-      doc.setTextColor(4, 120, 87);
+    if (row.highlight === 'paid') {
+      doc.setTextColor(21, 128, 61);
     } else {
       doc.setTextColor(15, 23, 42);
     }
 
     doc.setFont('helvetica', row.bold ? 'bold' : 'normal');
-    doc.setFontSize(row.bold ? 9 : 8.5);
-    doc.text(row.label, margin + 16, y + 5.5);
-    doc.text(row.value, pageWidth - margin - 3.5, y + 5.5, { align: 'right' });
-    y += 8.2;
+    doc.setFontSize(row.highlight === 'total' ? 9.5 : row.bold ? 8.6 : 8.2);
+    doc.text(row.label, margin + 15, y + 5.2);
+    doc.text(row.value, pageWidth - margin - 3.5, y + 5.2, { align: 'right' });
+    y += 7.8;
   }
 
   // Amount in Words Bar
-  doc.setFillColor(241, 245, 249);
+  doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.rect(margin, y, contentWidth, 8.5, 'FD');
+  doc.rect(margin, y, contentWidth, 8, 'FD');
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.3);
-  doc.text(`Amount in Words: ${totals.amountInWords}`, margin + 4, y + 5.6);
+  doc.setFontSize(8.2);
+  doc.text(`Amount in Words: ${totals.amountInWords}`, margin + 3.5, y + 5.3);
 
-  y += 12;
+  y += 11;
 
-  // 5. Bottom Section: Terms & Conditions (Left) + Official Rubber Stamp ("Mohar") & Proprietor Signature (Right)
+  // 5. THREE-COLUMN CORPORATE VERIFICATION FOOTER:
+  // Col 1: Reimbursement Declaration | Col 2: "Digitally signed by..." Block | Col 3: Official Rubber Mohar + Signature
   const signBoxHeight = 52;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
   doc.roundedRect(margin, y, contentWidth, signBoxHeight, 2, 2, 'FD');
 
-  // Vertical divider
-  const splitX = margin + contentWidth * 0.54;
-  doc.line(splitX, y, splitX, y + signBoxHeight);
+  const col1W = contentWidth * 0.37;
+  const col2W = contentWidth * 0.31;
+  const split1X = margin + col1W;
+  const split2X = split1X + col2W;
 
-  // Left: Terms, Notes & Bank / Reimbursement Declaration
-  doc.setTextColor(8, 28, 68);
+  doc.line(split1X, y, split1X, y + signBoxHeight);
+  doc.line(split2X, y, split2X, y + signBoxHeight);
+
+  // Column 1: Terms & Declaration
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('DECLARATION & TERMS FOR CORPORATE REIMBURSEMENT:', margin + 4, y + 7);
+  doc.setFontSize(8);
+  doc.text('DECLARATION & TERMS:', margin + 3, y + 6.5);
 
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.6);
+  doc.setFontSize(7.1);
   const terms = [
-    '1. Certified that the particulars given above are true & correct for official cab travel.',
-    `2. Registered Office: ${bill.companyAddress}.`,
-    `3. Official GSTIN: ${bill.companyGstin} | Proprietor: ${bill.proprietorName}.`,
-    '4. Subject to Delhi Jurisdiction only. E. & O.E.',
-    bill.notes ? `5. Remarks: ${bill.notes}` : '5. Thank you for travelling with SafarIndiaCabs!'
+    '1. Certified that the particulars given above are true and correct for corporate travel claim.',
+    `2. Regd. Office: ${bill.companyAddress}.`,
+    `3. GSTIN: ${bill.companyGstin} | SAC: ${bill.sacCode}.`,
+    '4. Subject to North Delhi Jurisdiction. E. & O.E.',
+    bill.notes ? `5. ${bill.notes}` : '5. Thank you for riding with SafarIndiaCabs!'
   ];
-  terms.forEach((line, idx) => {
-    const wrapped = doc.splitTextToSize(line, contentWidth * 0.54 - 8);
-    doc.text(wrapped[0], margin + 4, y + 14 + idx * 6.2);
+  let termY = y + 12;
+  terms.forEach((line) => {
+    const wrapped = doc.splitTextToSize(line, col1W - 5);
+    doc.text(wrapped.slice(0, 2), margin + 3, termY);
+    termY += wrapped.length > 1 ? 7.2 : 5.2;
   });
 
-  // Right: "For SAFARINDIACABS", Official Rubber Stamp ("Mohar"), and Proprietor Signature
-  const rightCenter = splitX + (contentWidth * 0.46) / 2;
-  doc.setTextColor(8, 28, 68);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text(`For ${bill.companyName.toUpperCase()}`, rightCenter, y + 6.5, { align: 'center' });
+  // Column 2: Exact Corporate "Digitally signed by..." Block (as requested from screenshot)
+  const digX = split1X + 3.5;
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  const digitalTimestamp = bill.digitalSignTimestamp || formatDigitalSignTimestamp();
+  const digLines = [
+    `Digitally signed by ${bill.companyName.toUpperCase()}`,
+    `(${bill.proprietorName.toUpperCase()})`,
+    `GSTIN: ${bill.companyGstin}`,
+    `Date: ${digitalTimestamp}`,
+    'Location: IN (North Delhi)'
+  ];
+  let digY = y + 12;
+  digLines.forEach((dl) => {
+    const wrapped = doc.splitTextToSize(dl, col2W - 6);
+    doc.text(wrapped, digX, digY);
+    digY += wrapped.length * 4.5 + 1.2;
+  });
 
-  // Render Rubber Stamp ("Mohar") and Signature onto PDF
+  doc.setTextColor(21, 128, 61);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.4);
+  doc.text('✓ Digitally Verified Tax Invoice', digX, y + 46.5);
+
+  // Column 3: Official Rubber Mohar + Proprietor Aman Mishra Handwritten Signature
+  const rightCenter = split2X + (contentWidth - col1W - col2W) / 2;
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.3);
+  doc.text(`For ${bill.companyName.toUpperCase()}`, rightCenter, y + 6, { align: 'center' });
+
   try {
     const stampUrl = renderOfficialRubberStampDataUrl(
       stampStyle,
@@ -857,30 +913,28 @@ export async function downloadCustomBillPdf(
     );
     if (stampUrl) {
       if (stampStyle === 'circular') {
-        doc.addImage(stampUrl, 'PNG', splitX + 8, y + 9, 32, 32);
+        doc.addImage(stampUrl, 'PNG', split2X + 3, y + 8.5, 29, 29);
       } else {
-        doc.addImage(stampUrl, 'PNG', splitX + 6, y + 12, 46, 22);
+        doc.addImage(stampUrl, 'PNG', split2X + 3, y + 12, 42, 20);
       }
     }
 
     const sigUrl = signatureDataUrl || renderDefaultProprietorSignatureDataUrl(bill.proprietorName);
     if (sigUrl) {
-      doc.addImage(sigUrl, 'PNG', splitX + 34, y + 16, 44, 16);
+      doc.addImage(sigUrl, 'PNG', split2X + 20, y + 14.5, 36, 14);
     }
-  } catch {
-    // Fallback text if canvas image embedding is unavailable
-  }
+  } catch {}
 
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text(`Proprietor: ${bill.proprietorName}`, rightCenter, y + 44, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text(`Prop. ${bill.proprietorName}`, rightCenter, y + 43.5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(71, 85, 105);
-  doc.text('Authorised Signatory & Official Seal', rightCenter, y + 48.5, { align: 'center' });
+  doc.text('Authorised Signatory & Seal', rightCenter, y + 48, { align: 'center' });
 
-  doc.save(`SafarIndiaCabs_Bill_${bill.invoiceNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
+  doc.save(`SafarIndiaCabs_GST_Invoice_${bill.invoiceNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
 }
 
 interface OwnerBillGeneratorProps {
@@ -898,6 +952,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
 
   const createFreshBill = (booking?: BookingRecord | null): CustomBillData => {
     const randSuffix = Math.floor(1000 + Math.random() * 9000);
+    const nowStamp = formatDigitalSignTimestamp();
     if (booking) {
       return {
         id: `BILL-${Date.now()}`,
@@ -946,6 +1001,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
         taxType: 'cgst_sgst',
         advancePaid: booking.totalFare || 3500,
         notes: 'Official GST Tax Invoice issued for corporate travel reimbursement.',
+        digitalSignTimestamp: nowStamp,
         createdAt: new Date().toISOString()
       };
     }
@@ -990,6 +1046,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
       taxType: 'cgst_sgst',
       advancePaid: 3500,
       notes: 'Official Tax Invoice for Official / Personal Travel Claim & Company Reimbursement.',
+      digitalSignTimestamp: nowStamp,
       createdAt: new Date().toISOString()
     };
   };
@@ -1065,7 +1122,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
       const processed = await processUploadedSignatureImage(file);
       setCustomSignatureUrl(processed);
       localStorage.setItem(STORAGE_KEY_SIGNATURE, processed);
-      setStatusBanner('Proprietor signature uploaded & transparent background applied!');
+      setStatusBanner('Custom signature uploaded & applied!');
       setTimeout(() => setStatusBanner(''), 4000);
     } catch {
       setStatusBanner('Could not process signature image. Using official Aman Mishra signature.');
@@ -1077,7 +1134,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
     try {
       localStorage.removeItem(STORAGE_KEY_SIGNATURE);
     } catch {}
-    setStatusBanner('Reset to official Aman Mishra fountain-pen signature.');
+    setStatusBanner('Reset to pre-filled Aman Mishra official signature.');
     setTimeout(() => setStatusBanner(''), 3000);
   };
 
@@ -1103,7 +1160,9 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
     try {
       handleSaveBillToHistory();
       await downloadCustomBillPdf(bill, activeSignatureUrl, stampStyle);
-      setStatusBanner(`Downloaded Official PDF Bill (${bill.invoiceNo}) with Rubber Mohar & Signature!`);
+      setStatusBanner(
+        `Downloaded Light-Theme Professional GST Invoice (${bill.invoiceNo}) with Logo, Digital Sign, Mohar & Signature!`
+      );
       setTimeout(() => setStatusBanner(''), 4000);
     } finally {
       setIsGeneratingPdf(false);
@@ -1140,9 +1199,10 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
       `• *Vehicle:* ${bill.vehicleModel} (${bill.vehicleNumber})\n` +
       `• *Total Distance:* ${bill.totalKm} KM\n` +
       `├──────────────────────────┤\n` +
-      `• *Grand Total:* ₹${totals.grandTotal.toLocaleString('en-IN')}/- (${bill.paymentStatus})\n` +
+      `• *Grand Total:* INR ${totals.grandTotal.toLocaleString('en-IN')}.00 (${bill.paymentStatus})\n` +
       `• *In Words:* ${totals.amountInWords}\n` +
       `└──────────────────────────┘\n\n` +
+      `✓ *Digitally Signed by ${bill.companyName.toUpperCase()} (${bill.digitalSignTimestamp})*\n` +
       `📍 *Regd Office:* ${bill.companyAddress}\n` +
       `📞 *Helpline:* +91-${bill.companyPhone} | ✉️ ${bill.companyEmail}`
     );
@@ -1157,42 +1217,48 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Executive Header Banner */}
-      <div className="bg-gradient-to-r from-[#081C44] via-[#0B2559] to-[#0F172A] text-white rounded-2xl p-5 border border-amber-400/40 shadow-lg">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      {/* Clean Light-Themed Top Action Header */}
+      <div className="bg-white text-slate-900 rounded-2xl p-5 border-2 border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <img
+            src="/assets/aistudio/file_0000000069908211adc71b630e4b7dee_2c93ef6f.png"
+            alt="SafarIndiaCabs Official Logo"
+            className="w-16 h-16 rounded-2xl object-contain border border-slate-200 bg-white p-1 shrink-0 shadow-2xs"
+          />
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 text-amber-300 text-xs font-bold tracking-wide uppercase">
-              <Stamp className="w-4 h-4 text-amber-400" />
-              <span>Official GST Tax Invoice &amp; Corporate Reimbursement Bill Generator</span>
+            <div className="inline-flex items-center gap-1.5 text-amber-700 text-xs font-extrabold tracking-wide uppercase">
+              <Stamp className="w-4 h-4 text-amber-600" />
+              <span>Light-Theme Professional GST Tax Invoice Generator</span>
             </div>
-            <h3 className="text-base sm:text-lg font-black text-white">
-              SafarIndiaCabs — Instant Customer Bill with Official Rubber Mohar &amp; Proprietor Signature
+            <h3 className="text-base sm:text-lg font-black text-slate-950">
+              SafarIndiaCabs — Corporate Reimbursement Bill (Logo + Digital Sign + Rubber Mohar + Signature)
             </h3>
-            <p className="text-xs text-slate-300">
-              Generate verified A4 PDF bills for Personal, Direct, Offline, or Corporate rides so customers can claim 100% company travel reimbursement.
+            <p className="text-xs text-slate-600">
+              GSTIN: <span className="font-mono font-bold text-slate-900">{bill.companyGstin}</span> · Proprietor:{' '}
+              <span className="font-bold text-slate-900">{bill.proprietorName}</span> · Pre-filled Signature, Stamp &amp; Digital Verification
             </p>
           </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setBill(createFreshBill(null))}
-              className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-amber-400" />
-              <span>New Blank Bill</span>
-            </button>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setBill(createFreshBill(null))}
+            className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-slate-700" />
+            <span>New Blank Bill</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={isGeneratingPdf}
-              className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-2 shadow-md transition cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>{isGeneratingPdf ? 'Generating PDF...' : 'Download Official PDF Bill'}</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={isGeneratingPdf}
+            className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isGeneratingPdf ? 'Generating PDF...' : 'Download Light-Theme PDF Bill'}</span>
+          </button>
         </div>
       </div>
 
@@ -1203,10 +1269,10 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
         </div>
       )}
 
-      {/* Main 2-Column Workspace: Left Form Controls | Right Live A4 Invoice + Stamp Preview */}
+      {/* Main 2-Column Workspace: Left Form Controls | Right Live Light-Theme A4 Invoice Preview */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-        {/* LEFT COLUMN: BILL INPUT FORM (7 Cols) */}
-        <div className="xl:col-span-7 space-y-5">
+        {/* LEFT COLUMN: BILL INPUT FORM (6 Cols) */}
+        <div className="xl:col-span-6 space-y-5">
           {/* 1. Customer & Corporate Claim Details */}
           <div className={`${cardBg} border rounded-2xl p-5 space-y-4 shadow-2xs`}>
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -1540,7 +1606,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                 </div>
               </div>
               <span className="text-sm font-black font-mono text-emerald-600">
-                Total: ₹{totals.grandTotal.toLocaleString('en-IN')}
+                INR {totals.grandTotal.toLocaleString('en-IN')}.00
               </span>
             </div>
 
@@ -1654,7 +1720,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
             </div>
           </div>
 
-          {/* 4. Official Company Info, Proprietor Signature & Rubber Stamp ("Mohar") Customizer */}
+          {/* 4. Official Company Info, Digital Sign Timestamp, Rubber Mohar & Signature Customizer */}
           <div className={`${cardBg} border rounded-2xl p-5 space-y-4 shadow-2xs`}>
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
@@ -1663,10 +1729,10 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                 </div>
                 <div>
                   <h4 className="text-sm font-extrabold">
-                    4. SafarIndiaCabs Official Details, Rubber Mohar &amp; Signature
+                    4. SafarIndiaCabs Details, Digital Sign, Rubber Mohar &amp; Signature
                   </h4>
                   <p className={`text-[11px] ${subText}`}>
-                    Pre-configured with GSTIN 07DQHPA3025F1ZD, Proprietor Aman Mishra Signature &amp; Official Blue Rubber Stamp
+                    Pre-configured with GSTIN 07DQHPA3025F1ZD, Digital Signature Block, Rubber Mohar &amp; Aman Mishra Sign
                   </p>
                 </div>
               </div>
@@ -1704,13 +1770,23 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
               </div>
 
               <div>
-                <label className={`block text-xs font-bold mb-1 ${labelText}`}>Official Helpline &amp; Email</label>
-                <input
-                  type="text"
-                  value={bill.companyEmail}
-                  onChange={(e) => handleFieldChange('companyEmail', e.target.value)}
-                  className={`w-full border rounded-xl px-3 py-2 text-xs font-medium focus:outline-none ${inputBg}`}
-                />
+                <label className={`block text-xs font-bold mb-1 ${labelText}`}>Digital Signature Date/Time</label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={bill.digitalSignTimestamp}
+                    onChange={(e) => handleFieldChange('digitalSignTimestamp', e.target.value)}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none ${inputBg}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleFieldChange('digitalSignTimestamp', formatDigitalSignTimestamp())}
+                    title="Refresh Digital Signature Timestamp"
+                    className="px-2.5 rounded-xl bg-slate-100 hover:bg-amber-100 border border-slate-300 text-slate-700 text-xs font-bold cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <div className="sm:col-span-2">
@@ -1729,7 +1805,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
               <div className="space-y-1.5">
                 <div className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
                   <PenTool className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Rubber Mohar &amp; Proprietor Signature Controls</span>
+                  <span>Rubber Mohar Style &amp; Signature Controls</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
@@ -1771,7 +1847,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                   className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  <span>Upload Custom Sign Photo</span>
+                  <span>Change Sign Photo</span>
                 </button>
                 {customSignatureUrl && (
                   <button
@@ -1779,7 +1855,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                     onClick={handleResetToDefaultSignature}
                     className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs cursor-pointer"
                   >
-                    Use Default Sign
+                    Use Default Aman Mishra Sign
                   </button>
                 )}
               </div>
@@ -1787,197 +1863,244 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: LIVE A4 TAX INVOICE PREVIEW WITH RUBBER MOHAR & SIGNATURE (5 Cols) */}
-        <div className="xl:col-span-5 space-y-4 sticky top-4">
-          <div className="bg-white text-slate-900 border-2 border-slate-300 rounded-2xl shadow-xl overflow-hidden print:shadow-none print:border-none">
-            {/* Invoice Top Navy Banner */}
-            <div className="bg-[#081C44] text-white p-4 sm:p-5 border-b-4 border-amber-400">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <img
-                      src="/assets/aistudio/logo-96.webp"
-                      alt="SafarIndiaCabs"
-                      className="w-8 h-8 rounded-lg bg-white p-0.5 object-contain"
-                    />
-                    <span className="text-lg font-black tracking-tight text-white">
-                      {bill.companyName.toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="text-[11px] font-bold text-amber-400">
-                    GSTIN: {bill.companyGstin} · Prop: {bill.proprietorName}
-                  </div>
-                  <div className="text-[10px] text-slate-300 leading-snug">
-                    {bill.companyAddress}
-                  </div>
-                  <div className="text-[10px] text-slate-300">
-                    Mob: +91 {bill.companyPhone} · {bill.companyEmail}
+        {/* RIGHT COLUMN: LIVE LIGHT-THEME A4 CORPORATE TAX INVOICE PREVIEW (6 Cols) */}
+        <div className="xl:col-span-6 space-y-4 sticky top-4">
+          <div className="bg-white text-slate-900 border-2 border-slate-300 rounded-2xl shadow-xl overflow-hidden print:shadow-none print:border-slate-300">
+            {/* Top Corporate Accent Bar */}
+            <div className="h-2 w-full flex">
+              <div className="w-2/3 bg-[#081C44]" />
+              <div className="w-1/3 bg-amber-400" />
+            </div>
+
+            {/* LIGHT-THEME EXECUTIVE HEADER WITH OFFICIAL SAFARINDIACABS LOGO */}
+            <div className="bg-white px-5 pt-5 pb-4 border-b border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex items-start gap-3.5">
+                  <img
+                    src="/assets/aistudio/file_0000000069908211adc71b630e4b7dee_2c93ef6f.png"
+                    alt="SafarIndiaCabs Official Logo"
+                    className="w-20 h-20 rounded-2xl object-contain bg-white border border-slate-200 p-1 shrink-0 shadow-2xs"
+                  />
+                  <div className="space-y-0.5">
+                    <div className="text-xl font-black tracking-tight text-slate-950">
+                      <span className="text-[#081C44]">Safar</span>
+                      <span className="text-amber-500">India</span>
+                      <span className="text-[#081C44]">Cabs</span>
+                    </div>
+                    <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">
+                      A1 Cab Services • North India
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-900 pt-0.5">
+                      GSTIN: <span className="font-mono text-[#081C44]">{bill.companyGstin}</span> · Prop:{' '}
+                      <span>{bill.proprietorName}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-600 leading-snug max-w-xs">
+                      {bill.companyAddress}
+                    </div>
+                    <div className="text-[10px] text-slate-600 font-medium">
+                      Mob: +91 {bill.companyPhone} · {bill.companyEmail}
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-amber-400 text-slate-950 rounded-xl px-3 py-2 text-right shrink-0 shadow-xs">
-                  <div className="text-[9px] font-black uppercase tracking-wider">GST TAX INVOICE</div>
-                  <div className="text-xs font-black font-mono mt-0.5">{bill.invoiceNo}</div>
-                  <div className="text-[10px] font-bold">Date: {bill.invoiceDate}</div>
+                {/* Light-Theme Invoice Badge */}
+                <div className="bg-slate-50 border border-slate-300 rounded-xl p-3 text-left sm:text-right shrink-0 min-w-[165px]">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded inline-block mb-1">
+                    GST TAX INVOICE
+                  </div>
+                  <div className="text-xs font-black font-mono text-slate-950">{bill.invoiceNo}</div>
+                  <div className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                    Date: {bill.invoiceDate}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-mono">
+                    Ref: {bill.bookingRef} | SAC: {bill.sacCode}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Invoice Body */}
-            <div className="p-4 sm:p-5 space-y-4 text-xs">
+            {/* INVOICE BODY (CLEAN WHITE PAPER THEME) */}
+            <div className="p-5 space-y-4 text-xs bg-white">
               {/* Customer & Vehicle Grid */}
-              <div className="grid grid-cols-2 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
-                <div className="space-y-0.5">
-                  <div className="text-[10px] font-black uppercase text-slate-400">Billed To (Passenger)</div>
-                  <div className="font-extrabold text-slate-900 text-xs">
-                    {bill.customerName || 'Customer Name'}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <div className="bg-slate-100 px-3 py-1.5 text-[10px] font-black uppercase text-slate-700 border-b border-slate-200">
+                    Billed To (Customer / Corporate Claim)
                   </div>
-                  {bill.customerCompany && (
-                    <div className="text-[11px] font-bold text-amber-800">{bill.customerCompany}</div>
-                  )}
-                  {bill.customerGstin && (
-                    <div className="text-[10px] font-mono text-slate-600">GSTIN: {bill.customerGstin}</div>
-                  )}
-                  {bill.employeeIdOrDept && (
-                    <div className="text-[10px] text-slate-600">ID/Dept: {bill.employeeIdOrDept}</div>
-                  )}
-                  <div className="text-[11px] font-mono text-slate-600">
-                    {bill.customerPhone ? `+91 ${bill.customerPhone}` : ''}
+                  <div className="p-3 space-y-0.5">
+                    <div className="font-extrabold text-slate-950 text-xs">
+                      {bill.customerName || 'Valued Passenger'}
+                    </div>
+                    {bill.customerCompany && (
+                      <div className="text-[11px] font-bold text-slate-800">
+                        Company: {bill.customerCompany}
+                      </div>
+                    )}
+                    {bill.customerGstin && (
+                      <div className="text-[10px] font-mono text-slate-600">
+                        Customer GSTIN: {bill.customerGstin}
+                      </div>
+                    )}
+                    {bill.employeeIdOrDept && (
+                      <div className="text-[10px] text-slate-600">
+                        Emp ID / Dept: {bill.employeeIdOrDept}
+                      </div>
+                    )}
+                    <div className="text-[11px] font-mono text-slate-600">
+                      {bill.customerPhone ? `Mob: +91 ${bill.customerPhone}` : ''}
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-0.5 border-l border-slate-200 pl-3">
-                  <div className="text-[10px] font-black uppercase text-slate-400">Trip &amp; Vehicle</div>
-                  <div className="font-extrabold text-slate-900 text-xs">{bill.vehicleModel}</div>
-                  <div className="text-[11px] font-mono font-bold text-slate-700">
-                    Vehicle No: {bill.vehicleNumber || 'Commercial'}
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <div className="bg-slate-100 px-3 py-1.5 text-[10px] font-black uppercase text-slate-700 border-b border-slate-200">
+                    Vehicle &amp; Chauffeur Particulars
                   </div>
-                  <div className="text-[10px] text-slate-600">
-                    {bill.tripType} · {bill.totalKm} KM · {bill.totalDays} Day(s)
-                  </div>
-                  <div className="text-[10px] text-slate-600">
-                    Date: {bill.pickupDate} {bill.pickupTime}
+                  <div className="p-3 space-y-0.5">
+                    <div className="font-extrabold text-slate-950 text-xs">{bill.vehicleModel}</div>
+                    <div className="text-[11px] font-mono font-bold text-slate-800">
+                      Reg. No: {bill.vehicleNumber || 'Commercial Cab'}
+                    </div>
+                    <div className="text-[10px] text-slate-600">
+                      Duty: {bill.tripType} · {bill.totalKm} KM · {bill.totalDays} Day(s)
+                    </div>
+                    <div className="text-[10px] text-slate-600">
+                      Date: {bill.pickupDate} at {bill.pickupTime}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Route Strip */}
-              <div className="bg-slate-900 text-white rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-2 text-[11px]">
+              {/* Light-Theme Route Bar */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
                 <div className="truncate">
-                  <span className="text-amber-400 font-bold">Pickup:</span> {bill.pickupLocation}
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Pickup: </span>
+                  <span className="font-bold text-slate-900">{bill.pickupLocation}</span>
                 </div>
-                <span className="text-amber-400 font-black">→</span>
-                <div className="truncate text-right">
-                  <span className="text-amber-400 font-bold">Drop:</span> {bill.dropLocation}
+                <span className="text-amber-600 font-black">→</span>
+                <div className="truncate">
+                  <span className="text-slate-500 font-bold uppercase text-[10px]">Drop: </span>
+                  <span className="font-bold text-slate-900">{bill.dropLocation}</span>
                 </div>
               </div>
 
-              {/* Fare Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="bg-slate-100 px-3 py-1.5 flex justify-between text-[10px] font-black uppercase text-slate-600 border-b border-slate-200">
-                  <span>Particulars (SAC: {bill.sacCode})</span>
+              {/* Clean Light-Theme Itemized Fare Table */}
+              <div className="border border-slate-300 rounded-xl overflow-hidden">
+                <div className="bg-slate-100 px-3.5 py-2 flex justify-between text-[10px] font-black uppercase text-slate-700 border-b border-slate-300">
+                  <span>Description of Cab Service (SAC: {bill.sacCode})</span>
                   <span>Amount (INR)</span>
                 </div>
-                <div className="divide-y divide-slate-100 text-[11px]">
-                  <div className="px-3 py-2 flex justify-between">
+                <div className="divide-y divide-slate-200 text-[11px] bg-white">
+                  <div className="px-3.5 py-2 flex justify-between">
                     <span>Base Trip &amp; Cab Hire Charges ({bill.totalKm} KM)</span>
-                    <span className="font-mono font-bold">₹{Number(bill.baseFare || 0).toLocaleString('en-IN')}</span>
+                    <span className="font-mono font-bold">
+                      INR {Number(bill.baseFare || 0).toLocaleString('en-IN')}.00
+                    </span>
                   </div>
                   {Number(bill.driverAllowance) > 0 && (
-                    <div className="px-3 py-1.5 flex justify-between">
-                      <span>Driver Allowance (Bhatta)</span>
+                    <div className="px-3.5 py-1.5 flex justify-between">
+                      <span>Chauffeur / Driver Allowance (Bhatta)</span>
                       <span className="font-mono font-bold">
-                        ₹{Number(bill.driverAllowance).toLocaleString('en-IN')}
+                        INR {Number(bill.driverAllowance).toLocaleString('en-IN')}.00
                       </span>
                     </div>
                   )}
                   {Number(bill.tollStateTax) > 0 && (
-                    <div className="px-3 py-1.5 flex justify-between">
-                      <span>Highway Toll &amp; State Permit Tax</span>
+                    <div className="px-3.5 py-1.5 flex justify-between">
+                      <span>Highway Toll &amp; State Entry Permit Tax</span>
                       <span className="font-mono font-bold">
-                        ₹{Number(bill.tollStateTax).toLocaleString('en-IN')}
+                        INR {Number(bill.tollStateTax).toLocaleString('en-IN')}.00
                       </span>
                     </div>
                   )}
                   {Number(bill.parkingCharges) > 0 && (
-                    <div className="px-3 py-1.5 flex justify-between">
+                    <div className="px-3.5 py-1.5 flex justify-between">
                       <span>Airport / Commercial Parking Charges</span>
                       <span className="font-mono font-bold">
-                        ₹{Number(bill.parkingCharges).toLocaleString('en-IN')}
+                        INR {Number(bill.parkingCharges).toLocaleString('en-IN')}.00
                       </span>
                     </div>
                   )}
                   {Number(bill.nightWaitingCharges) > 0 && (
-                    <div className="px-3 py-1.5 flex justify-between">
+                    <div className="px-3.5 py-1.5 flex justify-between">
                       <span>Waiting / Extra Duty Charges</span>
                       <span className="font-mono font-bold">
-                        ₹{Number(bill.nightWaitingCharges).toLocaleString('en-IN')}
+                        INR {Number(bill.nightWaitingCharges).toLocaleString('en-IN')}.00
                       </span>
                     </div>
                   )}
                   {Number(bill.discountAmount) > 0 && (
-                    <div className="px-3 py-1.5 flex justify-between text-emerald-700">
-                      <span>Less: Discount</span>
+                    <div className="px-3.5 py-1.5 flex justify-between text-emerald-700">
+                      <span>Less: Promotional / Corporate Discount</span>
                       <span className="font-mono font-bold">
-                        - ₹{Number(bill.discountAmount).toLocaleString('en-IN')}
+                        - INR {Number(bill.discountAmount).toLocaleString('en-IN')}.00
                       </span>
                     </div>
                   )}
                   {bill.gstMode !== 'exempt_0' && (
-                    <div className="px-3 py-1.5 flex justify-between text-slate-600 bg-slate-50/70">
-                      <span>GST (5% — CGST 2.5% + SGST 2.5%)</span>
+                    <div className="px-3.5 py-1.5 flex justify-between text-slate-600 bg-slate-50/70">
+                      <span>GST (5.0% — CGST 2.5% + SGST 2.5%)</span>
                       <span className="font-mono font-semibold">
-                        ₹{totals.totalGst.toLocaleString('en-IN')} ({bill.gstMode === 'included_5' ? 'Incl.' : 'Extra'})
+                        INR {totals.totalGst.toLocaleString('en-IN')}.00 (
+                        {bill.gstMode === 'included_5' ? 'Incl.' : 'Extra'})
                       </span>
                     </div>
                   )}
-                  <div className="px-3 py-2.5 bg-amber-50 flex justify-between items-center font-black text-slate-950 text-xs">
-                    <span>GRAND TOTAL ({bill.paymentStatus})</span>
-                    <span className="font-mono text-sm text-emerald-700">
-                      ₹{totals.grandTotal.toLocaleString('en-IN')}.00
+                  <div className="px-3.5 py-2.5 bg-slate-50 flex justify-between items-center font-black text-slate-950 text-xs border-t border-slate-300">
+                    <span>TOTAL ({bill.paymentStatus})</span>
+                    <span className="font-mono text-sm text-slate-950">
+                      INR {totals.grandTotal.toLocaleString('en-IN')}.00
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="text-[10px] font-bold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-                In Words: <span className="text-slate-900">{totals.amountInWords}</span>
+              <div className="text-[10.5px] font-bold text-slate-600 bg-slate-50 px-3.5 py-2 rounded-lg border border-slate-200">
+                Amount in Words: <span className="text-slate-950">{totals.amountInWords}</span>
               </div>
 
-              {/* OFFICIAL RUBBER MOHAR & PROPRIETOR SIGNATURE BLOCK */}
-              <div className="border-2 border-dashed border-blue-200 bg-blue-50/30 rounded-2xl p-3.5 flex items-center justify-between gap-3">
-                <div className="space-y-1 max-w-[46%]">
-                  <div className="text-[10px] font-black uppercase text-slate-700">
-                    Verified for Reimbursement
+              {/* DUAL CORPORATE AUTHENTICATION FOOTER:
+                  LEFT: "Digitally signed by..." (Exact Screenshot Style)
+                  RIGHT: Official Blue Rubber Mohar + Handwritten Aman Mishra Signature */}
+              <div className="border border-slate-300 bg-white rounded-2xl p-3.5 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                {/* Left: Corporate Digital Signature Block */}
+                <div className="space-y-1 sm:border-r border-slate-200 sm:pr-3">
+                  <div className="font-sans text-[11px] leading-snug text-slate-900 font-medium space-y-0.5">
+                    <div>
+                      Digitally signed by{' '}
+                      <span className="font-bold">{bill.companyName.toUpperCase()}</span>
+                    </div>
+                    <div>({bill.proprietorName.toUpperCase()})</div>
+                    <div>GSTIN: {bill.companyGstin}</div>
+                    <div>Date: {bill.digitalSignTimestamp}</div>
+                    <div>Location: IN</div>
                   </div>
-                  <p className="text-[9.5px] text-slate-500 leading-relaxed">
-                    Official Tax Invoice certified with SafarIndiaCabs Rubber Stamp (Mohar) &amp; Proprietor Signature.
-                  </p>
-                  <div className="text-[9.5px] font-bold text-blue-800">
-                    GSTIN: {bill.companyGstin}
+                  <div className="pt-1 flex items-center gap-1 text-[10px] font-bold text-emerald-700">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Digitally Verified for Company Reimbursement</span>
                   </div>
                 </div>
 
-                {/* Live Stamp + Overlapped Signature Visual */}
-                <div className="relative flex flex-col items-center justify-center min-w-[185px] py-1">
-                  <div className="text-[10px] font-black text-[#081C44] uppercase tracking-wider mb-1">
+                {/* Right: Official Rubber Mohar + Handwritten Aman Mishra Signature */}
+                <div className="flex flex-col items-center justify-center">
+                  <div className="text-[10px] font-black text-slate-900 uppercase tracking-wider mb-0.5">
                     For {bill.companyName}
                   </div>
-                  <div className="relative flex items-center justify-center h-24 w-44">
+                  <div className="relative flex items-center justify-center h-24 w-48">
                     {stampPreviewUrl && (
                       <img
                         src={stampPreviewUrl}
                         alt="Official Rubber Mohar"
                         className={`${
-                          stampStyle === 'circular' ? 'w-24 h-24' : 'w-40 h-20'
-                        } object-contain opacity-90 select-none pointer-events-none`}
+                          stampStyle === 'circular' ? 'w-24 h-24 left-1' : 'w-40 h-20 left-0'
+                        } absolute object-contain opacity-90 select-none pointer-events-none`}
                       />
                     )}
                     {activeSignatureUrl && (
                       <img
                         src={activeSignatureUrl}
-                        alt="Proprietor Signature"
-                        className="absolute right-0 bottom-1 w-32 h-14 object-contain drop-shadow-2xs select-none pointer-events-none"
+                        alt="Proprietor Aman Mishra Signature"
+                        className="relative z-10 ml-10 w-36 h-14 object-contain select-none pointer-events-none"
                       />
                     )}
                   </div>
@@ -1993,10 +2116,10 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={isGeneratingPdf}
-                  className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Download PDF Bill (With Mohar &amp; Sign)</span>
+                  <span>Download Light-Theme PDF Bill</span>
                 </button>
 
                 <button
@@ -2062,7 +2185,7 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
                     <span className="font-mono font-black text-xs text-emerald-600">
-                      ₹{itemTotals.grandTotal.toLocaleString('en-IN')}
+                      INR {itemTotals.grandTotal.toLocaleString('en-IN')}.00
                     </span>
                     <div className="flex items-center gap-1.5">
                       <button

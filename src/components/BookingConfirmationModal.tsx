@@ -6,16 +6,11 @@ import {
   Car,
   MapPin,
   Calendar,
-  Clock,
-  ShieldCheck,
   X,
   Download,
-  CreditCard,
   MessageSquare,
   User,
   Phone,
-  FileText,
-  Sparkles,
   Star
 } from 'lucide-react';
 import { BookingRecord } from '../types';
@@ -24,8 +19,10 @@ import { triggerWhatsAppDeepLink, buildCustomerReviewWhatsAppUrl } from '../util
 import { formatWhatsAppBookingConfirmationMessage } from '../utils/whatsappService';
 import {
   renderOfficialRubberStampDataUrl,
-  renderDefaultProprietorSignatureDataUrl
+  renderDefaultProprietorSignatureDataUrl,
+  formatDigitalSignTimestamp
 } from './OwnerBillGenerator';
+import { OFFICIAL_SAFAR_LOGO_DATA_URL } from '../utils/officialSignatureData';
 
 export const OFFICIAL_WHATSAPP_NUMBER = '917710080992';
 
@@ -44,7 +41,8 @@ export function buildFormattedReceiptWhatsAppMessage(booking: BookingRecord): st
 }
 
 /**
- * Generates and downloads an executive Navy Blue & Golden PDF Invoice for a BookingRecord using jsPDF
+ * Generates and downloads a Clean Light-Theme Corporate GST Tax Invoice PDF for a BookingRecord using jsPDF
+ * Includes Official SafarIndiaCabs Logo, "Digitally signed by SAFARINDIACABS..." block, Rubber Mohar & Aman Mishra Signature.
  */
 export async function generateBookingInvoicePdf(booking: BookingRecord): Promise<void> {
   const { jsPDF } = await import('jspdf');
@@ -55,218 +53,230 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
+  const margin = 12;
   const contentWidth = pageWidth - margin * 2;
 
-  // Brand Colors: Navy Blue (#081C44) & Golden (#F59E0B / #FBBF24)
-  const navyR = 8,
-    navyG = 28,
-    navyB = 68;
-  const goldR = 245,
-    goldG = 158,
-    goldB = 11;
+  // Clean Light Theme Corporate Border
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, 297, 'F');
 
-  // 1. Top Executive Navy Blue Header Banner
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.rect(0, 0, pageWidth, 42, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.35);
+  doc.rect(margin - 2, 8, contentWidth + 4, 281);
 
-  // Golden Accent Stripe below Header
-  doc.setFillColor(goldR, goldG, goldB);
-  doc.rect(0, 42, pageWidth, 2.5, 'F');
+  // Top Dual Accent Line (Navy & Gold)
+  doc.setFillColor(15, 41, 88);
+  doc.rect(margin - 2, 8, (contentWidth + 4) * 0.72, 2.2, 'F');
+  doc.setFillColor(245, 158, 11);
+  doc.rect(margin - 2 + (contentWidth + 4) * 0.72, 8, (contentWidth + 4) * 0.28, 2.2, 'F');
 
-  // Company Title in Header
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.text('SAFARINDIACABS', margin, 16);
+  let y = 14;
 
-  doc.setTextColor(251, 191, 36); // Golden subtitle
-  doc.setFontSize(9);
-  doc.text('OFFICIAL GST TAX INVOICE  |  GSTIN: 07DQHPA3025F1ZD  |  PROP: AMAN MISHRA  |  SAC: 996412', margin, 22.5);
+  // 1. Official Logo on Left + Company Info in Center + Invoice Box on Right
+  try {
+    if (OFFICIAL_SAFAR_LOGO_DATA_URL) {
+      doc.addImage(OFFICIAL_SAFAR_LOGO_DATA_URL, 'PNG', margin, y - 1, 27, 27);
+    }
+  } catch {
+    // fallback if logo fails
+  }
 
-  doc.setTextColor(203, 213, 225);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text('Regd Office: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', margin, 28.5);
-  doc.text('24x7 Helpline: +91 7710080992  |  Email: Safarindiacabs01@gmail.com  |  safarindiacabs.com', margin, 34);
-
-  // Right side of Header: Tax Invoice & Booking ID Badge
-  const invoiceNo = `INV-${booking.id.replace('SIC-', '')}`;
-  doc.setFillColor(goldR, goldG, goldB);
-  doc.roundedRect(pageWidth - margin - 58, 9, 58, 24, 3, 3, 'F');
-  doc.setTextColor(8, 28, 68);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text(
-    booking.status === 'completed' ? 'GST TAX INVOICE' : 'GST BOOKING VOUCHER',
-    pageWidth - margin - 29,
-    15.5,
-    { align: 'center' }
-  );
-  doc.setFontSize(11);
-  doc.text(booking.id, pageWidth - margin - 29, 22.5, { align: 'center' });
-  doc.setFontSize(7.5);
-  doc.text(`Invoice: ${invoiceNo}`, pageWidth - margin - 29, 28.5, { align: 'center' });
-
-  let y = 54;
-
-  // 2. Booking Status & Timestamp Strip
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, y, contentWidth, 14, 2.5, 2.5, 'FD');
-
+  const companyX = margin + 30;
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  const statusLabel =
-    booking.status === 'completed'
-      ? 'STATUS: COMPLETED & VERIFIED'
-      : booking.status === 'cancelled'
-      ? 'STATUS: CANCELLED'
-      : 'STATUS: CONFIRMED BOOKING';
-  doc.text(statusLabel, margin + 5, y + 8.8);
+  doc.setFontSize(16);
+  doc.text('SafarIndiaCabs', companyX, y + 5.5);
 
+  doc.setTextColor(180, 83, 9);
+  doc.setFontSize(7.5);
+  doc.text('A1 CAB SERVICES  •  ALL INDIA COMMERCIAL TOUR & TRAVELS', companyX, y + 10);
+
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(8.2);
+  doc.text('GSTIN: 07DQHPA3025F1ZD   |   Proprietor: Aman Mishra', companyX, y + 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.setFontSize(7.6);
+  doc.text('Regd. Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', companyX, y + 19.5);
+  doc.text('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', companyX, y + 23.8);
+
+  // Right Side Tax Invoice Box (Light Theme)
+  const invoiceNo = `INV-${booking.id.replace('SIC-', '')}`;
   const invoiceDateStr = new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
   });
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Issued Date: ${invoiceDateStr}`, pageWidth - margin - 5, y + 8.8, { align: 'right' });
 
-  y += 21;
-
-  // 3. Two-Column Customer & Vehicle Summary
-  const colWidth = (contentWidth - 6) / 2;
-
-  // Left Box: Customer Details
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, y, colWidth, 34, 2.5, 2.5, 'FD');
-
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(margin, y, colWidth, 7.5, 2, 2, 'F');
-  doc.setTextColor(251, 191, 36);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('PASSENGER DETAILS', margin + 4, y + 5.2);
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10.5);
-  doc.text(booking.customerName || 'Verified Passenger', margin + 4, y + 14.5);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(51, 65, 85);
-  doc.text(`Mobile: +91 ${booking.customerPhone}`, margin + 4, y + 21);
-  if (booking.customerEmail) {
-    doc.text(`Email: ${booking.customerEmail}`, margin + 4, y + 26.5);
-  } else if (booking.customerGst) {
-    doc.text(`GSTIN: ${booking.customerGst} (${booking.gstCompanyName || ''})`, margin + 4, y + 26.5);
-  } else {
-    doc.text(`Payment Ref: ${booking.transactionId || 'Verified Booking'}`, margin + 4, y + 26.5);
-  }
-
-  // Right Box: Vehicle & Trip Classification
-  const rightX = margin + colWidth + 6;
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(rightX, y, colWidth, 34, 2.5, 2.5, 'FD');
-
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(rightX, y, colWidth, 7.5, 2, 2, 'F');
-  doc.setTextColor(251, 191, 36);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('VEHICLE & SCHEDULE', rightX + 4, y + 5.2);
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(10);
-  const cleanVehicleName = (booking.cabName || 'Sedan AC').slice(0, 38);
-  doc.text(cleanVehicleName, rightX + 4, y + 14.5);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(51, 65, 85);
-  doc.text(`Trip Date: ${booking.pickupDate} at ${booking.pickupTime}`, rightX + 4, y + 21);
-  doc.text(
-    `Trip Type: ${booking.tripType.toUpperCase()}  |  Distance: ${booking.distanceKm} KM`,
-    rightX + 4,
-    y + 26.5
-  );
-
-  y += 41;
-
-  // 4. Route & Location Details Box
+  const badgeW = 54;
+  const badgeX = pageWidth - margin - badgeW;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, y, contentWidth, 34, 2.5, 2.5, 'FD');
+  doc.roundedRect(badgeX, y, badgeW, 25, 2, 2, 'FD');
 
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(margin, y, contentWidth, 7.5, 2, 2, 'F');
-  doc.setTextColor(251, 191, 36);
+  doc.setTextColor(15, 41, 88);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('JOURNEY PICKUP & DROP ITINERARY', margin + 4, y + 5.2);
+  doc.setFontSize(9.5);
+  doc.text('TAX INVOICE', badgeX + badgeW - 3, y + 5.5, { align: 'right' });
+
+  doc.setTextColor(100, 116, 139);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text('ORIGINAL FOR RECIPIENT', badgeX + badgeW - 3, y + 9.2, { align: 'right' });
 
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('Pickup Location:', margin + 4, y + 15);
+  doc.setFontSize(8);
+  doc.text(`Inv No: ${invoiceNo}`, badgeX + badgeW - 3, y + 14.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Date: ${invoiceDateStr}`, badgeX + badgeW - 3, y + 18.8, { align: 'right' });
+  doc.text(`Booking ID: ${booking.id}`, badgeX + badgeW - 3, y + 22.8, { align: 'right' });
+
+  y += 29;
+
+  // Divider Line
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 4;
+
+  // 2. Booking Status & SAC Strip (Light Slate)
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, contentWidth, 9, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  const statusLabel =
+    booking.status === 'completed'
+      ? 'STATUS: COMPLETED & SETTLED'
+      : booking.status === 'cancelled'
+      ? 'STATUS: CANCELLED'
+      : 'STATUS: CONFIRMED BOOKING';
+  doc.text(statusLabel, margin + 3.5, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('SAC Code: 996412 (Passenger Transport by Cab)', pageWidth - margin - 3.5, y + 6, {
+    align: 'right'
+  });
+
+  y += 12.5;
+
+  // 3. Two-Column Customer & Vehicle Summary (Light Theme)
+  const colWidth = (contentWidth - 5) / 2;
+
+  // Left Box: Billed To Customer
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, y, colWidth, 31, 2, 2, 'FD');
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin + 0.2, y + 0.2, colWidth - 0.4, 6.8, 'F');
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('BILLED TO (CUSTOMER / CORPORATE DETAILS)', margin + 3.5, y + 4.8);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.text(booking.customerName || 'Valued Passenger', margin + 3.5, y + 12.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Mobile: +91 ${booking.customerPhone}`, margin + 3.5, y + 18);
+  if (booking.customerGst) {
+    doc.text(
+      `Company: ${booking.gstCompanyName || '-'} | GSTIN: ${booking.customerGst}`,
+      margin + 3.5,
+      y + 23.2
+    );
+  } else if (booking.customerEmail) {
+    doc.text(`Email: ${booking.customerEmail}`, margin + 3.5, y + 23.2);
+  } else {
+    doc.text(`Payment Ref: ${booking.transactionId || 'Verified Online/Cash'}`, margin + 3.5, y + 23.2);
+  }
+  doc.text(`Place of Supply: North India / Delhi (07)`, margin + 3.5, y + 28.2);
+
+  // Right Box: Vehicle & Schedule
+  const rightX = margin + colWidth + 5;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(rightX, y, colWidth, 31, 2, 2, 'FD');
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(rightX + 0.2, y + 0.2, colWidth - 0.4, 6.8, 'F');
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('TRIP & VEHICLE PARTICULARS', rightX + 3.5, y + 4.8);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.text((booking.cabName || 'Sedan AC').slice(0, 38), rightX + 3.5, y + 12.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Travel Date: ${booking.pickupDate} at ${booking.pickupTime}`, rightX + 3.5, y + 18);
+  doc.text(
+    `Trip Type: ${booking.tripType.toUpperCase()}  |  Billed Dist: ${booking.distanceKm} KM`,
+    rightX + 3.5,
+    y + 23.2
+  );
+  doc.text(
+    `Chauffeur: ${booking.driverName || 'Verified Safar Chauffeur'} (${booking.driverVehicleNo || 'Commercial Cab'})`,
+    rightX + 3.5,
+    y + 28.2
+  );
+
+  y += 35;
+
+  // 4. Route & Location Details Box (Light Theme)
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, y, contentWidth, 24, 2, 2, 'FD');
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin + 0.2, y + 0.2, contentWidth - 0.4, 6.5, 'F');
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('JOURNEY PICKUP & DROP ITINERARY', margin + 3.5, y + 4.6);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(8.2);
+  doc.text('Pickup Location:', margin + 3.5, y + 12.5);
   doc.setFont('helvetica', 'normal');
   const fullPickup = `${booking.pickupAddress ? booking.pickupAddress + ', ' : ''}${booking.pickupCity}${
     booking.landmark ? ` (Near: ${booking.landmark})` : ''
   }`;
-  const splitPickup = doc.splitTextToSize(fullPickup, contentWidth - 38);
-  doc.text(splitPickup.slice(0, 2), margin + 35, y + 15);
+  doc.text(doc.splitTextToSize(fullPickup, contentWidth - 34)[0] || '', margin + 31, y + 12.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Drop Location:', margin + 4, y + 26);
+  doc.text('Drop Location:', margin + 3.5, y + 19.5);
   doc.setFont('helvetica', 'normal');
   const fullDrop = `${booking.dropAddress ? booking.dropAddress + ', ' : ''}${booking.dropCity}`;
-  const splitDrop = doc.splitTextToSize(fullDrop, contentWidth - 38);
-  doc.text(splitDrop.slice(0, 2), margin + 35, y + 26);
+  doc.text(doc.splitTextToSize(fullDrop, contentWidth - 34)[0] || '', margin + 31, y + 19.5);
 
-  y += 41;
+  y += 28;
 
-  // Optional Assigned Driver Box if driver is assigned
-  if (booking.driverName) {
-    doc.setFillColor(255, 251, 235);
-    doc.setDrawColor(251, 191, 36);
-    doc.roundedRect(margin, y, contentWidth, 16, 2.5, 2.5, 'FD');
-
-    doc.setTextColor(146, 64, 14);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text(
-      `ASSIGNED CHAUFFEUR: ${booking.driverName} (+91 ${booking.driverPhone || '-'})`,
-      margin + 4,
-      y + 6.8
-    );
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(15, 23, 42);
-    doc.text(
-      `Vehicle Model: ${booking.driverVehicleModel || booking.cabName}   |   Reg Plate: ${
-        booking.driverVehicleNo || 'Commercial AITP'
-      }`,
-      margin + 4,
-      y + 12.8
-    );
-
-    y += 22;
-  }
-
-  // 5. Executive Fare & Payment Summary Table (Navy Blue & Gold Highlight)
-  doc.setFillColor(navyR, navyG, navyB);
-  doc.roundedRect(margin, y, contentWidth, 8.5, 2, 2, 'F');
-  doc.setTextColor(251, 191, 36);
+  // 5. Clean Light-Theme Tax Invoice Fare Table
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.rect(margin, y, contentWidth, 7.5, 'FD');
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('FARE & PAYMENT BREAKDOWN', margin + 4, y + 5.8);
-  doc.text('AMOUNT (INR)', pageWidth - margin - 4, y + 5.8, { align: 'right' });
+  doc.setFontSize(8.2);
+  doc.text('DESCRIPTION OF PASSENGER CAB SERVICES (SAC: 996412)', margin + 3.5, y + 5);
+  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 5, { align: 'right' });
 
-  y += 8.5;
+  y += 7.5;
 
   const computedGst = booking.gstAmount || Math.round((booking.baseFare || booking.totalFare) * 0.05);
   const cgstAmt = Math.floor(computedGst / 2);
@@ -274,56 +284,56 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
 
   const rows: Array<{ label: string; value: string; bold?: boolean; highlight?: 'gold' | 'green' }> = [
     {
-      label: `Base Trip Fare & Fuel (${booking.distanceKm} KM Included)`,
-      value: `Rs. ${Number(booking.baseFare || booking.totalFare - computedGst).toLocaleString('en-IN')}`
+      label: `Base Trip Fare & Fuel Charges (${booking.distanceKm} KM Included)`,
+      value: `INR ${Number(booking.baseFare || booking.totalFare - computedGst).toLocaleString('en-IN')}.00`
     },
     ...(booking.driverAllowance
       ? [
           {
-            label: 'Chauffeur / Driver Allowance',
-            value: `Rs. ${Number(booking.driverAllowance).toLocaleString('en-IN')}`
+            label: 'Chauffeur / Driver Allowance (Bhatta)',
+            value: `INR ${Number(booking.driverAllowance).toLocaleString('en-IN')}.00`
           }
         ]
       : []),
     ...(booking.tollsAndTaxes
       ? [
           {
-            label: 'Highway Toll & State Entry Permit Tax',
-            value: `Rs. ${Number(booking.tollsAndTaxes).toLocaleString('en-IN')}`
+            label: 'Highway Toll, Parking & State Entry Permit Tax',
+            value: `INR ${Number(booking.tollsAndTaxes).toLocaleString('en-IN')}.00`
           }
         ]
       : []),
     {
-      label: 'CGST @ 2.5% (SAC 996412 - Passenger Cab Service)',
-      value: `Rs. ${Number(cgstAmt).toLocaleString('en-IN')}`
+      label: 'CGST @ 2.5% (SAC 996412 - Commercial Cab Service)',
+      value: `INR ${Number(cgstAmt).toLocaleString('en-IN')}.00`
     },
     {
-      label: 'SGST @ 2.5% (SAC 996412 - Passenger Cab Service)',
-      value: `Rs. ${Number(sgstAmt).toLocaleString('en-IN')}`
+      label: 'SGST @ 2.5% (SAC 996412 - Commercial Cab Service)',
+      value: `INR ${Number(sgstAmt).toLocaleString('en-IN')}.00`
     },
     {
-      label: 'Total Invoice Amount (Inclusive of 5% GST)',
-      value: `Rs. ${Number(booking.totalFare || 0).toLocaleString('en-IN')}`,
+      label: 'TOTAL INVOICE AMOUNT (Inclusive of GST)',
+      value: `INR ${Number(booking.totalFare || 0).toLocaleString('en-IN')}.00`,
       bold: true
     },
     {
-      label: booking.status === 'completed' ? 'Total Amount Paid (100% Settled)' : 'Advance Paid Online',
+      label: booking.status === 'completed' ? 'Total Amount Paid (100% Settled)' : 'Advance Paid',
       value:
         booking.status === 'completed'
-          ? `Rs. ${Number(booking.totalFare || 0).toLocaleString('en-IN')} (PAID IN FULL)`
-          : `Rs. ${Number(booking.advancePaid || 0).toLocaleString('en-IN')} (PAID)`,
+          ? `INR ${Number(booking.totalFare || 0).toLocaleString('en-IN')}.00 (PAID)`
+          : `INR ${Number(booking.advancePaid || 0).toLocaleString('en-IN')}.00`,
       bold: true,
       highlight: 'green'
     },
     {
       label:
         booking.status === 'completed'
-          ? 'Balance Due (Settled at Trip Completion)'
-          : 'Remaining Balance (Payable to Driver during Trip)',
+          ? 'Balance Due (Settled)'
+          : 'Balance Payable to Chauffeur during Trip',
       value:
         booking.status === 'completed'
-          ? 'Rs. 0 (NIL)'
-          : `Rs. ${Number(booking.balanceDue || 0).toLocaleString('en-IN')}`,
+          ? 'INR 0.00 (NIL)'
+          : `INR ${Number(booking.balanceDue || 0).toLocaleString('en-IN')}.00`,
       bold: true,
       highlight: 'gold'
     }
@@ -331,14 +341,16 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
 
   for (const r of rows) {
     if (r.highlight === 'gold') {
-      doc.setFillColor(254, 243, 199); // soft gold background
+      doc.setFillColor(254, 243, 199);
     } else if (r.highlight === 'green') {
-      doc.setFillColor(236, 253, 245); // soft emerald background
+      doc.setFillColor(236, 253, 245);
+    } else if (r.bold) {
+      doc.setFillColor(248, 250, 252);
     } else {
       doc.setFillColor(255, 255, 255);
     }
     doc.setDrawColor(226, 232, 240);
-    doc.rect(margin, y, contentWidth, 9.5, 'FD');
+    doc.rect(margin, y, contentWidth, 8.2, 'FD');
 
     if (r.highlight === 'gold') {
       doc.setTextColor(146, 64, 14);
@@ -349,48 +361,82 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
     }
 
     doc.setFont('helvetica', r.bold ? 'bold' : 'normal');
-    doc.setFontSize(r.bold ? 9.5 : 9);
-    doc.text(r.label, margin + 4, y + 6.3);
-    doc.text(r.value, pageWidth - margin - 4, y + 6.3, { align: 'right' });
+    doc.setFontSize(r.bold ? 8.8 : 8.2);
+    doc.text(r.label, margin + 3.5, y + 5.5);
+    doc.text(r.value, pageWidth - margin - 3.5, y + 5.5, { align: 'right' });
 
-    y += 9.5;
+    y += 8.2;
   }
 
-  y += 10;
+  y += 6;
 
-  // 6. Footer Assurance, Official Rubber Mohar & Proprietor Signature
+  // 6. Three-Column Footer: Terms | "Digitally signed by..." Block | Official Rubber Mohar & Aman Mishra Signature
+  const footerH = 44;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, y, contentWidth, 38, 2.5, 2.5, 'FD');
+  doc.roundedRect(margin, y, contentWidth, footerH, 2, 2, 'FD');
 
-  doc.setTextColor(8, 28, 68);
+  // Left: Company & Reimbursement Note
+  doc.setTextColor(15, 41, 88);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('THANK YOU FOR RIDING WITH SAFARINDIACABS!', margin + 5, y + 8);
+  doc.setFontSize(7.8);
+  doc.text('OFFICIAL CORPORATE REIMBURSEMENT TAX INVOICE', margin + 3.5, y + 6);
 
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
-  doc.text('• GSTIN: 07DQHPA3025F1ZD   • Proprietor: Aman Mishra   • Verified Commercial Cab Invoice', margin + 5, y + 14.5);
-  doc.text('• Regd Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', margin + 5, y + 20.5);
-  doc.text('• Helpline: +91 7710080992   |   Email: Safarindiacabs01@gmail.com', margin + 5, y + 26.5);
+  doc.setFontSize(7);
+  doc.text('• Valid GST Invoice for Corporate Travel Claim.', margin + 3.5, y + 11.5);
+  doc.text('• GSTIN: 07DQHPA3025F1ZD  |  Prop: Aman Mishra', margin + 3.5, y + 16);
+  doc.text('• Regd: H NO 143 ST 4 JHARODA MAJRA BURARI 110084', margin + 3.5, y + 20.5);
+  doc.text('• Support: Safarindiacabs01@gmail.com | 7710080992', margin + 3.5, y + 25);
+
+  // Center: "Digitally signed by..." Verification Block (matching user's reference screenshot)
+  const digX = margin + 68;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(digX, y + 4, 58, 35, 1.5, 1.5, 'FD');
+
+  const digitalTimestamp = formatDigitalSignTimestamp(booking.pickupDate);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.2);
+  doc.text('Digitally signed by', digX + 3, y + 9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SAFARINDIACABS', digX + 3, y + 13.8);
+  doc.text('(AMAN MISHRA)', digX + 3, y + 18);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.text('GSTIN: 07DQHPA3025F1ZD', digX + 3, y + 22.5);
+  doc.text(`Date: ${digitalTimestamp}`, digX + 3, y + 27);
+  doc.text('Location: IN (New Delhi)', digX + 3, y + 31.5);
+
+  // Right: Official Rubber Mohar + Handwritten Aman Mishra Signature
+  const signCenterX = pageWidth - margin - 29;
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('For SafarIndiaCabs', signCenterX, y + 5.5, { align: 'center' });
 
   try {
     const stampUrl = renderOfficialRubberStampDataUrl('circular', 'SafarIndiaCabs', '07DQHPA3025F1ZD', 'Aman Mishra');
     if (stampUrl) {
-      doc.addImage(stampUrl, 'PNG', pageWidth - margin - 68, y + 3, 28, 28);
+      doc.addImage(stampUrl, 'PNG', pageWidth - margin - 55, y + 7, 26, 26);
     }
     const customSig = localStorage.getItem('safar_owner_custom_signature_v1');
     const sigUrl = customSig || renderDefaultProprietorSignatureDataUrl('Aman Mishra');
     if (sigUrl) {
-      doc.addImage(sigUrl, 'PNG', pageWidth - margin - 42, y + 9, 36, 14);
+      doc.addImage(sigUrl, 'PNG', pageWidth - margin - 38, y + 13, 33, 14);
     }
-  } catch {}
+  } catch {
+    // ignore image errors
+  }
 
-  doc.setTextColor(8, 28, 68);
+  doc.setDrawColor(148, 163, 184);
+  doc.line(pageWidth - margin - 54, y + 34.5, pageWidth - margin - 4, y + 34.5);
+  doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.8);
-  doc.text('Prop. Aman Mishra (For SafarIndiaCabs)', pageWidth - margin - 35, y + 34, { align: 'center' });
+  doc.setFontSize(7.2);
+  doc.text('Prop. Aman Mishra (Signatory)', signCenterX, y + 38.5, { align: 'center' });
 
   doc.save(`SafarIndiaCabs_GST_Invoice_${booking.id}.pdf`);
 }
@@ -411,6 +457,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
   if (!booking) return null;
 
   const isCompleted = booking.status === 'completed';
+  const digitalTimestamp = formatDigitalSignTimestamp(booking.pickupDate);
 
   const handleDownloadPdf = () => {
     setIsDownloadingPdf(true);
@@ -445,75 +492,74 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
         }
       }}
     >
-      <div className="booking-modal-container bg-white border-2 border-amber-400/80 rounded-3xl w-full max-w-xl my-2 sm:my-auto overflow-hidden shadow-2xl relative pb-[110px] sm:pb-0 animate-in zoom-in-95">
+      <div className="booking-modal-container bg-white border-2 border-slate-200 rounded-3xl w-full max-w-xl my-2 sm:my-auto overflow-hidden shadow-2xl relative pb-[110px] sm:pb-0 animate-in zoom-in-95">
         {/* Top Close (✕) Button */}
         <button
           type="button"
           onClick={onClose}
           aria-label="Close booking receipt"
           title="Close Receipt"
-          className="no-print absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-white/15 hover:bg-rose-500 text-white border border-white/25 flex items-center justify-center transition active:scale-95 cursor-pointer z-20"
+          className="no-print absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-slate-100 hover:bg-rose-500 hover:text-white text-slate-700 border border-slate-300 flex items-center justify-center transition active:scale-95 cursor-pointer z-20"
         >
           <X className="w-5 h-5 stroke-[2.5]" />
         </button>
 
-        {/* Printable Receipt Card */}
-        <div id="printable-voucher">
-          {/* Executive Navy Blue & Golden Header */}
-          <div className="bg-gradient-to-br from-[#081C44] via-[#0B2559] to-[#0F172A] text-white px-5 sm:px-7 pt-6 pb-5 border-b-4 border-amber-400 relative">
+        {/* Printable Receipt Card (Clean Light Corporate Theme) */}
+        <div id="printable-voucher" className="bg-white text-slate-900">
+          {/* Top Corporate Accent Bar */}
+          <div className="h-2 w-full bg-gradient-to-r from-[#0F2958] via-[#1E3A8A] to-amber-500" />
+
+          {/* Clean White Corporate Header with Official Logo */}
+          <div className="bg-white px-5 sm:px-6 pt-5 pb-4 border-b-2 border-slate-200 relative">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pr-8">
-              {/* Company Logo & Brand Name */}
+              {/* Official SafarIndiaCabs Logo & Company Details */}
               <div className="flex items-center gap-3.5">
-                <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-amber-500/25 shrink-0 border-2 border-white/20 overflow-hidden">
+                <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center p-1 shrink-0 overflow-hidden">
                   <img
-                    src="/logo.png"
-                    alt="Safar India Cabs Logo"
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
+                    src={OFFICIAL_SAFAR_LOGO_DATA_URL}
+                    alt="SafarIndiaCabs Official Logo"
+                    className="w-full h-full object-contain"
                   />
-                  <Car className="w-6 h-6 text-slate-950 absolute opacity-0" />
                 </div>
                 <div>
-                  <div className="font-black tracking-tight text-lg sm:text-xl text-white flex items-center">
-                    <span>SAFAR</span>
-                    <span className="text-amber-400 mx-0.5 font-mono">.</span>
-                    <span>INDIA</span>
-                    <span className="text-amber-400 mx-0.5 font-mono">.</span>
-                    <span className="text-amber-400">CABS</span>
+                  <div className="font-black tracking-tight text-xl text-[#0F2958] leading-none">
+                    Safar<span className="text-amber-500">India</span>Cabs
                   </div>
-                  <div className="text-[10px] tracking-[0.22em] font-extrabold text-amber-300 uppercase">
-                    Official Tax Invoice &amp; Receipt
+                  <div className="text-[10px] tracking-[0.16em] font-extrabold text-amber-600 uppercase mt-1">
+                    A1 Cab Services • Official GST Tax Invoice
                   </div>
-                  <div className="text-[11px] text-slate-300 mt-0.5">
-                    Helpline: +91 77100 80992 · safarindiacabs.com
+                  <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+                    GSTIN: <span className="font-mono text-[#0F2958]">07DQHPA3025F1ZD</span> · Prop: Aman Mishra
+                  </div>
+                  <div className="text-[10.5px] text-slate-500">
+                    Helpline: +91 7710080992 · Safarindiacabs01@gmail.com
                   </div>
                 </div>
               </div>
 
-              {/* Unique Booking ID Pill */}
-              <div className="bg-amber-400 text-slate-950 px-3.5 py-2 rounded-2xl shadow-md self-start sm:self-auto text-left sm:text-right shrink-0">
-                <span className="text-[9px] font-black uppercase tracking-wider block text-slate-800">
-                  Unique Booking ID
+              {/* Unique Booking ID Badge (Light Theme) */}
+              <div className="bg-slate-50 border border-slate-200 text-slate-900 px-3.5 py-2 rounded-xl self-start sm:self-auto text-left sm:text-right shrink-0">
+                <span className="text-[9px] font-extrabold uppercase tracking-wider block text-[#0F2958]">
+                  TAX INVOICE / ID
                 </span>
-                <span className="text-sm sm:text-base font-black font-mono tracking-tight">
+                <span className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-950">
                   {booking.id}
                 </span>
               </div>
             </div>
 
             {/* Confirmation Status Bar */}
-            <div className="mt-4 pt-3 border-t border-white/15 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="inline-flex items-center gap-1.5 font-extrabold text-amber-300">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="mt-3.5 pt-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-extrabold text-emerald-700">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
                   {isCompleted
-                    ? 'Booking Completed · Final Tax Invoice Ready'
-                    : 'Booking Confirmed · Instant Receipt Generated'}
+                    ? 'Booking Completed · Verified GST Tax Invoice'
+                    : 'Booking Confirmed · Official GST Voucher'}
                 </span>
               </span>
-              <span className="text-[11px] text-slate-300 font-mono">
+              <span className="text-[11px] text-slate-600 font-mono font-bold">
+                Date:{' '}
                 {new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
                   day: '2-digit',
                   month: 'short',
@@ -527,10 +573,10 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
           <div className="p-5 sm:p-6 space-y-4 bg-white">
             {/* Customer & Vehicle Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <User className="w-3 h-3 text-amber-600" />
-                  <span>Customer Details</span>
+              <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                  <User className="w-3 h-3 text-[#0F2958]" />
+                  <span>Billed To Customer</span>
                 </span>
                 <div className="text-sm font-black text-slate-950">{booking.customerName}</div>
                 <div className="text-xs font-mono font-bold text-slate-700 flex items-center gap-1">
@@ -539,21 +585,21 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <Car className="w-3 h-3 text-amber-600" />
+              <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                  <Car className="w-3 h-3 text-[#0F2958]" />
                   <span>Vehicle Type &amp; Trip</span>
                 </span>
-                <div className="text-sm font-black text-[#081C44]">{booking.cabName}</div>
+                <div className="text-sm font-black text-[#0F2958]">{booking.cabName}</div>
                 <div className="text-xs font-bold text-amber-700">
-                  {booking.tripType.toUpperCase()} · {booking.distanceKm} KM
+                  {booking.tripType.toUpperCase()} · {booking.distanceKm} KM (SAC: 996412)
                 </div>
               </div>
             </div>
 
             {/* Pickup, Drop & Date/Time Details Card */}
-            <div className="bg-[#081C44]/[0.03] border border-slate-200/90 rounded-2xl p-4 space-y-2.5 text-xs">
-              <div className="flex items-start justify-between gap-3 pb-2 border-b border-slate-200/80">
+            <div className="bg-slate-50/60 border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs">
+              <div className="flex items-start justify-between gap-3 pb-2 border-b border-slate-200">
                 <span className="text-slate-500 font-bold flex items-center gap-1.5 shrink-0">
                   <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span>Pickup Location:</span>
@@ -566,7 +612,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </span>
               </div>
 
-              <div className="flex items-start justify-between gap-3 pb-2 border-b border-slate-200/80">
+              <div className="flex items-start justify-between gap-3 pb-2 border-b border-slate-200">
                 <span className="text-slate-500 font-bold flex items-center gap-1.5 shrink-0">
                   <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <span>Drop Location:</span>
@@ -580,7 +626,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
 
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-500 font-bold flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-[#081C44] shrink-0" />
+                  <Calendar className="w-3.5 h-3.5 text-[#0F2958] shrink-0" />
                   <span>Trip Date &amp; Time:</span>
                 </span>
                 <span className="font-black text-slate-950 font-mono">
@@ -589,7 +635,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               </div>
 
               {booking.driverName && (
-                <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-emerald-900 bg-emerald-50/80 -mx-2 px-3 py-2 rounded-xl">
+                <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-emerald-900 bg-emerald-50/80 -mx-2 px-3 py-2 rounded-xl">
                   <span className="font-bold">
                     Chauffeur: <strong>{booking.driverName}</strong> (+91 {booking.driverPhone})
                   </span>
@@ -602,69 +648,87 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               )}
             </div>
 
-            {/* Executive Navy & Gold Fare Summary Box */}
-            <div className="rounded-2xl overflow-hidden border-2 border-[#081C44]">
-              <div className="bg-[#081C44] text-amber-400 px-4 py-2 text-[11px] font-black uppercase tracking-wider flex items-center justify-between">
-                <span>Fare &amp; Payment Summary</span>
-                <span>Verified Receipt</span>
+            {/* Clean Light-Theme Fare Summary Box */}
+            <div className="rounded-xl overflow-hidden border border-slate-300">
+              <div className="bg-slate-100 text-[#0F2958] px-4 py-2 text-[11px] font-black uppercase tracking-wider flex items-center justify-between border-b border-slate-300">
+                <span>Fare &amp; Tax Breakdown</span>
+                <span>Amount (INR)</span>
               </div>
 
               <div className="p-4 bg-white space-y-2 text-xs">
-                <div className="flex justify-between items-center text-slate-700">
-                  <span className="font-semibold">Estimated Total Fare:</span>
+                <div className="flex justify-between items-center text-slate-800">
+                  <span className="font-bold">Total Invoice Amount (Incl. GST):</span>
                   <span className="text-base font-black text-slate-950 font-mono">
-                    {formatINR(booking.totalFare)}
+                    INR {Number(booking.totalFare || 0).toLocaleString('en-IN')}.00
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-emerald-700 bg-emerald-50/80 px-3 py-2 rounded-xl border border-emerald-200">
+                <div className="flex justify-between items-center text-emerald-800 bg-emerald-50/80 px-3 py-2 rounded-lg border border-emerald-200">
                   <span className="font-bold">Advance Paid:</span>
                   <span className="font-black font-mono text-sm">
                     {formatINR(booking.advancePaid)} ✓
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-950 bg-amber-50 px-3 py-2.5 rounded-xl border border-amber-300">
-                  <span className="font-black text-[#081C44]">
-                    {isCompleted ? 'Remaining Amount (Settled):' : 'Remaining Amount (Payable to Driver):'}
+                <div className="flex justify-between items-center text-slate-950 bg-amber-50/80 px-3 py-2 rounded-lg border border-amber-300">
+                  <span className="font-black text-[#0F2958]">
+                    {isCompleted ? 'Remaining Balance (Settled):' : 'Remaining Balance (Payable to Driver):'}
                   </span>
-                  <span className="font-black text-amber-800 text-base font-mono">
+                  <span className="font-black text-amber-900 text-sm font-mono">
                     {formatINR(booking.balanceDue)}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Official Rubber Mohar & Proprietor Aman Mishra Pre-filled Signature */}
-            <div className="border border-blue-200 bg-blue-50/30 rounded-2xl p-3.5 flex items-center justify-between gap-3">
-              <div className="space-y-0.5 text-[10px] text-slate-600 max-w-[52%]">
-                <div className="font-black uppercase text-[#081C44] text-[11px]">
-                  SafarIndiaCabs · Verified GST Receipt
+            {/* Dual Verification Footer: Digital Signature Block + Official Rubber Mohar & Aman Mishra Signature */}
+            <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+              {/* Company Info */}
+              <div className="sm:col-span-4 space-y-0.5 text-[9.5px] text-slate-600">
+                <div className="font-black uppercase text-[#0F2958] text-[10.5px]">
+                  SafarIndiaCabs
                 </div>
-                <div className="font-bold text-blue-900">GSTIN: 07DQHPA3025F1ZD</div>
-                <div>Prop: Aman Mishra · +91 7710080992</div>
-                <div className="leading-snug">
+                <div className="font-bold text-slate-900">GSTIN: 07DQHPA3025F1ZD</div>
+                <div>Prop: Aman Mishra</div>
+                <div className="leading-snug text-[9px]">
                   H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084
                 </div>
               </div>
 
-              <div className="flex flex-col items-center justify-center shrink-0">
-                <div className="text-[9.5px] font-black uppercase text-[#081C44] tracking-wider">
+              {/* Digitally Signed Block (matching reference screenshot) */}
+              <div className="sm:col-span-4 bg-white border border-slate-200 rounded-lg p-2.5 font-sans text-[9.5px] text-slate-800 leading-snug">
+                <div>
+                  Digitally signed by <strong className="font-black text-slate-950">SAFARINDIACABS (AMAN MISHRA)</strong>
+                </div>
+                <div className="font-mono text-[8.5px] text-slate-600 mt-0.5">
+                  GSTIN: 07DQHPA3025F1ZD
+                </div>
+                <div className="font-mono text-[8.5px] text-slate-700">
+                  Date: {digitalTimestamp}
+                </div>
+                <div className="font-mono text-[8.5px] text-slate-700">
+                  Location: IN
+                </div>
+              </div>
+
+              {/* Official Rubber Mohar & Aman Mishra Pre-filled Signature */}
+              <div className="sm:col-span-4 flex flex-col items-center justify-center shrink-0">
+                <div className="text-[9px] font-black uppercase text-[#0F2958] tracking-wider">
                   For SafarIndiaCabs
                 </div>
-                <div className="relative flex items-center justify-center h-20 w-40">
+                <div className="relative flex items-center justify-center h-18 w-36">
                   <img
                     src={renderOfficialRubberStampDataUrl('circular', 'SafarIndiaCabs', '07DQHPA3025F1ZD', 'Aman Mishra')}
                     alt="SafarIndiaCabs Official Rubber Mohar"
-                    className="w-20 h-20 object-contain opacity-90 select-none pointer-events-none"
+                    className="w-18 h-18 object-contain opacity-95 select-none pointer-events-none"
                   />
                   <img
                     src={renderDefaultProprietorSignatureDataUrl('Aman Mishra')}
                     alt="Aman Mishra Signature"
-                    className="absolute right-0 bottom-1 w-28 h-12 object-contain select-none pointer-events-none"
+                    className="absolute right-0 bottom-0.5 w-24 h-11 object-contain select-none pointer-events-none"
                   />
                 </div>
-                <div className="text-[9.5px] font-extrabold text-slate-900 border-t border-slate-300 pt-0.5 w-full text-center">
+                <div className="text-[9px] font-extrabold text-slate-900 border-t border-slate-300 pt-0.5 w-full text-center">
                   Prop. Aman Mishra (Signatory)
                 </div>
               </div>
