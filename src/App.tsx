@@ -22,7 +22,6 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
-import { downloadProductionAab, downloadProductionApk } from './utils/aabBinaryData';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
 import { CABS_FLEET } from './data/cabsFleet';
 import { computeTripFare, FareCalculationResult, isDrVijayKumarMatch } from './utils/fareCalculator';
@@ -1049,34 +1048,6 @@ export default function App() {
                 onOpenReviewsModal={() => setIsReviewsModalOpen(true)}
               />
               <DriverPartnerSection onOpenPartnerModal={() => setIsDriverPartnerOpen(true)} />
-
-              {/* Play Console .AAB / .APK Download Card inside About Tab */}
-              <div className="bg-slate-950 text-white rounded-3xl p-5 sm:p-6 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <span className="inline-block px-2.5 py-0.5 rounded-md bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-wider">
-                    Google Play Console Ready
-                  </span>
-                  <h3 className="text-sm sm:text-base font-black text-white">
-                    Safarindiacabs Android App Bundle (<span className="text-amber-400 font-mono">com.safarindiacabs.app</span> · v1.0.5 (6) · SDK 36)
-                  </h3>
-                </div>
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={downloadProductionAab}
-                    className="min-h-[44px] px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition cursor-pointer"
-                  >
-                    ⬇ Download Binary .AAB
-                  </button>
-                  <button
-                    type="button"
-                    onClick={downloadProductionApk}
-                    className="min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs transition cursor-pointer"
-                  >
-                    ⬇ Download .APK
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         ) : activeTab === 'help' ? (

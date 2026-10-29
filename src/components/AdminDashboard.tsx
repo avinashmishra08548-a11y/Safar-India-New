@@ -736,7 +736,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               }`}
             >
               <Lock className="w-4 h-4" />
-              <span>Security PIN</span>
+              <span>Security &amp; App Files (.AAB)</span>
             </button>
           </div>
 
@@ -2274,65 +2274,117 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
-          {/* TAB 4: SECURITY PIN */}
+          {/* TAB 4: SECURITY PIN & PRIVATE OWNER APP BUNDLE VAULT */}
           {activeTab === 'security' && (
-            <div className={`max-w-md mx-auto ${cardBg} p-6 rounded-2xl border space-y-5`}>
-              <div className="text-center space-y-1.5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
-                  <KeyRound className="w-6 h-6" />
+            <div className="max-w-3xl mx-auto space-y-6">
+              {/* Private Owner-Only Android App Bundle (.AAB / .APK / Keystore) Vault */}
+              <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-950 text-white rounded-2xl p-5 sm:p-6 border border-emerald-500/40 shadow-lg space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-400 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                    <Lock className="w-3 h-3" />
+                    <span>100% Private Owner Vault · Hidden from Public Website</span>
+                  </span>
+                  <span className="text-xs font-mono text-amber-300 font-bold">
+                    PIN Protected Access Only
+                  </span>
                 </div>
-                <h3 className={`text-base font-extrabold ${textPrimary}`}>Change Owner Access PIN</h3>
-                <p className={`text-xs ${textSecondary}`}>
-                  Update your confidential 4-digit PIN used to unlock this dashboard
-                </p>
+
+                <div className="space-y-1">
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    Safarindiacabs Confidential App Files (<span className="text-amber-300 font-mono">com.safarindiacabs.app</span>)
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    All <code className="text-amber-300">.aab</code>, <code className="text-amber-300">.apk</code>, and <code className="text-amber-300">.keystore</code> files are completely hidden from customers and public URLs. Only you can download them after unlocking this Owner Control Panel with your secret PIN.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={downloadProductionAab}
+                    className="py-3 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 shrink-0" />
+                    <span>Download Signed .AAB (v1.0.5)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={downloadProductionApk}
+                    className="py-3 px-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Download Release .APK</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={downloadReleaseKeystore}
+                    className="py-3 px-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-amber-300 shrink-0" />
+                    <span>Download Upload Keystore</span>
+                  </button>
+                </div>
               </div>
 
-              {pinChangeMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs text-center font-bold">
-                  {pinChangeMsg}
-                </div>
-              )}
-
-              {pinErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs text-center font-bold">
-                  {pinErrorMsg}
-                </div>
-              )}
-
-              <form onSubmit={handleUpdatePin} className="space-y-4">
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>New 4-Digit PIN</label>
-                  <input
-                    type="password"
-                    maxLength={4}
-                    required
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                    placeholder="••••"
-                    className={`w-full text-center tracking-[0.5em] text-xl font-black border rounded-xl py-2.5 font-mono focus:outline-none ${inputBg}`}
-                  />
+              {/* Change Owner Access PIN Card */}
+              <div className={`max-w-md mx-auto ${cardBg} p-6 rounded-2xl border space-y-5`}>
+                <div className="text-center space-y-1.5">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                    <KeyRound className="w-6 h-6" />
+                  </div>
+                  <h3 className={`text-base font-extrabold ${textPrimary}`}>Change Owner Access PIN</h3>
+                  <p className={`text-xs ${textSecondary}`}>
+                    Update your confidential 4-digit PIN used to unlock this dashboard &amp; private files
+                  </p>
                 </div>
 
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Confirm 4-Digit PIN</label>
-                  <input
-                    type="password"
-                    maxLength={4}
-                    required
-                    value={confirmPin}
-                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                    placeholder="••••"
-                    className={`w-full text-center tracking-[0.5em] text-xl font-black border rounded-xl py-2.5 font-mono focus:outline-none ${inputBg}`}
-                  />
-                </div>
+                {pinChangeMsg && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs text-center font-bold">
+                    {pinChangeMsg}
+                  </div>
+                )}
 
-                <button
-                  type="submit"
-                  className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition cursor-pointer"
-                >
-                  Save New Owner PIN
-                </button>
-              </form>
+                {pinErrorMsg && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs text-center font-bold">
+                    {pinErrorMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handleUpdatePin} className="space-y-4">
+                  <div>
+                    <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>New 4-Digit PIN</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••"
+                      className={`w-full text-center tracking-[0.5em] text-xl font-black border rounded-xl py-2.5 font-mono focus:outline-none ${inputBg}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-xs font-bold mb-1 ${textSecondary}`}>Confirm 4-Digit PIN</label>
+                    <input
+                      type="password"
+                      maxLength={4}
+                      required
+                      value={confirmPin}
+                      onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+                      placeholder="••••"
+                      className={`w-full text-center tracking-[0.5em] text-xl font-black border rounded-xl py-2.5 font-mono focus:outline-none ${inputBg}`}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition cursor-pointer"
+                  >
+                    Save New Owner PIN
+                  </button>
+                </form>
+              </div>
             </div>
           )}
         </div>

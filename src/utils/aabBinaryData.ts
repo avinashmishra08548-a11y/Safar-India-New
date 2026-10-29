@@ -33,12 +33,11 @@ export function downloadProductionAab() {
 }
 
 export function downloadProductionApk() {
-  const link = document.createElement("a");
-  link.href = "/com.safarindiacabs.app-release.apk";
-  link.download = "com.safarindiacabs.app-release.apk";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  triggerBase64Download(
+    AAB_BASE64_DATA,
+    "com.safarindiacabs.app-release.apk",
+    "application/vnd.android.package-archive"
+  );
 }
 
 export function downloadReleaseKeystore() {

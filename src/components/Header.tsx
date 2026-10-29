@@ -21,7 +21,6 @@ import {
 import { CustomerUser } from '../types';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 import { SAFAR_CONTACT_INFO } from './AboutAndHelpViews';
-import { downloadProductionAab, downloadProductionApk } from '../utils/aabBinaryData';
 
 export type NavTabId = 'booking' | 'routes' | 'rides' | 'about' | 'help';
 
@@ -295,16 +294,6 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={downloadProductionAab}
-                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] sm:text-xs flex items-center gap-1.5 transition active:scale-95 shrink-0 cursor-pointer shadow-xs"
-                title="Download Signed Google Play Production App Bundle (.aab) v1.0.4 (versionCode 5)"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-950 shrink-0" />
-                <span>Download .AAB</span>
-              </button>
-
               {activeNavTab !== 'booking' && (
                 <button
                   type="button"
@@ -597,31 +586,12 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
 
-              {/* App Bundle (.AAB / .APK) & Owner Control Panel */}
-              <div className="pt-3 border-t border-slate-800 space-y-2">
-                <div className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Play Console Release &amp; Administration
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={downloadProductionAab}
-                    className="min-h-[42px] py-2 px-2.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-300 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 shrink-0" />
-                    <span>Download .AAB</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={downloadProductionApk}
-                    className="min-h-[42px] py-2 px-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 shrink-0" />
-                    <span>Download .APK</span>
-                  </button>
-                </div>
-
-                {onOpenAdmin && (
+              {/* Owner Control Panel (PIN Protected Only — No Public Build Files) */}
+              {onOpenAdmin && (
+                <div className="pt-3 border-t border-slate-800 space-y-2">
+                  <div className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                    Administration
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -633,8 +603,8 @@ export const Header: React.FC<HeaderProps> = ({
                     <Shield className="w-4 h-4 text-amber-400 shrink-0" />
                     <span>Owner Control Panel (PIN Protected)</span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* 3. Anchored Drawer Bottom Footer (Prevents Infinite Scroll Past Last Option) */}
