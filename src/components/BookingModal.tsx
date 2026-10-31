@@ -29,6 +29,11 @@ import {
   ensureAndroidWebViewUpiSupport,
   PreferredPaymentMethod
 } from '../utils/razorpayService';
+import {
+  generateNextSequentialBookingId,
+  peekNextSequentialBookingId,
+  saveBookingToCloudDatabase
+} from '../lib/bookingDatabase';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -289,7 +294,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
     const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
 
-    const bookingId = `SIC-${Date.now().toString().slice(-5)}`;
+    const bookingId = await generateNextSequentialBookingId();
     const bookingDraft: BookingRecord = {
       id: bookingId,
       tripType,
@@ -407,6 +412,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         };
 
         try {
+          await saveBookingToCloudDatabase(finalConfirmedBooking);
+        } catch (dbErr) {
+          console.warn('Cloud booking database persistence notice:', dbErr);
+        }
+
+        try {
           await sendDualBookingNotifications(finalConfirmedBooking);
         } catch (smsError) {
           console.warn('Traccar Cloud automated dual notification notice:', smsError);
@@ -446,9 +457,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <Car className="w-5 h-5 text-slate-950" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm sm:text-lg font-extrabold text-slate-950 truncate">
-                Confirm Cab Booking &amp; Payment
-              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm sm:text-lg font-extrabold text-slate-950 truncate">
+                  Confirm Cab Booking &amp; Payment
+                </h3>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 border border-amber-300 text-amber-900 font-mono font-black text-[11px]">
+                  ID: {peekNextSequentialBookingId()}
+                </span>
+              </div>
               <p className="text-[11px] sm:text-xs text-slate-500 font-medium truncate">
                 {cab.name} · {tripType === 'local' ? 'Local Rental' : `${pickupCity} → ${dropCity}`}
               </p>

@@ -102,7 +102,8 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
   doc.text('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', companyX, y + 23.8);
 
   // Right Side Tax Invoice Box (Light Theme)
-  const invoiceNo = `INV-${booking.id.replace('SIC-', '')}`;
+  const cleanIdSuffix = booking.id.replace(/^SIC-?/i, '');
+  const invoiceNo = `INV-SIC${cleanIdSuffix}`;
   const invoiceDateStr = new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',

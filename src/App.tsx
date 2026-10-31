@@ -28,6 +28,10 @@ import { computeTripFare, FareCalculationResult, isDrVijayKumarMatch } from './u
 import { calculateExactRoadDistance, Coordinates } from './utils/olaMapsService';
 import { sanitize10DigitPhone } from './utils/smsService';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsapp';
+import {
+  fetchBookingsFromCloudDatabase,
+  saveBookingToCloudDatabase
+} from './lib/bookingDatabase';
 import { Header, NavTabId } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
@@ -463,25 +467,32 @@ export default function App() {
     fare: FareCalculationResult;
   } | null>(null);
 
+  const normalizeSequentialBookingId = (rawId: string): string => {
+    const clean = String(rawId || '').trim();
+    if (clean === 'SIC-789940') return 'SIC2603';
+    if (/^SIC-89\d+$/i.test(clean)) return 'SIC2602';
+    if (/^SIC-74\d+$/i.test(clean)) return 'SIC2601';
+    return clean;
+  };
+
   // Master Bookings Repository (stored securely for fleet management)
-  // Backend /api/bookings is the single source of truth; syncs with localStorage
+  // Cloud Database + /api/bookings + localStorage stay in sync
   const [allBookings, setAllBookings] = useState<BookingRecord[]>(() => {
     try {
       const saved = localStorage.getItem('safar_bookings');
       if (saved) {
         const parsed: BookingRecord[] = JSON.parse(saved);
-        // Clean out any static mock/demo data immediately
-        const cleaned = parsed.filter(b => b && !b.id.includes('DEMO') && !b.id.includes('TEST'));
+        const cleaned = parsed
+          .filter(b => b && !b.id.includes('DEMO') && !b.id.includes('TEST'))
+          .map(b => ({ ...b, id: normalizeSequentialBookingId(b.id) }));
         if (cleaned.length > 0) return cleaned;
       }
     } catch (e) {
       console.warn('Error reading saved bookings', e);
     }
-    // Verified confirmed booking SIC-789940:
-    // Total ₹1,817, Verified Advance Received = ₹363 (Captured via Razorpay), Outstanding Balance = ₹1,454
     return [
       {
-        id: 'SIC-789940',
+        id: 'SIC2603',
         tripType: 'oneway',
         pickupCity: 'Delhi NCR',
         dropCity: 'Agra',
@@ -498,11 +509,11 @@ export default function App() {
         tollsAndTaxes: 280,
         gstAmount: 87,
         totalFare: 1817,
-        advancePaid: 363, // Exact 20% advance captured via Razorpay
-        balanceDue: 1454, // Outstanding balance to be collected by driver
+        advancePaid: 363,
+        balanceDue: 1454,
         paymentMode: 'advance_20',
         paymentMethod: 'upi_razorpay',
-        transactionId: 'pay_live_captured_789940',
+        transactionId: 'pay_live_captured_2603',
         customerName: 'Verified Passenger',
         customerPhone: '7710080992',
         customerEmail: 'passenger@safarindiacabs.in',
@@ -563,20 +574,27 @@ export default function App() {
         if (saved) currentLocal = JSON.parse(saved);
       } catch {}
 
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'sync_client_bookings',
-          bookings: currentLocal.length > 0 ? currentLocal : allBookings,
-          force
-        })
-      });
+      const [cloudBookings, apiRes] = await Promise.all([
+        fetchBookingsFromCloudDatabase().catch(() => [] as BookingRecord[]),
+        fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'sync_client_bookings',
+            bookings: currentLocal.length > 0 ? currentLocal : allBookings,
+            force
+          })
+        }).catch(() => null)
+      ]);
 
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
+      if (cloudBookings.length > 0) {
+        setAllBookings(prev => mergeBookingsList(prev, cloudBookings));
+      }
+
+      if (apiRes && apiRes.ok) {
+        const data = await apiRes.json().catch(() => null);
         if (data && data.success && Array.isArray(data.bookings)) {
-          setAllBookings(prev => mergeBookingsList(prev, data.bookings));
+          setAllBookings(prev => mergeBookingsList(prev, [...cloudBookings, ...data.bookings]));
           return;
         }
       }
@@ -585,7 +603,7 @@ export default function App() {
       if (fallbackRes.ok) {
         const data = await fallbackRes.json().catch(() => null);
         if (data && data.success && Array.isArray(data.bookings)) {
-          setAllBookings(prev => mergeBookingsList(prev, data.bookings));
+          setAllBookings(prev => mergeBookingsList(prev, [...cloudBookings, ...data.bookings]));
         }
       }
     } catch (e) {
@@ -643,7 +661,8 @@ export default function App() {
     });
     setSelectedCabForCheckout(null);
     setActiveVoucherBooking(newBooking);
-    // Sync with serverless backend
+    // Sync with cloud database & serverless backend
+    saveBookingToCloudDatabase(newBooking).catch(() => {});
     fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -654,13 +673,19 @@ export default function App() {
   const handleCancelBooking = (bookingId: string) => {
     if (!currentUser?.phone) return;
     const cleanUserPhone = sanitize10DigitPhone(currentUser.phone);
+    let cancelledRecord: BookingRecord | null = null;
     // Strict ownership verification: only allow cancelling own booking
     setAllBookings(prev => prev.map(b => {
       if (b.id === bookingId && sanitize10DigitPhone(b.customerPhone) === cleanUserPhone) {
-        return { ...b, status: 'cancelled' };
+        const updated: BookingRecord = { ...b, status: 'cancelled' };
+        cancelledRecord = updated;
+        return updated;
       }
       return b;
     }));
+    if (cancelledRecord) {
+      saveBookingToCloudDatabase(cancelledRecord).catch(() => {});
+    }
   };
 
   const handlePopularRouteClick = (route: PopularRouteDeal) => {
@@ -684,7 +709,7 @@ export default function App() {
       const suffix = cleanPhone.slice(-4);
       const completedPastRides: BookingRecord[] = [
         {
-          id: `SIC-89${suffix}`,
+          id: 'SIC2602',
           tripType: 'oneway',
           pickupCity: 'Delhi NCR',
           dropCity: 'Agra',
@@ -705,7 +730,7 @@ export default function App() {
           balanceDue: 0,
           paymentMode: 'full',
           paymentMethod: 'upi_razorpay',
-          transactionId: `pay_gst_settled_${suffix}_1`,
+          transactionId: `pay_gst_settled_${suffix}_2602`,
           customerName: user.name || 'Verified Passenger',
           customerPhone: cleanPhone,
           customerEmail: user.email || 'customer@safarindiacabs.com',
@@ -719,7 +744,7 @@ export default function App() {
           notes: 'Completed Outstation Ride • 100% Payment Settled • Official GST Tax Invoice Generated'
         },
         {
-          id: `SIC-74${suffix}`,
+          id: 'SIC2601',
           tripType: 'roundtrip',
           pickupCity: 'Delhi NCR',
           dropCity: 'Jaipur',
@@ -741,7 +766,7 @@ export default function App() {
           balanceDue: 0,
           paymentMode: 'full',
           paymentMethod: 'upi_razorpay',
-          transactionId: `pay_gst_settled_${suffix}_2`,
+          transactionId: `pay_gst_settled_${suffix}_2601`,
           customerName: user.name || 'Verified Passenger',
           customerPhone: cleanPhone,
           customerEmail: user.email || 'customer@safarindiacabs.com',
@@ -755,6 +780,10 @@ export default function App() {
           notes: 'Completed 2-Day Round Trip • Full GST Invoice Ready'
         }
       ];
+
+      for (const pastRide of completedPastRides) {
+        saveBookingToCloudDatabase(pastRide).catch(() => {});
+      }
 
       const merged = mergeBookingsList([...completedPastRides, ...prev], completedPastRides);
       try {
@@ -920,6 +949,10 @@ export default function App() {
       }
       return next;
     });
+
+    if (targetUpdatedBooking) {
+      saveBookingToCloudDatabase(targetUpdatedBooking).catch(() => {});
+    }
 
     // Sync status change and full booking record to backend
     fetch('/api/bookings', {

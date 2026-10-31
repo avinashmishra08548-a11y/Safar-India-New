@@ -23,6 +23,7 @@ import {
   OFFICIAL_AMAN_MISHRA_SIGNATURE_DATA_URL,
   OFFICIAL_SAFAR_LOGO_DATA_URL
 } from '../utils/officialSignatureData';
+import { peekNextSequentialBookingId } from '../lib/bookingDatabase';
 
 export interface CustomBillData {
   id: string;
@@ -96,13 +97,20 @@ export const OFFICIAL_COMPANY_DEFAULTS = {
   sacCode: '996412'
 };
 
-export function formatDigitalSignTimestamp(dateObj = new Date()): string {
-  const yyyy = dateObj.getFullYear();
-  const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const dd = String(dateObj.getDate()).padStart(2, '0');
-  const hh = String(dateObj.getHours()).padStart(2, '0');
-  const min = String(dateObj.getMinutes()).padStart(2, '0');
-  const ss = String(dateObj.getSeconds()).padStart(2, '0');
+export function formatDigitalSignTimestamp(dateInput?: Date | string): string {
+  const dateObj =
+    dateInput instanceof Date
+      ? dateInput
+      : typeof dateInput === 'string' && dateInput.trim()
+      ? new Date(dateInput)
+      : new Date();
+  const validDate = Number.isNaN(dateObj.getTime()) ? new Date() : dateObj;
+  const yyyy = validDate.getFullYear();
+  const mm = String(validDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(validDate.getDate()).padStart(2, '0');
+  const hh = String(validDate.getHours()).padStart(2, '0');
+  const min = String(validDate.getMinutes()).padStart(2, '0');
+  const ss = String(validDate.getSeconds()).padStart(2, '0');
   return `${yyyy}.${mm}.${dd} ${hh}:${min}:${ss} IST`;
 }
 
@@ -951,12 +959,12 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
   const todayStr = new Date().toISOString().split('T')[0];
 
   const createFreshBill = (booking?: BookingRecord | null): CustomBillData => {
-    const randSuffix = Math.floor(1000 + Math.random() * 9000);
     const nowStamp = formatDigitalSignTimestamp();
     if (booking) {
+      const cleanSuffix = booking.id.replace(/^SIC-?/i, '');
       return {
         id: `BILL-${Date.now()}`,
-        invoiceNo: `SIC-2026-${booking.id.replace('SIC-', '')}`,
+        invoiceNo: `INV-SIC${cleanSuffix}`,
         invoiceDate: todayStr,
         bookingRef: booking.id,
         paymentStatus: 'PAID IN FULL',
@@ -1006,11 +1014,12 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
       };
     }
 
+    const nextSeqBookingId = peekNextSequentialBookingId();
     return {
       id: `BILL-${Date.now()}`,
-      invoiceNo: `SIC-2026-${randSuffix}`,
+      invoiceNo: `INV-${nextSeqBookingId}`,
       invoiceDate: todayStr,
-      bookingRef: `SIC-${randSuffix}`,
+      bookingRef: nextSeqBookingId,
       paymentStatus: 'PAID IN FULL',
       paymentMode: 'UPI / Cash / Online',
       transactionRef: '',

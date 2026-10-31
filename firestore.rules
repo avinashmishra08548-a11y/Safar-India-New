@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: bookings
+    // Document ID: sequential Booking ID (e.g., SIC2601, SIC2602, SIC2603)
+    // Required fields: id, tripType, pickupCity, dropCity, pickupDate, pickupTime,
+    //                  cabId, cabName, distanceKm, baseFare, totalFare,
+    //                  customerName, customerPhone, status, createdAt
+    //
+    // Collection: booking_counters
+    // Document ID: sic_26_series
+    // Required fields: seriesPrefix, currentSequence, lastBookingId, updatedAt
+    // ===============================================================
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidBookingId(id) {
+      return id is string && id.matches('^SIC[0-9A-Z-]{3,20}$');
+    }
+
+    function isValidBookingDoc(data) {
+      return data.keys().hasAll([
+        'id',
+        'tripType',
+        'pickupCity',
+        'dropCity',
+        'pickupDate',
+        'pickupTime',
+        'cabId',
+        'cabName',
+        'distanceKm',
+        'baseFare',
+        'totalFare',
+        'customerName',
+        'customerPhone',
+        'status',
+        'createdAt'
+      ]) &&
+      isValidBookingId(data.id) &&
+      data.tripType in ['oneway', 'roundtrip', 'local', 'airport'] &&
+      isValidString(data.pickupCity, 1, 120) &&
+      isValidString(data.dropCity, 1, 120) &&
+      isValidString(data.pickupDate, 4, 40) &&
+      isValidString(data.pickupTime, 2, 40) &&
+      isValidString(data.cabId, 1, 40) &&
+      isValidString(data.cabName, 1, 120) &&
+      data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 50000 &&
+      data.baseFare is number && data.baseFare >= 0 && data.baseFare <= 10000000 &&
+      data.totalFare is number && data.totalFare >= 0 && data.totalFare <= 10000000 &&
+      isValidString(data.customerName, 1, 120) &&
+      isValidString(data.customerPhone, 10, 15) &&
+      data.status in ['confirmed', 'completed', 'cancelled'] &&
+      isValidString(data.createdAt, 4, 60);
+    }
+
+    function isValidCounterDoc(data) {
+      return data.keys().hasAll(['seriesPrefix', 'currentSequence', 'lastBookingId', 'updatedAt']) &&
+        isValidString(data.seriesPrefix, 2, 12) &&
+        data.currentSequence is number && data.currentSequence >= 1 && data.currentSequence <= 9999999 &&
+        isValidBookingId(data.lastBookingId) &&
+        isValidString(data.updatedAt, 4, 60);
+    }
+
+    // Bookings collection: Customers use custom WhatsApp OTP auth in SafarIndiaCabs,
+    // so bookings are validated strictly by schema, booking ID format, and field bounds.
+    match /bookings/{bookingId} {
+      allow get, list: if true;
+      allow create: if isValidBookingDoc(request.resource.data) && request.resource.data.id == bookingId;
+      allow update: if isValidBookingDoc(request.resource.data) &&
+                    request.resource.data.id == resource.data.id &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    // Sequential Booking ID Counter collection for atomic SIC2601, SIC2602, SIC2603 generation
+    match /booking_counters/{counterId} {
+      allow get: if true;
+      allow create: if isValidCounterDoc(request.resource.data);
+      allow update: if isValidCounterDoc(request.resource.data) &&
+                    request.resource.data.currentSequence >= resource.data.currentSequence;
+      allow delete: if false;
+    }
+  }
+}

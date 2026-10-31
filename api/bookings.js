@@ -1307,10 +1307,29 @@ export function verifyOrderVerificationToken(payload, token, secret) {
   return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }
 
+// Sequential Booking ID generator state (SIC2601, SIC2602, SIC2603, ...)
+let serverSic26Counter = 3;
+
+export function generateServerSequentialBookingId() {
+  for (const b of storedBookings) {
+    if (b && b.id) {
+      const m = String(b.id).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').match(/^SIC26(\d{1,5})$/);
+      if (m) {
+        const seq = parseInt(m[1], 10);
+        if (Number.isFinite(seq) && seq > serverSic26Counter && seq <= 9000) {
+          serverSic26Counter = seq;
+        }
+      }
+    }
+  }
+  serverSic26Counter += 1;
+  return `SIC26${String(serverSic26Counter).padStart(2, '0')}`;
+}
+
 // In-memory cache for warm serverless invocations
 let storedBookings = [
   {
-    id: 'SIC-789940',
+    id: 'SIC2603',
     tripType: 'oneway',
     pickupCity: 'Delhi NCR',
     dropCity: 'Agra',
@@ -1331,7 +1350,7 @@ let storedBookings = [
     balanceDue: 1454,
     paymentMode: 'advance_20',
     paymentMethod: 'upi_razorpay',
-    transactionId: 'pay_live_captured_789940',
+    transactionId: 'pay_live_captured_2603',
     customerName: 'Verified Passenger',
     customerPhone: '7710080992',
     customerEmail: 'passenger@safarindiacabs.in',
@@ -1396,6 +1415,13 @@ export function upsertStoredBooking(booking) {
   if (!booking || !booking.id || String(booking.id).includes('DEMO') || String(booking.id).includes('TEST')) {
     return null;
   }
+  const m = String(booking.id).trim().toUpperCase().replace(/[^A-Z0-9]/g, '').match(/^SIC26(\d{1,5})$/);
+  if (m) {
+    const seq = parseInt(m[1], 10);
+    if (Number.isFinite(seq) && seq > serverSic26Counter && seq <= 9000) {
+      serverSic26Counter = seq;
+    }
+  }
   const existingIdx = storedBookings.findIndex((b) => b.id === booking.id);
   if (existingIdx >= 0) {
     storedBookings[existingIdx] = mergeBookingObjects(storedBookings[existingIdx], booking);
@@ -1459,7 +1485,7 @@ async function syncBookingsFromRazorpayGateway(force = false) {
             linkedOrder?.receipt ||
             '';
 
-          if (!bookingId || !String(bookingId).startsWith('SIC-')) continue;
+          if (!bookingId || !String(bookingId).toUpperCase().startsWith('SIC')) continue;
 
           const custParts = String(pNotes.customer_info || oNotes.customer_info || '').split('|');
           const customerName = custParts[0] || 'Verified Passenger';
@@ -1663,6 +1689,11 @@ export default async function handler(req, res) {
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
       const { action, booking, bookings, bookingId, status, driverInfo } = body;
+
+      if (action === 'next_booking_id') {
+        const nextId = generateServerSequentialBookingId();
+        return res.status(200).json({ success: true, bookingId: nextId, counter: serverSic26Counter });
+      }
 
       if (action === 'clear_demo') {
         storedBookings = storedBookings.filter(

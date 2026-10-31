@@ -34,6 +34,11 @@ import { BookingRecord, CustomerUser } from '../types';
 import { downloadProductionAab, downloadProductionApk, downloadReleaseKeystore } from '../utils/aabBinaryData';
 import { generateBookingInvoicePdf } from './BookingConfirmationModal';
 import { OwnerBillGenerator } from './OwnerBillGenerator';
+import {
+  generateNextSequentialBookingId,
+  peekNextSequentialBookingId,
+  saveBookingToCloudDatabase
+} from '../lib/bookingDatabase';
 import { formatINR } from '../utils/fareCalculator';
 import {
   buildWhatsAppSchemeUrl,
@@ -1039,7 +1044,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {/* Owner Instant Booking & PDF Invoice Generator Form */}
               {showQuickInvoiceForm && (
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
                     setQuickFormError('');
                     const cleanName = quickCustName.trim();
@@ -1055,7 +1060,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     const totalVal = Math.max(0, Number(quickTotalFare) || 0);
                     const advanceVal = Math.max(0, Number(quickAdvancePaid) || 0);
                     const remainingVal = Math.max(0, totalVal - advanceVal);
-                    const uniqueBookingId = `SIC-${Date.now().toString().slice(-5)}`;
+                    const uniqueBookingId = await generateNextSequentialBookingId(bookings);
 
                     const newRecord: BookingRecord = {
                       id: uniqueBookingId,
@@ -1088,6 +1093,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           ? 'Active Confirmed Booking created via Owner Panel — Ready for Driver Allotment'
                           : 'Completed & Verified via Safar India Cabs Owner Panel'
                     };
+
+                    saveBookingToCloudDatabase(newRecord).catch(() => {});
 
                     if (onCreateManualBooking) {
                       onCreateManualBooking(newRecord);
@@ -1129,7 +1136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </h3>
                     </div>
                     <span className="text-xs font-mono font-bold bg-amber-400 text-slate-950 px-3 py-1 rounded-lg self-start sm:self-auto">
-                      Auto ID: SIC-{Date.now().toString().slice(-5)}
+                      Auto ID: {peekNextSequentialBookingId(bookings)}
                     </span>
                   </div>
 

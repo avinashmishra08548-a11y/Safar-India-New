@@ -589,39 +589,57 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
           {filteredBookings.map((b) => {
             const isCompleted = b.status === 'completed';
             const isDownloading = downloadingBookingId === b.id;
-            const gstAmount = b.gstAmount || Math.round((b.baseFare || b.totalFare) * 0.05);
-            const invoiceNumber = `INV-GST-${b.id.replace('SIC-', '')}`;
+            const gstAmount = b.gstAmount ?? Math.round((b.baseFare || b.totalFare) * 0.05);
+            const tollsAmount = b.tollsAndTaxes || 0;
+            const driverAllowance = b.driverAllowance || 0;
+            const baseFareAmount =
+              b.baseFare || Math.max(0, b.totalFare - gstAmount - tollsAmount - driverAllowance);
+            const cleanIdSuffix = b.id.replace(/^SIC-?/i, '');
+            const invoiceNumber = `INV-SIC${cleanIdSuffix}`;
+            const paymentStatusLabel =
+              isCompleted || b.balanceDue === 0
+                ? 'PAID IN FULL (SETTLED)'
+                : `PARTIALLY PAID (20% ADVANCE • ₹${b.advancePaid})`;
 
             return (
               <div
                 key={b.id}
                 className="bg-white border border-slate-200 hover:border-slate-300 rounded-3xl p-5 sm:p-6 transition shadow-sm space-y-4"
               >
-                {/* Top Row: Booking ID, GST Invoice Number & Status Badge */}
+                {/* Top Row: Sequential Booking ID, GST Invoice Number, Ride Date & Payment/Ride Status */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="text-sm sm:text-base font-black text-slate-950 font-mono bg-amber-400/25 border border-amber-400/50 px-3 py-1 rounded-xl">
-                      {b.id}
+                    <span className="text-sm sm:text-base font-black text-slate-950 font-mono bg-amber-400/30 border border-amber-400/60 px-3 py-1 rounded-xl">
+                      Booking ID: {b.id}
                     </span>
-                    <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
-                      GST Bill: {invoiceNumber}
+                    <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+                      Invoice: {invoiceNumber}
                     </span>
-                    <span className="text-[11px] text-slate-500">
-                      Booked on {new Date(b.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      Ride Date: {b.pickupDate} • {b.pickupTime}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
+                        isCompleted || b.balanceDue === 0
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                          : 'bg-blue-50 text-blue-800 border-blue-200'
+                      }`}
+                    >
+                      Payment: {paymentStatusLabel}
+                    </span>
                     {b.status === 'completed' && (
-                      <span className="inline-flex items-center gap-1.5 text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-full font-extrabold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        COMPLETED • GST BILL READY
+                      <span className="inline-flex items-center gap-1.5 text-[11px] bg-emerald-600 text-white px-3 py-1 rounded-full font-extrabold shadow-2xs">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        COMPLETED RIDE
                       </span>
                     )}
                     {b.status === 'confirmed' && (
                       <span className="inline-flex items-center gap-1.5 text-[11px] bg-amber-50 text-amber-900 border border-amber-300 px-3 py-1 rounded-full font-extrabold">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        CONFIRMED &amp; SCHEDULED
+                        ONGOING / UPCOMING
                       </span>
                     )}
                     {b.status === 'cancelled' && (
@@ -632,7 +650,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   </div>
                 </div>
 
-                {/* Middle Row: Route, Schedule, Chauffeur & GST Fare Summary */}
+                {/* Middle Row: Pickup & Drop Locations, Schedule, Chauffeur & Detailed Fare Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center text-xs">
                   {/* Route & Vehicle Details */}
                   <div className="lg:col-span-5 space-y-2">
@@ -645,13 +663,13 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     </div>
                     <div className="text-xs text-slate-600 space-y-1 pl-4">
                       <div>
-                        <strong className="text-slate-800">Pickup:</strong> {b.pickupAddress || b.pickupCity}
+                        <strong className="text-slate-800">Pickup Location:</strong>{' '}
+                        {b.pickupAddress || b.pickupCity}
                       </div>
-                      {b.dropAddress && (
-                        <div>
-                          <strong className="text-slate-800">Drop:</strong> {b.dropAddress}
-                        </div>
-                      )}
+                      <div>
+                        <strong className="text-slate-800">Drop Location:</strong>{' '}
+                        {b.dropAddress || b.dropCity}
+                      </div>
                       <div>
                         <strong className="text-slate-800">Vehicle:</strong>{' '}
                         <span className="font-bold text-slate-900">{b.cabName}</span> ({b.tripType.toUpperCase()})
@@ -663,14 +681,14 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   <div className="lg:col-span-3 space-y-1.5 lg:border-l lg:border-slate-200 lg:pl-4">
                     <div className="flex items-center gap-2 text-slate-800 font-bold">
                       <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>{b.pickupDate}</span>
+                      <span>Ride Date: {b.pickupDate}</span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-800 font-bold">
                       <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>{b.pickupTime}</span>
+                      <span>Pickup Time: {b.pickupTime}</span>
                     </div>
-                    <div className="text-xs text-slate-500 font-semibold">
-                      Billed Distance: <strong>{b.distanceKm} KM</strong>
+                    <div className="text-xs text-slate-600 font-semibold">
+                      Billed Distance: <strong className="text-slate-900">{b.distanceKm} KM</strong>
                     </div>
                     {b.driverName && (
                       <div className="pt-1 text-[11px] text-emerald-800 font-bold flex items-center gap-1">
@@ -682,16 +700,30 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     )}
                   </div>
 
-                  {/* Fare & GST Breakdown Box */}
+                  {/* Detailed Distance / Fare Breakdown Box (Base Fare, Tax, Toll Charges, Payment Status) */}
                   <div className="lg:col-span-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
                     <div className="flex justify-between items-center text-slate-600">
-                      <span>Base Fare + Tolls:</span>
+                      <span>Base Fare ({b.distanceKm} KM):</span>
                       <span className="font-mono font-bold text-slate-900">
-                        {formatINR(Math.max(0, b.totalFare - gstAmount))}
+                        {formatINR(baseFareAmount)}
+                      </span>
+                    </div>
+                    {driverAllowance > 0 && (
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Driver Allowance:</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          {formatINR(driverAllowance)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Toll &amp; State Tax Charges:</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {tollsAmount > 0 ? formatINR(tollsAmount) : '₹0 (As Applicable)'}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-slate-600">
-                      <span>GST (5% SAC 996412):</span>
+                      <span>GST Tax (5% SAC 996412):</span>
                       <span className="font-mono font-bold text-slate-900">{formatINR(gstAmount)}</span>
                     </div>
                     <div className="flex justify-between items-center border-t border-slate-200 pt-1.5">
@@ -703,15 +735,24 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                         {isCompleted ? `Paid in Full: ${formatINR(b.totalFare)}` : `Advance Paid: ${formatINR(b.advancePaid)}`}
                       </span>
                       <span className="font-bold text-amber-800">
-                        {isCompleted ? 'Balance: ₹0' : `Balance: ${formatINR(b.balanceDue)}`}
+                        {isCompleted ? 'Balance: ₹0 (Settled)' : `Balance: ${formatINR(b.balanceDue)}`}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Bottom Action Buttons: Prominent Download GST Bill / Invoice CTA */}
+                {/* Bottom Action Buttons: Prominent View Bill & Download Invoice CTA */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                   <div className="flex flex-wrap items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => onSelectBookingForInvoice(b)}
+                      className="min-h-[46px] flex items-center gap-2 text-white bg-slate-900 hover:bg-slate-800 px-4 py-2.5 rounded-xl font-black text-xs transition shadow-sm cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>View Bill (Print-Friendly Invoice)</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleDirectDownloadGstBill(b)}
@@ -725,25 +766,14 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       {isDownloading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                          <span>Generating GST Invoice PDF...</span>
+                          <span>Generating PDF Invoice...</span>
                         </>
                       ) : (
                         <>
                           <Download className="w-4 h-4 shrink-0" />
-                          <span>
-                            {isCompleted ? 'Download GST Bill / Invoice (PDF)' : 'Download Booking GST Invoice'}
-                          </span>
+                          <span>Download Invoice (PDF)</span>
                         </>
                       )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onSelectBookingForInvoice(b)}
-                      className="min-h-[46px] flex items-center gap-2 text-slate-800 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer"
-                    >
-                      <FileText className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>View &amp; Print GST Bill</span>
                     </button>
 
                     <button

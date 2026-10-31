@@ -1,0 +1,149 @@
+{
+  "entities": {
+    "BookingRecord": {
+      "title": "BookingRecord",
+      "description": "SafarIndiaCabs customer cab booking and GST billing record with sequential SIC26XX booking ID",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Sequential Booking ID starting with SIC26 (e.g. SIC2601, SIC2602, SIC2603)"
+        },
+        "sequenceNumber": {
+          "type": "number",
+          "description": "Sequential numeric counter for the booking ID (e.g. 2601, 2602)"
+        },
+        "tripType": {
+          "type": "string",
+          "enum": ["oneway", "roundtrip", "local", "airport"]
+        },
+        "pickupCity": {
+          "type": "string"
+        },
+        "dropCity": {
+          "type": "string"
+        },
+        "pickupAddress": {
+          "type": "string"
+        },
+        "dropAddress": {
+          "type": "string"
+        },
+        "pickupDate": {
+          "type": "string"
+        },
+        "pickupTime": {
+          "type": "string"
+        },
+        "cabId": {
+          "type": "string"
+        },
+        "cabName": {
+          "type": "string"
+        },
+        "distanceKm": {
+          "type": "number"
+        },
+        "baseFare": {
+          "type": "number"
+        },
+        "driverAllowance": {
+          "type": "number"
+        },
+        "tollsAndTaxes": {
+          "type": "number"
+        },
+        "gstAmount": {
+          "type": "number"
+        },
+        "totalFare": {
+          "type": "number"
+        },
+        "advancePaid": {
+          "type": "number"
+        },
+        "balanceDue": {
+          "type": "number"
+        },
+        "paymentMode": {
+          "type": "string",
+          "enum": ["advance_20", "full"]
+        },
+        "paymentMethod": {
+          "type": "string"
+        },
+        "transactionId": {
+          "type": "string"
+        },
+        "customerName": {
+          "type": "string"
+        },
+        "customerPhone": {
+          "type": "string"
+        },
+        "customerEmail": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["confirmed", "completed", "cancelled"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "tripType",
+        "pickupCity",
+        "dropCity",
+        "pickupDate",
+        "pickupTime",
+        "cabId",
+        "cabName",
+        "distanceKm",
+        "baseFare",
+        "totalFare",
+        "customerName",
+        "customerPhone",
+        "status",
+        "createdAt"
+      ]
+    },
+    "BookingCounter": {
+      "title": "BookingCounter",
+      "description": "Sequential counter document tracking the latest SIC26XX booking number",
+      "type": "object",
+      "properties": {
+        "seriesPrefix": {
+          "type": "string"
+        },
+        "currentSequence": {
+          "type": "number"
+        },
+        "lastBookingId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["seriesPrefix", "currentSequence", "lastBookingId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/bookings/{bookingId}": {
+      "schema": {
+        "$ref": "#/entities/BookingRecord"
+      },
+      "description": "Stores customer cab bookings and billing invoices indexed by sequential Booking ID (e.g. SIC2601)"
+    },
+    "/booking_counters/{counterId}": {
+      "schema": {
+        "$ref": "#/entities/BookingCounter"
+      },
+      "description": "Stores atomic sequential booking ID counter state for SIC26XX series"
+    }
+  }
+}
