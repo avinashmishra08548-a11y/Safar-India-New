@@ -119,13 +119,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [includeTollsState, setIncludeTollsState] = useState<boolean>(
     tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0
   );
-  const [parkingExtraState, setParkingExtraState] = useState<boolean>(
-    externalParkingExtra !== undefined ? externalParkingExtra : true
-  );
-  const toggleParkingExtra = (val: boolean) => {
-    setParkingExtraState(val);
-    setExternalParkingExtra?.(val);
-  };
   const [extraKmState] = useState<number>(fareDetails.extraKm || 0);
   const [returnDateState, setReturnDateState] = useState<string>(returnDate || pickupDate);
   const [returnTimeState, setReturnTimeState] = useState<string>(returnTime || '06:00 PM');
@@ -338,7 +331,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       notes:
         [
           specialNotes.trim(),
-          parkingExtraState ? 'PARKING EXTRA IF APPLICABLE' : '',
+          'PARKING EXTRA IF APPLICABLE',
           activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
           extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
           addonCarrier ? 'Add-on: Roof Carrier' : '',
@@ -637,18 +630,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 >
                   <span>Toll Extra (Alag Se)</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => toggleParkingExtra(!parkingExtraState)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
-                    parkingExtraState
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-600 hover:text-slate-950'
-                  }`}
-                >
-                  <CheckCircle className="w-3 h-3 shrink-0" />
+                <div className="px-3 py-1.5 rounded-lg text-[11px] font-extrabold bg-emerald-50 text-emerald-900 border border-emerald-200 flex items-center justify-center gap-1 select-none">
+                  <CheckCircle className="w-3 h-3 text-emerald-600 shrink-0" />
                   <span>PARKING EXTRA IF APPLICABLE</span>
-                </button>
+                </div>
               </div>
             </div>
           )}
@@ -850,20 +835,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </div>
               )}
 
-              <label className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-300 bg-emerald-50/80 cursor-pointer hover:border-emerald-500 transition">
+              <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/80 select-none">
                 <span className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={parkingExtraState}
-                    onChange={(e) => toggleParkingExtra(e.target.checked)}
-                    className="rounded border-emerald-400 text-emerald-600 focus:ring-emerald-500"
-                  />
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <span className="font-extrabold text-emerald-950">PARKING EXTRA IF APPLICABLE</span>
                 </span>
-                <span className="font-bold text-[11px] text-emerald-700">
-                  {parkingExtraState ? 'Selected ✓' : 'Optional'}
-                </span>
-              </label>
+                <span className="font-bold text-[11px] text-emerald-700">As Per Actuals</span>
+              </div>
 
               <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
                 <span className="flex items-center gap-2">

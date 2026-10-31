@@ -83,13 +83,10 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Default selected: PARKING EXTRA IF APPLICABLE = true
-  const [localParkingExtra, setLocalParkingExtra] = useState<boolean>(true);
-  const activeParkingExtra = externalParkingExtra !== undefined ? externalParkingExtra : localParkingExtra;
-  const setActiveParkingExtra = (val: boolean) => {
-    setLocalParkingExtra(val);
-    setExternalParkingExtra?.(val);
-  };
+  // Pre-filled by default (non-toggleable): PARKING EXTRA IF APPLICABLE = true
+  useEffect(() => {
+    setExternalParkingExtra?.(true);
+  }, []);
 
   const [localPromoInput, setLocalPromoInput] = useState(externalPromoCode || '');
   const [localPromoApplied, setLocalPromoApplied] = useState(Boolean(externalIsPromoApplied));
@@ -266,18 +263,10 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               >
                 Toll Extra
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveParkingExtra(!activeParkingExtra)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                  activeParkingExtra
-                    ? 'bg-emerald-600 text-white shadow-2xs ring-1 ring-emerald-500/40'
-                    : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <div className="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-emerald-50 text-emerald-900 border border-emerald-200 flex items-center gap-1.5 whitespace-nowrap select-none">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>PARKING EXTRA IF APPLICABLE</span>
-              </button>
+              </div>
             </div>
           )}
         </div>
@@ -339,14 +328,14 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         </div>
       </div>
 
-      {/* Best Price Challenge: Live Aggregator Rate Comparison Strip (CabBazar, Gozo Cabs, Savaari) */}
+      {/* Best Price Challenge: Clean Market Average Rate Comparison Strip */}
       <div className="mb-7 bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400">
             Guaranteed Lowest One-Way &amp; Outstation Fare · Best Price Challenge
           </div>
           <h3 className="text-sm sm:text-base font-black text-white">
-            Save ₹{sampleFare.savingsAmount} vs Market Average on{' '}
+            Save ₹{sampleFare.savingsAmount} vs Market Average Rate on{' '}
             {tripType === 'local' ? `${pickupCity} Local Rental` : `${pickupCity} → ${dropCity}`}
           </h3>
           <p className="text-xs text-slate-300">
@@ -354,50 +343,28 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0 text-xs">
-          <div className="bg-amber-400 text-slate-950 rounded-xl px-3.5 py-2.5 font-bold">
+        <div className="grid grid-cols-2 gap-3 shrink-0 text-xs sm:min-w-[320px]">
+          <div className="bg-amber-400 text-slate-950 rounded-xl px-4 py-3 font-bold">
             <div className="text-[10px] uppercase tracking-wider font-extrabold opacity-80">
-              SafarIndiaCabs
+              SafarIndiaCabs Rate
             </div>
-            <div className="text-base font-black font-mono tabular-nums">
+            <div className="text-lg font-black font-mono tabular-nums mt-0.5">
               ₹{sampleFare.totalFare.toLocaleString('en-IN')}
             </div>
-            <div className="text-[10px] font-extrabold text-emerald-950">Lowest Guaranteed ✓</div>
-          </div>
-
-          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3.5 py-2.5">
-            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-              CabBazar Avg
-            </div>
-            <div className="text-sm font-bold font-mono tabular-nums text-slate-300 line-through">
-              ₹{sampleFare.competitorRates.cabBazarFare.toLocaleString('en-IN')}
-            </div>
-            <div className="text-[10px] text-emerald-400 font-bold">
-              You Save ₹{(sampleFare.competitorRates.cabBazarFare - sampleFare.totalFare).toLocaleString('en-IN')}
+            <div className="text-[10px] font-extrabold text-emerald-950 mt-0.5">
+              Lowest Guaranteed ✓
             </div>
           </div>
 
-          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3.5 py-2.5">
+          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-4 py-3">
             <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-              Gozo Cabs Avg
+              Market Average Rate
             </div>
-            <div className="text-sm font-bold font-mono tabular-nums text-slate-300 line-through">
-              ₹{sampleFare.competitorRates.gozoCabsFare.toLocaleString('en-IN')}
+            <div className="text-base font-bold font-mono tabular-nums text-slate-300 line-through mt-0.5">
+              ₹{sampleFare.competitorRates.marketAverageFare.toLocaleString('en-IN')}
             </div>
-            <div className="text-[10px] text-emerald-400 font-bold">
-              You Save ₹{(sampleFare.competitorRates.gozoCabsFare - sampleFare.totalFare).toLocaleString('en-IN')}
-            </div>
-          </div>
-
-          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3.5 py-2.5">
-            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-              Savaari Avg
-            </div>
-            <div className="text-sm font-bold font-mono tabular-nums text-slate-300 line-through">
-              ₹{sampleFare.competitorRates.savaariFare.toLocaleString('en-IN')}
-            </div>
-            <div className="text-[10px] text-emerald-400 font-bold">
-              You Save ₹{(sampleFare.competitorRates.savaariFare - sampleFare.totalFare).toLocaleString('en-IN')}
+            <div className="text-[10px] text-emerald-400 font-extrabold mt-0.5">
+              You Save ₹{sampleFare.savingsAmount.toLocaleString('en-IN')}
             </div>
           </div>
         </div>
@@ -540,11 +507,15 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                     </span>
                   </div>
                   <div className="pt-1 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Market Comparison:</span>
-                    <span className="font-mono">
-                      CabBazar: <span className="line-through">₹{activeFare.competitorRates.cabBazarFare.toLocaleString('en-IN')}</span>
+                    <span>Market Average Rate:</span>
+                    <span className="font-mono font-bold text-slate-700">
+                      <span className="line-through text-slate-400">
+                        ₹{activeFare.competitorRates.marketAverageFare.toLocaleString('en-IN')}
+                      </span>
                       {' · '}
-                      Savaari: <span className="line-through">₹{activeFare.competitorRates.savaariFare.toLocaleString('en-IN')}</span>
+                      <span className="text-emerald-700">
+                        You Save ₹{activeFare.savingsAmount.toLocaleString('en-IN')}
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -598,33 +569,15 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setActiveParkingExtra(!activeParkingExtra)}
-                      className={`w-full px-3 py-2 rounded-xl border text-left transition flex items-center justify-between gap-2 cursor-pointer ${
-                        activeParkingExtra
-                          ? 'bg-emerald-50/90 border-emerald-500 text-emerald-950 ring-1 ring-emerald-400/40'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}
-                    >
+                    <div className="w-full px-3 py-2 rounded-xl border bg-emerald-50/80 border-emerald-200 text-emerald-950 flex items-center justify-between gap-2 select-none">
                       <span className="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wide">
-                        <CheckCircle2
-                          className={`w-3.5 h-3.5 shrink-0 ${
-                            activeParkingExtra ? 'text-emerald-600' : 'text-slate-400'
-                          }`}
-                        />
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
                         <span>PARKING EXTRA IF APPLICABLE</span>
                       </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                          activeParkingExtra
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        {activeParkingExtra ? 'Selected ✓' : 'Select'}
+                      <span className="text-[10px] font-bold text-emerald-800">
+                        As Per Actuals
                       </span>
-                    </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">

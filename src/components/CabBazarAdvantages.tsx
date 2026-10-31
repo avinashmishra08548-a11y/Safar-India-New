@@ -11,8 +11,8 @@ export const CabBazarAdvantages: React.FC = () => {
   const advantages = [
     {
       icon: Banknote,
-      title: 'Beat Market by ~₹200',
-      desc: 'Guaranteed ₹180–₹240 lower one-way fare than CabBazar, Savaari, and Gozo Cabs with zero return fare.'
+      title: 'Beat Market Average by ~₹200',
+      desc: 'Guaranteed ₹180–₹240 lower one-way fare compared to the market average rate with zero return fare.'
     },
     {
       icon: ShieldCheck,
@@ -35,37 +35,27 @@ export const CabBazarAdvantages: React.FC = () => {
     {
       feature: 'One-Way Per-KM Rate (Hatchback / Sedan / SUV)',
       safar: '₹10.2 / ₹11.2 / ₹14.5 per KM',
-      cabbazar: '₹11.5 / ₹12.5 / ₹16.0 per KM',
-      savaari: '₹12.0 / ₹13.2 / ₹16.8 per KM',
-      gozo: '₹11.8 / ₹12.8 / ₹16.2 per KM'
+      marketAvg: '₹11.8 / ₹12.8 / ₹16.3 per KM'
     },
     {
       feature: 'Average Route Savings (e.g. Delhi → Agra / Jaipur)',
       safar: 'Save ₹185 – ₹245 (Lowest Guaranteed)',
-      cabbazar: '+₹185 to ₹195 Higher',
-      savaari: '+₹215 to ₹245 Higher',
-      gozo: '+₹190 to ₹215 Higher'
+      marketAvg: '₹185 – ₹245 Higher than SafarIndiaCabs'
     },
     {
       feature: 'Driver Allowance (Chauffeur Bata)',
       safar: '100% Included in Upfront Fare',
-      cabbazar: 'Added at Checkout',
-      savaari: 'Added Separately',
-      gozo: 'Varies by Operator'
+      marketAvg: 'Often Added Separately at Checkout'
     },
     {
       feature: 'Official GST Tax Invoice (SAC 996412)',
       safar: 'Instant PDF with Digital Sign & Seal',
-      cabbazar: 'Post-Trip Request',
-      savaari: 'Post-Trip Request',
-      gozo: 'Conditional'
+      marketAvg: 'Delayed / Post-Trip Request'
     },
     {
       feature: 'Flexi Booking Payment',
       safar: '20% Advance or 100% Full Payment',
-      cabbazar: '25% – 30% Advance',
-      savaari: '25% – 100% Advance',
-      gozo: '25% – 50% Advance'
+      marketAvg: '25% – 50% Advance Required'
     }
   ];
 
@@ -76,10 +66,10 @@ export const CabBazarAdvantages: React.FC = () => {
           Market-Leading Outstation Pricing &amp; Transparency
         </div>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-          Why SafarIndiaCabs Beats CabBazar, Savaari &amp; Gozo Cabs
+          Why SafarIndiaCabs Beats the Market Average Rate
         </h2>
         <p className="text-sm text-slate-600 mt-1">
-          Every outstation one-way and round-trip fare is dynamically calibrated to save you ~₹200 vs major aggregators—with 100% upfront GST billing.
+          Every outstation one-way and round-trip fare is dynamically calibrated to save you ~₹200 compared to the standard market average rate—with 100% upfront GST billing.
         </p>
       </div>
 
@@ -105,15 +95,15 @@ export const CabBazarAdvantages: React.FC = () => {
         })}
       </div>
 
-      {/* Aggregator Benchmark Comparison Table */}
+      {/* Market Average Benchmark Comparison Table */}
       <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
         <div className="bg-slate-900 text-white px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-sm sm:text-base font-black text-white">
-              Outstation Aggregator Rate &amp; Feature Benchmark
+              SafarIndiaCabs vs Market Average Rate
             </h3>
             <p className="text-xs text-slate-300">
-              Direct comparison of SafarIndiaCabs against CabBazar, Savaari &amp; Gozo Cabs
+              Transparent rate &amp; feature comparison against standard outstation market rates
             </p>
           </div>
           <span className="text-xs font-extrabold text-amber-400">
@@ -129,9 +119,7 @@ export const CabBazarAdvantages: React.FC = () => {
                 <th className="py-3.5 px-4 bg-amber-50/80 text-slate-950 font-black">
                   SafarIndiaCabs (Our Rate)
                 </th>
-                <th className="py-3.5 px-4">CabBazar</th>
-                <th className="py-3.5 px-4">Savaari</th>
-                <th className="py-3.5 px-4">Gozo Cabs</th>
+                <th className="py-3.5 px-4">Market Average Rate</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -144,9 +132,7 @@ export const CabBazarAdvantages: React.FC = () => {
                       <span>{row.safar}</span>
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-slate-600 font-medium">{row.cabbazar}</td>
-                  <td className="py-3 px-4 text-slate-600 font-medium">{row.savaari}</td>
-                  <td className="py-3 px-4 text-slate-600 font-medium">{row.gozo}</td>
+                  <td className="py-3 px-4 text-slate-600 font-medium">{row.marketAvg}</td>
                 </tr>
               ))}
             </tbody>
