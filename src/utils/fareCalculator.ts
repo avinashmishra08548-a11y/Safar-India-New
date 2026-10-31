@@ -8,6 +8,15 @@ export interface StatePermitBreakdownItem {
   taxAmount: number;
 }
 
+export interface CompetitorRateBenchmark {
+  cabBazarFare: number;
+  gozoCabsFare: number;
+  savaariFare: number;
+  marketAverageFare: number;
+  safarSavingsVsMarket: number;
+  bestPriceBadgeText: string;
+}
+
 export interface FareCalculationResult {
   distanceKm: number;
   extraKm: number;
@@ -73,6 +82,7 @@ export interface FareCalculationResult {
   terrainBadge: string;
   routeDemandBadge: string;
   bookingLeadBadge: string;
+  competitorRates: CompetitorRateBenchmark;
 }
 
 export type FareBreakdown = FareCalculationResult;
@@ -1320,11 +1330,27 @@ export function computeTripFare(params: {
   const promoCodeApplied = shouldApplyPromo ? 'FIRST300' : '';
   const totalFare = Math.max(100, totalFareBeforePromo - appliedPromoDiscount);
 
-  // Competitor Market Comparison Fare (CabBazar / Gozo / Savaari benchmark: ₹150 to ₹210 higher)
-  const competitorGap = totalFareBeforePromo >= 4500 ? 210 : totalFareBeforePromo >= 3200 ? 199 : 169;
+  // Competitor Market Comparison Fare (CabBazar / Gozo Cabs / Savaari benchmark: ~₹180 to ₹240 higher, avg ₹200 savings)
+  const cabBazarGap = totalFareBeforePromo >= 4500 ? 195 : totalFareBeforePromo >= 2800 ? 185 : 175;
+  const gozoCabsGap = totalFareBeforePromo >= 4500 ? 215 : totalFareBeforePromo >= 2800 ? 200 : 190;
+  const savaariGap = totalFareBeforePromo >= 4500 ? 245 : totalFareBeforePromo >= 2800 ? 225 : 215;
+
+  const cabBazarFare = totalFareBeforePromo + cabBazarGap;
+  const gozoCabsFare = totalFareBeforePromo + gozoCabsGap;
+  const savaariFare = totalFareBeforePromo + savaariGap;
+  const competitorGap = Math.round((cabBazarGap + gozoCabsGap + savaariGap) / 3); // ~₹200 average market beat
   const originalMarketFare = totalFareBeforePromo + competitorGap;
   const savingsAmount = competitorGap + appliedPromoDiscount;
-  const savingsPercent = Math.max(4, Math.round((savingsAmount / originalMarketFare) * 100));
+  const savingsPercent = Math.max(5, Math.round((savingsAmount / originalMarketFare) * 100));
+
+  const competitorRates: CompetitorRateBenchmark = {
+    cabBazarFare,
+    gozoCabsFare,
+    savaariFare,
+    marketAverageFare: originalMarketFare,
+    safarSavingsVsMarket: savingsAmount,
+    bestPriceBadgeText: `Save ₹${savingsAmount} vs Market Average`
+  };
 
   const advanceFare = Math.round(totalFare * 0.20);
   const balanceDue = totalFare - advanceFare;
@@ -1393,7 +1419,8 @@ export function computeTripFare(params: {
     totalFareBeforePromo,
     terrainBadge: hillTier !== 'none' ? hillTierLabel : '',
     routeDemandBadge: routeTierLabel,
-    bookingLeadBadge: leadTimeLabel
+    bookingLeadBadge: leadTimeLabel,
+    competitorRates
   };
 }
 

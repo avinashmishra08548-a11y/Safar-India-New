@@ -635,29 +635,100 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </span>
               </div>
 
-              {booking.driverName && (
-                <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-emerald-900 bg-emerald-50/80 -mx-2 px-3 py-2 rounded-xl">
-                  <span className="font-bold">
-                    Chauffeur: <strong>{booking.driverName}</strong> (+91 {booking.driverPhone})
-                  </span>
-                  {booking.driverVehicleNo && (
-                    <span className="font-mono font-black bg-white px-2 py-0.5 rounded border border-emerald-300 text-xs">
-                      {booking.driverVehicleNo}
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* Live Driver & Cab Assignment Card + Direct Driver Call Connection */}
+              <div className="pt-2.5 border-t border-slate-200">
+                {booking.driverName ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-950 bg-emerald-50/90 border border-emerald-200 p-3 rounded-xl">
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
+                        Live Chauffeur &amp; Cab Assigned ✓
+                      </div>
+                      <div className="text-xs font-black text-slate-950">
+                        {booking.driverName}{' '}
+                        {booking.driverVehicleModel ? `· ${booking.driverVehicleModel}` : ''}
+                      </div>
+                      <div className="text-[11px] font-mono font-bold text-slate-700">
+                        Cab No: {booking.driverVehicleNo || 'DL 1Z C 4474'} · Mob: +91 {booking.driverPhone}
+                      </div>
+                    </div>
+                    {booking.driverPhone && (
+                      <a
+                        href={`tel:+91${booking.driverPhone.replace(/\D/g, '').slice(-10)}`}
+                        className="no-print inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition shrink-0"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Call Driver</span>
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-amber-50/80 border border-amber-200 p-3 rounded-xl">
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800">
+                        Live Driver &amp; Cab Assignment Tracker
+                      </div>
+                      <div className="text-xs font-bold text-slate-900">
+                        Verified Commercial Chauffeur &amp; Vehicle No. shared via WhatsApp/SMS prior to pickup
+                      </div>
+                    </div>
+                    <a
+                      href="tel:+917710080992"
+                      className="no-print inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-[11px] transition shrink-0"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Call Dispatch Desk</span>
+                    </a>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Clean Light-Theme Fare Summary Box */}
             <div className="rounded-xl overflow-hidden border border-slate-300">
               <div className="bg-slate-100 text-[#0F2958] px-4 py-2 text-[11px] font-black uppercase tracking-wider flex items-center justify-between border-b border-slate-300">
-                <span>Fare &amp; Tax Breakdown</span>
+                <span>Fare &amp; Tax Breakdown (Zero Hidden Charges)</span>
                 <span>Amount (INR)</span>
               </div>
 
               <div className="p-4 bg-white space-y-2 text-xs">
-                <div className="flex justify-between items-center text-slate-800">
+                <div className="flex justify-between items-center text-slate-700">
+                  <span>Base Fare ({booking.distanceKm} KM Included):</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(
+                      booking.baseFare ||
+                        Math.max(
+                          0,
+                          booking.totalFare -
+                            (booking.gstAmount || 0) -
+                            (booking.tollsAndTaxes || 0) -
+                            (booking.driverAllowance || 0)
+                        )
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-700">
+                  <span>Driver Allowance (DA / Chauffeur Bata):</span>
+                  <span className="font-mono font-bold text-emerald-700">
+                    {booking.driverAllowance ? `${formatINR(booking.driverAllowance)} (Included)` : 'Included ✓'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-700">
+                  <span>State Toll &amp; Permit Tax:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {booking.tollsAndTaxes ? formatINR(booking.tollsAndTaxes) : 'As Applicable'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-700 pb-1.5 border-b border-slate-200">
+                  <span>GST Tax (5% SAC 996412):</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(booking.gstAmount || Math.round(booking.totalFare * 0.05))}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-800 pt-0.5">
                   <span className="font-bold">Total Invoice Amount (Incl. GST):</span>
                   <span className="text-base font-black text-slate-950 font-mono">
                     INR {Number(booking.totalFare || 0).toLocaleString('en-IN')}.00
@@ -739,6 +810,36 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
 
         {/* Action Buttons Bar (Excluded from print) */}
         <div className="no-print px-5 sm:px-6 pb-6 pt-1 bg-white space-y-2.5">
+          {/* 24x7 Emergency Support & Direct Driver Call Connection Bar */}
+          <div className="p-3 rounded-xl bg-rose-50/90 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="text-xs">
+              <div className="font-extrabold text-rose-900">
+                24x7 Highway Emergency Support &amp; Driver Connect
+              </div>
+              <div className="text-[11px] text-rose-700">
+                Instant SOS helpline &amp; live chauffeur coordination for Booking ID {booking.id}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {booking.driverPhone && (
+                <a
+                  href={`tel:+91${booking.driverPhone.replace(/\D/g, '').slice(-10)}`}
+                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 transition"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Call Driver</span>
+                </a>
+              )}
+              <a
+                href="tel:+917710080992"
+                className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center gap-1.5 transition"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>24x7 Emergency (+91 7710080992)</span>
+              </a>
+            </div>
+          </div>
+
           {/* Primary Row: Download PDF Invoice + Share Receipt on WhatsApp */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <button

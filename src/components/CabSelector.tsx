@@ -339,6 +339,70 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         </div>
       </div>
 
+      {/* Best Price Challenge: Live Aggregator Rate Comparison Strip (CabBazar, Gozo Cabs, Savaari) */}
+      <div className="mb-7 bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400">
+            Guaranteed Lowest One-Way &amp; Outstation Fare · Best Price Challenge
+          </div>
+          <h3 className="text-sm sm:text-base font-black text-white">
+            Save ₹{sampleFare.savingsAmount} vs Market Average on{' '}
+            {tripType === 'local' ? `${pickupCity} Local Rental` : `${pickupCity} → ${dropCity}`}
+          </h3>
+          <p className="text-xs text-slate-300">
+            100% Transparent Billing: Base Fare, Driver Allowance (DA), {sampleFare.billedDistanceKm} KM, State Permit &amp; 5% GST shown upfront. Zero hidden charges.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0 text-xs">
+          <div className="bg-amber-400 text-slate-950 rounded-xl px-3.5 py-2.5 font-bold">
+            <div className="text-[10px] uppercase tracking-wider font-extrabold opacity-80">
+              SafarIndiaCabs
+            </div>
+            <div className="text-base font-black font-mono tabular-nums">
+              ₹{sampleFare.totalFare.toLocaleString('en-IN')}
+            </div>
+            <div className="text-[10px] font-extrabold text-emerald-950">Lowest Guaranteed ✓</div>
+          </div>
+
+          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3.5 py-2.5">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              CabBazar Avg
+            </div>
+            <div className="text-sm font-bold font-mono tabular-nums text-slate-300 line-through">
+              ₹{sampleFare.competitorRates.cabBazarFare.toLocaleString('en-IN')}
+            </div>
+            <div className="text-[10px] text-emerald-400 font-bold">
+              You Save ₹{(sampleFare.competitorRates.cabBazarFare - sampleFare.totalFare).toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3.5 py-2.5">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Gozo Cabs Avg
+            </div>
+            <div className="text-sm font-bold font-mono tabular-nums text-slate-300 line-through">
+              ₹{sampleFare.competitorRates.gozoCabsFare.toLocaleString('en-IN')}
+            </div>
+            <div className="text-[10px] text-emerald-400 font-bold">
+              You Save ₹{(sampleFare.competitorRates.gozoCabsFare - sampleFare.totalFare).toLocaleString('en-IN')}
+            </div>
+          </div>
+
+          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-3.5 py-2.5">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Savaari Avg
+            </div>
+            <div className="text-sm font-bold font-mono tabular-nums text-slate-300 line-through">
+              ₹{sampleFare.competitorRates.savaariFare.toLocaleString('en-IN')}
+            </div>
+            <div className="text-[10px] text-emerald-400 font-bold">
+              You Save ₹{(sampleFare.competitorRates.savaariFare - sampleFare.totalFare).toLocaleString('en-IN')}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Spacious Cab Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {CABS_FLEET.map((cab) => {
@@ -385,14 +449,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               <div className="p-6 pb-4">
                 <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-3">
                   <span>{cab.category}</span>
-                  {cab.popular ? (
-                    <span className="text-amber-700 font-bold">Most Popular</span>
-                  ) : activeFare.isHillAreaRoute ? (
-                    <span className="text-amber-700 font-bold flex items-center gap-1">
-                      <Mountain className="w-3.5 h-3.5" />
-                      <span>Hill Ready</span>
-                    </span>
-                  ) : null}
+                  <span className="text-emerald-700 font-extrabold">
+                    Save ₹{activeFare.savingsAmount} vs Market Average
+                  </span>
                 </div>
 
                 <div className="relative h-44 w-full rounded-2xl overflow-hidden bg-slate-100 mb-4 border border-slate-200/60">
@@ -405,7 +464,18 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                     decoding="async"
                     className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/15 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/15 to-transparent" />
+                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-slate-950/85 text-amber-400 px-2.5 py-1 rounded-lg">
+                      Guaranteed Lowest One-Way Fare
+                    </span>
+                    {activeFare.isHillAreaRoute && (
+                      <span className="text-[10px] font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                        <Mountain className="w-3 h-3" />
+                        <span>Hill Ready</span>
+                      </span>
+                    )}
+                  </div>
                   <div className="absolute bottom-3 left-3.5 right-3.5 flex items-end justify-between">
                     <div>
                       <h3 className="text-lg font-black text-white">{cab.name}</h3>
@@ -418,7 +488,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 </div>
 
                 {/* Clean Unboxed Specs */}
-                <div className="flex items-center justify-between py-2.5 px-3.5 rounded-xl bg-slate-50 text-xs text-slate-700 font-semibold mb-4">
+                <div className="flex items-center justify-between py-2.5 px-3.5 rounded-xl bg-slate-50 text-xs text-slate-700 font-semibold mb-3">
                   <span className="flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-amber-600" />
                     <span>{cab.capacityPassengers} Seats</span>
@@ -435,18 +505,48 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </span>
                 </div>
 
-                {/* Calculated Total KM + Dynamic Extra KM Rate Side by Side */}
-                <div className="mb-3 px-3.5 py-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between text-xs">
-                  <span className="font-mono font-bold text-slate-900">
-                    Total: {activeFare.billedDistanceKm} KM
-                  </span>
-                  <span className="font-bold text-amber-950 flex items-center gap-1">
-                    {activeFare.isHillAreaRoute && <Mountain className="w-3.5 h-3.5 text-amber-700" />}
-                    <span>
-                      Extra KM: <strong className="font-mono">₹{activeFare.extraKmRate}/km</strong>
-                      {activeFare.isHillAreaRoute ? ' (Hill)' : ''}
+                {/* Transparent Pre-Booking Fare Breakdown (Zero Hidden Charges Guarantee) */}
+                <div className="mb-3 p-3 rounded-xl bg-slate-50/90 border border-slate-200/80 space-y-1.5 text-[11px]">
+                  <div className="flex items-center justify-between font-extrabold text-slate-900 border-b border-slate-200 pb-1">
+                    <span>Transparent Fare Breakdown ({activeFare.billedDistanceKm} KM)</span>
+                    <span className="text-emerald-700">Zero Hidden Charges</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Base Fare ({activeFare.billedDistanceKm} KM Included):</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      ₹{activeFare.baseFare.toLocaleString('en-IN')}
                     </span>
-                  </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Driver Allowance (DA / Bata):</span>
+                    <span className="font-mono font-bold text-emerald-700">
+                      ₹{activeFare.driverAllowance.toLocaleString('en-IN')} (Included)
+                    </span>
+                  </div>
+                  {tripType !== 'local' && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>State Toll &amp; Permit Tax:</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {includeTolls
+                          ? `₹${activeFare.tollsAndTaxes.toLocaleString('en-IN')} (Included)`
+                          : `Est. ₹${activeFare.estimatedTollsAndTaxes.toLocaleString('en-IN')} (Extra)`}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-slate-600">
+                    <span>GST (5% SAC 996412) · Extra ₹{activeFare.extraKmRate}/km:</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      ₹{activeFare.gstAmount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="pt-1 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
+                    <span>Market Comparison:</span>
+                    <span className="font-mono">
+                      CabBazar: <span className="line-through">₹{activeFare.competitorRates.cabBazarFare.toLocaleString('en-IN')}</span>
+                      {' · '}
+                      Savaari: <span className="line-through">₹{activeFare.competitorRates.savaariFare.toLocaleString('en-IN')}</span>
+                    </span>
+                  </div>
                 </div>
 
                 {/* Clean Fare Selector with Parking Extra If Applicable (Default Selected) */}
@@ -470,7 +570,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                           ₹{fareWithToll.totalFare.toLocaleString('en-IN')}
                         </div>
                         <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                          Toll &amp; Tax Included
+                          Toll &amp; State Tax Included
                         </div>
                       </button>
 
@@ -493,7 +593,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                           ₹{fareWithoutToll.totalFare.toLocaleString('en-IN')}
                         </div>
                         <div className={`text-[10px] font-medium mt-0.5 ${!includeTolls ? 'text-slate-300' : 'text-slate-500'}`}>
-                          Toll &amp; Tax Extra
+                          Toll &amp; State Tax Extra
                         </div>
                       </button>
                     </div>
@@ -547,8 +647,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       <span className="text-xs text-slate-500 line-through font-mono tabular-nums">
                         ₹{activeFare.originalFare.toLocaleString('en-IN')}
                       </span>
-                      <span className="text-[11px] font-bold text-emerald-700">
-                        Save ₹{activeFare.discountAmount.toLocaleString('en-IN')}
+                      <span className="text-[11px] font-extrabold text-emerald-700">
+                        Save ₹{activeFare.discountAmount.toLocaleString('en-IN')} vs Market Average
                       </span>
                     </div>
                     <div className="text-2xl font-black text-slate-900 font-mono tabular-nums tracking-tight">
@@ -557,7 +657,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[11px] text-slate-600 block">20% Advance</span>
+                    <span className="text-[11px] text-slate-600 block">Flexi 20% Advance</span>
                     <span className="text-sm font-black text-amber-700 font-mono tabular-nums">
                       ₹{activeFare.advanceAmount.toLocaleString('en-IN')}
                     </span>

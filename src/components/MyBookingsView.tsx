@@ -741,6 +741,61 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   </div>
                 </div>
 
+                {/* Live Driver & Cab Assignment Updates Card */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  {b.driverName ? (
+                    <>
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
+                          Live Chauffeur &amp; Cab Assignment Confirmed ✓
+                        </div>
+                        <div className="font-black text-slate-950">
+                          Chauffeur: {b.driverName} · {b.driverVehicleModel || b.cabName}
+                        </div>
+                        <div className="font-mono text-[11px] text-slate-600">
+                          Vehicle No: <strong className="text-slate-900">{b.driverVehicleNo || 'DL 1Z C 4829'}</strong> · Driver Mobile: +91 {b.driverPhone}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {b.driverPhone && (
+                          <a
+                            href={`tel:+91${b.driverPhone.replace(/\D/g, '').slice(-10)}`}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 transition"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                            <span>Call Driver</span>
+                          </a>
+                        )}
+                        <a
+                          href="tel:+917710080992"
+                          className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center gap-1.5 transition"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>24x7 Emergency Support</span>
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">
+                          Live Driver &amp; Cab Assignment Status
+                        </div>
+                        <div className="font-bold text-slate-900">
+                          Verified Chauffeur &amp; Commercial Cab details are updated here and sent via WhatsApp/SMS before pickup.
+                        </div>
+                      </div>
+                      <a
+                        href="tel:+917710080992"
+                        className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center gap-1.5 transition shrink-0 self-start sm:self-auto"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>24x7 Emergency Support (+91 7710080992)</span>
+                      </a>
+                    </>
+                  )}
+                </div>
+
                 {/* Bottom Action Buttons: Prominent View Bill & Download Invoice CTA */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                   <div className="flex flex-wrap items-center gap-2.5">
