@@ -581,6 +581,21 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       document.getElementById('booking-drop-city-input')?.focus();
       return;
     }
+    if (!pickupDate || !pickupDate.trim()) {
+      setRouteError('Please select a Pickup Date before searching cabs.');
+      document.getElementById('booking-pickup-date-input')?.focus();
+      return;
+    }
+    if (tripType === 'roundtrip' && (!returnDate || !returnDate.trim())) {
+      setRouteError('Please select a Return Date for your Round Trip.');
+      document.getElementById('booking-return-date-input')?.focus();
+      return;
+    }
+    if (!pickupTime || !pickupTime.trim()) {
+      setRouteError('Please select a Pickup Time before searching cabs.');
+      document.getElementById('booking-pickup-time-select')?.focus();
+      return;
+    }
 
     // If user typed a partial phone number, immediately highlight the error
     const rawDigits = (customerMobile || '').replace(/\D/g, '');
@@ -1141,15 +1156,26 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               Pickup Date
             </label>
             <div className="relative">
-              <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+              {!pickupDate && (
+                <span className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                  Select pickup date
+                </span>
+              )}
               <input
                 id="booking-pickup-date-input"
                 aria-label="Pickup Date"
                 type="date"
                 min={today}
                 value={pickupDate}
-                onChange={(e) => setPickupDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                onChange={(e) => {
+                  setPickupDate(e.target.value);
+                  if (routeError) setRouteError('');
+                }}
+                placeholder="Select pickup date"
+                className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white ${
+                  pickupDate ? 'text-slate-900' : 'text-transparent focus:text-slate-900'
+                }`}
               />
             </div>
           </div>
@@ -1164,15 +1190,26 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 Return Date ({tripDays} {tripDays === 1 ? 'Day' : 'Days'})
               </label>
               <div className="relative">
-                <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+                {!returnDate && (
+                  <span className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+                    Select return date
+                  </span>
+                )}
                 <input
                   id="booking-return-date-input"
                   aria-label="Return Date"
                   type="date"
                   min={pickupDate || today}
                   value={returnDate}
-                  onChange={(e) => setReturnDate(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white"
+                  onChange={(e) => {
+                    setReturnDate(e.target.value);
+                    if (routeError) setRouteError('');
+                  }}
+                  placeholder="Select return date"
+                  className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white ${
+                    returnDate ? 'text-slate-900' : 'text-transparent focus:text-slate-900'
+                  }`}
                 />
               </div>
             </div>
@@ -1192,11 +1229,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 id="booking-pickup-time-select"
                 aria-label="Pickup Time"
                 value={pickupTime}
-                onChange={(e) => setPickupTime(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none"
+                onChange={(e) => {
+                  setPickupTime(e.target.value);
+                  if (routeError) setRouteError('');
+                }}
+                className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none ${
+                  pickupTime ? 'text-slate-900' : 'text-slate-400'
+                }`}
               >
+                <option value="">Select pickup time</option>
                 {TIME_SLOTS.map((slot) => (
-                  <option key={slot} value={slot}>
+                  <option key={slot} value={slot} className="text-slate-900">
                     {slot}
                   </option>
                 ))}

@@ -307,22 +307,11 @@ export default function App() {
     };
   }, []);
   
-  // Date defaults: tomorrow
-  const getTomorrowStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
-  };
-  const getDayAfterStr = () => {
-    const d = new Date();
-    d.setDate(d.getDate() + 2);
-    return d.toISOString().split('T')[0];
-  };
-
-  const [pickupDate, setPickupDate] = useState(getTomorrowStr);
-  const [pickupTime, setPickupTime] = useState('07:00 AM');
-  const [returnDate, setReturnDate] = useState(getDayAfterStr);
-  const [returnTime, setReturnTime] = useState('08:00 PM');
+  // Date & Time defaults: blank by default so customer selects their own date & time
+  const [pickupDate, setPickupDate] = useState('');
+  const [pickupTime, setPickupTime] = useState('');
+  const [returnDate, setReturnDate] = useState('');
+  const [returnTime, setReturnTime] = useState('');
   const [localPackageId, setLocalPackageId] = useState('8h_80k');
   const [airportMode, setAirportMode] = useState<'pickup' | 'drop'>('drop');
   const [airportTerminal, setAirportTerminal] = useState('');
@@ -654,6 +643,22 @@ export default function App() {
       handleSwitchTab('booking', 'booking-section-top');
       setTimeout(() => {
         document.getElementById('booking-drop-city-input')?.focus();
+      }, 150);
+      return;
+    }
+    if (!pickupDate.trim()) {
+      setIsCabsModalOpen(false);
+      handleSwitchTab('booking', 'booking-section-top');
+      setTimeout(() => {
+        document.getElementById('booking-pickup-date-input')?.focus();
+      }, 150);
+      return;
+    }
+    if (!pickupTime.trim()) {
+      setIsCabsModalOpen(false);
+      handleSwitchTab('booking', 'booking-section-top');
+      setTimeout(() => {
+        document.getElementById('booking-pickup-time-select')?.focus();
       }, 150);
       return;
     }
