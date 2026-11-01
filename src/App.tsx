@@ -204,10 +204,10 @@ export default function App() {
   const [legalPolicyModalTab, setLegalPolicyModalTab] = useState<LegalPolicyTab | null>(null);
   const [customerMobile, setCustomerMobile] = useState(() => currentUser?.phone || '');
 
-  // Booking Engine form states
+  // Booking Engine form states (blank by default with placeholder prompt)
   const [tripType, setTripType] = useState<TripType>('oneway');
-  const [pickupCity, setPickupCity] = useState('Delhi NCR');
-  const [dropCity, setDropCity] = useState('Agra');
+  const [pickupCity, setPickupCity] = useState('');
+  const [dropCity, setDropCity] = useState('');
   const [roundTripStops, setRoundTripStops] = useState<string[]>([]);
 
   useEffect(() => {
@@ -364,10 +364,10 @@ export default function App() {
 
   // Distance and Duration calculation via Ola Maps & Verified Highway/Hill Matrix
   const [distanceKm, setDistanceKm] = useState(230);
-  const [travelDuration, setTravelDuration] = useState('3 hrs 45 mins');
+  const [travelDuration, setTravelDuration] = useState('');
   const [isExactOlaDistance, setIsExactOlaDistance] = useState(false);
-  const [pickupCoords, setPickupCoords] = useState<Coordinates | null>({ lat: 28.6139, lng: 77.2090 });
-  const [dropCoords, setDropCoords] = useState<Coordinates | null>({ lat: 27.1767, lng: 78.0081 });
+  const [pickupCoords, setPickupCoords] = useState<Coordinates | null>(null);
+  const [dropCoords, setDropCoords] = useState<Coordinates | null>(null);
   const [roundTripLegs, setRoundTripLegs] = useState<Array<{ from: string; to: string; distanceKm: number }>>([]);
 
   useEffect(() => {
@@ -641,6 +641,22 @@ export default function App() {
   const [activeVoucherBooking, setActiveVoucherBooking] = useState<BookingRecord | null>(null);
 
   const handleSelectCab = (cab: CabVehicle, fare: FareCalculationResult) => {
+    if (!pickupCity.trim()) {
+      setIsCabsModalOpen(false);
+      handleSwitchTab('booking', 'booking-section-top');
+      setTimeout(() => {
+        document.getElementById('booking-pickup-city-input')?.focus();
+      }, 150);
+      return;
+    }
+    if (tripType !== 'local' && !dropCity.trim()) {
+      setIsCabsModalOpen(false);
+      handleSwitchTab('booking', 'booking-section-top');
+      setTimeout(() => {
+        document.getElementById('booking-drop-city-input')?.focus();
+      }, 150);
+      return;
+    }
     // If customer is not logged in, prompt login first
     if (!currentUser) {
       setPendingCabSelection({ cab, fare });

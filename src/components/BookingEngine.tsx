@@ -862,8 +862,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     if (setPickupCoords) setPickupCoords(null);
                     setShowPickupDropdown(true);
                   }}
-                  placeholder="Enter pickup city or location"
-                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                  placeholder="Enter pickup city"
+                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
                 />
                 {pickupCity && (
                   <button
@@ -979,8 +979,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                       if (setDropCoords) setDropCoords(null);
                       setShowDropDropdown(true);
                     }}
-                    placeholder="Enter destination city or location"
-                    className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                    placeholder="Enter drop city"
+                    className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
                   />
                   {dropCity && (
                     <button

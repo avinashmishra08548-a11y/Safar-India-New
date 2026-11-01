@@ -167,12 +167,16 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           <div className="text-slate-600 text-sm mt-2 flex flex-wrap items-center gap-2.5">
             {tripType === 'local' ? (
               <span>
-                Local Package in <strong className="text-slate-900">{pickupCity}</strong>
+                Local Package in <strong className="text-slate-900">{pickupCity || 'Your City'}</strong>
               </span>
-            ) : (
+            ) : pickupCity && dropCity ? (
               <span>
                 <strong className="text-slate-900">{pickupCity}</strong> to{' '}
                 <strong className="text-slate-900">{dropCity}</strong>
+              </span>
+            ) : (
+              <span>
+                <strong className="text-slate-900">All India Outstation &amp; One-Way Cabs</strong>
               </span>
             )}
             <span className="text-slate-300" aria-hidden="true">·</span>
@@ -336,7 +340,11 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           </div>
           <h3 className="text-sm sm:text-base font-black text-white">
             Save ₹{sampleFare.savingsAmount} vs Market Average Rate on{' '}
-            {tripType === 'local' ? `${pickupCity} Local Rental` : `${pickupCity} → ${dropCity}`}
+            {tripType === 'local'
+              ? `${pickupCity || 'City'} Local Rental`
+              : pickupCity && dropCity
+              ? `${pickupCity} → ${dropCity}`
+              : 'Outstation & One-Way Routes'}
           </h3>
           <p className="text-xs text-slate-300">
             100% Transparent Billing: Base Fare, Driver Allowance (DA), {sampleFare.billedDistanceKm} KM, State Permit &amp; 5% GST shown upfront. Zero hidden charges.

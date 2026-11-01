@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { BookingRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
-import { triggerWhatsAppDeepLink, buildCustomerReviewWhatsAppUrl } from '../utils/whatsapp';
+import { buildCustomerReviewWhatsAppUrl } from '../utils/whatsapp';
 import { formatWhatsAppBookingConfirmationMessage } from '../utils/whatsappService';
 import {
   renderOfficialRubberStampDataUrl,
@@ -23,6 +23,7 @@ import {
   formatDigitalSignTimestamp
 } from './OwnerBillGenerator';
 import { OFFICIAL_SAFAR_LOGO_DATA_URL } from '../utils/officialSignatureData';
+import { jsPDF } from 'jspdf';
 
 export const OFFICIAL_WHATSAPP_NUMBER = '917710080992';
 
@@ -41,11 +42,14 @@ export function buildFormattedReceiptWhatsAppMessage(booking: BookingRecord): st
 }
 
 /**
- * Generates and downloads a Clean Light-Theme Corporate GST Tax Invoice PDF for a BookingRecord using jsPDF
+ * Synchronously builds a Clean Light-Theme Corporate GST Tax Invoice PDF for a BookingRecord using jsPDF
  * Includes Official SafarIndiaCabs Logo, "Digitally signed by SAFARINDIACABS..." block, Rubber Mohar & Aman Mishra Signature.
  */
-export async function generateBookingInvoicePdf(booking: BookingRecord): Promise<void> {
-  const { jsPDF } = await import('jspdf');
+export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
+  doc: jsPDF;
+  fileName: string;
+  getPdfFile: () => File;
+} {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -439,7 +443,59 @@ export async function generateBookingInvoicePdf(booking: BookingRecord): Promise
   doc.setFontSize(7.2);
   doc.text('Prop. Aman Mishra (Signatory)', signCenterX, y + 38.5, { align: 'center' });
 
-  doc.save(`SafarIndiaCabs_GST_Invoice_${booking.id}.pdf`);
+  const fileName = `SafarIndiaCabs_GST_Invoice_${booking.id}.pdf`;
+  return {
+    doc,
+    fileName,
+    getPdfFile: () => {
+      const pdfBlob = doc.output('blob');
+      return new File([pdfBlob], fileName, {
+        type: 'application/pdf',
+        lastModified: Date.now()
+      });
+    }
+  };
+}
+
+export async function generateBookingInvoicePdf(booking: BookingRecord): Promise<void> {
+  const { doc, fileName } = buildBookingInvoicePdfDocument(booking);
+  doc.save(fileName);
+}
+
+/**
+ * Generates the official GST Tax Invoice PDF File and shares the PDF file directly
+ * via the native mobile/desktop share sheet (WhatsApp PDF attachment).
+ * Falls back to downloading the PDF if native file sharing is not supported.
+ */
+export async function shareBookingInvoicePdf(
+  booking: BookingRecord
+): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const { doc, fileName, getPdfFile } = buildBookingInvoicePdfDocument(booking);
+  const pdfFile = getPdfFile();
+
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      const canShareFiles =
+        typeof navigator.canShare === 'function'
+          ? navigator.canShare({ files: [pdfFile] })
+          : true;
+
+      if (canShareFiles) {
+        await navigator.share({
+          files: [pdfFile],
+          title: fileName
+        });
+        return 'shared';
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return 'cancelled';
+      }
+    }
+  }
+
+  doc.save(fileName);
+  return 'downloaded';
 }
 
 interface BookingConfirmationModalProps {
@@ -454,6 +510,8 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
   onViewMyRides
 }) => {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isSharingPdf, setIsSharingPdf] = useState(false);
+  const [shareStatusNote, setShareStatusNote] = useState<string>('');
 
   if (!booking) return null;
 
@@ -473,15 +531,20 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
     window.print();
   };
 
-  const handleWhatsAppShareToOfficial = () => {
-    const text = buildFormattedReceiptWhatsAppMessage(booking);
-    triggerWhatsAppDeepLink(undefined, text, OFFICIAL_WHATSAPP_NUMBER);
-  };
-
-  const handleWhatsAppShareToCustomer = () => {
-    if (!booking.customerPhone) return;
-    const text = buildFormattedReceiptWhatsAppMessage(booking);
-    triggerWhatsAppDeepLink(undefined, text, booking.customerPhone);
+  const handleSharePdfOnWhatsApp = async () => {
+    if (isSharingPdf) return;
+    setIsSharingPdf(true);
+    setShareStatusNote('');
+    try {
+      const result = await shareBookingInvoicePdf(booking);
+      if (result === 'downloaded') {
+        setShareStatusNote(
+          `GST Bill PDF (${booking.id}.pdf) downloaded! You can now attach the PDF file directly in WhatsApp.`
+        );
+      }
+    } finally {
+      setIsSharingPdf(false);
+    }
   };
 
   return (
@@ -840,7 +903,14 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
             </div>
           </div>
 
-          {/* Primary Row: Download PDF Invoice + Share Receipt on WhatsApp */}
+          {shareStatusNote && (
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{shareStatusNote}</span>
+            </div>
+          )}
+
+          {/* Primary Row: Download PDF Invoice + Share Receipt PDF on WhatsApp */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <button
               type="button"
@@ -854,15 +924,16 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
 
             <button
               type="button"
-              onClick={handleWhatsAppShareToOfficial}
-              className="w-full py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
+              onClick={handleSharePdfOnWhatsApp}
+              disabled={isSharingPdf}
+              className="w-full min-h-[48px] py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
             >
               <Share2 className="w-4 h-4 text-white shrink-0" />
-              <span>Share Receipt on WhatsApp</span>
+              <span>{isSharingPdf ? 'Preparing Bill PDF...' : 'Share Bill PDF on WhatsApp'}</span>
             </button>
           </div>
 
-          {/* Secondary Row: Send Review Request, Send Receipt to Customer WhatsApp, Print, or View Rides */}
+          {/* Secondary Row: Send Review Request, Share PDF Receipt, Print, or View Rides */}
           <div className="flex flex-wrap items-center gap-2">
             {booking.customerPhone && (
               <a
@@ -882,16 +953,15 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               </a>
             )}
 
-            {booking.customerPhone && (
-              <button
-                type="button"
-                onClick={handleWhatsAppShareToCustomer}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                <span>WhatsApp Receipt</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleSharePdfOnWhatsApp}
+              disabled={isSharingPdf}
+              className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{isSharingPdf ? 'Sharing PDF...' : 'WhatsApp PDF Receipt'}</span>
+            </button>
 
             <button
               type="button"

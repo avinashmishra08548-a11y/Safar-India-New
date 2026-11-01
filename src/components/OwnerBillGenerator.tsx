@@ -15,15 +15,16 @@ import {
   Stamp,
   PenTool,
   History,
-  ShieldCheck
+  ShieldCheck,
+  Share2
 } from 'lucide-react';
 import { BookingRecord } from '../types';
-import { triggerWhatsAppDeepLink, buildWhatsAppSchemeUrl } from '../utils/whatsapp';
 import {
   OFFICIAL_AMAN_MISHRA_SIGNATURE_DATA_URL,
   OFFICIAL_SAFAR_LOGO_DATA_URL
 } from '../utils/officialSignatureData';
 import { peekNextSequentialBookingId } from '../lib/bookingDatabase';
+import { jsPDF } from 'jspdf';
 
 export interface CustomBillData {
   id: string;
@@ -449,16 +450,19 @@ export function calculateBillTotals(bill: CustomBillData) {
 }
 
 /**
- * Generates and downloads a clean, professional Light-Theme Corporate A4 GST Tax Invoice PDF
+ * Builds a clean, professional Light-Theme Corporate A4 GST Tax Invoice PDF
  * featuring the SafarIndiaCabs Logo, Itemized Table, "Digitally signed by..." block,
  * Official Blue Rubber Mohar, and Proprietor Aman Mishra's Handwritten Signature.
  */
-export async function downloadCustomBillPdf(
+export function buildCustomBillPdfDocument(
   bill: CustomBillData,
   signatureDataUrl?: string,
   stampStyle: 'circular' | 'rectangular' = 'circular'
-): Promise<void> {
-  const { jsPDF } = await import('jspdf');
+): {
+  doc: jsPDF;
+  fileName: string;
+  getPdfFile: () => File;
+} {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -942,7 +946,60 @@ export async function downloadCustomBillPdf(
   doc.setTextColor(71, 85, 105);
   doc.text('Authorised Signatory & Seal', rightCenter, y + 48, { align: 'center' });
 
-  doc.save(`SafarIndiaCabs_GST_Invoice_${bill.invoiceNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
+  const fileName = `SafarIndiaCabs_GST_Invoice_${bill.invoiceNo.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`;
+  return {
+    doc,
+    fileName,
+    getPdfFile: () => {
+      const pdfBlob = doc.output('blob');
+      return new File([pdfBlob], fileName, {
+        type: 'application/pdf',
+        lastModified: Date.now()
+      });
+    }
+  };
+}
+
+export async function downloadCustomBillPdf(
+  bill: CustomBillData,
+  signatureDataUrl?: string,
+  stampStyle: 'circular' | 'rectangular' = 'circular'
+): Promise<void> {
+  const { doc, fileName } = buildCustomBillPdfDocument(bill, signatureDataUrl, stampStyle);
+  doc.save(fileName);
+}
+
+export async function shareCustomBillPdf(
+  bill: CustomBillData,
+  signatureDataUrl?: string,
+  stampStyle: 'circular' | 'rectangular' = 'circular'
+): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const { doc, fileName, getPdfFile } = buildCustomBillPdfDocument(bill, signatureDataUrl, stampStyle);
+  const pdfFile = getPdfFile();
+
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      const canShareFiles =
+        typeof navigator.canShare === 'function'
+          ? navigator.canShare({ files: [pdfFile] })
+          : true;
+
+      if (canShareFiles) {
+        await navigator.share({
+          files: [pdfFile],
+          title: fileName
+        });
+        return 'shared';
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return 'cancelled';
+      }
+    }
+  }
+
+  doc.save(fileName);
+  return 'downloaded';
 }
 
 interface OwnerBillGeneratorProps {
@@ -1032,8 +1089,8 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
       employeeIdOrDept: '',
       customerAddress: '',
       tripType: 'One-Way Outstation',
-      pickupLocation: 'New Delhi',
-      dropLocation: 'Chandigarh',
+      pickupLocation: '',
+      dropLocation: '',
       viaRoute: '',
       pickupDate: todayStr,
       pickupTime: '08:00 AM',
@@ -1173,6 +1230,22 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
         `Downloaded Light-Theme Professional GST Invoice (${bill.invoiceNo}) with Logo, Digital Sign, Mohar & Signature!`
       );
       setTimeout(() => setStatusBanner(''), 4000);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleSharePdfOnWhatsApp = async () => {
+    setIsGeneratingPdf(true);
+    try {
+      handleSaveBillToHistory();
+      const result = await shareCustomBillPdf(bill, activeSignatureUrl, stampStyle);
+      if (result === 'downloaded') {
+        setStatusBanner(
+          `GST Bill PDF (${bill.invoiceNo}.pdf) downloaded! Attach the PDF file directly in WhatsApp.`
+        );
+        setTimeout(() => setStatusBanner(''), 4500);
+      }
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -2140,20 +2213,21 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                   <span>Print / Save as PDF</span>
                 </button>
 
-                <a
-                  href={buildWhatsAppSchemeUrl(buildWhatsAppBillMessage(), bill.customerPhone)}
-                  onClick={(e) => {
-                    handleSaveBillToHistory();
-                    triggerWhatsAppDeepLink(e, buildWhatsAppBillMessage(), bill.customerPhone);
-                  }}
-                  className="sm:col-span-2 w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
+                <button
+                  type="button"
+                  onClick={handleSharePdfOnWhatsApp}
+                  disabled={isGeneratingPdf}
+                  className="sm:col-span-2 w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm transition cursor-pointer"
                 >
-                  <MessageSquare className="w-4 h-4 text-amber-300" />
+                  <Share2 className="w-4 h-4 text-white" />
                   <span>
-                    Send Bill Details on Customer WhatsApp{' '}
-                    {bill.customerPhone ? `(+91 ${bill.customerPhone})` : ''}
+                    {isGeneratingPdf
+                      ? 'Preparing GST Bill PDF...'
+                      : `Share GST Bill PDF on WhatsApp ${
+                          bill.customerPhone ? `(+91 ${bill.customerPhone})` : ''
+                        }`}
                   </span>
-                </a>
+                </button>
               </div>
             </div>
           </div>
@@ -2210,6 +2284,14 @@ export const OwnerBillGenerator: React.FC<OwnerBillGeneratorProps> = ({
                         className="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] cursor-pointer"
                       >
                         PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => shareCustomBillPdf(item, activeSignatureUrl, stampStyle)}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] cursor-pointer"
+                        title="Share PDF on WhatsApp"
+                      >
+                        Share PDF
                       </button>
                       <button
                         type="button"

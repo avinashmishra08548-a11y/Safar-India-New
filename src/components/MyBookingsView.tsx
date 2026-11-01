@@ -23,8 +23,10 @@ import {
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
-import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
-import { generateBookingInvoicePdf } from './BookingConfirmationModal';
+import {
+  generateBookingInvoicePdf,
+  shareBookingInvoicePdf
+} from './BookingConfirmationModal';
 import {
   requestServerOtp,
   verifyServerOtp,
@@ -230,19 +232,13 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
   const completedCount = bookings.filter((b) => b.status === 'completed').length;
   const activeCount = bookings.filter((b) => b.status === 'confirmed').length;
 
-  const handleShareWhatsApp = (b: BookingRecord) => {
-    const text =
-      `*SAFAR INDIA CABS - RIDE & GST INVOICE DETAILS*\n` +
-      `Booking ID: ${b.id}\n` +
-      `Invoice No: INV-${b.id.replace('SIC-', '')}\n` +
-      `Route: ${b.pickupCity} -> ${b.dropCity}\n` +
-      `Date: ${b.pickupDate} at ${b.pickupTime}\n` +
-      `Car: ${b.cabName}\n` +
-      `Total Fare (Incl. GST): ${formatINR(b.totalFare)}\n` +
-      `Advance Paid: ${formatINR(b.advancePaid)}\n` +
-      `Balance: ${b.status === 'completed' ? 'Rs. 0 (Settled)' : formatINR(b.balanceDue)}\n` +
-      `Status: ${b.status.toUpperCase()}`;
-    triggerWhatsAppDeepLink(undefined, text);
+  const handleShareWhatsApp = async (b: BookingRecord) => {
+    setDownloadingBookingId(b.id);
+    try {
+      await shareBookingInvoicePdf(b);
+    } finally {
+      setTimeout(() => setDownloadingBookingId(null), 500);
+    }
   };
 
   // PRIVACY & SESSION GATE: If not logged in, render Inline Mobile Login Card
@@ -834,10 +830,11 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleShareWhatsApp(b)}
+                      disabled={isDownloading}
                       className="min-h-[46px] flex items-center gap-2 text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer"
                     >
                       <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Share on WhatsApp</span>
+                      <span>Share Bill PDF on WhatsApp</span>
                     </button>
                   </div>
 
