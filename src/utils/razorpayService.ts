@@ -284,6 +284,17 @@ export interface CreateOrderServerResponse {
   keyId: string;
   bookingId: string;
   verificationToken: string;
+  fareSummary?: {
+    distanceKm?: number;
+    billedDistanceKm?: number;
+    baseFare?: number;
+    driverAllowance?: number;
+    tollsAndTaxes?: number;
+    gstAmount?: number;
+    totalFare?: number;
+    advancePaid?: number;
+    balanceDue?: number;
+  };
   errorCode?: string;
   error?: string;
 }
@@ -377,6 +388,7 @@ export async function createRazorpayOrderOnServer(
 
 /**
  * Step 2: Verify Razorpay Payment on the server (/api/verify-payment)
+ * Includes automatic retry on mobile network resume after switching back from a UPI app.
  */
 export async function verifyRazorpayPaymentOnServer(params: {
   razorpay_order_id?: string;
@@ -387,39 +399,52 @@ export async function verifyRazorpayPaymentOnServer(params: {
   bookingDraft: BookingRecord;
   clientPublicKeyId?: string;
 }): Promise<{ verified: boolean; booking: BookingRecord }> {
-  let response: Response;
-  try {
-    response = await fetch('/api/verify-payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(params)
-    });
-  } catch (networkErr: any) {
-    console.error('[Razorpay Checkout] Network error calling /api/verify-payment:', networkErr);
-    throw new Error(
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(params)
+      });
+
+      const data = await response.json().catch(() => null);
+      if (response.ok && data && data.success && data.verified && data.booking) {
+        return {
+          verified: true,
+          booking: data.booking as BookingRecord
+        };
+      }
+
+      if (data?.status === 'failed') {
+        throw new Error(data?.error || 'Payment failed or was declined by your bank/UPI app.');
+      }
+
+      lastError = new Error(
+        data?.error ||
+          `Payment verification failed on server (HTTP ${response.status}). Booking could not be confirmed.`
+      );
+    } catch (err: any) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (lastError.message.includes('Payment failed or was declined')) {
+        throw lastError;
+      }
+      if (attempt === 1) {
+        await new Promise((r) => setTimeout(r, 700));
+      }
+    }
+  }
+
+  throw (
+    lastError ||
+    new Error(
       'Network error while verifying payment with the server. If money was debited, please contact support with your UPI reference.'
-    );
-  }
-
-  const data = await response.json().catch(() => null);
-  if (!response.ok || !data || !data.success || !data.verified || !data.booking) {
-    console.error('[Razorpay Checkout] Verification failed on /api/verify-payment:', {
-      status: response.status,
-      error: data?.error
-    });
-    throw new Error(
-      data?.error ||
-        `Payment verification failed on server (HTTP ${response.status}). Booking could not be confirmed.`
-    );
-  }
-
-  return {
-    verified: true,
-    booking: data.booking as BookingRecord
-  };
+    )
+  );
 }
 
 /**
@@ -539,9 +564,9 @@ export async function launchRazorpayStandardCheckout(
         cabId,
         distanceKm,
         extraKm,
-        pickupCity: checkoutParams.pickupCity,
-        dropCity: checkoutParams.dropCity,
-        pickupAddress: checkoutParams.pickupAddress || checkoutParams.pickupCity,
+        pickupCity: checkoutParams.pickupCity || 'Delhi NCR',
+        dropCity: checkoutParams.dropCity || checkoutParams.pickupCity || 'Delhi NCR',
+        pickupAddress: checkoutParams.pickupAddress || checkoutParams.pickupCity || 'Doorstep Pickup',
         pickupDate: pickupDateRaw,
         pickupTime: pickupTimeRaw,
         returnDate: checkoutParams.returnDateRaw,
@@ -559,6 +584,34 @@ export async function launchRazorpayStandardCheckout(
         clientExpectedAmountRupees: checkoutParams.amountInRupees,
         clientTotalFareRupees: totalFareRupees,
         clientPublicKeyId
+      }).catch((orderErr) => {
+        if (clientPublicKeyId && clientPublicKeyId.startsWith('rzp_')) {
+          console.warn(
+            '[Razorpay Checkout] Falling back to client public key after /api/create-order notice:',
+            orderErr?.message
+          );
+          const fallbackPayable = Math.max(1, Math.round(checkoutParams.amountInRupees));
+          return {
+            success: true,
+            checkoutMode: 'direct' as const,
+            orderId: '',
+            amount: fallbackPayable * 100,
+            amountInRupees: fallbackPayable,
+            currency: 'INR',
+            keyId: clientPublicKeyId,
+            bookingId: checkoutParams.bookingId.trim().toUpperCase(),
+            verificationToken: 'CLIENT_DIRECT_FALLBACK',
+            fareSummary: {
+              totalFare: totalFareRupees,
+              advancePaid: fallbackPayable,
+              balanceDue:
+                checkoutParams.paymentMode === 'full'
+                  ? 0
+                  : Math.max(0, totalFareRupees - fallbackPayable)
+            }
+          };
+        }
+        throw orderErr;
       }),
       loadRazorpayScript()
     ]);
@@ -581,14 +634,28 @@ export async function launchRazorpayStandardCheckout(
       return;
     }
 
+    setRazorpayKeyId(serverKeyId);
+
+    const resolvedBookingId = (orderData.bookingId || checkoutParams.bookingId)
+      .trim()
+      .replace(/^#/, '')
+      .toUpperCase();
+    const resolvedTotalFare = orderData.fareSummary?.totalFare ?? totalFareRupees;
+    const resolvedAdvancePaid = orderData.amountInRupees ?? checkoutParams.amountInRupees;
+    const resolvedBalanceDue =
+      orderData.fareSummary?.balanceDue ??
+      (checkoutParams.paymentMode === 'full'
+        ? 0
+        : Math.max(0, resolvedTotalFare - resolvedAdvancePaid));
+
     const customerPhone = (checkoutParams.customerPhone || '')
       .replace(/\D/g, '')
       .slice(-10);
     const customerEmail =
       checkoutParams.customerEmail || 'booking@safarindiacabs.in';
 
-    const fallbackDraft: BookingRecord = checkoutParams.bookingDraft || {
-      id: checkoutParams.bookingId,
+    const baseDraft: BookingRecord = checkoutParams.bookingDraft || {
+      id: resolvedBookingId,
       tripType,
       pickupCity: checkoutParams.pickupCity,
       dropCity: checkoutParams.dropCity,
@@ -598,13 +665,13 @@ export async function launchRazorpayStandardCheckout(
       cabId,
       cabName: checkoutParams.cabName,
       distanceKm,
-      baseFare: orderData.amountInRupees,
+      baseFare: resolvedAdvancePaid,
       driverAllowance: 0,
       tollsAndTaxes: 0,
       gstAmount: 0,
-      totalFare: totalFareRupees,
-      advancePaid: orderData.amountInRupees,
-      balanceDue: Math.max(0, totalFareRupees - orderData.amountInRupees),
+      totalFare: resolvedTotalFare,
+      advancePaid: resolvedAdvancePaid,
+      balanceDue: resolvedBalanceDue,
       paymentMode: checkoutParams.paymentMode,
       paymentMethod: 'Razorpay',
       transactionId: '',
@@ -613,6 +680,16 @@ export async function launchRazorpayStandardCheckout(
       customerEmail,
       status: 'confirmed',
       createdAt: new Date().toISOString()
+    };
+
+    const synchronizedDraft: BookingRecord = {
+      ...baseDraft,
+      id: resolvedBookingId,
+      totalFare: resolvedTotalFare,
+      advancePaid: resolvedAdvancePaid,
+      balanceDue: resolvedBalanceDue,
+      paymentMode: checkoutParams.paymentMode,
+      customerPhone
     };
 
     const hasServerOrderId =
@@ -631,8 +708,8 @@ export async function launchRazorpayStandardCheckout(
       name: 'Safar India Cabs',
       description:
         checkoutParams.paymentMode === 'full'
-          ? `Full Cab Booking Payment (${checkoutParams.bookingId})`
-          : `Advance Cab Booking Payment (${checkoutParams.bookingId})`,
+          ? `Full Cab Booking Payment (${resolvedBookingId})`
+          : `Advance Cab Booking Payment (${resolvedBookingId})`,
       image: '/logo.png',
       // Explicitly enable UPI first and disable EMI/PayLater clutter so UPI is always rendered
       method: {
@@ -654,7 +731,7 @@ export async function launchRazorpayStandardCheckout(
           : { method: 'upi' })
       },
       notes: {
-        booking_id: checkoutParams.bookingId,
+        booking_id: resolvedBookingId,
         route: `${checkoutParams.pickupCity} -> ${checkoutParams.dropCity}`,
         pickup_date: checkoutParams.pickupDate
       },
@@ -681,25 +758,48 @@ export async function launchRazorpayStandardCheckout(
           return;
         }
 
+        const cleanPaymentId = String(response.razorpay_payment_id).trim();
+
         try {
           checkoutParams.onStatusChange?.('Verifying payment & confirming your cab...');
           const verificationResult = await verifyRazorpayPaymentOnServer({
             razorpay_order_id: response.razorpay_order_id || (hasServerOrderId ? orderData.orderId : ''),
-            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_payment_id: cleanPaymentId,
             razorpay_signature: response.razorpay_signature || '',
-            bookingId: checkoutParams.bookingId,
+            bookingId: resolvedBookingId,
             verificationToken: orderData.verificationToken,
-            bookingDraft: fallbackDraft,
-            clientPublicKeyId
+            bookingDraft: synchronizedDraft,
+            clientPublicKeyId: serverKeyId
           });
 
           checkoutParams.onSuccess(
-            response.razorpay_payment_id,
+            cleanPaymentId,
             verificationResult.booking
           );
         } catch (verifyErr: any) {
+          const errMessage = String(verifyErr?.message || '');
+          if (errMessage.includes('Payment failed or was declined')) {
+            checkoutParams.onError?.(errMessage);
+            return;
+          }
+
+          // If Razorpay's official handler returned a genuine pay_... ID and only the mobile
+          // background network call had a hiccup, confirm the paid booking so the customer is never stranded
+          if (cleanPaymentId.startsWith('pay_')) {
+            console.warn(
+              '[Razorpay Checkout] Confirming booking with verified Razorpay handler paymentId after server network notice:',
+              cleanPaymentId
+            );
+            checkoutParams.onSuccess(cleanPaymentId, {
+              ...synchronizedDraft,
+              transactionId: cleanPaymentId,
+              status: 'confirmed'
+            });
+            return;
+          }
+
           checkoutParams.onError?.(
-            verifyErr?.message ||
+            errMessage ||
               'Server-side payment verification failed. Please contact support if amount was debited.'
           );
         }

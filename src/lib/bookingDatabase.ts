@@ -12,7 +12,7 @@ import {
 import { db, handleFirestoreError, OperationType } from './firebase';
 import { BookingRecord } from '../types';
 
-const COUNTER_STORAGE_KEY = 'safar_sic26_counter_v1';
+const COUNTER_STORAGE_KEY = 'safar_sic26_confirmed_seq_v2';
 const BOOKINGS_STORAGE_KEY = 'safar_bookings';
 const SERIES_YEAR_CODE = '26';
 const SERIES_PREFIX = `SIC${SERIES_YEAR_CODE}`; // 'SIC26'
@@ -51,7 +51,7 @@ export function parseSequentialNumberFromBookingId(bookingId: string): number {
 }
 
 /**
- * Computes the highest existing sequence number across provided bookings and localStorage
+ * Computes the highest existing sequence number across confirmed bookings and localStorage
  */
 export function getHighestKnownSequence(bookingsList?: BookingRecord[]): number {
   let maxSeq = 3; // Seeded baseline: SIC2601, SIC2602, SIC2603
@@ -99,63 +99,13 @@ export function peekNextSequentialBookingId(bookingsList?: BookingRecord[]): str
 }
 
 /**
- * Atomically increments and reserves the next sequential Booking ID (e.g., SIC2604, SIC2605)
- * across localStorage, Firebase Firestore (`booking_counters/sic_26_series`), and Supabase (if configured).
+ * Reserves the next sequential Booking ID (e.g., SIC2604, SIC2605)
+ * without blocking payment checkout if offline or slow network.
  */
 export async function generateNextSequentialBookingId(
   bookingsList?: BookingRecord[]
 ): Promise<string> {
-  let nextSeq = getHighestKnownSequence(bookingsList) + 1;
-
-  // 1. Try atomic transaction on Firestore `booking_counters/sic_26_series`
-  try {
-    const counterRef = doc(db, 'booking_counters', 'sic_26_series');
-    const txSeq = await runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      let currentRemote = 3;
-      if (snap.exists()) {
-        const data = snap.data();
-        currentRemote = Number(data?.currentSequence || 3);
-      }
-      const resolvedNext = Math.max(nextSeq, currentRemote + 1);
-      const nextId = formatSequentialBookingId(resolvedNext);
-      transaction.set(counterRef, {
-        seriesPrefix: SERIES_PREFIX,
-        currentSequence: resolvedNext,
-        lastBookingId: nextId,
-        updatedAt: new Date().toISOString()
-      });
-      return resolvedNext;
-    });
-    if (txSeq && txSeq >= nextSeq) {
-      nextSeq = txSeq;
-    }
-  } catch {
-    // Offline or rule fallback: local sequence already incremented
-  }
-
-  // 2. If Supabase is configured, also check highest sequence in Supabase `bookings` table
-  if (supabaseClient) {
-    try {
-      const { data } = await supabaseClient
-        .from('bookings')
-        .select('id, sequence_number')
-        .order('sequence_number', { ascending: false })
-        .limit(1);
-      if (data && data.length > 0) {
-        const remoteSeq =
-          Number(data[0].sequence_number) || parseSequentialNumberFromBookingId(data[0].id);
-        if (remoteSeq >= nextSeq) {
-          nextSeq = remoteSeq + 1;
-        }
-      }
-    } catch {}
-  }
-
-  try {
-    localStorage.setItem(COUNTER_STORAGE_KEY, String(nextSeq));
-  } catch {}
-
+  const nextSeq = getHighestKnownSequence(bookingsList) + 1;
   return formatSequentialBookingId(nextSeq);
 }
 
@@ -200,7 +150,7 @@ function sanitizeBookingForFirestore(booking: BookingRecord): Record<string, unk
 
 /**
  * Saves or updates a BookingRecord in Firebase Firestore (`bookings/{id}`)
- * and Supabase (`bookings` table, if configured).
+ * and Supabase (`bookings` table, if configured), and updates the confirmed sequence counter.
  */
 export async function saveBookingToCloudDatabase(booking: BookingRecord): Promise<void> {
   if (!booking || !booking.id) return;
@@ -212,6 +162,22 @@ export async function saveBookingToCloudDatabase(booking: BookingRecord): Promis
       if (seq > currentSaved) {
         localStorage.setItem(COUNTER_STORAGE_KEY, String(seq));
       }
+    } catch {}
+
+    // Also update Firestore counter best-effort
+    try {
+      const counterRef = doc(db, 'booking_counters', 'sic_26_series');
+      await runTransaction(db, async (transaction) => {
+        const snap = await transaction.get(counterRef);
+        const currentRemote = snap.exists() ? Number(snap.data()?.currentSequence || 3) : 3;
+        const resolvedSeq = Math.max(seq, currentRemote);
+        transaction.set(counterRef, {
+          seriesPrefix: SERIES_PREFIX,
+          currentSequence: resolvedSeq,
+          lastBookingId: formatSequentialBookingId(resolvedSeq),
+          updatedAt: new Date().toISOString()
+        });
+      });
     } catch {}
   }
 
