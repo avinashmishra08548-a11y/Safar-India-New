@@ -81,8 +81,22 @@ export default defineConfig(() => {
                     } catch {
                       (req as any).body = {};
                     }
+                    try {
+                      const parsedUrl = new URL(req.url || '/', 'http://localhost:3000');
+                      const queryObj: Record<string, string> = {};
+                      parsedUrl.searchParams.forEach((v, k) => {
+                        queryObj[k] = v;
+                      });
+                      (req as any).query = { ...queryObj, ...((req as any).query || {}) };
+                    } catch {
+                      (req as any).query = (req as any).query || {};
+                    }
                     (res as any).status = function(code: number) {
                       this.statusCode = code;
+                      return this;
+                    };
+                    (res as any).send = function(data: any) {
+                      this.end(data);
                       return this;
                     };
                     (res as any).json = function(data: any) {

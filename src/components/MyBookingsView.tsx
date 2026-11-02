@@ -25,7 +25,9 @@ import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import {
   generateBookingInvoicePdf,
-  shareBookingInvoicePdf
+  shareBookingInvoicePdf,
+  renderA4GstInvoicePreviewDataUrl,
+  buildServerInvoicePdfUrl
 } from './BookingConfirmationModal';
 import {
   requestServerOtp,
@@ -56,6 +58,8 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [cancelModalId, setCancelModalId] = useState<string | null>(null);
   const [downloadingBookingId, setDownloadingBookingId] = useState<string | null>(null);
+  const [expandedPdfBookingId, setExpandedPdfBookingId] = useState<string | null>(null);
+  const [billActionNotice, setBillActionNotice] = useState<{ id: string; text: string } | null>(null);
 
   // Inline Login States for My Rides
   const [loginName, setLoginName] = useState('');
@@ -212,6 +216,10 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
 
   const handleDirectDownloadGstBill = async (booking: BookingRecord) => {
     setDownloadingBookingId(booking.id);
+    setBillActionNotice({
+      id: booking.id,
+      text: `Downloading Official GST Tax Invoice PDF (${booking.id}.pdf)...`
+    });
     try {
       await generateBookingInvoicePdf(booking);
     } finally {
@@ -234,6 +242,10 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
 
   const handleShareWhatsApp = async (b: BookingRecord) => {
     setDownloadingBookingId(b.id);
+    setBillActionNotice({
+      id: b.id,
+      text: `Preparing & opening WhatsApp with Official GST Invoice PDF (${b.id}.pdf)...`
+    });
     try {
       await shareBookingInvoicePdf(b);
     } finally {
@@ -792,16 +804,59 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   )}
                 </div>
 
+                {/* Inline A4 GST Invoice PDF Sheet Preview when toggled */}
+                {expandedPdfBookingId === b.id && (
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-100 border-2 border-slate-300 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-black text-[#0F2958] uppercase tracking-wider">
+                        📄 Official A4 GST Tax Invoice Preview ({b.id}.pdf)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={buildServerInvoicePdfUrl(b, 'inline')}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[11px]"
+                        >
+                          Open Full PDF ↗
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPdfBookingId(null)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-[11px] cursor-pointer"
+                        >
+                          Hide Preview
+                        </button>
+                      </div>
+                    </div>
+                    <div className="rounded-xl overflow-hidden border border-slate-300 bg-white shadow-sm">
+                      <img
+                        src={renderA4GstInvoicePreviewDataUrl(b)}
+                        alt={`Official GST Invoice ${b.id}`}
+                        className="w-full h-auto block"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {billActionNotice && billActionNotice.id === b.id && (
+                  <div className="px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{billActionNotice.text}</span>
+                  </div>
+                )}
+
                 {/* Bottom Action Buttons: Prominent View Bill & Download Invoice CTA */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <button
                       type="button"
-                      onClick={() => onSelectBookingForInvoice(b)}
+                      onClick={() => {
+                        setExpandedPdfBookingId((prev) => (prev === b.id ? null : b.id));
+                        onSelectBookingForInvoice(b);
+                      }}
                       className="min-h-[46px] flex items-center gap-2 text-white bg-slate-900 hover:bg-slate-800 px-4 py-2.5 rounded-xl font-black text-xs transition shadow-sm cursor-pointer"
                     >
                       <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>View Bill (Print-Friendly Invoice)</span>
+                      <span>View Bill (A4 GST PDF Invoice)</span>
                     </button>
 
                     <button

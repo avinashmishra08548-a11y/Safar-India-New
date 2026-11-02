@@ -457,33 +457,580 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
   };
 }
 
-export async function generateBookingInvoicePdf(booking: BookingRecord): Promise<void> {
-  const { doc, fileName } = buildBookingInvoicePdfDocument(booking);
-  doc.save(fileName);
+/**
+ * Builds a direct HTTPS server endpoint URL (/api/bookings?action=invoice_pdf&...)
+ * that returns the real binary application/pdf GST Invoice with Content-Disposition headers.
+ * This works natively inside the Android WebView app (MainActivity.java DownloadListener)
+ * as well as Chrome Android, iOS Safari, and Desktop browsers.
+ */
+export function buildServerInvoicePdfUrl(
+  booking: BookingRecord,
+  mode: 'download' | 'inline' = 'download'
+): string {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://safarindiacabs.com';
+  const params = new URLSearchParams();
+  params.set('action', 'invoice_pdf');
+  params.set('mode', mode);
+  params.set('id', booking.id || 'SIC2601');
+  if (booking.customerName) params.set('customerName', booking.customerName);
+  if (booking.customerPhone) params.set('customerPhone', booking.customerPhone);
+  if (booking.customerEmail) params.set('customerEmail', booking.customerEmail);
+  if (booking.customerGst) params.set('customerGst', booking.customerGst);
+  if (booking.gstCompanyName) params.set('gstCompanyName', booking.gstCompanyName);
+  if (booking.tripType) params.set('tripType', booking.tripType);
+  if (booking.pickupCity) params.set('pickupCity', booking.pickupCity);
+  if (booking.dropCity) params.set('dropCity', booking.dropCity);
+  if (booking.pickupAddress) params.set('pickupAddress', booking.pickupAddress);
+  if (booking.dropAddress) params.set('dropAddress', booking.dropAddress);
+  if (booking.landmark) params.set('landmark', booking.landmark);
+  if (booking.pickupDate) params.set('pickupDate', booking.pickupDate);
+  if (booking.pickupTime) params.set('pickupTime', booking.pickupTime);
+  if (booking.cabName) params.set('cabName', booking.cabName);
+  params.set('distanceKm', String(booking.distanceKm || 230));
+  if (booking.baseFare !== undefined) params.set('baseFare', String(booking.baseFare));
+  if (booking.driverAllowance !== undefined) params.set('driverAllowance', String(booking.driverAllowance));
+  if (booking.tollsAndTaxes !== undefined) params.set('tollsAndTaxes', String(booking.tollsAndTaxes));
+  if (booking.gstAmount !== undefined) params.set('gstAmount', String(booking.gstAmount));
+  params.set('totalFare', String(booking.totalFare || 0));
+  params.set('advancePaid', String(booking.advancePaid || 0));
+  params.set('balanceDue', String(booking.balanceDue || 0));
+  params.set('status', booking.status || 'confirmed');
+  if (booking.paymentMethod) params.set('paymentMethod', booking.paymentMethod);
+  if (booking.transactionId) params.set('transactionId', booking.transactionId);
+  if (booking.driverName) params.set('driverName', booking.driverName);
+  if (booking.driverPhone) params.set('driverPhone', booking.driverPhone);
+  if (booking.driverVehicleNo) params.set('driverVehicleNo', booking.driverVehicleNo);
+  if (booking.createdAt) params.set('createdAt', booking.createdAt);
+
+  return `${origin}/api/bookings?${params.toString()}`;
+}
+
+function isAndroidOrWebViewEnvironment(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const win = window as any;
+  if (win.__SAFAR_ANDROID_WEBVIEW__ || win.SafarUpiBridge) return true;
+  if (/Android/i.test(ua)) return true;
+  return false;
 }
 
 /**
- * Generates the official GST Tax Invoice PDF File and shares the PDF file directly
- * via the native mobile/desktop share sheet (WhatsApp PDF attachment).
- * Falls back to downloading the PDF if native file sharing is not supported.
+ * Renders a high-resolution A4 portrait GST Tax Invoice image (data:image/png;base64,...)
+ * on an HTML5 <canvas> so that Android WebView (which cannot render <iframe src="blob:..."> PDFs)
+ * and mobile browsers display the exact A4 GST Invoice sheet with Logo, Rubber Mohar & Signature.
+ */
+export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string {
+  if (typeof document === 'undefined') return '';
+  const canvas = document.createElement('canvas');
+  const W = 1050;
+  const H = 1485;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+
+  const s = 5; // 210mm * 5 = 1050px, 297mm * 5 = 1485px
+  const margin = 12 * s;
+  const contentW = W - margin * 2;
+
+  // White A4 background
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  // Outer Corporate Border
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(margin - 10, 40, contentW + 20, 1405);
+
+  // Top Dual Accent Line (Navy & Gold)
+  ctx.fillStyle = '#0F2958';
+  ctx.fillRect(margin - 10, 40, (contentW + 20) * 0.72, 11);
+  ctx.fillStyle = '#F59E0B';
+  ctx.fillRect(margin - 10 + (contentW + 20) * 0.72, 40, (contentW + 20) * 0.28, 11);
+
+  let y = 70;
+
+  // Left Crest Box
+  ctx.fillStyle = '#0F2958';
+  ctx.strokeStyle = '#F59E0B';
+  ctx.lineWidth = 3;
+  ctx.fillRect(margin, y, 125, 125);
+  ctx.strokeRect(margin, y, 125, 125);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '900 22px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('SAFAR', margin + 62.5, y + 42);
+  ctx.fillStyle = '#FBBF24';
+  ctx.font = '900 20px Arial, sans-serif';
+  ctx.fillText('INDIA', margin + 62.5, y + 68);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '900 18px Arial, sans-serif';
+  ctx.fillText('CABS', margin + 62.5, y + 92);
+  ctx.fillStyle = '#CBD5E1';
+  ctx.font = 'bold 12px Arial, sans-serif';
+  ctx.fillText('A1 CAB SERVICE', margin + 62.5, y + 113);
+
+  // Company Header Info
+  const compX = margin + 145;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#0F172A';
+  ctx.font = '900 32px Arial, sans-serif';
+  ctx.fillText('SafarIndiaCabs', compX, y + 30);
+
+  ctx.fillStyle = '#B45309';
+  ctx.font = 'bold 14px Arial, sans-serif';
+  ctx.fillText('A1 CAB SERVICES  •  ALL INDIA COMMERCIAL TOUR & TRAVELS', compX, y + 52);
+
+  ctx.fillStyle = '#1E293B';
+  ctx.font = 'bold 16px Arial, sans-serif';
+  ctx.fillText('GSTIN: 07DQHPA3025F1ZD   |   Proprietor: Aman Mishra', compX, y + 76);
+
+  ctx.fillStyle = '#475569';
+  ctx.font = '14px Arial, sans-serif';
+  ctx.fillText('Regd. Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', compX, y + 98);
+  ctx.fillText('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', compX, y + 119);
+
+  // Right Tax Invoice Badge
+  const cleanIdSuffix = booking.id.replace(/^SIC-?/i, '');
+  const invoiceNo = `INV-SIC${cleanIdSuffix}`;
+  const invoiceDateStr = new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+
+  const badgeW = 265;
+  const badgeX = W - margin - badgeW;
+  ctx.fillStyle = '#F8FAFC';
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.lineWidth = 2;
+  ctx.fillRect(badgeX, y, badgeW, 125);
+  ctx.strokeRect(badgeX, y, badgeW, 125);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0F2958';
+  ctx.font = '900 19px Arial, sans-serif';
+  ctx.fillText('TAX INVOICE', badgeX + badgeW - 14, y + 28);
+  ctx.fillStyle = '#64748B';
+  ctx.font = 'bold 12px Arial, sans-serif';
+  ctx.fillText('ORIGINAL FOR RECIPIENT', badgeX + badgeW - 14, y + 46);
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 15px monospace';
+  ctx.fillText(`Inv No: ${invoiceNo}`, badgeX + badgeW - 14, y + 72);
+  ctx.fillStyle = '#334155';
+  ctx.font = '14px Arial, sans-serif';
+  ctx.fillText(`Date: ${invoiceDateStr}`, badgeX + badgeW - 14, y + 94);
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText(`Booking ID: ${booking.id}`, badgeX + badgeW - 14, y + 114);
+
+  y += 145;
+
+  // Status & SAC Strip
+  ctx.fillStyle = '#F8FAFC';
+  ctx.strokeStyle = '#E2E8F0';
+  ctx.fillRect(margin, y, contentW, 44);
+  ctx.strokeRect(margin, y, contentW, 44);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#047857';
+  ctx.font = '900 15px Arial, sans-serif';
+  const statusLabel =
+    booking.status === 'completed'
+      ? '✓ STATUS: COMPLETED & SETTLED'
+      : booking.status === 'cancelled'
+      ? '✕ STATUS: CANCELLED'
+      : '✓ STATUS: CONFIRMED BOOKING';
+  ctx.fillText(statusLabel, margin + 16, y + 28);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 14px Arial, sans-serif';
+  ctx.fillText('SAC Code: 996412 (Passenger Transport by Cab)', W - margin - 16, y + 28);
+
+  y += 62;
+
+  // Two-column Customer & Trip Boxes
+  const colW = (contentW - 24) / 2;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.fillRect(margin, y, colW, 155);
+  ctx.strokeRect(margin, y, colW, 155);
+  ctx.fillStyle = '#F1F5F9';
+  ctx.fillRect(margin + 1, y + 1, colW - 2, 34);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#0F2958';
+  ctx.font = '900 14px Arial, sans-serif';
+  ctx.fillText('BILLED TO (CUSTOMER / CORPORATE DETAILS)', margin + 16, y + 23);
+
+  ctx.fillStyle = '#0F172A';
+  ctx.font = '900 18px Arial, sans-serif';
+  ctx.fillText((booking.customerName || 'Valued Passenger').slice(0, 32), margin + 16, y + 62);
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 15px Arial, sans-serif';
+  ctx.fillText(`Mobile: +91 ${booking.customerPhone}`, margin + 16, y + 89);
+  ctx.font = '14px Arial, sans-serif';
+  if (booking.customerGst) {
+    ctx.fillText(`Company: ${booking.gstCompanyName || '-'} | GST: ${booking.customerGst}`, margin + 16, y + 115);
+  } else {
+    ctx.fillText(`Payment Ref: ${booking.transactionId || 'Verified Online/Cash'}`, margin + 16, y + 115);
+  }
+  ctx.fillText('Place of Supply: North India / Delhi (07)', margin + 16, y + 140);
+
+  const rightX = margin + colW + 24;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.fillRect(rightX, y, colW, 155);
+  ctx.strokeRect(rightX, y, colW, 155);
+  ctx.fillStyle = '#F1F5F9';
+  ctx.fillRect(rightX + 1, y + 1, colW - 2, 34);
+  ctx.fillStyle = '#0F2958';
+  ctx.font = '900 14px Arial, sans-serif';
+  ctx.fillText('TRIP & VEHICLE PARTICULARS', rightX + 16, y + 23);
+
+  ctx.fillStyle = '#0F172A';
+  ctx.font = '900 17px Arial, sans-serif';
+  ctx.fillText((booking.cabName || 'Sedan AC').slice(0, 34), rightX + 16, y + 62);
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 15px Arial, sans-serif';
+  ctx.fillText(`Travel Date: ${booking.pickupDate} at ${booking.pickupTime}`, rightX + 16, y + 89);
+  ctx.font = '14px Arial, sans-serif';
+  ctx.fillText(`Trip Type: ${booking.tripType.toUpperCase()}  |  Billed Dist: ${booking.distanceKm} KM`, rightX + 16, y + 115);
+  ctx.fillText(
+    `Chauffeur: ${booking.driverName || 'Verified Safar Chauffeur'} (${booking.driverVehicleNo || 'Commercial Cab'})`,
+    rightX + 16,
+    y + 140
+  );
+
+  y += 175;
+
+  // Route Itinerary Box
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.fillRect(margin, y, contentW, 120);
+  ctx.strokeRect(margin, y, contentW, 120);
+  ctx.fillStyle = '#F1F5F9';
+  ctx.fillRect(margin + 1, y + 1, contentW - 2, 32);
+  ctx.fillStyle = '#0F2958';
+  ctx.font = '900 14px Arial, sans-serif';
+  ctx.fillText('JOURNEY PICKUP & DROP ITINERARY', margin + 16, y + 22);
+
+  const pickupFull = booking.pickupAddress
+    ? `${booking.pickupAddress}, ${booking.pickupCity}${booking.landmark ? ` (Landmark: ${booking.landmark})` : ''}`
+    : booking.pickupCity;
+  const dropFull = booking.dropAddress
+    ? `${booking.dropAddress}, ${booking.dropCity}`
+    : booking.dropCity;
+
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 15px Arial, sans-serif';
+  ctx.fillText('Pickup Location:', margin + 16, y + 64);
+  ctx.font = '15px Arial, sans-serif';
+  ctx.fillText(pickupFull.slice(0, 78), margin + 150, y + 64);
+
+  ctx.font = 'bold 15px Arial, sans-serif';
+  ctx.fillText('Drop Location:', margin + 16, y + 98);
+  ctx.font = '15px Arial, sans-serif';
+  ctx.fillText(dropFull.slice(0, 78), margin + 150, y + 98);
+
+  y += 140;
+
+  // Itemized Fare & GST Tax Table
+  const gstAmount = booking.gstAmount ?? Math.round((booking.baseFare || booking.totalFare) * 0.05);
+  const halfGst = Math.round(gstAmount / 2);
+  const tolls = booking.tollsAndTaxes || 0;
+  const driverAllowance = booking.driverAllowance || 0;
+  const baseFare =
+    booking.baseFare ||
+    Math.max(0, booking.totalFare - gstAmount - tolls - driverAllowance);
+  const taxableValue = baseFare + driverAllowance + tolls;
+
+  ctx.fillStyle = '#F1F5F9';
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.fillRect(margin, y, contentW, 40);
+  ctx.strokeRect(margin, y, contentW, 40);
+  ctx.fillStyle = '#0F2958';
+  ctx.font = '900 15px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('DESCRIPTION OF PASSENGER TRANSPORT SERVICES (SAC: 996412)', margin + 16, y + 26);
+  ctx.textAlign = 'right';
+  ctx.fillText('AMOUNT (INR)', W - margin - 16, y + 26);
+
+  y += 40;
+
+  const rows = [
+    {
+      label: `1. Base Cab Hire Charges (${booking.cabName} - ${booking.distanceKm} KM Included)`,
+      value: `INR ${baseFare.toLocaleString('en-IN')}.00`,
+      bold: false
+    },
+    {
+      label: '2. Chauffeur Allowance / Daily Driver Bata Charges',
+      value: driverAllowance > 0 ? `INR ${driverAllowance.toLocaleString('en-IN')}.00` : 'Included (INR 0.00)',
+      bold: false
+    },
+    {
+      label: '3. Highway FASTag Toll & State Entry Permit Tax',
+      value: tolls > 0 ? `INR ${tolls.toLocaleString('en-IN')}.00` : 'As Applicable',
+      bold: false
+    },
+    {
+      label: 'Total Taxable Value',
+      value: `INR ${taxableValue.toLocaleString('en-IN')}.00`,
+      bold: true
+    },
+    {
+      label: 'Add: Central GST (CGST @ 2.5% under SAC 996412)',
+      value: `INR ${halfGst.toLocaleString('en-IN')}.00`,
+      bold: false
+    },
+    {
+      label: 'Add: State GST (SGST @ 2.5% under SAC 996412)',
+      value: `INR ${(gstAmount - halfGst).toLocaleString('en-IN')}.00`,
+      bold: false
+    }
+  ];
+
+  rows.forEach((r, idx) => {
+    ctx.fillStyle = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+    ctx.strokeStyle = '#E2E8F0';
+    ctx.fillRect(margin, y, contentW, 38);
+    ctx.strokeRect(margin, y, contentW, 38);
+    ctx.fillStyle = '#0F172A';
+    ctx.font = `${r.bold ? 'bold ' : ''}15px Arial, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText(r.label, margin + 16, y + 25);
+    ctx.textAlign = 'right';
+    ctx.font = `${r.bold ? 'bold ' : ''}15px monospace`;
+    ctx.fillText(r.value, W - margin - 16, y + 25);
+    y += 38;
+  });
+
+  // Grand Total Row
+  ctx.fillStyle = '#FEF3C7';
+  ctx.strokeStyle = '#F59E0B';
+  ctx.fillRect(margin, y, contentW, 46);
+  ctx.strokeRect(margin, y, contentW, 46);
+  ctx.fillStyle = '#0F172A';
+  ctx.font = '900 18px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('TOTAL INVOICE VALUE (INCLUSIVE OF 5% GST)', margin + 16, y + 30);
+  ctx.textAlign = 'right';
+  ctx.font = '900 19px monospace';
+  ctx.fillText(`INR ${Number(booking.totalFare || 0).toLocaleString('en-IN')}.00`, W - margin - 16, y + 30);
+
+  y += 58;
+
+  // Payment Settlement Strip
+  const isSettled = booking.status === 'completed' || booking.balanceDue === 0;
+  ctx.fillStyle = '#F0FDF4';
+  ctx.strokeStyle = '#BBF7D0';
+  ctx.fillRect(margin, y, contentW, 70);
+  ctx.strokeRect(margin, y, contentW, 70);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#15803D';
+  ctx.font = '900 15px Arial, sans-serif';
+  ctx.fillText(
+    isSettled
+      ? `PAYMENT STATUS: 100% PAID & SETTLED (INR ${booking.totalFare.toLocaleString('en-IN')}.00)`
+      : `ADVANCE PAID: INR ${Number(booking.advancePaid || 0).toLocaleString('en-IN')}.00`,
+    margin + 16,
+    y + 28
+  );
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#B45309';
+  ctx.fillText(
+    isSettled
+      ? 'REMAINING BALANCE DUE: INR 0.00 (NIL)'
+      : `BALANCE PAYABLE TO CHAUFFEUR: INR ${Number(booking.balanceDue || 0).toLocaleString('en-IN')}.00`,
+    W - margin - 16,
+    y + 28
+  );
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#475569';
+  ctx.font = '13px Arial, sans-serif';
+  ctx.fillText(
+    `Payment Mode: ${(booking.paymentMethod || 'Online / UPI / Cash').toUpperCase()}   |   Transaction Ref: ${booking.transactionId || booking.id}`,
+    margin + 16,
+    y + 54
+  );
+
+  y += 90;
+
+  // Bottom Verification Footer
+  const footerH = 210;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.fillRect(margin, y, contentW, footerH);
+  ctx.strokeRect(margin, y, contentW, footerH);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#0F2958';
+  ctx.font = '900 14px Arial, sans-serif';
+  ctx.fillText('TERMS & JURISDICTION:', margin + 16, y + 30);
+  ctx.fillStyle = '#475569';
+  ctx.font = '13px Arial, sans-serif';
+  ctx.fillText('1. Certified that particulars given above are true & correct.', margin + 16, y + 55);
+  ctx.fillText('2. Extra KM/Hour or parking if applicable as per tariff.', margin + 16, y + 78);
+  ctx.fillText('3. Subject to North Delhi Jurisdiction only.', margin + 16, y + 101);
+  ctx.fillText('4. 24x7 Helpline: +91 7710080992 | Safarindiacabs01@gmail.com', margin + 16, y + 124);
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 13px Arial, sans-serif';
+  ctx.fillText('Regd. Office: H NO 143 Street 4 Jharoda Majra Burari Delhi 110084', margin + 16, y + 152);
+
+  // Digital Signature Box
+  const digX = margin + 375;
+  const digW = 265;
+  ctx.fillStyle = '#F8FAFC';
+  ctx.strokeStyle = '#CBD5E1';
+  ctx.fillRect(digX, y + 24, digW, 155);
+  ctx.strokeRect(digX, y + 24, digW, 155);
+
+  const digitalTimestamp = formatDigitalSignTimestamp(booking.pickupDate);
+  ctx.fillStyle = '#0F172A';
+  ctx.font = '13px Arial, sans-serif';
+  ctx.fillText('Digitally signed by', digX + 14, y + 50);
+  ctx.font = '900 14px Arial, sans-serif';
+  ctx.fillText('SAFARINDIACABS', digX + 14, y + 72);
+  ctx.fillText('(AMAN MISHRA)', digX + 14, y + 92);
+  ctx.fillStyle = '#334155';
+  ctx.font = '12.5px monospace';
+  ctx.fillText('GSTIN: 07DQHPA3025F1ZD', digX + 14, y + 116);
+  ctx.fillText(`Date: ${digitalTimestamp}`, digX + 14, y + 138);
+  ctx.fillText('Location: IN (Verified)', digX + 14, y + 160);
+
+  // Right Side Stamp & Signatory
+  const signCenterX = W - margin - 145;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#0F2958';
+  ctx.font = '900 14px Arial, sans-serif';
+  ctx.fillText('For SafarIndiaCabs', signCenterX, y + 28);
+
+  // Draw Circular Rubber Mohar directly on canvas
+  const stampCx = W - margin - 190;
+  const stampCy = y + 102;
+  ctx.strokeStyle = '#1D4ED8';
+  ctx.fillStyle = '#1D4ED8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(stampCx, stampCy, 56, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(stampCx, stampCy, 50, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(stampCx, stampCy, 35, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.font = '900 9px Arial, sans-serif';
+  ctx.fillText('★ SAFAR INDIA CABS ★', stampCx, stampCy - 38);
+  ctx.font = 'bold 8.5px Arial, sans-serif';
+  ctx.fillText('GST: 07DQHPA3025F1ZD', stampCx, stampCy - 8);
+  ctx.fillText('VERIFIED TAX INVOICE', stampCx, stampCy + 5);
+  ctx.fillText('PROP: AMAN MISHRA', stampCx, stampCy + 18);
+  ctx.fillText('NORTH DELHI - 110084', stampCx, stampCy + 42);
+
+  // Cursive Signature Stroke
+  ctx.save();
+  ctx.translate(W - margin - 105, y + 112);
+  ctx.rotate(-0.08);
+  ctx.font = 'italic bold 26px Georgia, serif';
+  ctx.fillStyle = '#0F172A';
+  ctx.fillText('Aman Mishra', 0, 0);
+  ctx.restore();
+
+  ctx.strokeStyle = '#94A3B8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(W - margin - 265, y + 172);
+  ctx.lineTo(W - margin - 20, y + 172);
+  ctx.stroke();
+
+  ctx.fillStyle = '#0F172A';
+  ctx.font = '900 13px Arial, sans-serif';
+  ctx.fillText('Prop. Aman Mishra (Signatory)', signCenterX, y + 192);
+
+  return canvas.toDataURL('image/png');
+}
+
+export async function generateBookingInvoicePdf(booking: BookingRecord): Promise<void> {
+  const { doc, fileName } = buildBookingInvoicePdfDocument(booking);
+  const serverDownloadUrl = buildServerInvoicePdfUrl(booking, 'download');
+
+  // 1. Check if Native Android Bridge supports direct Base64 PDF download
+  const win = typeof window !== 'undefined' ? (window as any) : null;
+  if (win?.SafarUpiBridge && typeof win.SafarUpiBridge.downloadPdfBase64 === 'function') {
+    try {
+      const dataUri = doc.output('datauristring');
+      const base64 = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
+      const handled = win.SafarUpiBridge.downloadPdfBase64(base64, fileName);
+      if (handled) return;
+    } catch {
+      // Fallback to HTTPS download URL below
+    }
+  }
+
+  // 2. Inside Android App WebView or Android device:
+  // Android WebView blocks `blob:` URLs in DownloadListener (`!isSafeHttpsUrl`),
+  // whereas navigating to our HTTPS `/api/bookings?action=invoice_pdf` endpoint triggers
+  // MainActivity.java's DownloadListener.onDownloadStart with a safe HTTPS URL (and downloads in Chrome Android without leaving the page).
+  if (isAndroidOrWebViewEnvironment()) {
+    window.location.assign(serverDownloadUrl);
+    return;
+  }
+
+  // 3. Standard Desktop / iOS Browsers: trigger jsPDF save, with fallback to server PDF URL
+  try {
+    doc.save(fileName);
+  } catch {
+    window.location.assign(serverDownloadUrl);
+  }
+}
+
+/**
+ * Generates the official GST Tax Invoice PDF File and shares it on WhatsApp.
+ * - Priority 1: Native Android Bridge (`window.SafarUpiBridge.sharePdfBase64`) if available.
+ * - Priority 2: Web Share API Level 2 (`navigator.share({ files: [pdfFile] })`) on mobile browsers that support file sharing.
+ * - Priority 3: Inside the Android WebView Phone App (where `navigator.share` is unavailable and `window.open` is disabled by `setSupportMultipleWindows(false)`),
+ *   launches the native WhatsApp app via `https://api.whatsapp.com/send?text=...` (which `MainActivity.java` natively intercepts via `Intent.ACTION_VIEW`)
+ *   with the formatted GST Invoice and direct clickable Official PDF Bill download link!
  */
 export async function shareBookingInvoicePdf(
   booking: BookingRecord
-): Promise<'shared' | 'downloaded' | 'cancelled'> {
+): Promise<'shared' | 'whatsapp_opened' | 'downloaded' | 'cancelled'> {
   const { doc, fileName, getPdfFile } = buildBookingInvoicePdfDocument(booking);
-  const pdfFile = getPdfFile();
+  const serverDownloadUrl = buildServerInvoicePdfUrl(booking, 'download');
+  const receiptText = buildFormattedReceiptWhatsAppMessage(booking);
+  const whatsappTextWithPdfLink = `${receiptText}\n\n📄 *Download Official GST Tax Invoice (PDF):*\n${serverDownloadUrl}`;
 
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+  // 1. Native Android Bridge (if present in updated APK)
+  const win = typeof window !== 'undefined' ? (window as any) : null;
+  if (win?.SafarUpiBridge && typeof win.SafarUpiBridge.sharePdfBase64 === 'function') {
     try {
-      const canShareFiles =
-        typeof navigator.canShare === 'function'
-          ? navigator.canShare({ files: [pdfFile] })
-          : true;
+      const dataUri = doc.output('datauristring');
+      const base64 = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
+      const handled = win.SafarUpiBridge.sharePdfBase64(base64, fileName, whatsappTextWithPdfLink);
+      if (handled) return 'shared';
+    } catch {
+      // Fallback below
+    }
+  }
 
-      if (canShareFiles) {
+  // 2. Native Web Share API with File attachment (Chrome Android / iOS Safari)
+  if (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function'
+  ) {
+    try {
+      const pdfFile = getPdfFile();
+      if (navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
           files: [pdfFile],
-          title: fileName
+          title: fileName,
+          text: `SafarIndiaCabs Official GST Invoice (${booking.id})`
         });
         return 'shared';
       }
@@ -494,7 +1041,28 @@ export async function shareBookingInvoicePdf(
     }
   }
 
-  doc.save(fileName);
+  // 3. Direct WhatsApp Launch with Official GST Bill PDF Link
+  // Note: MainActivity.java intercepts `https://api.whatsapp.com/send?...` in `shouldOverrideUrlLoading`
+  // and launches the native WhatsApp app via Intent.ACTION_VIEW without leaving the current WebView page!
+  const whatsappShareUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(
+    whatsappTextWithPdfLink
+  )}`;
+
+  if (isAndroidOrWebViewEnvironment()) {
+    window.location.href = whatsappShareUrl;
+    return 'whatsapp_opened';
+  }
+
+  // On Desktop browsers: save the PDF file locally AND open WhatsApp Web
+  try {
+    doc.save(fileName);
+  } catch {
+    // ignore
+  }
+  const popup = window.open(whatsappShareUrl, '_blank', 'noopener,noreferrer');
+  if (!popup) {
+    window.location.href = whatsappShareUrl;
+  }
   return 'downloaded';
 }
 
@@ -512,22 +1080,34 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isSharingPdf, setIsSharingPdf] = useState(false);
   const [shareStatusNote, setShareStatusNote] = useState<string>('');
+  const [showA4PdfSheet, setShowA4PdfSheet] = useState<boolean>(true);
 
   if (!booking) return null;
 
   const isCompleted = booking.status === 'completed';
   const digitalTimestamp = formatDigitalSignTimestamp(booking.pickupDate);
+  const a4PreviewDataUrl = renderA4GstInvoicePreviewDataUrl(booking);
+  const directServerPdfDownloadUrl = buildServerInvoicePdfUrl(booking, 'download');
+  const directServerPdfViewUrl = buildServerInvoicePdfUrl(booking, 'inline');
 
   const handleDownloadPdf = () => {
     setIsDownloadingPdf(true);
+    setShareStatusNote('');
     try {
       generateBookingInvoicePdf(booking);
+      setShareStatusNote(
+        `Downloading Official GST Tax Invoice PDF (${booking.id}.pdf)...`
+      );
     } finally {
-      setTimeout(() => setIsDownloadingPdf(false), 600);
+      setTimeout(() => setIsDownloadingPdf(false), 800);
     }
   };
 
   const handlePrint = () => {
+    if (isAndroidOrWebViewEnvironment()) {
+      handleDownloadPdf();
+      return;
+    }
     window.print();
   };
 
@@ -539,7 +1119,11 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
       const result = await shareBookingInvoicePdf(booking);
       if (result === 'downloaded') {
         setShareStatusNote(
-          `GST Bill PDF (${booking.id}.pdf) downloaded! You can now attach the PDF file directly in WhatsApp.`
+          `GST Bill PDF (${booking.id}.pdf) downloaded & WhatsApp opened with direct PDF Invoice link!`
+        );
+      } else if (result === 'whatsapp_opened') {
+        setShareStatusNote(
+          `Opening WhatsApp with your Official GST Invoice & PDF Bill link (${booking.id})...`
         );
       }
     } finally {
@@ -631,7 +1215,82 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 })}
               </span>
             </div>
+
+            {/* Quick Top Action Bar for Mobile App & Browser: Toggle A4 PDF Sheet, Download PDF, WhatsApp Share */}
+            <div className="no-print mt-3 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowA4PdfSheet(true)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    showA4PdfSheet
+                      ? 'bg-[#0F2958] text-white shadow-2xs'
+                      : 'text-slate-700 hover:text-slate-950'
+                  }`}
+                >
+                  📄 A4 GST PDF Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowA4PdfSheet(false)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    !showA4PdfSheet
+                      ? 'bg-[#0F2958] text-white shadow-2xs'
+                      : 'text-slate-700 hover:text-slate-950'
+                  }`}
+                >
+                  📋 Interactive Details
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={directServerPdfDownloadUrl}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleDownloadPdf();
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Save PDF</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={handleSharePdfOnWhatsApp}
+                  disabled={isSharingPdf}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span>WhatsApp PDF</span>
+                </button>
+              </div>
+            </div>
           </div>
+
+          {/* Live High-DPI A4 GST Invoice PDF Sheet Preview (Works 100% inside Android WebView & Browsers) */}
+          {showA4PdfSheet && a4PreviewDataUrl && (
+            <div className="no-print px-4 sm:px-6 pt-4 pb-2 bg-slate-100 border-b border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#0F2958]">
+                  Official A4 GST Tax Invoice Sheet ({booking.id}.pdf)
+                </span>
+                <a
+                  href={directServerPdfViewUrl}
+                  className="text-[11px] font-black text-blue-700 hover:underline flex items-center gap-1"
+                >
+                  <span>Open Full PDF File ↗</span>
+                </a>
+              </div>
+              <div className="rounded-xl overflow-hidden border-2 border-slate-300 shadow-md bg-white">
+                <img
+                  src={a4PreviewDataUrl}
+                  alt={`SafarIndiaCabs Official GST Invoice ${booking.id}`}
+                  className="w-full h-auto block select-none"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Receipt Body */}
           <div className="p-5 sm:p-6 space-y-4 bg-white">
@@ -944,6 +1603,18 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   dropCity: booking.dropCity,
                   bookingId: booking.id
                 })}
+                onClick={(e) => {
+                  if (isAndroidOrWebViewEnvironment()) {
+                    e.preventDefault();
+                    window.location.href = buildCustomerReviewWhatsAppUrl({
+                      customerName: booking.customerName,
+                      customerPhone: booking.customerPhone,
+                      pickupCity: booking.pickupCity,
+                      dropCity: booking.dropCity,
+                      bookingId: booking.id
+                    });
+                  }
+                }}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex-1 py-2.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"

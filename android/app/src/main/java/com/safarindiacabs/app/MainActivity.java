@@ -70,6 +70,7 @@ public class MainActivity extends Activity {
         setContentView(webView);
 
         configureSecureWebSettings(webView.getSettings());
+        webView.addJavascriptInterface(upiPaymentHelper, "SafarUpiBridge");
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);

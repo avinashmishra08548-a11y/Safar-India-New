@@ -13,6 +13,7 @@
  */
 
 import crypto from 'crypto';
+import { jsPDF } from 'jspdf';
 
 // Fleet pricing table matching src/data/cabsFleet.ts (CabBazar / Gozo / Savaari Calibrated Matrix)
 export const SERVER_CABS_FLEET = {
@@ -1658,6 +1659,461 @@ export function saveVerifiedBookingRecord({ booking, orderId, paymentId }) {
   return confirmedBooking;
 }
 
+const SERVER_AMAN_MISHRA_SIGNATURE_DATA_URL =
+  'data:image/png;base64,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';
+
+function formatServerDigitalSignTimestamp(dateInput) {
+  const dateObj =
+    dateInput instanceof Date
+      ? dateInput
+      : typeof dateInput === 'string' && dateInput.trim()
+      ? new Date(dateInput)
+      : new Date();
+  const validDate = Number.isNaN(dateObj.getTime()) ? new Date() : dateObj;
+  const yyyy = validDate.getFullYear();
+  const mm = String(validDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(validDate.getDate()).padStart(2, '0');
+  const hh = String(validDate.getHours()).padStart(2, '0');
+  const min = String(validDate.getMinutes()).padStart(2, '0');
+  const ss = String(validDate.getSeconds()).padStart(2, '0');
+  return `${yyyy}.${mm}.${dd} ${hh}:${min}:${ss} IST`;
+}
+
+function buildServerBookingInvoicePdfBuffer(booking) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2;
+
+  // Clean Light Theme Corporate Border
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, 297, 'F');
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.35);
+  doc.rect(margin - 2, 8, contentWidth + 4, 281);
+
+  // Top Dual Accent Line (Navy & Gold)
+  doc.setFillColor(15, 41, 88);
+  doc.rect(margin - 2, 8, (contentWidth + 4) * 0.72, 2.2, 'F');
+  doc.setFillColor(245, 158, 11);
+  doc.rect(margin - 2 + (contentWidth + 4) * 0.72, 8, (contentWidth + 4) * 0.28, 2.2, 'F');
+
+  let y = 14;
+
+  // 1. Official Vector Crest on Left + Company Info in Center + Invoice Box on Right
+  doc.setFillColor(15, 41, 88);
+  doc.setDrawColor(245, 158, 11);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(margin, y, 25, 25, 3, 3, 'FD');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('SAFAR', margin + 12.5, y + 9, { align: 'center' });
+  doc.setTextColor(251, 191, 36);
+  doc.setFontSize(8.5);
+  doc.text('INDIA', margin + 12.5, y + 14.2, { align: 'center' });
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(7.5);
+  doc.text('CABS', margin + 12.5, y + 19, { align: 'center' });
+  doc.setFontSize(5.5);
+  doc.setTextColor(203, 213, 225);
+  doc.text('A1 SERVICE', margin + 12.5, y + 22.8, { align: 'center' });
+
+  const companyX = margin + 29;
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('SafarIndiaCabs', companyX, y + 5.5);
+
+  doc.setTextColor(180, 83, 9);
+  doc.setFontSize(7.5);
+  doc.text('A1 CAB SERVICES  •  ALL INDIA COMMERCIAL TOUR & TRAVELS', companyX, y + 10);
+
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(8.2);
+  doc.text('GSTIN: 07DQHPA3025F1ZD   |   Proprietor: Aman Mishra', companyX, y + 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.setFontSize(7.6);
+  doc.text('Regd. Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', companyX, y + 19.5);
+  doc.text('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', companyX, y + 23.8);
+
+  const cleanIdSuffix = String(booking.id || 'SIC2601').replace(/^SIC-?/i, '');
+  const invoiceNo = `INV-SIC${cleanIdSuffix}`;
+  const invoiceDateStr = new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+
+  const badgeW = 54;
+  const badgeX = pageWidth - margin - badgeW;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(badgeX, y, badgeW, 25, 2, 2, 'FD');
+
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('TAX INVOICE', badgeX + badgeW - 3, y + 5.5, { align: 'right' });
+
+  doc.setTextColor(100, 116, 139);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text('ORIGINAL FOR RECIPIENT', badgeX + badgeW - 3, y + 9.2, { align: 'right' });
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text(`Inv No: ${invoiceNo}`, badgeX + badgeW - 3, y + 14.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Date: ${invoiceDateStr}`, badgeX + badgeW - 3, y + 18.8, { align: 'right' });
+  doc.text(`Booking ID: ${booking.id}`, badgeX + badgeW - 3, y + 22.8, { align: 'right' });
+
+  y += 29;
+
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 4;
+
+  // 2. Booking Status & SAC Strip
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, contentWidth, 9, 1.5, 1.5, 'FD');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  const statusLabel =
+    booking.status === 'completed'
+      ? 'STATUS: COMPLETED & SETTLED'
+      : booking.status === 'cancelled'
+      ? 'STATUS: CANCELLED'
+      : 'STATUS: CONFIRMED BOOKING';
+  doc.text(statusLabel, margin + 3.5, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+  doc.text('SAC Code: 996412 (Passenger Transport by Cab)', pageWidth - margin - 3.5, y + 6, {
+    align: 'right'
+  });
+
+  y += 12.5;
+
+  // 3. Two-Column Customer & Vehicle Summary
+  const colWidth = (contentWidth - 5) / 2;
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, y, colWidth, 31, 2, 2, 'FD');
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin + 0.2, y + 0.2, colWidth - 0.4, 6.8, 'F');
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('BILLED TO (CUSTOMER / CORPORATE DETAILS)', margin + 3.5, y + 4.8);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.text(String(booking.customerName || 'Valued Passenger').slice(0, 38), margin + 3.5, y + 12.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Mobile: +91 ${booking.customerPhone || '7710080992'}`, margin + 3.5, y + 18);
+  if (booking.customerGst) {
+    doc.text(
+      `Company: ${booking.gstCompanyName || '-'} | GSTIN: ${booking.customerGst}`,
+      margin + 3.5,
+      y + 23.2
+    );
+  } else if (booking.customerEmail) {
+    doc.text(`Email: ${booking.customerEmail}`, margin + 3.5, y + 23.2);
+  } else {
+    doc.text(`Payment Ref: ${booking.transactionId || 'Verified Online/Cash'}`, margin + 3.5, y + 23.2);
+  }
+  doc.text('Place of Supply: North India / Delhi (07)', margin + 3.5, y + 28.2);
+
+  const rightX = margin + colWidth + 5;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(rightX, y, colWidth, 31, 2, 2, 'FD');
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(rightX + 0.2, y + 0.2, colWidth - 0.4, 6.8, 'F');
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('TRIP & VEHICLE PARTICULARS', rightX + 3.5, y + 4.8);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(9.5);
+  doc.text(String(booking.cabName || 'Sedan AC').slice(0, 38), rightX + 3.5, y + 12.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Travel Date: ${booking.pickupDate || '-'} at ${booking.pickupTime || '-'}`, rightX + 3.5, y + 18);
+  doc.text(
+    `Trip Type: ${String(booking.tripType || 'ONEWAY').toUpperCase()}  |  Billed Dist: ${booking.distanceKm || 230} KM`,
+    rightX + 3.5,
+    y + 23.2
+  );
+  doc.text(
+    `Chauffeur: ${booking.driverName || 'Verified Safar Chauffeur'} (${booking.driverVehicleNo || 'Commercial Cab'})`,
+    rightX + 3.5,
+    y + 28.2
+  );
+
+  y += 35;
+
+  // 4. Route & Location Details Box
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, y, contentWidth, 24, 2, 2, 'FD');
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin + 0.2, y + 0.2, contentWidth - 0.4, 6.5, 'F');
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('JOURNEY PICKUP & DROP ITINERARY', margin + 3.5, y + 4.6);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(8.2);
+  doc.text('Pickup Location:', margin + 3.5, y + 12.5);
+  doc.setFont('helvetica', 'normal');
+  const pickupFull = booking.pickupAddress
+    ? `${booking.pickupAddress}, ${booking.pickupCity}${booking.landmark ? ` (Landmark: ${booking.landmark})` : ''}`
+    : booking.pickupCity || 'Delhi NCR';
+  doc.text(String(pickupFull).slice(0, 88), margin + 30, y + 12.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Drop Location:', margin + 3.5, y + 19.5);
+  doc.setFont('helvetica', 'normal');
+  const dropFull = booking.dropAddress
+    ? `${booking.dropAddress}, ${booking.dropCity}`
+    : booking.dropCity || booking.pickupCity || 'Destination';
+  doc.text(String(dropFull).slice(0, 88), margin + 30, y + 19.5);
+
+  y += 28;
+
+  // 5. Itemized Fare & GST Tax Table
+  const totalFare = Number(booking.totalFare || 0);
+  const gstAmount = Number(booking.gstAmount ?? Math.round((booking.baseFare || totalFare) * 0.05));
+  const halfGst = Math.round(gstAmount / 2);
+  const tolls = Number(booking.tollsAndTaxes || 0);
+  const driverAllowance = Number(booking.driverAllowance || 0);
+  const baseFare =
+    Number(booking.baseFare || 0) ||
+    Math.max(0, totalFare - gstAmount - tolls - driverAllowance);
+  const taxableValue = baseFare + driverAllowance + tolls;
+
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.rect(margin, y, contentWidth, 8, 'FD');
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.text('DESCRIPTION OF PASSENGER TRANSPORT SERVICES (SAC: 996412)', margin + 3.5, y + 5.3);
+  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 5.3, { align: 'right' });
+
+  y += 8;
+
+  const rows = [
+    {
+      label: `1. Base Cab Hire Charges (${booking.cabName || 'Sedan AC'} - ${booking.distanceKm || 230} KM Included)`,
+      value: `INR ${baseFare.toLocaleString('en-IN')}.00`
+    },
+    {
+      label: '2. Chauffeur Allowance / Daily Driver Bata Charges',
+      value: driverAllowance > 0 ? `INR ${driverAllowance.toLocaleString('en-IN')}.00` : 'Included (INR 0.00)'
+    },
+    {
+      label: '3. Highway FASTag Toll & State Entry Permit Tax',
+      value: tolls > 0 ? `INR ${tolls.toLocaleString('en-IN')}.00` : 'As Applicable'
+    },
+    {
+      label: 'Total Taxable Value',
+      value: `INR ${taxableValue.toLocaleString('en-IN')}.00`,
+      bold: true
+    },
+    {
+      label: 'Add: Central GST (CGST @ 2.5% under SAC 996412)',
+      value: `INR ${halfGst.toLocaleString('en-IN')}.00`
+    },
+    {
+      label: 'Add: State GST (SGST @ 2.5% under SAC 996412)',
+      value: `INR ${(gstAmount - halfGst).toLocaleString('en-IN')}.00`
+    }
+  ];
+
+  rows.forEach((row, index) => {
+    doc.setFillColor(index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 250, index % 2 === 0 ? 255 : 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(margin, y, contentWidth, 7.6, 'FD');
+    doc.setFont('helvetica', row.bold ? 'bold' : 'normal');
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(8.2);
+    doc.text(row.label, margin + 3.5, y + 5.1);
+    doc.text(row.value, pageWidth - margin - 3.5, y + 5.1, { align: 'right' });
+    y += 7.6;
+  });
+
+  // Grand Total Row
+  doc.setFillColor(254, 243, 199);
+  doc.setDrawColor(245, 158, 11);
+  doc.rect(margin, y, contentWidth, 9.2, 'FD');
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('TOTAL INVOICE VALUE (INCLUSIVE OF 5% GST)', margin + 3.5, y + 6.1);
+  doc.text(`INR ${totalFare.toLocaleString('en-IN')}.00`, pageWidth - margin - 3.5, y + 6.1, {
+    align: 'right'
+  });
+
+  y += 11.5;
+
+  // Payment Settlement Summary Strip
+  const isSettled = booking.status === 'completed' || Number(booking.balanceDue) === 0;
+  doc.setFillColor(240, 253, 244);
+  doc.setDrawColor(187, 247, 208);
+  doc.roundedRect(margin, y, contentWidth, 14, 1.8, 1.8, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.2);
+  doc.setTextColor(21, 128, 61);
+  const advancePaid = Number(booking.advancePaid || 0);
+  const balanceDue = Number(booking.balanceDue || 0);
+  doc.text(
+    isSettled
+      ? `PAYMENT STATUS: 100% PAID & SETTLED (INR ${totalFare.toLocaleString('en-IN')}.00)`
+      : `ADVANCE PAID: INR ${advancePaid.toLocaleString('en-IN')}.00`,
+    margin + 3.5,
+    y + 5.8
+  );
+
+  doc.setTextColor(180, 83, 9);
+  doc.text(
+    isSettled
+      ? 'REMAINING BALANCE DUE: INR 0.00 (NIL)'
+      : `BALANCE PAYABLE TO CHAUFFEUR: INR ${balanceDue.toLocaleString('en-IN')}.00`,
+    pageWidth - margin - 3.5,
+    y + 5.8,
+    { align: 'right' }
+  );
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.4);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    `Payment Mode: ${String(booking.paymentMethod || 'Online / UPI / Cash').toUpperCase()}   |   Transaction Ref: ${booking.transactionId || booking.id}`,
+    margin + 3.5,
+    y + 11.2
+  );
+
+  y += 18;
+
+  // 6. Bottom Verification Footer
+  const footerH = 42;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(margin, y, contentWidth, footerH, 2, 2, 'FD');
+
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.8);
+  doc.text('TERMS & JURISDICTION:', margin + 3.5, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(71, 85, 105);
+  doc.text('1. Certified that particulars given above are true & correct.', margin + 3.5, y + 11);
+  doc.text('2. Extra KM/Hour or parking if applicable as per tariff.', margin + 3.5, y + 15.2);
+  doc.text('3. Subject to North Delhi Jurisdiction only.', margin + 3.5, y + 19.4);
+  doc.text('4. 24x7 Helpline: +91 7710080992 | Safarindiacabs01@gmail.com', margin + 3.5, y + 23.6);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Regd. Office: H NO 143 Street 4 Jharoda Majra Burari Delhi 110084', margin + 3.5, y + 29);
+
+  const digBoxX = margin + 74;
+  const digBoxW = 54;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(digBoxX, y + 5, digBoxW, 31, 1.5, 1.5, 'FD');
+
+  const digitalTimestamp = formatServerDigitalSignTimestamp(booking.pickupDate);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.text('Digitally signed by', digBoxX + 2.5, y + 10.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.text('SAFARINDIACABS', digBoxX + 2.5, y + 14.5);
+  doc.text('(AMAN MISHRA)', digBoxX + 2.5, y + 18.2);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.4);
+  doc.setTextColor(51, 65, 85);
+  doc.text('GSTIN: 07DQHPA3025F1ZD', digBoxX + 2.5, y + 22.5);
+  doc.text(`Date: ${digitalTimestamp}`, digBoxX + 2.5, y + 26.5);
+  doc.text('Location: IN (Verified)', digBoxX + 2.5, y + 30.5);
+
+  const signCenterX = pageWidth - margin - 29;
+  doc.setTextColor(15, 41, 88);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('For SafarIndiaCabs', signCenterX, y + 5.5, { align: 'center' });
+
+  // Draw Official Circular Rubber Mohar Stamp (Vector)
+  const stampCx = pageWidth - margin - 42;
+  const stampCy = y + 20;
+  doc.setDrawColor(29, 78, 216);
+  doc.setLineWidth(0.55);
+  doc.circle(stampCx, stampCy, 11.5, 'S');
+  doc.setLineWidth(0.25);
+  doc.circle(stampCx, stampCy, 10.4, 'S');
+  doc.circle(stampCx, stampCy, 7.2, 'S');
+  doc.setTextColor(29, 78, 216);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.5);
+  doc.text('SAFAR INDIA CABS', stampCx, stampCy - 7.8, { align: 'center' });
+  doc.setFontSize(4.2);
+  doc.text('GST: 07DQHPA3025F1ZD', stampCx, stampCy - 1.5, { align: 'center' });
+  doc.text('VERIFIED TAX INVOICE', stampCx, stampCy + 1.2, { align: 'center' });
+  doc.text('PROP: AMAN MISHRA', stampCx, stampCy + 3.8, { align: 'center' });
+  doc.setFontSize(4.0);
+  doc.text('NORTH DELHI-110084', stampCx, stampCy + 8.6, { align: 'center' });
+
+  // Embed Proprietor Aman Mishra's authentic handwritten signature PNG
+  try {
+    doc.addImage(SERVER_AMAN_MISHRA_SIGNATURE_DATA_URL, 'PNG', pageWidth - margin - 38, y + 13, 33, 14);
+  } catch {
+    // ignore signature image error
+  }
+
+  doc.setDrawColor(148, 163, 184);
+  doc.setLineWidth(0.3);
+  doc.line(pageWidth - margin - 54, y + 34.5, pageWidth - margin - 4, y + 34.5);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.text('Prop. Aman Mishra (Signatory)', signCenterX, y + 38.5, { align: 'center' });
+
+  return Buffer.from(doc.output('arraybuffer'));
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1673,7 +2129,88 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const forceSync = req.query?.force === '1' || req.query?.force === 'true';
+    let query = req.query || {};
+    try {
+      const parsedUrl = new URL(req.url || '/', 'https://safarindiacabs.com');
+      const urlParams = {};
+      parsedUrl.searchParams.forEach((v, k) => {
+        urlParams[k] = v;
+      });
+      query = { ...urlParams, ...query };
+    } catch {}
+
+    if (query.action === 'invoice_pdf') {
+      try {
+        const rawId = String(query.id || query.bookingId || 'SIC2601').trim();
+        const existing = storedBookings.find(
+          (b) => b && String(b.id).toUpperCase() === rawId.toUpperCase()
+        );
+        const totalFare = Number(query.totalFare ?? existing?.totalFare ?? 0);
+        const gstAmount = Number(
+          query.gstAmount ?? existing?.gstAmount ?? Math.round(totalFare * 0.05)
+        );
+        const tollsAndTaxes = Number(query.tollsAndTaxes ?? existing?.tollsAndTaxes ?? 0);
+        const driverAllowance = Number(query.driverAllowance ?? existing?.driverAllowance ?? 0);
+        const baseFare =
+          Number(query.baseFare ?? existing?.baseFare ?? 0) ||
+          Math.max(0, totalFare - gstAmount - tollsAndTaxes - driverAllowance);
+        const advancePaid = Number(query.advancePaid ?? existing?.advancePaid ?? 0);
+        const balanceDue = Number(
+          query.balanceDue ?? existing?.balanceDue ?? Math.max(0, totalFare - advancePaid)
+        );
+
+        const invoiceBooking = {
+          ...(existing || {}),
+          id: rawId,
+          customerName: query.customerName || existing?.customerName || 'Verified Passenger',
+          customerPhone: query.customerPhone || existing?.customerPhone || '7710080992',
+          customerEmail: query.customerEmail || existing?.customerEmail || '',
+          customerGst: query.customerGst || existing?.customerGst || '',
+          gstCompanyName: query.gstCompanyName || existing?.gstCompanyName || '',
+          tripType: query.tripType || existing?.tripType || 'oneway',
+          pickupCity: query.pickupCity || existing?.pickupCity || 'Delhi NCR',
+          dropCity: query.dropCity || existing?.dropCity || 'Destination',
+          pickupAddress: query.pickupAddress || existing?.pickupAddress || '',
+          dropAddress: query.dropAddress || existing?.dropAddress || '',
+          landmark: query.landmark || existing?.landmark || '',
+          pickupDate:
+            query.pickupDate || existing?.pickupDate || new Date().toISOString().slice(0, 10),
+          pickupTime: query.pickupTime || existing?.pickupTime || '08:00 AM',
+          cabName: query.cabName || existing?.cabName || 'Sedan AC (Dzire / Etios)',
+          distanceKm: Number(query.distanceKm || existing?.distanceKm || 230),
+          baseFare,
+          driverAllowance,
+          tollsAndTaxes,
+          gstAmount,
+          totalFare,
+          advancePaid,
+          balanceDue,
+          status: query.status || existing?.status || 'confirmed',
+          paymentMethod: query.paymentMethod || existing?.paymentMethod || 'Razorpay Verified',
+          transactionId: query.transactionId || existing?.transactionId || rawId,
+          driverName: query.driverName || existing?.driverName || '',
+          driverPhone: query.driverPhone || existing?.driverPhone || '',
+          driverVehicleNo: query.driverVehicleNo || existing?.driverVehicleNo || '',
+          createdAt: query.createdAt || existing?.createdAt || new Date().toISOString()
+        };
+
+        const pdfBuffer = buildServerBookingInvoicePdfBuffer(invoiceBooking);
+        const safeFileId = rawId.replace(/[^A-Za-z0-9_-]/g, '') || 'SIC2601';
+        const fileName = `SafarIndiaCabs_GST_Invoice_${safeFileId}.pdf`;
+        const disposition = query.mode === 'inline' || query.mode === 'view' ? 'inline' : 'attachment';
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
+        res.setHeader('Content-Length', String(pdfBuffer.length));
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.status(200).end(pdfBuffer);
+      } catch (pdfErr) {
+        console.error('[/api/bookings?action=invoice_pdf] Error generating PDF:', pdfErr);
+        return res.status(500).json({ error: 'Failed to generate invoice PDF' });
+      }
+    }
+
+    const forceSync = query.force === '1' || query.force === 'true';
     await syncBookingsFromRazorpayGateway(forceSync);
     const cleanList = storedBookings.filter(
       (b) => b && !b.id.includes('DEMO') && !b.id.includes('TEST')
