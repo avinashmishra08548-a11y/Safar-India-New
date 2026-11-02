@@ -18,11 +18,11 @@ import { formatINR } from '../utils/fareCalculator';
 import { buildCustomerReviewWhatsAppUrl } from '../utils/whatsapp';
 import { formatWhatsAppBookingConfirmationMessage } from '../utils/whatsappService';
 import {
+  OFFICIAL_SAFAR_LOGO_DATA_URL,
   renderOfficialRubberStampDataUrl,
   renderDefaultProprietorSignatureDataUrl,
   formatDigitalSignTimestamp
-} from './OwnerBillGenerator';
-import { OFFICIAL_SAFAR_LOGO_DATA_URL } from '../utils/officialSignatureData';
+} from '../utils/officialSignatureData';
 import { jsPDF } from 'jspdf';
 
 export const OFFICIAL_WHATSAPP_NUMBER = '917710080992';

@@ -446,6 +446,16 @@ export const Footer: React.FC<FooterProps> = ({
                 </button>
               </>
             )}
+            <span>·</span>
+            <a
+              href="https://admin.safarindiacabs.com"
+              target="_top"
+              rel="noopener noreferrer"
+              className="text-slate-700 hover:text-amber-700 font-extrabold flex items-center gap-1 transition cursor-pointer"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>Admin Login</span>
+            </a>
           </div>
         </div>
       </div>

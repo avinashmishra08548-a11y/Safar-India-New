@@ -35,13 +35,23 @@ import {
 import { Header, NavTabId } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
-import { PopularRoutesSection } from './components/PopularRoutesSection';
-import { CabBazarAdvantages } from './components/CabBazarAdvantages';
-import { CustomerReviews } from './components/CustomerReviews';
-import { FaqSection } from './components/FaqSection';
-import { DriverPartnerSection } from './components/DriverPartnerSection';
 import { Footer } from './components/Footer';
 
+const PopularRoutesSection = lazy(() =>
+  import('./components/PopularRoutesSection').then((m) => ({ default: m.PopularRoutesSection }))
+);
+const CabBazarAdvantages = lazy(() =>
+  import('./components/CabBazarAdvantages').then((m) => ({ default: m.CabBazarAdvantages }))
+);
+const CustomerReviews = lazy(() =>
+  import('./components/CustomerReviews').then((m) => ({ default: m.CustomerReviews }))
+);
+const FaqSection = lazy(() =>
+  import('./components/FaqSection').then((m) => ({ default: m.FaqSection }))
+);
+const DriverPartnerSection = lazy(() =>
+  import('./components/DriverPartnerSection').then((m) => ({ default: m.DriverPartnerSection }))
+);
 const BookingModal = lazy(() =>
   import('./components/BookingModal').then((m) => ({ default: m.BookingModal }))
 );
@@ -61,9 +71,6 @@ const CustomerAuthModal = lazy(() =>
 );
 const DriverPartnerModal = lazy(() =>
   import('./components/DriverPartnerModal').then((m) => ({ default: m.DriverPartnerModal }))
-);
-const AdminDashboard = lazy(() =>
-  import('./components/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
 );
 const AboutSectionView = lazy(() =>
   import('./components/AboutAndHelpViews').then((m) => ({ default: m.AboutSectionView }))
@@ -232,6 +239,11 @@ export default function App() {
 
         const pathname = (window.location.pathname || '').trim().toLowerCase().replace(/\/+$/, '');
         if (!pathname || pathname === '/') return;
+
+        if (pathname === '/admin' || pathname === '/owner' || pathname === '/admin-login') {
+          window.location.replace('https://admin.safarindiacabs.com');
+          return;
+        }
 
         if (pathname === '/privacy-policy' || pathname === '/privacy') {
           setLegalPolicyModalTab('privacy');
@@ -600,9 +612,12 @@ export default function App() {
     }
   };
 
-  // Sync real persistent bookings from serverless backend on mount
+  // Sync real persistent bookings from serverless backend after initial paint so UI is instant
   useEffect(() => {
-    refreshAllBookings(false);
+    const timer = window.setTimeout(() => {
+      refreshAllBookings(false);
+    }, 200);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -886,126 +901,6 @@ export default function App() {
     setTimeout(() => setAuthNotice(''), 5000);
   };
 
-  // Admin Dashboard States & Handlers
-  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
-  const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
-  const [adminPinInput, setAdminPinInput] = useState('');
-  const [adminPinError, setAdminPinError] = useState('');
-
-  // Secret Owner PIN saved securely in storage (default 0992)
-  const [ownerPin, setOwnerPin] = useState(() => {
-    try {
-      return localStorage.getItem('safar_owner_pin') || '0992';
-    } catch {
-      return '0992';
-    }
-  });
-
-  const handleVerifyAdminPin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminPinInput === ownerPin) {
-      setIsAdminPinModalOpen(false);
-      setIsAdminDashboardOpen(true);
-      setAdminPinInput('');
-      setAdminPinError('');
-    } else {
-      setAdminPinError('Incorrect PIN! Access denied.');
-    }
-  };
-
-  const handleChangeOwnerPin = (newPin: string) => {
-    setOwnerPin(newPin);
-    try {
-      localStorage.setItem('safar_owner_pin', newPin);
-    } catch {}
-  };
-
-  // Automatically sync bookings when Owner Panel opens and every 15s while open
-  useEffect(() => {
-    if (!isAdminDashboardOpen) return;
-    refreshAllBookings(true);
-    const interval = setInterval(() => {
-      refreshAllBookings(true);
-    }, 15000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdminDashboardOpen]);
-
-  const handleUpdateBookingStatusByAdmin = (
-    bookingId: string, 
-    status: 'confirmed' | 'completed' | 'cancelled',
-    driverInfo?: { name: string; phone: string; carPlate: string; vehicleModel?: string }
-  ) => {
-    let targetUpdatedBooking: BookingRecord | null = null;
-
-    setAllBookings(prev => {
-      let completedRecord: BookingRecord | null = null;
-      const next = prev.map(b => {
-        if (b.id === bookingId) {
-          const updated: BookingRecord = {
-            ...b,
-            status,
-            driverName: driverInfo?.name || b.driverName,
-            driverPhone: driverInfo?.phone || b.driverPhone,
-            driverVehicleModel: driverInfo?.vehicleModel || b.driverVehicleModel,
-            driverVehicleNo: driverInfo?.carPlate || b.driverVehicleNo,
-            driverAssignedAt: driverInfo ? new Date().toISOString() : b.driverAssignedAt,
-            notes: driverInfo 
-              ? `Driver: ${driverInfo.name} (${driverInfo.phone}) | ${driverInfo.vehicleModel || 'Cab'} (${driverInfo.carPlate})` 
-              : b.notes
-          };
-          targetUpdatedBooking = updated;
-          if (status === 'completed') {
-            completedRecord = updated;
-          }
-          return updated;
-        }
-        return b;
-      });
-      try {
-        localStorage.setItem('safar_bookings', JSON.stringify(next));
-      } catch {}
-      if (completedRecord) {
-        setTimeout(() => setActiveVoucherBooking(completedRecord), 50);
-      }
-      return next;
-    });
-
-    if (targetUpdatedBooking) {
-      saveBookingToCloudDatabase(targetUpdatedBooking).catch(() => {});
-    }
-
-    // Sync status change and full booking record to backend
-    fetch('/api/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'update_status',
-        bookingId,
-        status,
-        driverInfo,
-        booking: targetUpdatedBooking
-      })
-    }).catch(() => {});
-  };
-
-  const handleClearDemoBookings = () => {
-    setAllBookings(prev => {
-      // Remove mock/demo bookings without genuine transaction IDs
-      const filtered = prev.filter(b => b.transactionId && !b.id.includes('DEMO') && !b.id.includes('TEST'));
-      try {
-        localStorage.setItem('safar_bookings', JSON.stringify(filtered));
-      } catch {}
-      return filtered;
-    });
-
-    fetch('/api/bookings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'clear_demo' })
-    }).catch(() => {});
-  };
-
   const handleOpenAvailableCabs = () => {
     setIsCabsModalOpen(true);
   };
@@ -1019,7 +914,6 @@ export default function App() {
         onLogout={handleLogout}
         onNavigateTab={handleSwitchTab}
         activeNavTab={activeTab}
-        onOpenAdmin={() => setIsAdminPinModalOpen(true)}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
         onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
       />
@@ -1078,7 +972,9 @@ export default function App() {
               </button>
             </div>
 
-            <PopularRoutesSection onSelectRoute={handlePopularRouteClick} />
+            <Suspense fallback={<div className="py-12 text-center text-sm text-slate-600 font-semibold">Loading intercity routes...</div>}>
+              <PopularRoutesSection onSelectRoute={handlePopularRouteClick} />
+            </Suspense>
           </div>
         ) : activeTab === 'about' ? (
           /* DEDICATED VIEW 3: ABOUT COMPANY, ADVANTAGES, REVIEWS & FLEET */
@@ -1093,16 +989,16 @@ export default function App() {
                 onNavigateToRoutes={() => handleSwitchTab('routes', 'routes-section-top')}
                 onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
               />
-            </Suspense>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-              <CabBazarAdvantages />
-              <CustomerReviews
-                currentUser={currentUser}
-                onOpenReviewsModal={() => setIsReviewsModalOpen(true)}
-              />
-              <DriverPartnerSection onOpenPartnerModal={() => setIsDriverPartnerOpen(true)} />
-            </div>
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+                <CabBazarAdvantages />
+                <CustomerReviews
+                  currentUser={currentUser}
+                  onOpenReviewsModal={() => setIsReviewsModalOpen(true)}
+                />
+                <DriverPartnerSection onOpenPartnerModal={() => setIsDriverPartnerOpen(true)} />
+              </div>
+            </Suspense>
           </div>
         ) : activeTab === 'help' ? (
           /* DEDICATED VIEW 4: 24/7 HELP, FAQS & LEGAL POLICIES */
@@ -1117,11 +1013,11 @@ export default function App() {
                 onNavigateToRides={() => handleSwitchTab('rides', 'rides-section-top')}
                 onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
               />
-            </Suspense>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <FaqSection />
-            </div>
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <FaqSection />
+              </div>
+            </Suspense>
 
             <Footer
               activeNavTab={activeTab}
@@ -1564,90 +1460,6 @@ export default function App() {
           <span>{authNotice}</span>
         </div>
       )}
-
-      {/* Owner Security PIN Modal */}
-      {isAdminPinModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-60 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-xs w-full p-6 text-center space-y-4 shadow-2xl relative">
-            <button
-              type="button"
-              aria-label="Close owner PIN modal"
-              onClick={() => {
-                setIsAdminPinModalOpen(false);
-                setAdminPinError('');
-                setAdminPinInput('');
-              }}
-              className="absolute top-4 right-4 text-slate-500 hover:text-slate-800"
-            >
-              ✕
-            </button>
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
-              <ShieldCheck className="w-6 h-6 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">Owner Access PIN</h3>
-              <p className="text-xs text-slate-600 mt-0.5">Enter secret security PIN to manage bookings</p>
-            </div>
-            {adminPinError && (
-              <div className="text-xs text-rose-700 bg-rose-50 py-1.5 px-2 rounded-lg border border-rose-200">
-                {adminPinError}
-              </div>
-            )}
-            <form onSubmit={handleVerifyAdminPin} className="space-y-3">
-              <input
-                type="password"
-                aria-label="Owner 4-digit security PIN"
-                maxLength={4}
-                autoFocus
-                value={adminPinInput}
-                onChange={(e) => setAdminPinInput(e.target.value.replace(/\D/g, ''))}
-                placeholder="••••"
-                className="w-32 text-center tracking-[0.5em] text-xl font-black bg-slate-50 border border-slate-300 rounded-2xl py-2.5 text-slate-900 focus:outline-none focus:border-amber-500 font-mono mx-auto block"
-              />
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs rounded-xl transition shadow-sm"
-              >
-                Unlock Dashboard
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Admin Dashboard */}
-      {isAdminDashboardOpen && (
-        <Suspense fallback={null}>
-          <AdminDashboard
-            isOpen={isAdminDashboardOpen}
-            onClose={() => setIsAdminDashboardOpen(false)}
-            bookings={allBookings}
-            onUpdateBookingStatus={handleUpdateBookingStatusByAdmin}
-            onChangePin={handleChangeOwnerPin}
-            onClearDemoBookings={handleClearDemoBookings}
-            onRefreshBookings={() => refreshAllBookings(true)}
-            onOpenBookingReceipt={(b) => setActiveVoucherBooking(b)}
-            onCreateManualBooking={(newBooking) => {
-              setAllBookings(prev => {
-                const next = mergeBookingsList([newBooking, ...prev], [newBooking]);
-                try {
-                  localStorage.setItem('safar_bookings', JSON.stringify(next));
-                } catch {}
-                return next;
-              });
-              if (newBooking.status === 'completed') {
-                setActiveVoucherBooking(newBooking);
-              }
-              fetch('/api/bookings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ booking: newBooking })
-              }).catch(() => {});
-            }}
-          />
-        </Suspense>
-      )}
-
     </div>
   );
 }

@@ -586,25 +586,22 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
 
-              {/* Owner Control Panel (PIN Protected Only — No Public Build Files) */}
-              {onOpenAdmin && (
-                <div className="pt-3 border-t border-slate-800 space-y-2">
-                  <div className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                    Administration
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenAdmin();
-                    }}
-                    className="w-full min-h-[46px] py-2.5 px-4 text-xs text-amber-400 font-extrabold bg-slate-900 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Shield className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>Owner Control Panel (PIN Protected)</span>
-                  </button>
+              {/* Dedicated Admin Portal Redirect (admin.safarindiacabs.com) */}
+              <div className="pt-3 border-t border-slate-800 space-y-2">
+                <div className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Administration
                 </div>
-              )}
+                <a
+                  href="https://admin.safarindiacabs.com"
+                  target="_top"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full min-h-[46px] py-2.5 px-4 text-xs text-amber-400 font-extrabold bg-slate-900 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-center gap-2 cursor-pointer transition"
+                >
+                  <Shield className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Owner Control Panel / Admin Login</span>
+                </a>
+              </div>
             </div>
 
             {/* 3. Anchored Drawer Bottom Footer (Prevents Infinite Scroll Past Last Option) */}
