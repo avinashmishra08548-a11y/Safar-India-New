@@ -1,0 +1,18 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.safarindiacabs.app",
+      "sha256_cert_fingerprints": [
+        "22:24:78:4F:33:7C:71:EB:78:CA:65:42:0F:BE:EF:52:4B:69:61:6D:49:4C:3F:A3:F7:44:05:24:EA:27:30:96",
+        "48:2C:93:9A:CE:D7:1D:DA:30:44:3E:A3:23:91:DC:68:4C:15:8D:0A:0E:D5:69:F8:75:5A:0A:D0:99:C6:43:23",
+        "E8:AC:9B:CA:9D:B6:60:EA:87:CA:D3:71:58:FC:5F:88:59:D5:AB:AE:0C:44:EE:54:56:44:4D:14:48:00:3E:74",
+        "80:10:08:53:EA:04:64:82:4F:FD:50:28:3D:09:90:12:33:01:B7:12:90:1B:41:E4:05:ED:A9:88:75:5C:94:7D"
+      ]
+    }
+  }
+]

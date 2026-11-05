@@ -18,6 +18,18 @@ export default defineConfig(() => {
           server.middlewares.use(async (req, res, next) => {
             if (req.url) {
               const cleanUrl = req.url.split('?')[0];
+              if (cleanUrl === '/.well-known/assetlinks.json') {
+                const assetLinksPath = path.resolve(__dirname, 'public/.well-known/assetlinks.json');
+                if (fs.existsSync(assetLinksPath)) {
+                  const content = fs.readFileSync(assetLinksPath, 'utf-8');
+                  res.statusCode = 200;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.setHeader('Access-Control-Allow-Origin', '*');
+                  res.setHeader('Cache-Control', 'public, max-age=3600');
+                  res.end(content);
+                  return;
+                }
+              }
               if (
                 cleanUrl === '/com.safarindiacabs.app-release.aab' ||
                 cleanUrl === '/com.safarindiacabs.app.aab' ||
