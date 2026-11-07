@@ -481,6 +481,12 @@ export default function App() {
         return;
       }
 
+      // Instant 0ms local highway estimate before async verification completes
+      const quickEstimate = estimateDistanceKm(cleanPickup, cleanDrop);
+      if (!isCancelled && quickEstimate > 0) {
+        setDistanceKm(quickEstimate);
+      }
+
       const res = await calculateExactRoadDistance(cleanPickup, cleanDrop, pickupCoords, dropCoords);
       if (!isCancelled) {
         setDistanceKm(res.distanceKm);
@@ -499,7 +505,7 @@ export default function App() {
           setDropCoords(res.destCoords);
         }
       }
-    }, 120);
+    }, 40);
 
     return () => {
       isCancelled = true;
@@ -961,8 +967,8 @@ export default function App() {
   };
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
-      {/* Fixed Top Header + Active Tab Title Strip */}
+    <div className="min-h-[100dvh] bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
+      {/* Sticky Top Header + Active Tab Title Strip */}
       <Header
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthModalOpen(true)}
@@ -974,11 +980,11 @@ export default function App() {
         onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
       />
 
-      {/* Independent Scrollable Inner Content Area (Only this container scrolls!) */}
+      {/* Smooth Main Content Area (Works seamlessly on Mobile, Desktop, and Desktop-Site-on-Mobile) */}
       <main
         ref={mainScrollRef}
         id="app-content"
-        className="safar-main-scroll flex-1 overflow-y-auto overscroll-y-contain pb-24 sm:pb-12"
+        className="safar-main-scroll flex-1 pb-24 sm:pb-16"
       >
         {activeTab === 'rides' ? (
           /* DEDICATED VIEW 1: MY RIDES & GST INVOICES */
@@ -1240,10 +1246,10 @@ export default function App() {
         </a>
       </div>
 
-      {/* Fixed Bottom Navigation Bar with Smooth Active State Highlighting */}
+      {/* Sticky Bottom Navigation Bar with Smooth Active State Highlighting */}
       <nav
         aria-label="Bottom tab navigation"
-        className="shrink-0 w-full bg-[#0B0F19] border-t border-slate-800 z-[1000] px-2 py-1.5 pb-[max(6px,env(safe-area-inset-bottom,6px))] shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+        className="sticky bottom-0 shrink-0 w-full bg-[#0B0F19] border-t border-slate-800 z-[1000] px-2 py-1.5 pb-[max(6px,env(safe-area-inset-bottom,6px))] shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
       >
         <div className="max-w-lg mx-auto grid grid-cols-5 text-center items-center gap-1.5">
           {[

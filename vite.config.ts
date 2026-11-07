@@ -144,6 +144,8 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              if (id.includes('maplibre-gl')) return 'maplibre-vendor';
+              if (id.includes('firebase')) return 'firebase-vendor';
               if (id.includes('lucide-react')) return 'lucide-icons';
               if (
                 id.includes('/react/') ||

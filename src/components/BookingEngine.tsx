@@ -283,6 +283,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   useEffect(() => {
     let active = true;
+    const delay = (pickupCity || '').trim().length < 2 ? 0 : 50;
     const timer = setTimeout(async () => {
       if (showPickupDropdown) {
         setIsLoadingPickup(true);
@@ -297,7 +298,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           if (active) setIsLoadingPickup(false);
         }
       }
-    }, 120);
+    }, delay);
 
     return () => {
       active = false;
@@ -307,6 +308,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   useEffect(() => {
     let active = true;
+    const delay = (dropCity || '').trim().length < 2 ? 0 : 50;
     const timer = setTimeout(async () => {
       if (showDropDropdown) {
         setIsLoadingDrop(true);
@@ -321,7 +323,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           if (active) setIsLoadingDrop(false);
         }
       }
-    }, 120);
+    }, delay);
 
     return () => {
       active = false;
@@ -337,6 +339,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
   useEffect(() => {
     let active = true;
+    const delay = (currentActiveStopQuery || '').trim().length < 2 ? 0 : 50;
     const timer = setTimeout(async () => {
       if (activeStopDropdownIndex !== null) {
         setIsLoadingStop(true);
@@ -351,7 +354,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           if (active) setIsLoadingStop(false);
         }
       }
-    }, 120);
+    }, delay);
 
     return () => {
       active = false;
@@ -650,11 +653,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       return;
     }
 
-    setIsSearchingCabs(true);
-    setTimeout(() => {
-      setIsSearchingCabs(false);
-      onExploreCabs();
-    }, 380);
+    setIsSearchingCabs(false);
+    onExploreCabs();
   };
 
   const today = new Date().toISOString().split('T')[0];
@@ -691,7 +691,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     const safeQuery = (currentQuery || '').trim();
 
     return (
-      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-100">
+      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto overscroll-contain divide-y divide-slate-100">
         <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-medium text-slate-500">
           <span>
             {safeQuery.length >= 2 ? 'Matching Indian Cities & Locations' : 'Popular Indian Cities & Tourist Spots'}
@@ -1258,12 +1258,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 type="date"
                 min={today}
                 value={pickupDate}
+                onClick={(e) => {
+                  try {
+                    (e.currentTarget as any).showPicker?.();
+                  } catch {}
+                }}
                 onChange={(e) => {
                   setPickupDate(e.target.value);
                   if (routeError) setRouteError('');
                 }}
                 placeholder="Select pickup date"
-                className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white ${
+                className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white cursor-pointer ${
                   pickupDate ? 'text-slate-900' : 'text-transparent focus:text-slate-900'
                 }`}
               />
@@ -1292,12 +1297,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   type="date"
                   min={pickupDate || today}
                   value={returnDate}
+                  onClick={(e) => {
+                    try {
+                      (e.currentTarget as any).showPicker?.();
+                    } catch {}
+                  }}
                   onChange={(e) => {
                     setReturnDate(e.target.value);
                     if (routeError) setRouteError('');
                   }}
                   placeholder="Select return date"
-                  className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white ${
+                  className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white cursor-pointer ${
                     returnDate ? 'text-slate-900' : 'text-transparent focus:text-slate-900'
                   }`}
                 />

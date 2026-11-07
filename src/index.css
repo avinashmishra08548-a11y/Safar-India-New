@@ -1,19 +1,20 @@
 @import "tailwindcss";
-@import "maplibre-gl/dist/maplibre-gl.css";
 
 @layer base {
   body {
     font-family: 'Inter', 'Poppins', Roboto, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
 
-/* Lock outer document overflow so only the inner main view scrolls independently */
+/* Smooth, lag-free layout for Mobile, Tablet, Desktop & "Desktop site" mode on mobile phones */
 html,
 body {
   width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow-x: hidden;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
   touch-action: manipulation;
@@ -23,34 +24,41 @@ body {
 }
 
 #root {
-  height: 100dvh;
-  max-height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
-/* 1. Dark Prominent Fixed Top Header with Safe-Area Top Breathing Space */
+/* 1. Dark Prominent Sticky Top Header with Safe-Area Top Breathing Space */
 header.safar-dark-header {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 1000;
   background-color: #0b0f19;
   padding-top: env(safe-area-inset-top, 0px);
   flex-shrink: 0;
 }
 
-/* 2. Independent Scrollable Inner Main Content Container */
+/* 2. Smooth Main Content Container */
 main.safar-main-scroll {
-  flex: 1 1 0%;
-  overflow-y: auto;
+  flex: 1 1 auto;
   overflow-x: hidden;
-  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Optimize touch targets when customer enables "Desktop site" mode on a mobile phone */
+@media (pointer: coarse) and (min-width: 768px) {
+  input,
+  select,
+  button {
+    min-height: 44px;
+  }
 }
 
 /* 3. Booking / Checkout Modal Bottom Padding so yellow 'Pay & Confirm' button stays safely above bottom bar */
 .booking-modal-container {
   padding-bottom: 96px !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 4. Razorpay Modal / Iframe Overlap Fix */

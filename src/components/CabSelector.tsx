@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
   Briefcase,
@@ -141,19 +141,80 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
   const promoDiscountValue = activePromoApplied ? PROMO_DISCOUNT_AMOUNT : 0;
 
-  const sampleFare = calculateTripFare(
-    'sedan',
-    tripType,
-    distanceKm,
-    days,
-    localPackageId,
-    pickupCity,
-    dropCity,
-    includeTolls,
-    pickupDate,
-    pickupTime,
-    0,
-    promoDiscountValue
+  const sampleFare = useMemo(
+    () =>
+      calculateTripFare(
+        'sedan',
+        tripType,
+        distanceKm,
+        days,
+        localPackageId,
+        pickupCity,
+        dropCity,
+        includeTolls,
+        pickupDate,
+        pickupTime,
+        0,
+        promoDiscountValue
+      ),
+    [
+      tripType,
+      distanceKm,
+      days,
+      localPackageId,
+      pickupCity,
+      dropCity,
+      includeTolls,
+      pickupDate,
+      pickupTime,
+      promoDiscountValue
+    ]
+  );
+
+  const computedFleetFares = useMemo(
+    () =>
+      CABS_FLEET.map((cab) => {
+        const fareWithToll = calculateTripFare(
+          cab.id,
+          tripType,
+          distanceKm,
+          days,
+          localPackageId,
+          pickupCity,
+          dropCity,
+          true,
+          pickupDate,
+          pickupTime,
+          0,
+          promoDiscountValue
+        );
+        const fareWithoutToll = calculateTripFare(
+          cab.id,
+          tripType,
+          distanceKm,
+          days,
+          localPackageId,
+          pickupCity,
+          dropCity,
+          false,
+          pickupDate,
+          pickupTime,
+          0,
+          promoDiscountValue
+        );
+        return { cab, fareWithToll, fareWithoutToll };
+      }),
+    [
+      tripType,
+      distanceKm,
+      days,
+      localPackageId,
+      pickupCity,
+      dropCity,
+      pickupDate,
+      pickupTime,
+      promoDiscountValue
+    ]
   );
 
   return (
@@ -380,35 +441,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
       {/* Spacious Cab Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {CABS_FLEET.map((cab) => {
-          const fareWithToll = calculateTripFare(
-            cab.id,
-            tripType,
-            distanceKm,
-            days,
-            localPackageId,
-            pickupCity,
-            dropCity,
-            true,
-            pickupDate,
-            pickupTime,
-            0,
-            promoDiscountValue
-          );
-          const fareWithoutToll = calculateTripFare(
-            cab.id,
-            tripType,
-            distanceKm,
-            days,
-            localPackageId,
-            pickupCity,
-            dropCity,
-            false,
-            pickupDate,
-            pickupTime,
-            0,
-            promoDiscountValue
-          );
+        {computedFleetFares.map(({ cab, fareWithToll, fareWithoutToll }) => {
           const activeFare = includeTolls ? fareWithToll : fareWithoutToll;
 
           return (
