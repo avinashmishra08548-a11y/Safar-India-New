@@ -27,6 +27,98 @@ import { jsPDF } from 'jspdf';
 
 export const OFFICIAL_WHATSAPP_NUMBER = '917710080992';
 
+export interface ItemizedInvoiceBreakup {
+  tripDays: number;
+  tripTypeBadge: string;
+  baseCabFare: number;
+  driverAllowance: number;
+  highwayToll: number;
+  statePermitTax: number;
+  hillStationCharge: number;
+  nightCharge: number;
+  taxableValue: number;
+  gstAmount: number;
+  cgst: number;
+  sgst: number;
+  totalFare: number;
+}
+
+/**
+ * Resolves a transparent, itemized fare breakup for any booking so Base Fare,
+ * Driver Allowance (Bata), Highway FASTag Toll Tax, State Border Entry Permit Tax,
+ * Hill Station Surcharge, and GST are always displayed as separate line items.
+ */
+export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedInvoiceBreakup {
+  const tripDays = Math.max(1, Number(booking.tripDays || 1));
+  const tripTypeBadge =
+    booking.tripType === 'roundtrip'
+      ? `Round Trip (${tripDays === 1 ? 'Same Day Return • 1 Day' : `${tripDays} Days`})`
+      : booking.tripType === 'local'
+      ? 'Local Rental (8Hr / 80KM)'
+      : 'One-Way Outstation';
+
+  const totalFare = Math.max(0, Number(booking.totalFare || 0));
+  const gstAmount = Number(booking.gstAmount ?? Math.round((booking.baseFare || totalFare) * 0.05));
+  const cgst = Math.floor(gstAmount / 2);
+  const sgst = gstAmount - cgst;
+
+  const rawTolls = Math.max(0, Number(booking.tollsAndTaxes || 0));
+  const highwayToll =
+    booking.highwayToll !== undefined
+      ? Math.max(0, Number(booking.highwayToll))
+      : rawTolls > 0
+      ? Math.round(rawTolls * 0.55)
+      : 0;
+  const statePermitTax =
+    booking.statePermitTax !== undefined
+      ? Math.max(0, Number(booking.statePermitTax))
+      : Math.max(0, rawTolls - highwayToll);
+
+  const hillStationCharge = Math.max(0, Number(booking.hillStationCharge || 0));
+  const nightCharge = Math.max(0, Number(booking.nightCharge || 0));
+
+  let driverAllowance = Math.max(0, Number(booking.driverAllowance || 0));
+  const combinedTolls = highwayToll + statePermitTax;
+  let baseCabFare =
+    Number(booking.baseFare || 0) ||
+    Math.max(0, totalFare - gstAmount - combinedTolls - driverAllowance - hillStationCharge - nightCharge);
+
+  // If driverAllowance was previously 0 (lumped into baseFare), split out ₹260/day so Base Fare doesn't look inflated
+  if (driverAllowance === 0 && baseCabFare > 600 && booking.tripType !== 'local') {
+    const separatedBata = 260 * tripDays;
+    if (baseCabFare > separatedBata + 300) {
+      driverAllowance = separatedBata;
+      baseCabFare = baseCabFare - separatedBata;
+    }
+  }
+
+  // If baseCabFare still had hillStationCharge lumped in, ensure taxable sum matches totalFare - gstAmount
+  const expectedTaxable = Math.max(0, totalFare - gstAmount);
+  const currentSum = baseCabFare + driverAllowance + highwayToll + statePermitTax + hillStationCharge + nightCharge;
+  if (expectedTaxable > 0 && currentSum > expectedTaxable && baseCabFare > currentSum - expectedTaxable + 200) {
+    baseCabFare -= currentSum - expectedTaxable;
+  }
+
+  const taxableValue =
+    baseCabFare + driverAllowance + highwayToll + statePermitTax + hillStationCharge + nightCharge;
+
+  return {
+    tripDays,
+    tripTypeBadge,
+    baseCabFare,
+    driverAllowance,
+    highwayToll,
+    statePermitTax,
+    hillStationCharge,
+    nightCharge,
+    taxableValue,
+    gstAmount,
+    cgst,
+    sgst,
+    totalFare
+  };
+}
+
 export function buildFormattedReceiptWhatsAppMessage(booking: BookingRecord): string {
   return formatWhatsAppBookingConfirmationMessage({
     customerName: booking.customerName,
@@ -271,61 +363,77 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
 
   y += 28;
 
-  // 5. Clean Light-Theme Tax Invoice Fare Table
+  // 5. Clean Light-Theme Itemized Tax Invoice Fare Table
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(203, 213, 225);
-  doc.rect(margin, y, contentWidth, 7.5, 'FD');
+  doc.rect(margin, y, contentWidth, 7.2, 'FD');
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.text('DESCRIPTION OF PASSENGER CAB SERVICES (SAC: 996412)', margin + 3.5, y + 5);
-  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 5, { align: 'right' });
+  doc.setFontSize(8.0);
+  doc.text('ITEMIZED FARE & TAX BREAKUP (SAC: 996412)', margin + 3.5, y + 4.9);
+  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 4.9, { align: 'right' });
 
-  y += 7.5;
+  y += 7.2;
 
-  const computedGst = booking.gstAmount || Math.round((booking.baseFare || booking.totalFare) * 0.05);
-  const cgstAmt = Math.floor(computedGst / 2);
-  const sgstAmt = computedGst - cgstAmt;
+  const breakup = resolveItemizedInvoiceBreakup(booking);
 
   const rows: Array<{ label: string; value: string; bold?: boolean; highlight?: 'gold' | 'green' }> = [
     {
-      label: `Base Trip Fare & Fuel Charges (${booking.distanceKm} KM Included)`,
-      value: `INR ${Number(booking.baseFare || booking.totalFare - computedGst).toLocaleString('en-IN')}.00`
+      label: `1. Base Cab & Fuel Charges (${breakup.tripTypeBadge} • ${booking.distanceKm} KM Included)`,
+      value: `INR ${breakup.baseCabFare.toLocaleString('en-IN')}.00`
     },
-    ...(booking.driverAllowance
+    {
+      label: `2. Chauffeur / Driver Allowance (Daily Bata • ${breakup.tripDays} ${breakup.tripDays === 1 ? 'Day' : 'Days'})`,
+      value: `INR ${breakup.driverAllowance.toLocaleString('en-IN')}.00`
+    },
+    {
+      label: '3. Highway FASTag Toll Tax',
+      value:
+        breakup.highwayToll > 0
+          ? `INR ${breakup.highwayToll.toLocaleString('en-IN')}.00`
+          : 'INR 0.00 (As Applicable)'
+    },
+    {
+      label: '4. State Border Entry Permit Tax',
+      value:
+        breakup.statePermitTax > 0
+          ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00`
+          : 'INR 0.00 (Included)'
+    },
+    ...(breakup.hillStationCharge > 0
       ? [
           {
-            label: 'Chauffeur / Driver Allowance (Bhatta)',
-            value: `INR ${Number(booking.driverAllowance).toLocaleString('en-IN')}.00`
+            label: '5. Hill Station / Mountain Drive Allowance',
+            value: `INR ${breakup.hillStationCharge.toLocaleString('en-IN')}.00`
           }
         ]
       : []),
-    ...(booking.tollsAndTaxes
+    ...(breakup.nightCharge > 0
       ? [
           {
-            label: 'Highway Toll, Parking & State Entry Permit Tax',
-            value: `INR ${Number(booking.tollsAndTaxes).toLocaleString('en-IN')}.00`
+            label: 'Night / Dawn Chauffeur Allowance',
+            value: `INR ${breakup.nightCharge.toLocaleString('en-IN')}.00`
           }
         ]
       : []),
     {
       label: 'CGST @ 2.5% (SAC 996412 - Commercial Cab Service)',
-      value: `INR ${Number(cgstAmt).toLocaleString('en-IN')}.00`
+      value: `INR ${breakup.cgst.toLocaleString('en-IN')}.00`
     },
     {
       label: 'SGST @ 2.5% (SAC 996412 - Commercial Cab Service)',
-      value: `INR ${Number(sgstAmt).toLocaleString('en-IN')}.00`
+      value: `INR ${breakup.sgst.toLocaleString('en-IN')}.00`
     },
     {
-      label: 'TOTAL INVOICE AMOUNT (Inclusive of GST)',
-      value: `INR ${Number(booking.totalFare || 0).toLocaleString('en-IN')}.00`,
+      label: 'TOTAL INVOICE AMOUNT (Inclusive of 5% GST)',
+      value: `INR ${breakup.totalFare.toLocaleString('en-IN')}.00`,
       bold: true
     },
     {
       label: booking.status === 'completed' ? 'Total Amount Paid (100% Settled)' : 'Advance Paid',
       value:
         booking.status === 'completed'
-          ? `INR ${Number(booking.totalFare || 0).toLocaleString('en-IN')}.00 (PAID)`
+          ? `INR ${breakup.totalFare.toLocaleString('en-IN')}.00 (PAID)`
           : `INR ${Number(booking.advancePaid || 0).toLocaleString('en-IN')}.00`,
       bold: true,
       highlight: 'green'
@@ -344,6 +452,7 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
     }
   ];
 
+  const pdfRowH = rows.length > 8 ? 6.8 : 7.5;
   for (const r of rows) {
     if (r.highlight === 'gold') {
       doc.setFillColor(254, 243, 199);
@@ -355,7 +464,7 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
       doc.setFillColor(255, 255, 255);
     }
     doc.setDrawColor(226, 232, 240);
-    doc.rect(margin, y, contentWidth, 8.2, 'FD');
+    doc.rect(margin, y, contentWidth, pdfRowH, 'FD');
 
     if (r.highlight === 'gold') {
       doc.setTextColor(146, 64, 14);
@@ -366,14 +475,14 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
     }
 
     doc.setFont('helvetica', r.bold ? 'bold' : 'normal');
-    doc.setFontSize(r.bold ? 8.8 : 8.2);
-    doc.text(r.label, margin + 3.5, y + 5.5);
-    doc.text(r.value, pageWidth - margin - 3.5, y + 5.5, { align: 'right' });
+    doc.setFontSize(r.bold ? 8.3 : 7.8);
+    doc.text(r.label, margin + 3.5, y + pdfRowH - 2.0);
+    doc.text(r.value, pageWidth - margin - 3.5, y + pdfRowH - 2.0, { align: 'right' });
 
-    y += 8.2;
+    y += pdfRowH;
   }
 
-  y += 6;
+  y += 4;
 
   // 6. Three-Column Footer: Terms | "Digitally signed by..." Block | Official Rubber Mohar & Aman Mishra Signature
   const footerH = 44;
@@ -489,12 +598,17 @@ export function buildServerInvoicePdfUrl(
   if (booking.pickupDate) params.set('pickupDate', booking.pickupDate);
   if (booking.pickupTime) params.set('pickupTime', booking.pickupTime);
   if (booking.cabName) params.set('cabName', booking.cabName);
+  const breakup = resolveItemizedInvoiceBreakup(booking);
   params.set('distanceKm', String(booking.distanceKm || 230));
-  if (booking.baseFare !== undefined) params.set('baseFare', String(booking.baseFare));
-  if (booking.driverAllowance !== undefined) params.set('driverAllowance', String(booking.driverAllowance));
-  if (booking.tollsAndTaxes !== undefined) params.set('tollsAndTaxes', String(booking.tollsAndTaxes));
-  if (booking.gstAmount !== undefined) params.set('gstAmount', String(booking.gstAmount));
-  params.set('totalFare', String(booking.totalFare || 0));
+  params.set('tripDays', String(breakup.tripDays));
+  params.set('baseFare', String(breakup.baseCabFare));
+  params.set('driverAllowance', String(breakup.driverAllowance));
+  params.set('tollsAndTaxes', String(breakup.highwayToll + breakup.statePermitTax));
+  params.set('highwayToll', String(breakup.highwayToll));
+  params.set('statePermitTax', String(breakup.statePermitTax));
+  params.set('hillStationCharge', String(breakup.hillStationCharge));
+  params.set('gstAmount', String(breakup.gstAmount));
+  params.set('totalFare', String(breakup.totalFare));
   params.set('advancePaid', String(booking.advancePaid || 0));
   params.set('balanceDue', String(booking.balanceDue || 0));
   params.set('status', booking.status || 'confirmed');
@@ -737,75 +851,89 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
 
   y += 140;
 
-  // Itemized Fare & GST Tax Table
-  const gstAmount = booking.gstAmount ?? Math.round((booking.baseFare || booking.totalFare) * 0.05);
-  const halfGst = Math.round(gstAmount / 2);
-  const tolls = booking.tollsAndTaxes || 0;
-  const driverAllowance = booking.driverAllowance || 0;
-  const baseFare =
-    booking.baseFare ||
-    Math.max(0, booking.totalFare - gstAmount - tolls - driverAllowance);
-  const taxableValue = baseFare + driverAllowance + tolls;
+  // Itemized Fare & GST Tax Table (Separated rows)
+  const breakup = resolveItemizedInvoiceBreakup(booking);
 
   ctx.fillStyle = '#F1F5F9';
   ctx.strokeStyle = '#CBD5E1';
-  ctx.fillRect(margin, y, contentW, 40);
-  ctx.strokeRect(margin, y, contentW, 40);
+  ctx.fillRect(margin, y, contentW, 38);
+  ctx.strokeRect(margin, y, contentW, 38);
   ctx.fillStyle = '#0F2958';
-  ctx.font = '900 15px Arial, sans-serif';
+  ctx.font = '900 14.5px Arial, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('DESCRIPTION OF PASSENGER TRANSPORT SERVICES (SAC: 996412)', margin + 16, y + 26);
+  ctx.fillText('ITEMIZED FARE & TAX BREAKUP (SAC: 996412)', margin + 16, y + 25);
   ctx.textAlign = 'right';
-  ctx.fillText('AMOUNT (INR)', W - margin - 16, y + 26);
+  ctx.fillText('AMOUNT (INR)', W - margin - 16, y + 25);
 
-  y += 40;
+  y += 38;
 
   const rows = [
     {
-      label: `1. Base Cab Hire Charges (${booking.cabName} - ${booking.distanceKm} KM Included)`,
-      value: `INR ${baseFare.toLocaleString('en-IN')}.00`,
+      label: `1. Base Cab & Fuel Charges (${breakup.tripTypeBadge} • ${booking.distanceKm} KM)`,
+      value: `INR ${breakup.baseCabFare.toLocaleString('en-IN')}.00`,
       bold: false
     },
     {
-      label: '2. Chauffeur Allowance / Daily Driver Bata Charges',
-      value: driverAllowance > 0 ? `INR ${driverAllowance.toLocaleString('en-IN')}.00` : 'Included (INR 0.00)',
+      label: `2. Chauffeur / Driver Allowance (Daily Bata • ${breakup.tripDays} ${breakup.tripDays === 1 ? 'Day' : 'Days'})`,
+      value: `INR ${breakup.driverAllowance.toLocaleString('en-IN')}.00`,
       bold: false
     },
     {
-      label: '3. Highway FASTag Toll & State Entry Permit Tax',
-      value: tolls > 0 ? `INR ${tolls.toLocaleString('en-IN')}.00` : 'As Applicable',
+      label: '3. Highway FASTag Toll Tax',
+      value:
+        breakup.highwayToll > 0
+          ? `INR ${breakup.highwayToll.toLocaleString('en-IN')}.00`
+          : 'INR 0.00 (As Applicable)',
       bold: false
     },
+    {
+      label: '4. State Border Entry Permit Tax',
+      value:
+        breakup.statePermitTax > 0
+          ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00`
+          : 'INR 0.00 (Included)',
+      bold: false
+    },
+    ...(breakup.hillStationCharge > 0
+      ? [
+          {
+            label: '5. Hill Station / Mountain Drive Allowance',
+            value: `INR ${breakup.hillStationCharge.toLocaleString('en-IN')}.00`,
+            bold: false
+          }
+        ]
+      : []),
     {
       label: 'Total Taxable Value',
-      value: `INR ${taxableValue.toLocaleString('en-IN')}.00`,
+      value: `INR ${breakup.taxableValue.toLocaleString('en-IN')}.00`,
       bold: true
     },
     {
       label: 'Add: Central GST (CGST @ 2.5% under SAC 996412)',
-      value: `INR ${halfGst.toLocaleString('en-IN')}.00`,
+      value: `INR ${breakup.cgst.toLocaleString('en-IN')}.00`,
       bold: false
     },
     {
       label: 'Add: State GST (SGST @ 2.5% under SAC 996412)',
-      value: `INR ${(gstAmount - halfGst).toLocaleString('en-IN')}.00`,
+      value: `INR ${breakup.sgst.toLocaleString('en-IN')}.00`,
       bold: false
     }
   ];
 
+  const canvasRowH = rows.length > 7 ? 31 : 34;
   rows.forEach((r, idx) => {
     ctx.fillStyle = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
     ctx.strokeStyle = '#E2E8F0';
-    ctx.fillRect(margin, y, contentW, 38);
-    ctx.strokeRect(margin, y, contentW, 38);
+    ctx.fillRect(margin, y, contentW, canvasRowH);
+    ctx.strokeRect(margin, y, contentW, canvasRowH);
     ctx.fillStyle = '#0F172A';
-    ctx.font = `${r.bold ? 'bold ' : ''}15px Arial, sans-serif`;
+    ctx.font = `${r.bold ? 'bold ' : ''}14px Arial, sans-serif`;
     ctx.textAlign = 'left';
-    ctx.fillText(r.label, margin + 16, y + 25);
+    ctx.fillText(r.label, margin + 16, y + canvasRowH - 10);
     ctx.textAlign = 'right';
-    ctx.font = `${r.bold ? 'bold ' : ''}15px monospace`;
-    ctx.fillText(r.value, W - margin - 16, y + 25);
-    y += 38;
+    ctx.font = `${r.bold ? 'bold ' : ''}14px monospace`;
+    ctx.fillText(r.value, W - margin - 16, y + canvasRowH - 10);
+    y += canvasRowH;
   });
 
   // Grand Total Row
@@ -1081,22 +1209,110 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
   const [isSharingPdf, setIsSharingPdf] = useState(false);
   const [shareStatusNote, setShareStatusNote] = useState<string>('');
   const [showA4PdfSheet, setShowA4PdfSheet] = useState<boolean>(true);
+  const [showBillEditor, setShowBillEditor] = useState<boolean>(false);
+  const [customBillOverrides, setCustomBillOverrides] = useState<Partial<BookingRecord>>({});
 
   if (!booking) return null;
 
-  const isCompleted = booking.status === 'completed';
-  const digitalTimestamp = formatDigitalSignTimestamp(booking.pickupDate);
-  const a4PreviewDataUrl = renderA4GstInvoicePreviewDataUrl(booking);
-  const directServerPdfDownloadUrl = buildServerInvoicePdfUrl(booking, 'download');
-  const directServerPdfViewUrl = buildServerInvoicePdfUrl(booking, 'inline');
+  const effectiveBooking: BookingRecord = {
+    ...booking,
+    ...customBillOverrides
+  };
+  const itemizedBreakup = resolveItemizedInvoiceBreakup(effectiveBooking);
+
+  const isCompleted = effectiveBooking.status === 'completed';
+  const digitalTimestamp = formatDigitalSignTimestamp(effectiveBooking.pickupDate);
+  const a4PreviewDataUrl = renderA4GstInvoicePreviewDataUrl(effectiveBooking);
+  const directServerPdfDownloadUrl = buildServerInvoicePdfUrl(effectiveBooking, 'download');
+  const directServerPdfViewUrl = buildServerInvoicePdfUrl(effectiveBooking, 'inline');
+
+  const updateBillBreakupField = (
+    field:
+      | 'baseFare'
+      | 'driverAllowance'
+      | 'highwayToll'
+      | 'statePermitTax'
+      | 'hillStationCharge'
+      | 'gstAmount'
+      | 'advancePaid'
+      | 'distanceKm',
+    val: number
+  ) => {
+    const cleanVal = Math.max(0, Math.round(Number(val) || 0));
+    const nextBase = field === 'baseFare' ? cleanVal : itemizedBreakup.baseCabFare;
+    const nextDa = field === 'driverAllowance' ? cleanVal : itemizedBreakup.driverAllowance;
+    const nextHwyToll = field === 'highwayToll' ? cleanVal : itemizedBreakup.highwayToll;
+    const nextStateTax = field === 'statePermitTax' ? cleanVal : itemizedBreakup.statePermitTax;
+    const nextHill = field === 'hillStationCharge' ? cleanVal : itemizedBreakup.hillStationCharge;
+    const nextTaxable = nextBase + nextDa + nextHwyToll + nextStateTax + nextHill;
+    const nextGst = field === 'gstAmount' ? cleanVal : Math.round(nextTaxable * 0.05);
+    const nextTotal = nextTaxable + nextGst;
+    const nextAdv =
+      field === 'advancePaid'
+        ? cleanVal
+        : effectiveBooking.status === 'completed'
+        ? nextTotal
+        : Number(effectiveBooking.advancePaid || 0);
+    const nextBal = effectiveBooking.status === 'completed' ? 0 : Math.max(0, nextTotal - nextAdv);
+
+    setCustomBillOverrides((prev) => ({
+      ...prev,
+      ...(field === 'distanceKm' ? { distanceKm: cleanVal } : {}),
+      baseFare: nextBase,
+      driverAllowance: nextDa,
+      highwayToll: nextHwyToll,
+      statePermitTax: nextStateTax,
+      tollsAndTaxes: nextHwyToll + nextStateTax,
+      hillStationCharge: nextHill,
+      gstAmount: nextGst,
+      totalFare: nextTotal,
+      advancePaid: nextAdv,
+      balanceDue: nextBal
+    }));
+  };
+
+  const handleSelectTripModeAndDays = (nextTripType: 'oneway' | 'roundtrip' | 'local', days: number) => {
+    const cleanDays = Math.max(1, days);
+    const nextDa = nextTripType === 'local' ? 0 : 260 * cleanDays;
+    const nextDist =
+      nextTripType === 'roundtrip'
+        ? Math.max(booking.distanceKm || 250, cleanDays * 250)
+        : booking.distanceKm || 230;
+    const nextBase = itemizedBreakup.baseCabFare;
+    const nextHwy = itemizedBreakup.highwayToll;
+    const nextState = itemizedBreakup.statePermitTax;
+    const nextHill = itemizedBreakup.hillStationCharge;
+    const nextTaxable = nextBase + nextDa + nextHwy + nextState + nextHill;
+    const nextGst = Math.round(nextTaxable * 0.05);
+    const nextTotal = nextTaxable + nextGst;
+    const nextAdv =
+      effectiveBooking.status === 'completed' ? nextTotal : Number(effectiveBooking.advancePaid || 0);
+
+    setCustomBillOverrides((prev) => ({
+      ...prev,
+      tripType: nextTripType,
+      tripDays: cleanDays,
+      distanceKm: nextDist,
+      baseFare: nextBase,
+      driverAllowance: nextDa,
+      highwayToll: nextHwy,
+      statePermitTax: nextState,
+      tollsAndTaxes: nextHwy + nextState,
+      hillStationCharge: nextHill,
+      gstAmount: nextGst,
+      totalFare: nextTotal,
+      advancePaid: nextAdv,
+      balanceDue: effectiveBooking.status === 'completed' ? 0 : Math.max(0, nextTotal - nextAdv)
+    }));
+  };
 
   const handleDownloadPdf = () => {
     setIsDownloadingPdf(true);
     setShareStatusNote('');
     try {
-      generateBookingInvoicePdf(booking);
+      generateBookingInvoicePdf(effectiveBooking);
       setShareStatusNote(
-        `Downloading Official GST Tax Invoice PDF (${booking.id}.pdf)...`
+        `Downloading Official GST Tax Invoice PDF (${effectiveBooking.id}.pdf)...`
       );
     } finally {
       setTimeout(() => setIsDownloadingPdf(false), 800);
@@ -1116,14 +1332,14 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
     setIsSharingPdf(true);
     setShareStatusNote('');
     try {
-      const result = await shareBookingInvoicePdf(booking);
+      const result = await shareBookingInvoicePdf(effectiveBooking);
       if (result === 'downloaded') {
         setShareStatusNote(
-          `GST Bill PDF (${booking.id}.pdf) downloaded & WhatsApp opened with direct PDF Invoice link!`
+          `GST Bill PDF (${effectiveBooking.id}.pdf) downloaded & WhatsApp opened with direct PDF Invoice link!`
         );
       } else if (result === 'whatsapp_opened') {
         setShareStatusNote(
-          `Opening WhatsApp with your Official GST Invoice & PDF Bill link (${booking.id})...`
+          `Opening WhatsApp with your Official GST Invoice & PDF Bill link (${effectiveBooking.id})...`
         );
       }
     } finally {
@@ -1216,13 +1432,13 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               </span>
             </div>
 
-            {/* Quick Top Action Bar for Mobile App & Browser: Toggle A4 PDF Sheet, Download PDF, WhatsApp Share */}
+            {/* Quick Top Action Bar for Mobile App & Browser: Toggle A4 PDF Sheet, Customize Bill & Round Trip Same Day, Download PDF, WhatsApp Share */}
             <div className="no-print mt-3 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-              <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <div className="inline-flex flex-wrap rounded-xl bg-slate-100 p-1 border border-slate-200 gap-1">
                 <button
                   type="button"
                   onClick={() => setShowA4PdfSheet(true)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
                     showA4PdfSheet
                       ? 'bg-[#0F2958] text-white shadow-2xs'
                       : 'text-slate-700 hover:text-slate-950'
@@ -1233,13 +1449,24 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 <button
                   type="button"
                   onClick={() => setShowA4PdfSheet(false)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
                     !showA4PdfSheet
                       ? 'bg-[#0F2958] text-white shadow-2xs'
                       : 'text-slate-700 hover:text-slate-950'
                   }`}
                 >
-                  📋 Interactive Details
+                  📋 Breakup View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBillEditor((v) => !v)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                    showBillEditor
+                      ? 'bg-amber-400 text-slate-950 shadow-2xs'
+                      : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300'
+                  }`}
+                >
+                  ⚙️ Edit Bill / Round Trip (Same Day 1D)
                 </button>
               </div>
 
@@ -1266,6 +1493,139 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </button>
               </div>
             </div>
+
+            {/* Interactive Bill Customizer & Round-Trip Same Day (1 Day) Selector */}
+            {showBillEditor && (
+              <div className="no-print mt-3 p-3.5 rounded-2xl bg-slate-50 border-2 border-amber-300 space-y-3 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-black text-[#0F2958] uppercase tracking-wider text-[11px]">
+                    Bill Section Generator &amp; Breakup Editor (Instant Live PDF Update)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCustomBillOverrides({})}
+                    className="text-[10px] font-extrabold text-rose-700 hover:underline cursor-pointer"
+                  >
+                    Reset Original Values
+                  </button>
+                </div>
+
+                {/* Trip Type & Round Trip Duration (Same Day 1D / 2D / 3D+) */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600 block">
+                    Select Trip Mode &amp; Round-Trip Duration (Same Day 1 Day Supported):
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTripModeAndDays('oneway', 1)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border transition cursor-pointer ${
+                        effectiveBooking.tripType === 'oneway'
+                          ? 'bg-[#0F2958] text-white border-[#0F2958]'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      One-Way Drop (1 Day)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTripModeAndDays('roundtrip', 1)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border transition cursor-pointer ${
+                        effectiveBooking.tripType === 'roundtrip' && itemizedBreakup.tripDays === 1
+                          ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400'
+                      }`}
+                    >
+                      ★ Round Trip — Same Day Return (1 Day)
+                    </button>
+                    {[2, 3, 4, 5].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => handleSelectTripModeAndDays('roundtrip', d)}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border transition cursor-pointer ${
+                          effectiveBooking.tripType === 'roundtrip' && itemizedBreakup.tripDays === d
+                            ? 'bg-[#0F2958] text-white border-[#0F2958]'
+                            : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                        }`}
+                      >
+                        Round Trip ({d} Days)
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Editable Itemized Fare Breakup Inputs */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                      1. Base Cab Fare (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={itemizedBreakup.baseCabFare}
+                      onChange={(e) => updateBillBreakupField('baseFare', Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                      2. Driver Allowance / Bata (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={itemizedBreakup.driverAllowance}
+                      onChange={(e) => updateBillBreakupField('driverAllowance', Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                      3. Highway FASTag Toll (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={itemizedBreakup.highwayToll}
+                      onChange={(e) => updateBillBreakupField('highwayToll', Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                      4. State Entry Permit Tax (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={itemizedBreakup.statePermitTax}
+                      onChange={(e) => updateBillBreakupField('statePermitTax', Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                      5. Hill Station Charge (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={itemizedBreakup.hillStationCharge}
+                      onChange={(e) => updateBillBreakupField('hillStationCharge', Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                      Billed Distance (KM)
+                    </label>
+                    <input
+                      type="number"
+                      value={effectiveBooking.distanceKm}
+                      onChange={(e) => updateBillBreakupField('distanceKm', Number(e.target.value))}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Live High-DPI A4 GST Invoice PDF Sheet Preview (Works 100% inside Android WebView & Browsers) */}
@@ -1405,62 +1765,77 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               </div>
             </div>
 
-            {/* Clean Light-Theme Fare Summary Box */}
+            {/* Clean Light-Theme Itemized Fare & Tax Breakup Box (Separated Rows) */}
             <div className="rounded-xl overflow-hidden border border-slate-300">
               <div className="bg-slate-100 text-[#0F2958] px-4 py-2 text-[11px] font-black uppercase tracking-wider flex items-center justify-between border-b border-slate-300">
-                <span>Fare &amp; Tax Breakdown (Zero Hidden Charges)</span>
+                <span>Itemized Fare &amp; Tax Breakup ({itemizedBreakup.tripTypeBadge})</span>
                 <span>Amount (INR)</span>
               </div>
 
               <div className="p-4 bg-white space-y-2 text-xs">
                 <div className="flex justify-between items-center text-slate-700">
-                  <span>Base Fare ({booking.distanceKm} KM Included):</span>
+                  <span>1. Base Cab &amp; Fuel Charges ({effectiveBooking.distanceKm} KM Included):</span>
                   <span className="font-mono font-bold text-slate-900">
-                    {formatINR(
-                      booking.baseFare ||
-                        Math.max(
-                          0,
-                          booking.totalFare -
-                            (booking.gstAmount || 0) -
-                            (booking.tollsAndTaxes || 0) -
-                            (booking.driverAllowance || 0)
-                        )
-                    )}
+                    {formatINR(itemizedBreakup.baseCabFare)}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-slate-700">
-                  <span>Driver Allowance (DA / Chauffeur Bata):</span>
+                  <span>
+                    2. Chauffeur / Driver Allowance (Daily Bata • {itemizedBreakup.tripDays}{' '}
+                    {itemizedBreakup.tripDays === 1 ? 'Day' : 'Days'}):
+                  </span>
                   <span className="font-mono font-bold text-emerald-700">
-                    {booking.driverAllowance ? `${formatINR(booking.driverAllowance)} (Included)` : 'Included ✓'}
+                    {formatINR(itemizedBreakup.driverAllowance)} (Included)
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-slate-700">
-                  <span>State Toll &amp; Permit Tax:</span>
+                  <span>3. Highway FASTag Toll Tax:</span>
                   <span className="font-mono font-bold text-slate-900">
-                    {booking.tollsAndTaxes ? formatINR(booking.tollsAndTaxes) : 'As Applicable'}
+                    {itemizedBreakup.highwayToll > 0
+                      ? `${formatINR(itemizedBreakup.highwayToll)} (Included)`
+                      : '₹0 (As Applicable)'}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-700 pb-1.5 border-b border-slate-200">
-                  <span>GST Tax (5% SAC 996412):</span>
+                <div className="flex justify-between items-center text-slate-700">
+                  <span>4. State Border Entry Permit Tax:</span>
                   <span className="font-mono font-bold text-slate-900">
-                    {formatINR(booking.gstAmount || Math.round(booking.totalFare * 0.05))}
+                    {itemizedBreakup.statePermitTax > 0
+                      ? `${formatINR(itemizedBreakup.statePermitTax)} (Included)`
+                      : '₹0 (Included)'}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-800 pt-0.5">
-                  <span className="font-bold">Total Invoice Amount (Incl. GST):</span>
+                {itemizedBreakup.hillStationCharge > 0 && (
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>5. Hill Station / Mountain Drive Allowance:</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {formatINR(itemizedBreakup.hillStationCharge)} (Included)
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center text-slate-700 pt-1 border-t border-slate-100">
+                  <span>CGST @ 2.5% + SGST @ 2.5% (SAC 996412):</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(itemizedBreakup.cgst)} + {formatINR(itemizedBreakup.sgst)} ={' '}
+                    {formatINR(itemizedBreakup.gstAmount)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-800 pt-1.5 border-t border-slate-200">
+                  <span className="font-bold">Total Invoice Amount (Incl. 5% GST):</span>
                   <span className="text-base font-black text-slate-950 font-mono">
-                    INR {Number(booking.totalFare || 0).toLocaleString('en-IN')}.00
+                    INR {Number(itemizedBreakup.totalFare || 0).toLocaleString('en-IN')}.00
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-emerald-800 bg-emerald-50/80 px-3 py-2 rounded-lg border border-emerald-200">
                   <span className="font-bold">Advance Paid:</span>
                   <span className="font-black font-mono text-sm">
-                    {formatINR(booking.advancePaid)} ✓
+                    {formatINR(effectiveBooking.advancePaid)} ✓
                   </span>
                 </div>
 
@@ -1469,7 +1844,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                     {isCompleted ? 'Remaining Balance (Settled):' : 'Remaining Balance (Payable to Driver):'}
                   </span>
                   <span className="font-black text-amber-900 text-sm font-mono">
-                    {formatINR(booking.balanceDue)}
+                    {formatINR(effectiveBooking.balanceDue)}
                   </span>
                 </div>
               </div>

@@ -159,9 +159,9 @@ export default async function handler(req, res) {
       const now = Date.now();
 
       // Anti-spam / anti-duplicate guard:
-      // If an OTP was already sent to this phone number within the last 18 seconds (or 6s on explicit resend),
+      // If an OTP was already sent to this phone number within the last 60 seconds (or 25s on explicit resend),
       // return the active session immediately without firing duplicate WhatsApp/SMS messages.
-      const minCooldownMs = forceNew ? 6000 : 18000;
+      const minCooldownMs = forceNew ? 25000 : 60000;
       if (
         existing &&
         existing.expiresAt > now + 60 * 1000 &&

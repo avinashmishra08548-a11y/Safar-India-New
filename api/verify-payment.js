@@ -267,6 +267,10 @@ export default async function handler(req, res) {
         verified: true,
         booking: confirmedBooking,
         notifications: notificationResult,
+        notificationsDispatched: Boolean(
+          notificationResult?.customer?.whatsappDispatched ||
+          notificationResult?.customer?.dispatched
+        ),
         payment: {
           id: cleanPaymentId,
           orderId: null,
@@ -549,6 +553,10 @@ export default async function handler(req, res) {
       verified: true,
       booking: confirmedBooking,
       notifications: notificationResult,
+      notificationsDispatched: Boolean(
+        notificationResult?.customer?.whatsappDispatched ||
+        notificationResult?.customer?.dispatched
+      ),
       payment: {
         id: rzpPayment?.id || cleanPaymentId,
         orderId: rzpPayment?.order_id || cleanOrderId,

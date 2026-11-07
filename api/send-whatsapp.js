@@ -356,9 +356,13 @@ export async function sendWhatsAppCloudMessage(
   }
 
   const now = Date.now();
-  const dedupeKey = `${formattedTo}:${String(messageText || '').trim().slice(0, 120)}`;
+  const refId = templateConfig?.referenceId ? String(templateConfig.referenceId).trim() : '';
+  const tplName = templateConfig?.name ? String(templateConfig.name).trim() : 'text';
+  const dedupeKey = refId
+    ? `${formattedTo}:${tplName}:${refId}`
+    : `${formattedTo}:${String(messageText || '').trim().slice(0, 120)}`;
   const previousDispatch = recentWhatsAppDispatches.get(dedupeKey);
-  if (!options?.force && previousDispatch && now - previousDispatch.sentAt < 15000) {
+  if (!options?.force && previousDispatch && now - previousDispatch.sentAt < 90000) {
     return {
       ...previousDispatch.result,
       deduplicated: true
@@ -370,15 +374,16 @@ export async function sendWhatsAppCloudMessage(
     (customAccessToken && String(customAccessToken).trim()) || DEFAULT_ACCESS_TOKEN;
   const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
 
-  // Save in Pending WhatsApp Queue (valid for 30 mins) for webhook session sync
-  pendingWhatsAppQueue.set(formattedTo, {
-    to: formattedTo,
-    messageText,
-    templateConfig,
-    apiUrl,
-    activeToken,
-    updatedAt: now,
-    lastFlushedAt: now
+  // Pre-lock deduplication entry while request is in-flight so parallel calls never double-fire
+  recentWhatsAppDispatches.set(dedupeKey, {
+    sentAt: now,
+    result: {
+      success: true,
+      status: 200,
+      to: formattedTo,
+      phoneNumberId: activePhoneId,
+      deduplicated: true
+    }
   });
 
   let templateResult = { success: false, status: null, templateName: null, messageId: null, data: null, error: null };
@@ -393,7 +398,7 @@ export async function sendWhatsAppCloudMessage(
     templateConfig
   );
 
-  // Step 2: Also send Raw Text if template dispatch did not succeed (or if no template was configured)
+  // Step 2: Only send Raw Text if template dispatch did not succeed
   if (!templateResult.success) {
     textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
   }
@@ -417,6 +422,20 @@ export async function sendWhatsAppCloudMessage(
     recentWhatsAppDispatches.set(dedupeKey, {
       sentAt: now,
       result: finalResult
+    });
+    // Message already delivered — remove from pending queue so webhook/flush_pending never sends a second copy
+    pendingWhatsAppQueue.delete(formattedTo);
+  } else {
+    recentWhatsAppDispatches.delete(dedupeKey);
+    // Only queue in pendingWhatsAppQueue when initial delivery failed (e.g., waiting for 24h chat window)
+    pendingWhatsAppQueue.set(formattedTo, {
+      to: formattedTo,
+      messageText,
+      templateConfig,
+      apiUrl,
+      activeToken,
+      updatedAt: now,
+      lastFlushedAt: now
     });
   }
 

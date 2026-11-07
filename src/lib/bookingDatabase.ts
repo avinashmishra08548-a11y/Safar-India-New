@@ -54,7 +54,7 @@ export function parseSequentialNumberFromBookingId(bookingId: string): number {
  * Computes the highest existing sequence number across confirmed bookings and localStorage
  */
 export function getHighestKnownSequence(bookingsList?: BookingRecord[]): number {
-  let maxSeq = 3; // Seeded baseline: SIC2601, SIC2602, SIC2603
+  let maxSeq = 4; // Seeded baseline: SIC2601, SIC2602, SIC2603, SIC2604
 
   try {
     const savedCounter = Number(localStorage.getItem(COUNTER_STORAGE_KEY) || '0');
@@ -91,7 +91,7 @@ export function getHighestKnownSequence(bookingsList?: BookingRecord[]): number 
 }
 
 /**
- * Synchronously previews what the next sequential Booking ID will be (e.g., SIC2604)
+ * Synchronously previews what the next sequential Booking ID will be (e.g., SIC2605)
  */
 export function peekNextSequentialBookingId(bookingsList?: BookingRecord[]): string {
   const highest = getHighestKnownSequence(bookingsList);
@@ -99,7 +99,7 @@ export function peekNextSequentialBookingId(bookingsList?: BookingRecord[]): str
 }
 
 /**
- * Reserves the next sequential Booking ID (e.g., SIC2604, SIC2605)
+ * Reserves the next sequential Booking ID (e.g., SIC2605, SIC2606)
  * without blocking payment checkout if offline or slow network.
  */
 export async function generateNextSequentialBookingId(
@@ -116,15 +116,15 @@ function sanitizeBookingForFirestore(booking: BookingRecord): Record<string, unk
   const sequenceNumber = parseSequentialNumberFromBookingId(booking.id) || 1;
   const rawObj: Record<string, unknown> = {
     ...booking,
-    id: String(booking.id).trim(),
+    id: String(booking.id).trim().slice(0, 38),
     sequenceNumber,
-    tripType: booking.tripType || 'oneway',
-    pickupCity: String(booking.pickupCity || 'Delhi NCR'),
-    dropCity: String(booking.dropCity || booking.pickupCity || 'Agra'),
-    pickupDate: String(booking.pickupDate || new Date().toISOString().slice(0, 10)),
-    pickupTime: String(booking.pickupTime || '08:00 AM'),
-    cabId: String(booking.cabId || 'sedan'),
-    cabName: String(booking.cabName || 'Sedan AC (Maruti Dzire)'),
+    tripType: String(booking.tripType || 'oneway').slice(0, 28),
+    pickupCity: String(booking.pickupCity || 'Delhi NCR').slice(0, 190),
+    dropCity: String(booking.dropCity || booking.pickupCity || 'Agra').slice(0, 190),
+    pickupDate: String(booking.pickupDate || new Date().toISOString().slice(0, 10)).slice(0, 28),
+    pickupTime: String(booking.pickupTime || '08:00 AM').slice(0, 28),
+    cabId: String(booking.cabId || 'sedan').slice(0, 38),
+    cabName: String(booking.cabName || 'Sedan AC (Maruti Dzire)').slice(0, 190),
     distanceKm: Number(booking.distanceKm) || 0,
     baseFare: Number(booking.baseFare) || 0,
     driverAllowance: Number(booking.driverAllowance) || 0,
@@ -133,10 +133,10 @@ function sanitizeBookingForFirestore(booking: BookingRecord): Record<string, unk
     totalFare: Number(booking.totalFare) || 0,
     advancePaid: Number(booking.advancePaid) || 0,
     balanceDue: Number(booking.balanceDue) || 0,
-    customerName: String(booking.customerName || 'Verified Passenger'),
+    customerName: String(booking.customerName || 'Verified Passenger').slice(0, 115),
     customerPhone: String(booking.customerPhone || '').replace(/\D/g, '').slice(-10) || '7710080992',
-    status: booking.status || 'confirmed',
-    createdAt: booking.createdAt || new Date().toISOString()
+    status: String(booking.status || 'confirmed').slice(0, 28),
+    createdAt: String(booking.createdAt || new Date().toISOString()).slice(0, 58)
   };
 
     // Bound routeGeometry to at most 40 points for compact Firestore document size
@@ -174,7 +174,7 @@ function sanitizeBookingForFirestore(booking: BookingRecord): Record<string, unk
         const counterRef = doc(db, 'booking_counters', 'sic_26_series');
         await runTransaction(db, async (transaction) => {
           const snap = await transaction.get(counterRef);
-          const currentRemote = snap.exists() ? Number(snap.data()?.currentSequence || 3) : 3;
+          const currentRemote = snap.exists() ? Number(snap.data()?.currentSequence || 4) : 4;
           const resolvedSeq = Math.max(seq, currentRemote);
           transaction.set(counterRef, {
             seriesPrefix: SERIES_PREFIX,

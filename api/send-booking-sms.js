@@ -259,6 +259,18 @@ export async function dispatchBookingConfirmationNotifications(booking) {
     ]
   };
 
+  // Pre-lock deduplication key before network calls so concurrent invocations never double-send
+  RECENT_BOOKING_NOTIFICATIONS.set(dedupeKey, {
+    sentAt: now,
+    result: {
+      success: true,
+      deduplicated: true,
+      bookingId: booking.id,
+      customer: { phone: customerPhone, dispatched: true, whatsappDispatched: true },
+      admin: { phone: adminPhone, dispatched: true, whatsappDispatched: true }
+    }
+  });
+
   const [
     custFast2Sms,
     custTraccar,
@@ -276,16 +288,14 @@ export async function dispatchBookingConfirmationNotifications(booking) {
       waCustomerMessage,
       null,
       null,
-      customerTemplateConfig,
-      { force: true }
+      customerTemplateConfig
     ),
     sendWhatsAppCloudMessage(
       adminPhone,
       waAdminMessage,
       null,
       null,
-      adminTemplateConfig,
-      { force: true }
+      adminTemplateConfig
     )
   ]);
 
@@ -320,11 +330,13 @@ export async function dispatchBookingConfirmationNotifications(booking) {
     }
   };
 
-  if (waCustOk) {
+  if (waCustOk || customerSmsOk) {
     RECENT_BOOKING_NOTIFICATIONS.set(dedupeKey, {
       sentAt: now,
       result: responsePayload
     });
+  } else {
+    RECENT_BOOKING_NOTIFICATIONS.delete(dedupeKey);
   }
 
   return responsePayload;

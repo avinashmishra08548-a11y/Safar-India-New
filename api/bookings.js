@@ -172,7 +172,7 @@ const SERVER_CITY_STATE_KEYWORDS = [
   { keywords: ['gurgaon', 'gurugram', 'faridabad', 'panipat', 'ambala', 'karnal', 'sonipat', 'rohtak', 'hisar', 'kurukshetra', 'rewari', 'palwal', 'panchkula', 'haryana'], state: 'Haryana' },
   { keywords: ['jaipur', 'udaipur', 'jodhpur', 'ajmer', 'pushkar', 'jaisalmer', 'bikaner', 'kota', 'mountabu', 'alwar', 'bharatpur', 'khatushyam', 'salasar', 'neemrana', 'rajasthan'], state: 'Rajasthan' },
   { keywords: ['chandigarh', 'amritsar', 'ludhiana', 'jalandhar', 'patiala', 'bathinda', 'mohali', 'zirakpur', 'pathankot', 'ropar', 'kiratpur', 'punjab'], state: 'Punjab' },
-  { keywords: ['shimla', 'manali', 'dharamshala', 'mcleodganj', 'dalhousie', 'kasauli', 'kullu', 'solan', 'spiti', 'kasol', 'chamba', 'khajjiar', 'mandi', 'bilaspurhp', 'himachal'], state: 'Himachal Pradesh' },
+  { keywords: ['shimla', 'manali', 'dharamshala', 'mcleodganj', 'dalhousie', 'kasauli', 'kullu', 'solan', 'spiti', 'kasol', 'chamba', 'khajjiar', 'mandi', 'bilaspurhp', 'kangra', 'nagrotabagwan', 'nagrota', 'palampur', 'chamunda', 'baijnath', 'jwalamukhi', 'chintpurni', 'himachal'], state: 'Himachal Pradesh' },
   { keywords: ['dehradun', 'haridwar', 'rishikesh', 'nainital', 'mussoorie', 'haldwani', 'roorkee', 'jimcorbett', 'corbett', 'kedarnath', 'badrinath', 'almora', 'ranikhet', 'gangotri', 'yamunotri', 'lansdowne', 'auil', 'auli', 'uttarakhand', 'uttrakhand'], state: 'Uttarakhand' },
   { keywords: ['mumbai', 'pune', 'lonavala', 'khandala', 'mahabaleshwar', 'shirdi', 'nashik', 'nagpur', 'aurangabad', 'sambhajinagar', 'thane', 'navimumbai', 'andheri', 'bandra', 'dadar', 'borivali', 'kalyan', 'kolhapur', 'solapur', 'maharashtra'], state: 'Maharashtra' },
   { keywords: ['goa', 'panaji', 'margao', 'calangute', 'baga', 'dabolim', 'mopa', 'vasco'], state: 'Goa' },
@@ -208,7 +208,7 @@ const SERVER_HILL_STATION_KEYWORDS = [
   'munsiyari', 'chaukori', 'dharchula', 'tanakpur', 'haldwani', 'kathgodam', 'ramnagar',
   'jimcorbett', 'corbett', 'solan', 'chail', 'kufri', 'narkanda', 'rampur', 'kinnaur',
   'kalpa', 'sangla', 'chitkul', 'keylong', 'kaza', 'manikaran', 'tosh', 'malana', 'mandi',
-  'bir', 'billing', 'palampur', 'kangra', 'bharmour', 'parwanoo', 'baddi', 'bilaspurhp',
+  'bir', 'billing', 'palampur', 'kangra', 'nagrotabagwan', 'nagrota', 'chamunda', 'baijnath', 'jwalamukhi', 'chintpurni', 'bharmour', 'parwanoo', 'baddi', 'bilaspurhp',
   'katra', 'vaishnodevi', 'patnitop', 'kishtwar', 'bhaderwah', 'kargil', 'nubra', 'pangong',
   'kalimpong', 'kurseong', 'mirik', 'pelling', 'lachung', 'lachen', 'tawang', 'ziro',
   'bomdila', 'cherrapunji', 'sohra', 'dawki', 'kohima', 'aizawl', 'imphal', 'saputara',
@@ -1284,8 +1284,8 @@ export function verifyOrderVerificationToken(payload, token, secret) {
   return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }
 
-// Sequential Booking ID generator state (SIC2601, SIC2602, SIC2603, ...)
-let serverSic26Counter = 3;
+// Sequential Booking ID generator state (SIC2601, SIC2602, SIC2603, SIC2604, ...)
+let serverSic26Counter = 4;
 
 export function generateServerSequentialBookingId() {
   for (const b of storedBookings) {
@@ -1306,8 +1306,42 @@ export function generateServerSequentialBookingId() {
 // In-memory cache for warm serverless invocations
 let storedBookings = [
   {
+    id: 'SIC2604',
+    tripType: 'oneway',
+    tripDays: 1,
+    pickupCity: 'Zirakpur, Punjab',
+    dropCity: 'Nagrota Bagwan, India',
+    pickupAddress: 'Zirakpur, Punjab',
+    dropAddress: 'Nagrota Bagwan, Himachal Pradesh, India',
+    pickupDate: '2026-11-07',
+    pickupTime: '03:30 PM',
+    cabId: 'sedan',
+    cabName: 'Comfort Sedan AC (Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura)',
+    distanceKm: 235,
+    baseFare: 1210,
+    driverAllowance: 260,
+    tollsAndTaxes: 340,
+    highwayToll: 140,
+    statePermitTax: 200,
+    hillStationCharge: 160,
+    gstAmount: 99,
+    totalFare: 2069,
+    advancePaid: 414,
+    balanceDue: 1655,
+    paymentMode: 'advance_20',
+    paymentMethod: 'upi_razorpay',
+    transactionId: 'pay_live_captured_2604',
+    customerName: 'Ashish Dhawan',
+    customerPhone: '8080401779',
+    customerEmail: '',
+    status: 'confirmed',
+    createdAt: '2026-11-07T05:08:00.000Z',
+    notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip.'
+  },
+  {
     id: 'SIC2603',
     tripType: 'oneway',
+    tripDays: 1,
     pickupCity: 'Delhi NCR',
     dropCity: 'Agra',
     pickupAddress: 'T3 IGI Airport, New Delhi',
@@ -1318,9 +1352,12 @@ let storedBookings = [
     cabId: 'sedan',
     cabName: 'Sedan AC (Maruti Dzire)',
     distanceKm: 230,
-    baseFare: 1450,
-    driverAllowance: 0,
+    baseFare: 1190,
+    driverAllowance: 260,
     tollsAndTaxes: 280,
+    highwayToll: 155,
+    statePermitTax: 125,
+    hillStationCharge: 0,
     gstAmount: 87,
     totalFare: 1817,
     advancePaid: 363,
@@ -1886,41 +1923,81 @@ function buildServerBookingInvoicePdfBuffer(booking) {
 
   y += 28;
 
-  // 5. Itemized Fare & GST Tax Table
+  // 5. Itemized Fare & GST Tax Table (Separated rows for Base Fare, Driver Allowance, Highway Toll, State Tax, Hill Charge, GST)
   const totalFare = Number(booking.totalFare || 0);
   const gstAmount = Number(booking.gstAmount ?? Math.round((booking.baseFare || totalFare) * 0.05));
   const halfGst = Math.round(gstAmount / 2);
-  const tolls = Number(booking.tollsAndTaxes || 0);
-  const driverAllowance = Number(booking.driverAllowance || 0);
-  const baseFare =
+  const rawTolls = Number(booking.tollsAndTaxes || 0);
+  const highwayToll =
+    booking.highwayToll !== undefined
+      ? Number(booking.highwayToll)
+      : rawTolls > 0
+      ? Math.round(rawTolls * 0.55)
+      : 0;
+  const statePermitTax =
+    booking.statePermitTax !== undefined
+      ? Number(booking.statePermitTax)
+      : Math.max(0, rawTolls - highwayToll);
+  const hillStationCharge = Number(booking.hillStationCharge || 0);
+  const tripDays = Math.max(1, Number(booking.tripDays || 1));
+
+  let driverAllowance = Number(booking.driverAllowance || 0);
+  let baseFare =
     Number(booking.baseFare || 0) ||
-    Math.max(0, totalFare - gstAmount - tolls - driverAllowance);
-  const taxableValue = baseFare + driverAllowance + tolls;
+    Math.max(0, totalFare - gstAmount - rawTolls - driverAllowance - hillStationCharge);
+
+  // If driverAllowance was lumped into baseFare (0), separate out ₹260/day so it never inflates Base Fare
+  if (driverAllowance === 0 && baseFare > 600 && booking.tripType !== 'local') {
+    const separatedBata = 260 * tripDays;
+    if (baseFare > separatedBata + 300) {
+      driverAllowance = separatedBata;
+      baseFare = baseFare - separatedBata;
+    }
+  }
+
+  const taxableValue = baseFare + driverAllowance + highwayToll + statePermitTax + hillStationCharge;
 
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(203, 213, 225);
-  doc.rect(margin, y, contentWidth, 8, 'FD');
+  doc.rect(margin, y, contentWidth, 7.6, 'FD');
   doc.setTextColor(15, 41, 88);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
-  doc.text('DESCRIPTION OF PASSENGER TRANSPORT SERVICES (SAC: 996412)', margin + 3.5, y + 5.3);
-  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 5.3, { align: 'right' });
+  doc.setFontSize(8.0);
+  doc.text('ITEMIZED FARE & TAX BREAKUP (SAC: 996412)', margin + 3.5, y + 5.1);
+  doc.text('AMOUNT (INR)', pageWidth - margin - 3.5, y + 5.1, { align: 'right' });
 
-  y += 8;
+  y += 7.6;
+
+  const tripTypeBadge =
+    String(booking.tripType || 'oneway') === 'roundtrip'
+      ? `Round Trip (${tripDays === 1 ? 'Same Day 1D' : `${tripDays} Days`})`
+      : String(booking.tripType || 'ONEWAY').toUpperCase();
 
   const rows = [
     {
-      label: `1. Base Cab Hire Charges (${booking.cabName || 'Sedan AC'} - ${booking.distanceKm || 230} KM Included)`,
+      label: `1. Base Cab & Fuel Charges (${tripTypeBadge} • ${booking.distanceKm || 230} KM Included)`,
       value: `INR ${baseFare.toLocaleString('en-IN')}.00`
     },
     {
-      label: '2. Chauffeur Allowance / Daily Driver Bata Charges',
+      label: `2. Chauffeur / Driver Allowance (Daily Bata • ${tripDays} ${tripDays === 1 ? 'Day' : 'Days'})`,
       value: driverAllowance > 0 ? `INR ${driverAllowance.toLocaleString('en-IN')}.00` : 'Included (INR 0.00)'
     },
     {
-      label: '3. Highway FASTag Toll & State Entry Permit Tax',
-      value: tolls > 0 ? `INR ${tolls.toLocaleString('en-IN')}.00` : 'As Applicable'
+      label: '3. Highway FASTag Toll Tax',
+      value: highwayToll > 0 ? `INR ${highwayToll.toLocaleString('en-IN')}.00` : 'INR 0.00 (Extra if Applicable)'
     },
+    {
+      label: '4. State Border Entry Permit Tax',
+      value: statePermitTax > 0 ? `INR ${statePermitTax.toLocaleString('en-IN')}.00` : 'INR 0.00 (Included)'
+    },
+    ...(hillStationCharge > 0
+      ? [
+          {
+            label: '5. Hill Station / Mountain Drive Allowance',
+            value: `INR ${hillStationCharge.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
     {
       label: 'Total Taxable Value',
       value: `INR ${taxableValue.toLocaleString('en-IN')}.00`,
@@ -1936,31 +2013,32 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     }
   ];
 
+  const rowH = rows.length > 7 ? 6.6 : 7.2;
   rows.forEach((row, index) => {
     doc.setFillColor(index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 250, index % 2 === 0 ? 255 : 252);
     doc.setDrawColor(226, 232, 240);
-    doc.rect(margin, y, contentWidth, 7.6, 'FD');
+    doc.rect(margin, y, contentWidth, rowH, 'FD');
     doc.setFont('helvetica', row.bold ? 'bold' : 'normal');
     doc.setTextColor(15, 23, 42);
-    doc.setFontSize(8.2);
-    doc.text(row.label, margin + 3.5, y + 5.1);
-    doc.text(row.value, pageWidth - margin - 3.5, y + 5.1, { align: 'right' });
-    y += 7.6;
+    doc.setFontSize(7.9);
+    doc.text(row.label, margin + 3.5, y + rowH - 2.1);
+    doc.text(row.value, pageWidth - margin - 3.5, y + rowH - 2.1, { align: 'right' });
+    y += rowH;
   });
 
   // Grand Total Row
   doc.setFillColor(254, 243, 199);
   doc.setDrawColor(245, 158, 11);
-  doc.rect(margin, y, contentWidth, 9.2, 'FD');
+  doc.rect(margin, y, contentWidth, 8.8, 'FD');
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text('TOTAL INVOICE VALUE (INCLUSIVE OF 5% GST)', margin + 3.5, y + 6.1);
-  doc.text(`INR ${totalFare.toLocaleString('en-IN')}.00`, pageWidth - margin - 3.5, y + 6.1, {
+  doc.setFontSize(9.2);
+  doc.text('TOTAL INVOICE VALUE (INCLUSIVE OF 5% GST)', margin + 3.5, y + 5.9);
+  doc.text(`INR ${totalFare.toLocaleString('en-IN')}.00`, pageWidth - margin - 3.5, y + 5.9, {
     align: 'right'
   });
 
-  y += 11.5;
+  y += 10.5;
 
   // Payment Settlement Summary Strip
   const isSettled = booking.status === 'completed' || Number(booking.balanceDue) === 0;
@@ -2135,6 +2213,23 @@ export default async function handler(req, res) {
           query.balanceDue ?? existing?.balanceDue ?? Math.max(0, totalFare - advancePaid)
         );
 
+        const highwayToll =
+          query.highwayToll !== undefined
+            ? Number(query.highwayToll)
+            : existing?.highwayToll !== undefined
+            ? Number(existing.highwayToll)
+            : undefined;
+        const statePermitTax =
+          query.statePermitTax !== undefined
+            ? Number(query.statePermitTax)
+            : existing?.statePermitTax !== undefined
+            ? Number(existing.statePermitTax)
+            : undefined;
+        const hillStationCharge = Number(
+          query.hillStationCharge ?? existing?.hillStationCharge ?? 0
+        );
+        const tripDays = Math.max(1, Number(query.tripDays ?? existing?.tripDays ?? 1));
+
         const invoiceBooking = {
           ...(existing || {}),
           id: rawId,
@@ -2144,6 +2239,7 @@ export default async function handler(req, res) {
           customerGst: query.customerGst || existing?.customerGst || '',
           gstCompanyName: query.gstCompanyName || existing?.gstCompanyName || '',
           tripType: query.tripType || existing?.tripType || 'oneway',
+          tripDays,
           pickupCity: query.pickupCity || existing?.pickupCity || 'Delhi NCR',
           dropCity: query.dropCity || existing?.dropCity || 'Destination',
           pickupAddress: query.pickupAddress || existing?.pickupAddress || '',
@@ -2157,6 +2253,9 @@ export default async function handler(req, res) {
           baseFare,
           driverAllowance,
           tollsAndTaxes,
+          highwayToll,
+          statePermitTax,
+          hillStationCharge,
           gstAmount,
           totalFare,
           advancePaid,

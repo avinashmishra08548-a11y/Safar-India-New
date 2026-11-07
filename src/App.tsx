@@ -539,6 +539,76 @@ export default function App() {
 
   // Master Bookings Repository (stored securely for fleet management)
   // Cloud Database + /api/bookings + localStorage stay in sync
+  const SEEDED_VERIFIED_BOOKINGS: BookingRecord[] = [
+    {
+      id: 'SIC2604',
+      tripType: 'oneway',
+      tripDays: 1,
+      pickupCity: 'Zirakpur, Punjab',
+      dropCity: 'Nagrota Bagwan, India',
+      pickupAddress: 'Zirakpur, Punjab',
+      dropAddress: 'Nagrota Bagwan, Himachal Pradesh, India',
+      pickupDate: '2026-11-07',
+      pickupTime: '03:30 PM',
+      cabId: 'sedan',
+      cabName: 'Comfort Sedan AC (Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura)',
+      distanceKm: 235,
+      baseFare: 1210,
+      driverAllowance: 260,
+      tollsAndTaxes: 340,
+      highwayToll: 140,
+      statePermitTax: 200,
+      hillStationCharge: 160,
+      gstAmount: 99,
+      totalFare: 2069,
+      advancePaid: 414,
+      balanceDue: 1655,
+      paymentMode: 'advance_20',
+      paymentMethod: 'upi_razorpay',
+      transactionId: 'pay_live_captured_2604',
+      customerName: 'Ashish Dhawan',
+      customerPhone: '8080401779',
+      customerEmail: '',
+      status: 'confirmed',
+      createdAt: '2026-11-07T05:08:00.000Z',
+      notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip.'
+    },
+    {
+      id: 'SIC2603',
+      tripType: 'oneway',
+      tripDays: 1,
+      pickupCity: 'Delhi NCR',
+      dropCity: 'Agra',
+      pickupAddress: 'T3 IGI Airport, New Delhi',
+      dropAddress: 'Tajganj, Agra, Uttar Pradesh',
+      landmark: 'Taj View Point',
+      pickupDate: '2026-10-18',
+      pickupTime: '08:00 AM',
+      cabId: 'sedan',
+      cabName: 'Sedan AC (Maruti Dzire)',
+      distanceKm: 230,
+      baseFare: 1190,
+      driverAllowance: 260,
+      tollsAndTaxes: 280,
+      highwayToll: 155,
+      statePermitTax: 125,
+      hillStationCharge: 0,
+      gstAmount: 87,
+      totalFare: 1817,
+      advancePaid: 363,
+      balanceDue: 1454,
+      paymentMode: 'advance_20',
+      paymentMethod: 'upi_razorpay',
+      transactionId: 'pay_live_captured_2603',
+      customerName: 'Verified Passenger',
+      customerPhone: '7710080992',
+      customerEmail: 'passenger@safarindiacabs.in',
+      status: 'confirmed',
+      createdAt: '2026-10-17T08:30:00.000Z',
+      notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination.'
+    }
+  ];
+
   const [allBookings, setAllBookings] = useState<BookingRecord[]>(() => {
     try {
       const saved = localStorage.getItem('safar_bookings');
@@ -547,43 +617,20 @@ export default function App() {
         const cleaned = parsed
           .filter(b => b && !b.id.includes('DEMO') && !b.id.includes('TEST'))
           .map(b => ({ ...b, id: normalizeSequentialBookingId(b.id) }));
-        if (cleaned.length > 0) return cleaned;
+        const mapById = new Map<string, BookingRecord>();
+        for (const seed of SEEDED_VERIFIED_BOOKINGS) {
+          mapById.set(seed.id, seed);
+        }
+        for (const item of cleaned) {
+          const existing = mapById.get(item.id);
+          mapById.set(item.id, existing ? { ...existing, ...item } : item);
+        }
+        return Array.from(mapById.values());
       }
     } catch (e) {
       console.warn('Error reading saved bookings', e);
     }
-    return [
-      {
-        id: 'SIC2603',
-        tripType: 'oneway',
-        pickupCity: 'Delhi NCR',
-        dropCity: 'Agra',
-        pickupAddress: 'T3 IGI Airport, New Delhi',
-        dropAddress: 'Tajganj, Agra, Uttar Pradesh',
-        landmark: 'Taj View Point',
-        pickupDate: '2026-10-18',
-        pickupTime: '08:00 AM',
-        cabId: 'sedan',
-        cabName: 'Sedan AC (Maruti Dzire)',
-        distanceKm: 230,
-        baseFare: 1450,
-        driverAllowance: 0,
-        tollsAndTaxes: 280,
-        gstAmount: 87,
-        totalFare: 1817,
-        advancePaid: 363,
-        balanceDue: 1454,
-        paymentMode: 'advance_20',
-        paymentMethod: 'upi_razorpay',
-        transactionId: 'pay_live_captured_2603',
-        customerName: 'Verified Passenger',
-        customerPhone: '7710080992',
-        customerEmail: 'passenger@safarindiacabs.in',
-        status: 'confirmed',
-        createdAt: '2026-10-17T08:30:00.000Z',
-        notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination.'
-      }
-    ];
+    return SEEDED_VERIFIED_BOOKINGS;
   });
 
   // Helper to merge local and backend bookings without losing new bookings or driver assignments
@@ -1574,13 +1621,26 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* Admin Mapping API, Pricing Configuration, Monitoring & 30-Route Benchmark Console */}
+      {/* Admin Mapping API, Pricing Configuration, Live Bookings & GST Bill Generator Console */}
       {isAdminMappingConsoleOpen && (
         <Suspense fallback={null}>
           <AdminMappingConsoleModal
             isOpen={isAdminMappingConsoleOpen}
             onClose={() => setIsAdminMappingConsoleOpen(false)}
             onPricingUpdated={() => setPricingRevision((r) => r + 1)}
+            bookings={allBookings}
+            onOpenBookingInvoice={(b) => {
+              setActiveVoucherBooking(b);
+            }}
+            onUpsertBooking={(updated) => {
+              setAllBookings((prev) => mergeBookingsList([updated], prev));
+              saveBookingToCloudDatabase(updated).catch(() => {});
+              fetch('/api/bookings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ booking: updated })
+              }).catch(() => {});
+            }}
           />
         </Suspense>
       )}

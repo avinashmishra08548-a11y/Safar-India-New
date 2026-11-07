@@ -34,6 +34,7 @@ export interface BookingRecord {
   pickupTime: string;
   returnDate?: string;
   returnTime?: string;
+  tripDays?: number;
   localPackage?: string;
   airportMode?: 'pickup' | 'drop';
   airportTerminal?: string;
@@ -44,6 +45,11 @@ export interface BookingRecord {
   baseFare: number;
   driverAllowance: number;
   tollsAndTaxes: number;
+  highwayToll?: number;
+  statePermitTax?: number;
+  hillStationCharge?: number;
+  nightCharge?: number;
+  parkingCharge?: number;
   gstAmount: number;
   discountAmount?: number;
   promoCode?: string;

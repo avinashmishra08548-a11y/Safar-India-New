@@ -427,6 +427,16 @@ export async function sendBookingConfirmationSms(
  * First attempts the backend API route (/api/send-booking-sms or /api/booking-notifications).
  * If the backend API is unreachable or running in static mode, seamlessly falls back to direct client-side Fast2SMS gateway.
  */
+// Client-side deduplication set so a booking ID never triggers confirmation notifications twice
+const dispatchedClientBookingIds = new Set<string>();
+
+export function markBookingNotificationDispatched(bookingId?: string): void {
+  const cleanId = String(bookingId || '').replace(/^#/, '').trim().toUpperCase();
+  if (cleanId) {
+    dispatchedClientBookingIds.add(cleanId);
+  }
+}
+
 export async function sendDualBookingNotifications(booking: {
   id: string;
   customerName: string;
@@ -448,6 +458,32 @@ export async function sendDualBookingNotifications(booking: {
 }): Promise<DualSmsResult> {
   const cleanCustomerPhone = sanitize10DigitPhone(booking.customerPhone);
   const adminPhone = ADMIN_PHONE_NUMBER;
+  const cleanBookingId = String(booking.id || '').replace(/^#/, '').trim().toUpperCase();
+
+  if (cleanBookingId && dispatchedClientBookingIds.has(cleanBookingId)) {
+    return {
+      success: true,
+      source: 'backend_api',
+      customerSms: {
+        success: true,
+        message: `Booking confirmation already dispatched for ${cleanBookingId}`,
+        endpointUsed: '/api/verify-payment',
+        numbersSent: cleanCustomerPhone,
+        statusCode: 200
+      },
+      adminSms: {
+        success: true,
+        message: `Admin alert already dispatched for ${cleanBookingId}`,
+        endpointUsed: '/api/verify-payment',
+        numbersSent: adminPhone,
+        statusCode: 200
+      }
+    };
+  }
+  if (cleanBookingId) {
+    dispatchedClientBookingIds.add(cleanBookingId);
+  }
+
   const travelDate = `${booking.pickupDate} at ${booking.pickupTime}`;
   const cabClass = booking.cabClass || booking.cabName || 'Commercial Cab';
   const totalFare = booking.totalFare ?? (Number(booking.advancePaid || 0) + Number(booking.balanceDue || 0));
@@ -748,9 +784,9 @@ export async function requestServerOtp(
     return existingInFlight;
   }
 
-  // 2. If an OTP was already sent in the last 15 seconds (or 5s on explicit resend), return cached session without re-sending
+  // 2. If an OTP was already sent in the last 60 seconds (or 25s on explicit resend), return cached session without re-sending
   const cached = recentClientOtpCache.get(cleanPhone);
-  const cooldownMs = forceNew ? 5000 : 15000;
+  const cooldownMs = forceNew ? 25000 : 60000;
   if (cached && now - cached.sentAt < cooldownMs && cached.expiresAt > now + 60000) {
     return {
       success: true,

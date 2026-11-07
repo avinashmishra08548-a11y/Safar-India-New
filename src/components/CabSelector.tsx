@@ -275,7 +275,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         {/* Clean Controls: Return Date (if Round Trip) + Toll Toggle */}
         <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
           {tripType === 'roundtrip' && setReturnDate && (
-            <div className="bg-white border border-slate-200 rounded-2xl px-3.5 py-2 flex items-center gap-2.5 shadow-2xs">
+            <div className="bg-white border border-slate-200 rounded-2xl px-3.5 py-2 flex flex-wrap items-center gap-2 shadow-2xs">
               <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
               <span className="text-xs font-bold text-slate-600 whitespace-nowrap">Return:</span>
               <input
@@ -286,6 +286,33 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 onChange={(e) => setReturnDate(e.target.value)}
                 className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
               />
+              <div className="flex items-center gap-1">
+                {[
+                  { label: 'Same Day (1D)', addDays: 0 },
+                  { label: '2 Days', addDays: 1 },
+                  { label: '3 Days', addDays: 2 }
+                ].map((opt) => {
+                  const baseDate = pickupDate || todayStr;
+                  const d = new Date(baseDate);
+                  if (!isNaN(d.getTime())) d.setDate(d.getDate() + opt.addDays);
+                  const targetStr = !isNaN(d.getTime()) ? d.toISOString().split('T')[0] : baseDate;
+                  const active = (returnDate || pickupDate || todayStr) === targetStr;
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => setReturnDate(targetStr)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-extrabold border transition cursor-pointer ${
+                        active
+                          ? 'bg-amber-400 text-slate-950 border-amber-500'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
               {setReturnTime && (
                 <select
                   aria-label="Return Time"
@@ -513,33 +540,53 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </span>
                 </div>
 
-                {/* Transparent Pre-Booking Fare Breakdown (Zero Hidden Charges Guarantee) */}
+                {/* Transparent Pre-Booking Fare Breakdown (Itemized Separate Breakup) */}
                 <div className="mb-3 p-3 rounded-xl bg-slate-50/90 border border-slate-200/80 space-y-1.5 text-[11px]">
                   <div className="flex items-center justify-between font-extrabold text-slate-900 border-b border-slate-200 pb-1">
-                    <span>Transparent Fare Breakdown ({activeFare.billedDistanceKm} KM)</span>
+                    <span>Itemized Fare Breakup ({activeFare.billedDistanceKm} KM)</span>
                     <span className="text-emerald-700">Zero Hidden Charges</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>Base Fare ({activeFare.billedDistanceKm} KM Included):</span>
+                    <span>Base Cab Fare ({activeFare.billedDistanceKm} KM):</span>
                     <span className="font-mono font-bold text-slate-900">
-                      ₹{activeFare.baseFare.toLocaleString('en-IN')}
+                      ₹{Math.max(0, activeFare.baseFare - (activeFare.hillStationCharge || 0)).toLocaleString('en-IN')}
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>Driver Allowance (DA / Bata):</span>
+                    <span>Driver Allowance (Daily Bata):</span>
                     <span className="font-mono font-bold text-emerald-700">
                       ₹{activeFare.driverAllowance.toLocaleString('en-IN')} (Included)
                     </span>
                   </div>
-                  {tripType !== 'local' && (
+                  {activeFare.hillStationCharge > 0 && (
                     <div className="flex justify-between text-slate-600">
-                      <span>State Toll &amp; Permit Tax:</span>
+                      <span>Hill Station Drive Charge:</span>
                       <span className="font-mono font-bold text-slate-900">
-                        {includeTolls
-                          ? `₹${activeFare.tollsAndTaxes.toLocaleString('en-IN')} (Included)`
-                          : `Est. ₹${activeFare.estimatedTollsAndTaxes.toLocaleString('en-IN')} (Extra)`}
+                        ₹{activeFare.hillStationCharge.toLocaleString('en-IN')} (Included)
                       </span>
                     </div>
+                  )}
+                  {tripType !== 'local' && (
+                    <>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Highway FASTag Toll Tax:</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          {includeTolls
+                            ? `₹${activeFare.highwayToll.toLocaleString('en-IN')} (Included)`
+                            : `Est. ₹${activeFare.highwayToll.toLocaleString('en-IN')} (Extra)`}
+                        </span>
+                      </div>
+                      {activeFare.statePermitTax > 0 && (
+                        <div className="flex justify-between text-slate-600">
+                          <span>State Border Entry Permit Tax:</span>
+                          <span className="font-mono font-bold text-slate-900">
+                            {includeTolls
+                              ? `₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Included)`
+                              : `Est. ₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Extra)`}
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
                   <div className="flex justify-between text-slate-600">
                     <span>GST (5% SAC 996412) · Extra ₹{activeFare.extraKmRate}/km:</span>

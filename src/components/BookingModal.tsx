@@ -23,7 +23,11 @@ import {
   buildBookingFareSnapshot
 } from '../utils/fareCalculator';
 import { Coordinates } from '../utils/olaMapsService';
-import { sendDualBookingNotifications, sanitize10DigitPhone } from '../utils/smsService';
+import {
+  sendDualBookingNotifications,
+  sanitize10DigitPhone,
+  markBookingNotificationDispatched
+} from '../utils/smsService';
 import {
   launchRazorpayStandardCheckout,
   loadRazorpayScript,
@@ -329,6 +333,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       pickupTime,
       returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
       returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
+      tripDays: activeFare.daysCount || 1,
       localPackage: tripType === 'local' ? localPackageId : undefined,
       airportMode: tripType === 'airport' ? airportMode : undefined,
       airportTerminal: airportTerminal.trim() || undefined,
@@ -338,6 +343,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       baseFare: activeFare.baseFare + activeFare.addonsTotal,
       driverAllowance: activeFare.driverAllowance,
       tollsAndTaxes: activeFare.tollsAndTaxes,
+      highwayToll: includeTollsState ? activeFare.highwayToll : 0,
+      statePermitTax: includeTollsState ? activeFare.statePermitTax : 0,
+      hillStationCharge: activeFare.hillStationCharge || 0,
+      nightCharge: activeFare.nightCharges || 0,
       gstAmount: activeFare.gstAmount,
       discountAmount: activeFare.promoDiscount > 0 ? activeFare.promoDiscount : undefined,
       promoCode: activeFare.promoCodeApplied || undefined,
@@ -422,16 +431,30 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       onStatusChange: (statusText) => {
         setProcessingStatus(statusText);
       },
-      onSuccess: async (paymentId: string, verifiedBooking?: BookingRecord) => {
-        const finalConfirmedBooking: BookingRecord = verifiedBooking || {
-          ...bookingDraft,
-          status: 'confirmed',
-          transactionId: paymentId,
-          paymentMethod:
-            paymentMode === 'advance_20'
-              ? `Razorpay ${methodLabel} (${paymentId}) - 20% Advance`
-              : `Razorpay ${methodLabel} (${paymentId}) - 100% Full Fare`
-        };
+      onSuccess: async (
+        paymentId: string,
+        verifiedBooking?: BookingRecord,
+        serverNotificationsDispatched?: boolean
+      ) => {
+        const finalConfirmedBooking: BookingRecord = verifiedBooking
+          ? {
+              ...bookingDraft,
+              ...verifiedBooking,
+              highwayToll: verifiedBooking.highwayToll ?? bookingDraft.highwayToll,
+              statePermitTax: verifiedBooking.statePermitTax ?? bookingDraft.statePermitTax,
+              hillStationCharge: verifiedBooking.hillStationCharge ?? bookingDraft.hillStationCharge,
+              nightCharge: verifiedBooking.nightCharge ?? bookingDraft.nightCharge,
+              tripDays: verifiedBooking.tripDays ?? bookingDraft.tripDays
+            }
+          : {
+              ...bookingDraft,
+              status: 'confirmed',
+              transactionId: paymentId,
+              paymentMethod:
+                paymentMode === 'advance_20'
+                  ? `Razorpay ${methodLabel} (${paymentId}) - 20% Advance`
+                  : `Razorpay ${methodLabel} (${paymentId}) - 100% Full Fare`
+            };
 
         try {
           await saveBookingToCloudDatabase(finalConfirmedBooking);
@@ -439,10 +462,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           console.warn('Cloud booking database persistence notice:', dbErr);
         }
 
-        try {
-          await sendDualBookingNotifications(finalConfirmedBooking);
-        } catch (smsError) {
-          console.warn('Traccar Cloud automated dual notification notice:', smsError);
+        if (serverNotificationsDispatched) {
+          markBookingNotificationDispatched(finalConfirmedBooking.id);
+        } else {
+          try {
+            await sendDualBookingNotifications(finalConfirmedBooking);
+          } catch (smsError) {
+            console.warn('Traccar Cloud automated dual notification notice:', smsError);
+          }
         }
 
         setIsProcessing(false);
@@ -528,14 +555,48 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
             {tripType === 'roundtrip' ? (
               <div>
-                <span className="text-[10px] text-amber-800 uppercase font-bold block">Return Date ({activeFare.days} Days)</span>
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] text-amber-800 uppercase font-bold block">
+                    Return Date ({activeFare.days === 1 ? 'Same Day · 1 Day' : `${activeFare.days} Days`})
+                  </span>
+                </div>
                 <input
                   type="date"
                   min={pickupDate}
                   value={returnDateState}
                   onChange={(e) => setReturnDateState(e.target.value)}
-                  className="bg-white border border-amber-300 rounded-lg px-2 py-0.5 text-slate-900 font-bold text-xs mt-0.5"
+                  className="bg-white border border-amber-300 rounded-lg px-2 py-0.5 text-slate-900 font-bold text-xs mt-0.5 w-full"
                 />
+                <div className="flex flex-wrap items-center gap-1 mt-1">
+                  {[
+                    { label: 'Same Day (1D)', addDays: 0 },
+                    { label: '2 Days', addDays: 1 },
+                    { label: '3 Days', addDays: 2 }
+                  ].map((opt) => {
+                    const baseP = pickupDate ? new Date(pickupDate) : new Date();
+                    if (!isNaN(baseP.getTime())) {
+                      baseP.setDate(baseP.getDate() + opt.addDays);
+                    }
+                    const targetDateStr = !isNaN(baseP.getTime())
+                      ? baseP.toISOString().split('T')[0]
+                      : pickupDate;
+                    const isSelected = returnDateState === targetDateStr;
+                    return (
+                      <button
+                        key={opt.label}
+                        type="button"
+                        onClick={() => setReturnDateState(targetDateStr)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold border transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-amber-400 text-slate-950 border-amber-500'
+                            : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div>

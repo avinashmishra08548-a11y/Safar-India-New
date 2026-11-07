@@ -503,7 +503,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
     if (sendingOtpLockRef.current || isSendingOtp) return;
     if (isResend && countdown > 0) return;
-    if (!isResend && showInlineOtpBox && countdown > 0 && otpToken) {
+    if (!isResend && showInlineOtpBox && otpToken) {
       inlineOtpInputRef.current?.focus();
       return;
     }
@@ -811,7 +811,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
             <button
               type="button"
-              onClick={() => setTripType('roundtrip')}
+              onClick={() => {
+                setTripType('roundtrip');
+                if (pickupDate && (!returnDate || returnDate < pickupDate)) {
+                  setReturnDate(pickupDate);
+                }
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition cursor-pointer border ${
                 tripType === 'roundtrip'
                   ? 'bg-amber-50 text-amber-900 border-amber-400'
@@ -819,7 +824,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               }`}
             >
               <span className={`w-2.5 h-2.5 rounded-full ${tripType === 'roundtrip' ? 'bg-amber-500' : 'bg-slate-300'}`} />
-              Round Trip (Multi-City)
+              Round Trip (Same Day / Multi-Day)
             </button>
           </div>
 
@@ -1264,7 +1269,11 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   } catch {}
                 }}
                 onChange={(e) => {
-                  setPickupDate(e.target.value);
+                  const newPickup = e.target.value;
+                  setPickupDate(newPickup);
+                  if (tripType === 'roundtrip' && (!returnDate || returnDate < newPickup)) {
+                    setReturnDate(newPickup);
+                  }
                   if (routeError) setRouteError('');
                 }}
                 placeholder="Select pickup date"
@@ -1275,20 +1284,22 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           </div>
 
-          {/* Return Date (only for Round Trip) */}
+          {/* Return Date (only for Round Trip — with 1-Tap Same Day / 2 Days / 3 Days option) */}
           {tripType === 'roundtrip' && (
             <div>
-              <label
-                htmlFor="booking-return-date-input"
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
-              >
-                Return Date ({tripDays} {tripDays === 1 ? 'Day' : 'Days'})
-              </label>
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <label
+                  htmlFor="booking-return-date-input"
+                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-600"
+                >
+                  Return Date ({tripDays === 1 ? 'Same Day · 1 Day' : `${tripDays} Days`})
+                </label>
+              </div>
               <div className="relative">
                 <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
                 {!returnDate && (
                   <span className="pointer-events-none absolute left-10 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                    Select return date
+                    Same day or return date
                   </span>
                 )}
                 <input
@@ -1311,6 +1322,41 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     returnDate ? 'text-slate-900' : 'text-transparent focus:text-slate-900'
                   }`}
                 />
+              </div>
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                {[
+                  { label: 'Same Day (1 Day)', addDays: 0 },
+                  { label: '2 Days', addDays: 1 },
+                  { label: '3 Days', addDays: 2 }
+                ].map((opt) => {
+                  const baseDateStr = pickupDate || today;
+                  const dObj = new Date(baseDateStr);
+                  if (!isNaN(dObj.getTime())) {
+                    dObj.setDate(dObj.getDate() + opt.addDays);
+                  }
+                  const targetDate = !isNaN(dObj.getTime())
+                    ? dObj.toISOString().split('T')[0]
+                    : baseDateStr;
+                  const isSelected = Boolean(returnDate && returnDate === targetDate);
+                  return (
+                    <button
+                      key={opt.label}
+                      type="button"
+                      onClick={() => {
+                        if (!pickupDate) setPickupDate(baseDateStr);
+                        setReturnDate(targetDate);
+                        if (routeError) setRouteError('');
+                      }}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold border transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
+                          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-amber-50 hover:border-amber-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

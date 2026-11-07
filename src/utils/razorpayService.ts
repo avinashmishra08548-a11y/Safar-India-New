@@ -329,7 +329,7 @@ export interface RazorpayCheckoutOptions {
   totalFareRupees?: number;
   bookingDraft?: BookingRecord;
   onStatusChange?: (statusText: string) => void;
-  onSuccess: (paymentId: string, verifiedBooking?: BookingRecord) => void;
+  onSuccess: (paymentId: string, verifiedBooking?: BookingRecord, notificationsDispatched?: boolean) => void;
   onDismiss?: () => void;
   onError?: (errMessage: string) => void;
 }
@@ -398,7 +398,7 @@ export async function verifyRazorpayPaymentOnServer(params: {
   verificationToken: string;
   bookingDraft: BookingRecord;
   clientPublicKeyId?: string;
-}): Promise<{ verified: boolean; booking: BookingRecord }> {
+}): Promise<{ verified: boolean; booking: BookingRecord; notificationsDispatched?: boolean }> {
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -416,7 +416,12 @@ export async function verifyRazorpayPaymentOnServer(params: {
       if (response.ok && data && data.success && data.verified && data.booking) {
         return {
           verified: true,
-          booking: data.booking as BookingRecord
+          booking: data.booking as BookingRecord,
+          notificationsDispatched: Boolean(
+            data.notificationsDispatched ||
+            data.notifications?.customer?.whatsappDispatched ||
+            data.notifications?.customer?.dispatched
+          )
         };
       }
 
@@ -732,8 +737,14 @@ export async function launchRazorpayStandardCheckout(
       },
       notes: {
         booking_id: resolvedBookingId,
+        verified_booking_id: resolvedBookingId,
         route: `${checkoutParams.pickupCity} -> ${checkoutParams.dropCity}`,
-        pickup_date: checkoutParams.pickupDate
+        pickup_date: checkoutParams.pickupDate,
+        customer_info: `${String(checkoutParams.customerName || 'Traveler').slice(0, 70)}|${customerPhone}|${String(customerEmail || '').slice(0, 70)}`,
+        route_info: `${String(tripType || 'oneway')}|${String(checkoutParams.pickupCity || '').slice(0, 80)}|${String(checkoutParams.dropCity || '').slice(0, 80)}|${String(synchronizedDraft.distanceKm || distanceKm || 130)}`,
+        address_info: `${String(synchronizedDraft.pickupAddress || checkoutParams.pickupCity || '').slice(0, 110)}|${String(synchronizedDraft.dropAddress || checkoutParams.dropCity || '').slice(0, 110)}`,
+        schedule_info: `${String(pickupDateRaw || '')}|${String(pickupTimeRaw || '')}|${String(cabId || 'sedan')}|${String(checkoutParams.cabName || 'Sedan AC').slice(0, 60)}`,
+        fare_info: `${resolvedTotalFare}|${resolvedAdvancePaid}|${resolvedBalanceDue}|${checkoutParams.paymentMode}`
       },
       theme: {
         color: '#F59E0B'
@@ -774,7 +785,8 @@ export async function launchRazorpayStandardCheckout(
 
           checkoutParams.onSuccess(
             cleanPaymentId,
-            verificationResult.booking
+            verificationResult.booking,
+            verificationResult.notificationsDispatched
           );
         } catch (verifyErr: any) {
           const errMessage = String(verifyErr?.message || '');

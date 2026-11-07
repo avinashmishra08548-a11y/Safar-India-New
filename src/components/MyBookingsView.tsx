@@ -601,10 +601,30 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
             const isCompleted = b.status === 'completed';
             const isDownloading = downloadingBookingId === b.id;
             const gstAmount = b.gstAmount ?? Math.round((b.baseFare || b.totalFare) * 0.05);
-            const tollsAmount = b.tollsAndTaxes || 0;
-            const driverAllowance = b.driverAllowance || 0;
-            const baseFareAmount =
-              b.baseFare || Math.max(0, b.totalFare - gstAmount - tollsAmount - driverAllowance);
+            const rawTolls = b.tollsAndTaxes || 0;
+            const highwayToll =
+              b.highwayToll !== undefined
+                ? b.highwayToll
+                : rawTolls > 0
+                ? Math.round(rawTolls * 0.55)
+                : 0;
+            const statePermitTax =
+              b.statePermitTax !== undefined
+                ? b.statePermitTax
+                : Math.max(0, rawTolls - highwayToll);
+            const hillStationCharge = b.hillStationCharge || 0;
+            const tripDays = Math.max(1, b.tripDays || 1);
+            let driverAllowance = b.driverAllowance || 0;
+            let baseFareAmount =
+              b.baseFare ||
+              Math.max(0, b.totalFare - gstAmount - rawTolls - driverAllowance - hillStationCharge);
+            if (driverAllowance === 0 && baseFareAmount > 600 && b.tripType !== 'local') {
+              const separatedBata = 260 * tripDays;
+              if (baseFareAmount > separatedBata + 300) {
+                driverAllowance = separatedBata;
+                baseFareAmount -= separatedBata;
+              }
+            }
             const cleanIdSuffix = b.id.replace(/^SIC-?/i, '');
             const invoiceNumber = `INV-SIC${cleanIdSuffix}`;
             const paymentStatusLabel =
@@ -683,7 +703,11 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       </div>
                       <div>
                         <strong className="text-slate-800">Vehicle:</strong>{' '}
-                        <span className="font-bold text-slate-900">{b.cabName}</span> ({b.tripType.toUpperCase()})
+                        <span className="font-bold text-slate-900">{b.cabName}</span> (
+                        {b.tripType === 'roundtrip'
+                          ? `ROUND TRIP • ${tripDays === 1 ? 'SAME DAY 1D' : `${tripDays} DAYS`}`
+                          : b.tripType.toUpperCase()}
+                        )
                       </div>
                     </div>
                   </div>
@@ -711,28 +735,40 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     )}
                   </div>
 
-                  {/* Detailed Distance / Fare Breakdown Box (Base Fare, Tax, Toll Charges, Payment Status) */}
+                  {/* Itemized Fare Breakup Box (Base Fare, Driver Bata, Highway Toll, State Permit Tax, Hill Charge, GST) */}
                   <div className="lg:col-span-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
                     <div className="flex justify-between items-center text-slate-600">
-                      <span>Base Fare ({b.distanceKm} KM):</span>
+                      <span>Base Cab Fare ({b.distanceKm} KM):</span>
                       <span className="font-mono font-bold text-slate-900">
                         {formatINR(baseFareAmount)}
                       </span>
                     </div>
-                    {driverAllowance > 0 && (
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Driver Allowance ({tripDays === 1 ? '1 Day' : `${tripDays} Days`}):</span>
+                      <span className="font-mono font-bold text-emerald-700">
+                        {formatINR(driverAllowance)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Highway FASTag Toll Tax:</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {highwayToll > 0 ? formatINR(highwayToll) : '₹0'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>State Border Permit Tax:</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {statePermitTax > 0 ? formatINR(statePermitTax) : '₹0'}
+                      </span>
+                    </div>
+                    {hillStationCharge > 0 && (
                       <div className="flex justify-between items-center text-slate-600">
-                        <span>Driver Allowance:</span>
+                        <span>Hill Station Charge:</span>
                         <span className="font-mono font-bold text-slate-900">
-                          {formatINR(driverAllowance)}
+                          {formatINR(hillStationCharge)}
                         </span>
                       </div>
                     )}
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span>Toll &amp; State Tax Charges:</span>
-                      <span className="font-mono font-bold text-slate-900">
-                        {tollsAmount > 0 ? formatINR(tollsAmount) : '₹0 (As Applicable)'}
-                      </span>
-                    </div>
                     <div className="flex justify-between items-center text-slate-600">
                       <span>GST Tax (5% SAC 996412):</span>
                       <span className="font-mono font-bold text-slate-900">{formatINR(gstAmount)}</span>
