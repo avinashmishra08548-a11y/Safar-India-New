@@ -88,6 +88,34 @@
           "type": "string",
           "enum": ["confirmed", "completed", "cancelled"]
         },
+        "pickupCoords": {
+          "type": "object",
+          "description": "Pickup GPS coordinates { lat, lng }"
+        },
+        "dropCoords": {
+          "type": "object",
+          "description": "Drop GPS coordinates { lat, lng }"
+        },
+        "routeProvider": {
+          "type": "string",
+          "description": "Routing provider used (ola_maps, mappls, osrm_india_road, verified_highway_network)"
+        },
+        "routeSummary": {
+          "type": "string",
+          "description": "Selected highway corridor summary"
+        },
+        "routeDurationText": {
+          "type": "string",
+          "description": "Estimated travel duration text"
+        },
+        "routeGeometry": {
+          "type": "array",
+          "description": "Bounded road polyline coordinates [[lng, lat]]"
+        },
+        "fareSnapshot": {
+          "type": "object",
+          "description": "Immutable snapshot of distance and fare components at booking confirmation"
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"

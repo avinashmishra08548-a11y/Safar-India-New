@@ -54,6 +54,13 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   driver_phone TEXT,
   driver_vehicle_model TEXT,
   driver_vehicle_no TEXT,
+  pickup_coords JSONB,
+  drop_coords JSONB,
+  route_provider TEXT,
+  route_summary TEXT,
+  route_duration_text TEXT,
+  route_geometry JSONB,
+  fare_snapshot JSONB,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

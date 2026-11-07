@@ -139,102 +139,114 @@ function sanitizeBookingForFirestore(booking: BookingRecord): Record<string, unk
     createdAt: booking.createdAt || new Date().toISOString()
   };
 
-  const clean: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(rawObj)) {
-    if (v !== undefined) {
-      clean[k] = v;
-    }
-  }
-  return clean;
-}
+    // Bound routeGeometry to at most 40 points for compact Firestore document size
+    const boundedGeometry = Array.isArray(booking.routeGeometry)
+      ? booking.routeGeometry.slice(0, 40)
+      : undefined;
 
-/**
- * Saves or updates a BookingRecord in Firebase Firestore (`bookings/{id}`)
- * and Supabase (`bookings` table, if configured), and updates the confirmed sequence counter.
- */
-export async function saveBookingToCloudDatabase(booking: BookingRecord): Promise<void> {
-  if (!booking || !booking.id) return;
-
-  const seq = parseSequentialNumberFromBookingId(booking.id);
-  if (seq > 0) {
-    try {
-      const currentSaved = Number(localStorage.getItem(COUNTER_STORAGE_KEY) || '0');
-      if (seq > currentSaved) {
-        localStorage.setItem(COUNTER_STORAGE_KEY, String(seq));
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries({ ...rawObj, routeGeometry: boundedGeometry })) {
+      if (v !== undefined) {
+        clean[k] = v;
       }
-    } catch {}
+    }
+    return clean;
+  }
 
-    // Also update Firestore counter best-effort
-    try {
-      const counterRef = doc(db, 'booking_counters', 'sic_26_series');
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(counterRef);
-        const currentRemote = snap.exists() ? Number(snap.data()?.currentSequence || 3) : 3;
-        const resolvedSeq = Math.max(seq, currentRemote);
-        transaction.set(counterRef, {
-          seriesPrefix: SERIES_PREFIX,
-          currentSequence: resolvedSeq,
-          lastBookingId: formatSequentialBookingId(resolvedSeq),
-          updatedAt: new Date().toISOString()
+  /**
+   * Saves or updates a BookingRecord in Firebase Firestore (`bookings/{id}`)
+   * and Supabase (`bookings` table, if configured), and updates the confirmed sequence counter.
+   */
+  export async function saveBookingToCloudDatabase(booking: BookingRecord): Promise<void> {
+    if (!booking || !booking.id) return;
+
+    const seq = parseSequentialNumberFromBookingId(booking.id);
+    if (seq > 0) {
+      try {
+        const currentSaved = Number(localStorage.getItem(COUNTER_STORAGE_KEY) || '0');
+        if (seq > currentSaved) {
+          localStorage.setItem(COUNTER_STORAGE_KEY, String(seq));
+        }
+      } catch {}
+
+      // Also update Firestore counter best-effort
+      try {
+        const counterRef = doc(db, 'booking_counters', 'sic_26_series');
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(counterRef);
+          const currentRemote = snap.exists() ? Number(snap.data()?.currentSequence || 3) : 3;
+          const resolvedSeq = Math.max(seq, currentRemote);
+          transaction.set(counterRef, {
+            seriesPrefix: SERIES_PREFIX,
+            currentSequence: resolvedSeq,
+            lastBookingId: formatSequentialBookingId(resolvedSeq),
+            updatedAt: new Date().toISOString()
+          });
         });
-      });
-    } catch {}
-  }
+      } catch {}
+    }
 
-  // 1. Persist to Firebase Firestore
-  const docPath = `bookings/${booking.id}`;
-  try {
-    const cleanData = sanitizeBookingForFirestore(booking);
-    await setDoc(doc(db, 'bookings', booking.id), cleanData, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, docPath);
-  }
-
-  // 2. Persist to Supabase `bookings` table if configured
-  if (supabaseClient) {
+    // 1. Persist to Firebase Firestore
+    const docPath = `bookings/${booking.id}`;
     try {
-      await supabaseClient.from('bookings').upsert(
-        {
-          id: booking.id,
-          sequence_number: seq || null,
-          trip_type: booking.tripType,
-          pickup_city: booking.pickupCity,
-          drop_city: booking.dropCity,
-          pickup_address: booking.pickupAddress || null,
-          drop_address: booking.dropAddress || null,
-          pickup_date: booking.pickupDate,
-          pickup_time: booking.pickupTime,
-          cab_id: booking.cabId,
-          cab_name: booking.cabName,
-          distance_km: booking.distanceKm,
-          base_fare: booking.baseFare,
-          driver_allowance: booking.driverAllowance,
-          tolls_and_taxes: booking.tollsAndTaxes,
-          gst_amount: booking.gstAmount,
-          total_fare: booking.totalFare,
-          advance_paid: booking.advancePaid,
-          balance_due: booking.balanceDue,
-          payment_mode: booking.paymentMode,
-          payment_method: booking.paymentMethod,
-          transaction_id: booking.transactionId || null,
-          customer_name: booking.customerName,
-          customer_phone: booking.customerPhone,
-          customer_email: booking.customerEmail || null,
-          status: booking.status,
-          driver_name: booking.driverName || null,
-          driver_phone: booking.driverPhone || null,
-          driver_vehicle_model: booking.driverVehicleModel || null,
-          driver_vehicle_no: booking.driverVehicleNo || null,
-          notes: booking.notes || null,
-          created_at: booking.createdAt
-        },
-        { onConflict: 'id' }
-      );
-    } catch (err) {
-      console.warn('Supabase upsert notice:', err);
+      const cleanData = sanitizeBookingForFirestore(booking);
+      await setDoc(doc(db, 'bookings', booking.id), cleanData, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, docPath);
+    }
+
+    // 2. Persist to Supabase `bookings` table if configured
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from('bookings').upsert(
+          {
+            id: booking.id,
+            sequence_number: seq || null,
+            trip_type: booking.tripType,
+            pickup_city: booking.pickupCity,
+            drop_city: booking.dropCity,
+            pickup_address: booking.pickupAddress || null,
+            drop_address: booking.dropAddress || null,
+            pickup_coords: booking.pickupCoords || null,
+            drop_coords: booking.dropCoords || null,
+            route_provider: booking.routeProvider || null,
+            route_summary: booking.routeSummary || null,
+            route_duration_text: booking.routeDurationText || null,
+            route_geometry: Array.isArray(booking.routeGeometry) ? booking.routeGeometry.slice(0, 40) : null,
+            fare_snapshot: booking.fareSnapshot || null,
+            pickup_date: booking.pickupDate,
+            pickup_time: booking.pickupTime,
+            cab_id: booking.cabId,
+            cab_name: booking.cabName,
+            distance_km: booking.distanceKm,
+            base_fare: booking.baseFare,
+            driver_allowance: booking.driverAllowance,
+            tolls_and_taxes: booking.tollsAndTaxes,
+            gst_amount: booking.gstAmount,
+            total_fare: booking.totalFare,
+            advance_paid: booking.advancePaid,
+            balance_due: booking.balanceDue,
+            payment_mode: booking.paymentMode,
+            payment_method: booking.paymentMethod,
+            transaction_id: booking.transactionId || null,
+            customer_name: booking.customerName,
+            customer_phone: booking.customerPhone,
+            customer_email: booking.customerEmail || null,
+            status: booking.status,
+            driver_name: booking.driverName || null,
+            driver_phone: booking.driverPhone || null,
+            driver_vehicle_model: booking.driverVehicleModel || null,
+            driver_vehicle_no: booking.driverVehicleNo || null,
+            notes: booking.notes || null,
+            created_at: booking.createdAt
+          },
+          { onConflict: 'id' }
+        );
+      } catch (err) {
+        console.warn('Supabase upsert notice:', err);
+      }
     }
   }
-}
 
 /**
  * Fetches all bookings from Firebase Firestore (`bookings` collection) and Supabase (if configured).

@@ -1,5 +1,6 @@
 import { CabCategoryId, TripType } from '../types';
 import { CABS_FLEET } from '../data/cabsFleet';
+import { getAdminPricingConfigSync } from './olaMapsService';
 
 export interface StatePermitBreakdownItem {
   state: string;
@@ -975,22 +976,58 @@ export function calculateRoundTripFare(
   nightHalts = 0,
   hillMultiplier = 1.0
 ): RoundTripFareBreakdown {
+  const adminCfg = getAdminPricingConfigSync();
+  const vKey = String(vehicleType || 'sedan').toLowerCase() as CabCategoryId;
+  const adminVeh = adminCfg.vehicles?.[vKey] || adminCfg.vehicles?.sedan;
+
   const rates: Record<
     string,
     { perKmRate: number; driverAllowancePerDay: number; nightChargePerNight: number }
   > = {
-    HATCHBACK: { perKmRate: 11.5, driverAllowancePerDay: 280, nightChargePerNight: 300 },
-    SEDAN: { perKmRate: 13, driverAllowancePerDay: 320, nightChargePerNight: 300 },
-    EXEC_SEDAN: { perKmRate: 15, driverAllowancePerDay: 360, nightChargePerNight: 350 },
-    SUV: { perKmRate: 17, driverAllowancePerDay: 380, nightChargePerNight: 350 },
-    INNOVA: { perKmRate: 22, driverAllowancePerDay: 450, nightChargePerNight: 400 },
-    TEMPO: { perKmRate: 27, driverAllowancePerDay: 550, nightChargePerNight: 500 }
+    HATCHBACK: {
+      perKmRate: adminCfg.vehicles?.hatchback?.roundTripRatePerKm ?? 11.5,
+      driverAllowancePerDay: adminCfg.vehicles?.hatchback?.driverAllowancePerDay ?? 280,
+      nightChargePerNight: adminCfg.vehicles?.hatchback?.nightChargePerNight ?? 300
+    },
+    SEDAN: {
+      perKmRate: adminCfg.vehicles?.sedan?.roundTripRatePerKm ?? 13,
+      driverAllowancePerDay: adminCfg.vehicles?.sedan?.driverAllowancePerDay ?? 320,
+      nightChargePerNight: adminCfg.vehicles?.sedan?.nightChargePerNight ?? 300
+    },
+    EXEC_SEDAN: {
+      perKmRate: adminCfg.vehicles?.exec_sedan?.roundTripRatePerKm ?? 15,
+      driverAllowancePerDay: adminCfg.vehicles?.exec_sedan?.driverAllowancePerDay ?? 360,
+      nightChargePerNight: adminCfg.vehicles?.exec_sedan?.nightChargePerNight ?? 350
+    },
+    SUV: {
+      perKmRate: adminCfg.vehicles?.suv?.roundTripRatePerKm ?? 17,
+      driverAllowancePerDay: adminCfg.vehicles?.suv?.driverAllowancePerDay ?? 380,
+      nightChargePerNight: adminCfg.vehicles?.suv?.nightChargePerNight ?? 350
+    },
+    INNOVA: {
+      perKmRate: adminCfg.vehicles?.innova?.roundTripRatePerKm ?? 22,
+      driverAllowancePerDay: adminCfg.vehicles?.innova?.driverAllowancePerDay ?? 450,
+      nightChargePerNight: adminCfg.vehicles?.innova?.nightChargePerNight ?? 400
+    },
+    TEMPO: {
+      perKmRate: adminCfg.vehicles?.tempo?.roundTripRatePerKm ?? 27,
+      driverAllowancePerDay: adminCfg.vehicles?.tempo?.driverAllowancePerDay ?? 550,
+      nightChargePerNight: adminCfg.vehicles?.tempo?.nightChargePerNight ?? 500
+    }
   };
 
-  const selectedConfig = rates[String(vehicleType || 'SEDAN').toUpperCase()] || rates['SEDAN'];
+  const selectedConfig =
+    rates[String(vehicleType || 'SEDAN').toUpperCase()] ||
+    (adminVeh
+      ? {
+          perKmRate: adminVeh.roundTripRatePerKm,
+          driverAllowancePerDay: adminVeh.driverAllowancePerDay,
+          nightChargePerNight: adminVeh.nightChargePerNight
+        }
+      : rates['SEDAN']);
 
-  // Minimum KM Rule (250 KM per day)
-  const MIN_KM_PER_DAY = 250;
+  // Minimum KM Rule (Admin-configurable, default 250 KM per day)
+  const MIN_KM_PER_DAY = adminCfg.minRoundTripKmPerDay || 250;
   const minChargeableKm = numberOfDays * MIN_KM_PER_DAY;
   const finalChargeableKm = Math.max(totalKm, minChargeableKm);
 
@@ -1059,12 +1096,15 @@ export function computeTripFare(params: {
   } = params;
 
   const cab = CABS_FLEET.find((c) => c.id === cabId) || CABS_FLEET[0];
+  const adminCfg = getAdminPricingConfigSync();
+  const adminVehicle = adminCfg.vehicles?.[cabId];
 
-  const oneWayRate = cab.ratePerKm;
-  const baseExtraKmRate = cab.extraKmRate || Math.round(cab.ratePerKm + 1);
-  const dailyBata = cab.driverAllowancePerDay || 320;
-  const hillBase = cab.hillStationCharge || 420;
-  const local8HrBase = cab.local8Hr80KmFare || 1999;
+  const oneWayRate = adminVehicle?.ratePerKm ?? cab.ratePerKm;
+  const baseExtraKmRate = adminVehicle?.extraKmRate ?? (cab.extraKmRate || Math.round(cab.ratePerKm + 1));
+  const dailyBata = adminVehicle?.driverAllowancePerDay ?? (cab.driverAllowancePerDay || 320);
+  const hillBase = adminVehicle?.hillStationCharge ?? (cab.hillStationCharge || 420);
+  const local8HrBase = adminVehicle?.local8Hr80KmFare ?? (cab.local8Hr80KmFare || 1999);
+  const minOneWaySlabKm = adminCfg.minOneWayBillableKm || 130;
 
   const cleanExtraKm = Math.max(0, Math.round(Number(extraKm || 0)));
 
@@ -1141,8 +1181,8 @@ export function computeTripFare(params: {
       : 0;
 
   if (tripType === 'oneway') {
-    // Minimum 130 KM outstation one-way billable slab
-    baseBilledDistanceKm = Math.max(130, Math.round(distanceKm));
+    // Minimum outstation one-way billable slab (Admin-configurable, default 130 KM)
+    baseBilledDistanceKm = Math.max(minOneWaySlabKm, Math.round(distanceKm));
 
     // Do not stack distance slab factor on top of hill routes (hillRateMultiplier already covers deadhead)
     const slabFactor = isHillRoute
@@ -1500,3 +1540,27 @@ export function calculateTripFare(
 export function formatINR(val: number): string {
   return '₹' + Math.round(val).toLocaleString('en-IN');
 }
+
+export function buildBookingFareSnapshot(
+  fare: FareCalculationResult,
+  provider = 'ola_maps'
+) {
+  return {
+    capturedAt: new Date().toISOString(),
+    provider,
+    actualRoadDistanceKm: fare.distanceKm,
+    billedDistanceKm: fare.billedDistanceKm,
+    ratePerKm: fare.ratePerKm,
+    extraKmRate: fare.extraKmRate,
+    baseFare: fare.baseFare,
+    driverAllowance: fare.driverAllowance,
+    nightCharges: fare.nightCharges,
+    highwayToll: fare.highwayToll,
+    statePermitTax: fare.statePermitTax,
+    hillStationCharge: fare.hillStationCharge,
+    gstAmount: fare.gstAmount,
+    discountAmount: fare.promoDiscount,
+    totalFare: fare.totalFare
+  };
+}
+

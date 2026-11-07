@@ -19,8 +19,10 @@ import {
   PROMO_DISCOUNT_AMOUNT,
   PROMO_SUCCESS_MESSAGE,
   isDrVijayKumarMatch,
-  isValidFirst300Promo
+  isValidFirst300Promo,
+  buildBookingFareSnapshot
 } from '../utils/fareCalculator';
+import { Coordinates } from '../utils/olaMapsService';
 import { sendDualBookingNotifications, sanitize10DigitPhone } from '../utils/smsService';
 import {
   launchRazorpayStandardCheckout,
@@ -58,6 +60,12 @@ interface BookingModalProps {
   isPromoApplied?: boolean;
   setIsPromoApplied?: (applied: boolean) => void;
   welcomeMessage?: string;
+  pickupCoords?: Coordinates | null;
+  dropCoords?: Coordinates | null;
+  routeProvider?: string;
+  routeSummary?: string;
+  routeDurationText?: string;
+  routeGeometry?: Array<[number, number]>;
   onBookingSuccess: (booking: BookingRecord) => void;
 }
 
@@ -100,6 +108,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   isPromoApplied: externalIsPromoApplied,
   setIsPromoApplied: setExternalIsPromoApplied,
   welcomeMessage,
+  pickupCoords,
+  dropCoords,
+  routeProvider,
+  routeSummary,
+  routeDurationText,
+  routeGeometry,
   onBookingSuccess
 }) => {
   const [customerName, setCustomerName] = useState(currentUser?.name || '');
@@ -280,6 +294,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       return;
     }
 
+    if (!activeFare || activeFare.billedDistanceKm <= 0 || activeFare.totalFare <= 0) {
+      setErrorMessage('Route distance and fare validation failed. Please re-select your pickup and drop cities.');
+      return;
+    }
+
     setErrorMessage('');
     setIsProcessing(true);
     setProcessingStatus('Creating secure Razorpay order...');
@@ -288,11 +307,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
 
     const bookingId = await generateNextSequentialBookingId();
+    const boundedGeometry = Array.isArray(routeGeometry) ? routeGeometry.slice(0, 40) : undefined;
+    const fareSnapshot = buildBookingFareSnapshot(activeFare, routeProvider || 'ola_maps');
+
     const bookingDraft: BookingRecord = {
       id: bookingId,
       tripType,
       pickupCity,
       dropCity,
+      pickupCoords: pickupCoords || undefined,
+      dropCoords: dropCoords || undefined,
+      routeProvider: routeProvider || 'ola_maps',
+      routeSummary: routeSummary || `${pickupCity} → ${dropCity} Highway`,
+      routeDurationText: routeDurationText || undefined,
+      routeGeometry: boundedGeometry,
+      fareSnapshot,
       pickupAddress: pickupAddress.trim(),
       landmark: landmark.trim() || undefined,
       dropAddress: dropAddress.trim() || undefined,

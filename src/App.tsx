@@ -25,7 +25,12 @@ import { TripType, CabVehicle, BookingRecord, CustomerUser } from './types';
 import { POPULAR_ROUTES, PopularRouteDeal, estimateDistanceKm } from './data/indianCities';
 import { CABS_FLEET } from './data/cabsFleet';
 import { computeTripFare, FareCalculationResult, isDrVijayKumarMatch } from './utils/fareCalculator';
-import { calculateExactRoadDistance, Coordinates } from './utils/olaMapsService';
+import {
+  calculateExactRoadDistance,
+  Coordinates,
+  RouteAlternative,
+  syncAdminPricingFromServer
+} from './utils/olaMapsService';
 import { sanitize10DigitPhone } from './utils/smsService';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsapp';
 import {
@@ -81,7 +86,18 @@ const HelpSupportView = lazy(() =>
 const LegalPoliciesModal = lazy(() =>
   import('./components/LegalPoliciesModal').then((m) => ({ default: m.LegalPoliciesModal }))
 );
+const InteractiveRouteMapModal = lazy(() =>
+  import('./components/InteractiveRouteMapModal').then((m) => ({
+    default: m.InteractiveRouteMapModal
+  }))
+);
+const AdminMappingConsoleModal = lazy(() =>
+  import('./components/AdminMappingConsoleModal').then((m) => ({
+    default: m.AdminMappingConsoleModal
+  }))
+);
 import type { LegalPolicyTab } from './components/LegalPoliciesModal';
+import type { MapModalMode } from './components/InteractiveRouteMapModal';
 
 export default function App() {
   // Navigation tabs: 'booking' | 'routes' | 'rides' | 'about' | 'help'
@@ -363,13 +379,31 @@ export default function App() {
     return dropCity;
   }, [tripType, dropCity, roundTripStops]);
 
-  // Distance and Duration calculation via Ola Maps & Verified Highway/Hill Matrix
+  // Distance, Geometry, Alternatives and Duration calculation via Ola Maps & Verified Highway/Hill Matrix
   const [distanceKm, setDistanceKm] = useState(230);
   const [travelDuration, setTravelDuration] = useState('');
   const [isExactOlaDistance, setIsExactOlaDistance] = useState(false);
   const [pickupCoords, setPickupCoords] = useState<Coordinates | null>(null);
   const [dropCoords, setDropCoords] = useState<Coordinates | null>(null);
   const [roundTripLegs, setRoundTripLegs] = useState<Array<{ from: string; to: string; distanceKm: number }>>([]);
+  const [routeGeometry, setRouteGeometry] = useState<Array<[number, number]>>([]);
+  const [routeAlternatives, setRouteAlternatives] = useState<RouteAlternative[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
+  const [routeSummary, setRouteSummary] = useState<string>('');
+  const [routeProvider, setRouteProvider] = useState<string>('ola_maps');
+  const [mapModalState, setMapModalState] = useState<{
+    isOpen: boolean;
+    mode: MapModalMode;
+    trackingBooking?: BookingRecord | null;
+  }>({ isOpen: false, mode: 'route_preview', trackingBooking: null });
+  const [isAdminMappingConsoleOpen, setIsAdminMappingConsoleOpen] = useState(false);
+  const [, setPricingRevision] = useState(0);
+
+  useEffect(() => {
+    syncAdminPricingFromServer()
+      .then(() => setPricingRevision((r) => r + 1))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
@@ -453,6 +487,17 @@ export default function App() {
         setRoundTripLegs([]);
         setTravelDuration(res.durationText);
         setIsExactOlaDistance(res.source === 'ola_maps_exact');
+        setRouteGeometry(res.geometry || []);
+        setRouteAlternatives(res.alternatives || []);
+        setSelectedRouteId(res.alternatives?.[0]?.routeId || 'route_primary');
+        setRouteSummary(res.routeSummary || `${cleanPickup} → ${cleanDrop} Highway`);
+        setRouteProvider(res.provider || 'ola_maps');
+        if (res.originCoords && !pickupCoords) {
+          setPickupCoords(res.originCoords);
+        }
+        if (res.destCoords && !dropCoords) {
+          setDropCoords(res.destCoords);
+        }
       }
     }, 120);
 
@@ -461,6 +506,16 @@ export default function App() {
       clearTimeout(timer);
     };
   }, [pickupCity, dropCity, roundTripStops, pickupCoords, dropCoords, tripType, localPackageId]);
+
+  const handleSelectAlternativeRoute = (alt: RouteAlternative) => {
+    setSelectedRouteId(alt.routeId);
+    setDistanceKm(alt.distanceKm);
+    setTravelDuration(alt.durationText);
+    setRouteSummary(alt.summary);
+    if (Array.isArray(alt.geometry) && alt.geometry.length >= 2) {
+      setRouteGeometry(alt.geometry);
+    }
+  };
 
   // Selected cab for checkout
   const [selectedCabForCheckout, setSelectedCabForCheckout] = useState<{
@@ -914,6 +969,7 @@ export default function App() {
         onLogout={handleLogout}
         onNavigateTab={handleSwitchTab}
         activeNavTab={activeTab}
+        onOpenAdminMappingConsole={() => setIsAdminMappingConsoleOpen(true)}
         onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
         onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
       />
@@ -942,6 +998,13 @@ export default function App() {
                 onSelectBookingForInvoice={(b) => setActiveVoucherBooking(b)}
                 onCancelBooking={handleCancelBooking}
                 onNavigateToBooking={() => handleSwitchTab('booking')}
+                onTrackBookingOnMap={(booking) =>
+                  setMapModalState({
+                    isOpen: true,
+                    mode: 'live_tracking',
+                    trackingBooking: booking
+                  })
+                }
               />
             </Suspense>
           </div>
@@ -1078,6 +1141,18 @@ export default function App() {
                     currentUser={currentUser}
                     onLoginSuccess={handleLoginSuccess}
                     onExploreCabs={handleOpenAvailableCabs}
+                    onOpenRouteMap={(mode) =>
+                      setMapModalState({
+                        isOpen: true,
+                        mode,
+                        trackingBooking: null
+                      })
+                    }
+                    routeAlternatives={routeAlternatives}
+                    selectedRouteId={selectedRouteId}
+                    onSelectAlternativeRoute={handleSelectAlternativeRoute}
+                    routeSummary={routeSummary}
+                    routeProvider={routeProvider}
                   />
                 </div>
 
@@ -1345,6 +1420,12 @@ export default function App() {
             isPromoApplied={isPromoApplied}
             setIsPromoApplied={setIsPromoApplied}
             welcomeMessage={authNotice}
+            pickupCoords={pickupCoords}
+            dropCoords={dropCoords}
+            routeProvider={routeProvider}
+            routeSummary={routeSummary}
+            routeDurationText={travelDuration}
+            routeGeometry={routeGeometry}
             onBookingSuccess={handleBookingSuccess}
           />
         </Suspense>
@@ -1449,6 +1530,51 @@ export default function App() {
             }}
             authPrompt={authPrompt}
             onLoginSuccess={handleLoginSuccess}
+          />
+        </Suspense>
+      )}
+
+      {/* Interactive MapLibre GL JS Route Polyline, Manual Pin Selection & Live Driver Tracking Modal */}
+      {mapModalState.isOpen && (
+        <Suspense fallback={null}>
+          <InteractiveRouteMapModal
+            isOpen={mapModalState.isOpen}
+            onClose={() =>
+              setMapModalState((prev) => ({ ...prev, isOpen: false, trackingBooking: null }))
+            }
+            initialMode={mapModalState.mode}
+            pickupCity={pickupCity}
+            dropCity={effectiveDropCity}
+            pickupCoords={pickupCoords}
+            dropCoords={dropCoords}
+            distanceKm={distanceKm}
+            durationText={travelDuration}
+            routeSummary={routeSummary}
+            routeProvider={routeProvider}
+            routeGeometry={routeGeometry}
+            alternatives={routeAlternatives}
+            selectedRouteId={selectedRouteId}
+            onSelectAlternativeRoute={handleSelectAlternativeRoute}
+            onApplyPickupPin={(address: string, coords: Coordinates) => {
+              setPickupCity(address);
+              setPickupCoords(coords);
+            }}
+            onApplyDropPin={(address: string, coords: Coordinates) => {
+              setDropCity(address);
+              setDropCoords(coords);
+            }}
+            trackingBooking={mapModalState.trackingBooking}
+          />
+        </Suspense>
+      )}
+
+      {/* Admin Mapping API, Pricing Configuration, Monitoring & 30-Route Benchmark Console */}
+      {isAdminMappingConsoleOpen && (
+        <Suspense fallback={null}>
+          <AdminMappingConsoleModal
+            isOpen={isAdminMappingConsoleOpen}
+            onClose={() => setIsAdminMappingConsoleOpen(false)}
+            onPricingUpdated={() => setPricingRevision((r) => r + 1)}
           />
         </Suspense>
       )}

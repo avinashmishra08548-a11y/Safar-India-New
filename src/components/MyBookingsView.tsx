@@ -19,7 +19,8 @@ import {
   MessageSquare,
   ArrowRight,
   RefreshCw,
-  Phone
+  Phone,
+  Navigation
 } from 'lucide-react';
 import { BookingRecord, CustomerUser } from '../types';
 import { formatINR } from '../utils/fareCalculator';
@@ -43,6 +44,7 @@ interface MyBookingsViewProps {
   onSelectBookingForInvoice: (booking: BookingRecord) => void;
   onCancelBooking: (bookingId: string) => void;
   onNavigateToBooking: () => void;
+  onTrackBookingOnMap?: (booking: BookingRecord) => void;
 }
 
 export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
@@ -52,7 +54,8 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
   onLoginSuccess,
   onSelectBookingForInvoice,
   onCancelBooking,
-  onNavigateToBooking
+  onNavigateToBooking,
+  onTrackBookingOnMap
 }) => {
   const [filterStatus, setFilterStatus] = useState<'all' | 'confirmed' | 'completed' | 'cancelled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -765,6 +768,16 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {onTrackBookingOnMap && b.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            onClick={() => onTrackBookingOnMap(b)}
+                            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <Navigation className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Live Cab Map Tracking</span>
+                          </button>
+                        )}
                         {b.driverPhone && (
                           <a
                             href={`tel:+91${b.driverPhone.replace(/\D/g, '').slice(-10)}`}
@@ -793,13 +806,25 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                           Verified Chauffeur &amp; Commercial Cab details are updated here and sent via WhatsApp/SMS before pickup.
                         </div>
                       </div>
-                      <a
-                        href="tel:+917710080992"
-                        className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center gap-1.5 transition shrink-0 self-start sm:self-auto"
-                      >
-                        <Phone className="w-3.5 h-3.5" />
-                        <span>24x7 Emergency Support (+91 7710080992)</span>
-                      </a>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0 self-start sm:self-auto">
+                        {onTrackBookingOnMap && b.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            onClick={() => onTrackBookingOnMap(b)}
+                            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs flex items-center gap-1.5 transition cursor-pointer"
+                          >
+                            <Navigation className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Live Cab Map Tracking</span>
+                          </button>
+                        )}
+                        <a
+                          href="tel:+917710080992"
+                          className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center gap-1.5 transition shrink-0"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>24x7 Emergency Support (+91 7710080992)</span>
+                        </a>
+                      </div>
                     </>
                   )}
                 </div>

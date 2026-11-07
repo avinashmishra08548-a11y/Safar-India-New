@@ -83,6 +83,8 @@ export default defineConfig(() => {
                   handlerMod = await import('./api/send-whatsapp.js');
                 } else if (urlPath === '/api/send-review-email') {
                   handlerMod = await import('./api/send-review-email.js');
+                } else if (urlPath === '/api/maps') {
+                  handlerMod = await import('./api/maps.js');
                 }
                 if (handlerMod && handlerMod.default) {
                   let body = '';

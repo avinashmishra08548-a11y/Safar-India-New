@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Safarindiacabs</string>
-    <string name="asset_statements">[{\"relation\": [\"delegate_permission/common.handle_all_urls\", \"delegate_permission/common.get_login_creds\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://www.safarindiacabs.com\"}}]</string>
+    <string name="asset_statements">[{\"relation\": [\"delegate_permission/common.handle_all_urls\", \"delegate_permission/common.get_login_creds\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://safarindiacabs.com\"}}, {\"relation\": [\"delegate_permission/common.handle_all_urls\", \"delegate_permission/common.get_login_creds\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://www.safarindiacabs.com\"}}]</string>
 </resources>
 

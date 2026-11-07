@@ -20,10 +20,19 @@ import {
   Plus,
   Trash2,
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  LocateFixed,
+  Map as MapIcon,
+  Route as RouteIcon
 } from 'lucide-react';
 import { TripType, CustomerUser } from '../types';
-import { searchOlaPlaces, OlaPlacePrediction, Coordinates } from '../utils/olaMapsService';
+import {
+  searchOlaPlaces,
+  OlaPlacePrediction,
+  Coordinates,
+  detectCurrentGpsLocation,
+  RouteAlternative
+} from '../utils/olaMapsService';
 import {
   requestServerOtp,
   verifyServerOtp,
@@ -119,6 +128,12 @@ interface BookingEngineProps {
   currentUser?: CustomerUser | null;
   onLoginSuccess?: (user: CustomerUser) => void;
   onExploreCabs: () => void;
+  onOpenRouteMap?: (mode: 'route_preview' | 'pin_pickup' | 'pin_drop') => void;
+  routeAlternatives?: RouteAlternative[];
+  selectedRouteId?: string;
+  onSelectAlternativeRoute?: (route: RouteAlternative) => void;
+  routeSummary?: string;
+  routeProvider?: string;
 }
 
 function getPlaceIcon(types?: string[], category?: string) {
@@ -166,7 +181,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   setCustomerMobile,
   currentUser,
   onLoginSuccess,
-  onExploreCabs
+  onExploreCabs,
+  onOpenRouteMap,
+  routeAlternatives = [],
+  selectedRouteId,
+  onSelectAlternativeRoute,
+  routeSummary,
+  routeProvider
 }) => {
   const [activeMainCategory, setActiveMainCategory] = useState<'outstation' | 'local' | 'airport'>(
     tripType === 'local' ? 'local' : tripType === 'airport' ? 'airport' : 'outstation'
@@ -178,6 +199,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const [showDropDropdown, setShowDropDropdown] = useState(false);
   const [isLoadingPickup, setIsLoadingPickup] = useState(false);
   const [isLoadingDrop, setIsLoadingDrop] = useState(false);
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
 
   // Autocomplete states for multi-city round trip stops
   const [activeStopDropdownIndex, setActiveStopDropdownIndex] = useState<number | null>(null);
@@ -406,6 +428,28 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     if (setPickupCoords && setDropCoords) {
       setPickupCoords(dropCoords || null);
       setDropCoords(tempCoords || null);
+    }
+  };
+
+  const handleUseCurrentGpsForPickup = async () => {
+    if (isDetectingGps) return;
+    setIsDetectingGps(true);
+    setRouteError('');
+    try {
+      const gps = await detectCurrentGpsLocation();
+      if (!gps.success) {
+        setRouteError(gps.errorMessage || 'Unable to detect GPS location. Please allow location access or use Map Pin.');
+        return;
+      }
+      setPickupCity(gps.address || gps.city || '');
+      if (setPickupCoords && gps.coords) {
+        setPickupCoords(gps.coords);
+      }
+      setShowPickupDropdown(false);
+    } catch (err: any) {
+      setRouteError(err?.message || 'Unable to detect GPS location. Please allow location access or use Map Pin.');
+    } finally {
+      setIsDetectingGps(false);
     }
   };
 
@@ -831,16 +875,48 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             ref={pickupRef}
             className={`${tripType === 'local' ? 'sm:col-span-6' : 'sm:col-span-5'} relative`}
           >
-            <label
-              htmlFor={
-                tripType === 'airport' && airportMode === 'pickup'
-                  ? 'booking-pickup-airport-select'
-                  : 'booking-pickup-city-input'
-              }
-              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
-            >
-              {tripType === 'airport' && airportMode === 'pickup' ? 'Airport Terminal' : 'From (Pickup City)'}
-            </label>
+            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+              <label
+                htmlFor={
+                  tripType === 'airport' && airportMode === 'pickup'
+                    ? 'booking-pickup-airport-select'
+                    : 'booking-pickup-city-input'
+                }
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600"
+              >
+                {tripType === 'airport' && airportMode === 'pickup' ? 'Airport Terminal' : 'From (Pickup City)'}
+              </label>
+
+              {!(tripType === 'airport' && airportMode === 'pickup') && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentGpsForPickup}
+                    disabled={isDetectingGps}
+                    title="Detect Current GPS Location & Reverse Geocode"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-extrabold transition cursor-pointer"
+                  >
+                    {isDetectingGps ? (
+                      <Loader2 className="w-2.5 h-2.5 animate-spin text-emerald-600" />
+                    ) : (
+                      <LocateFixed className="w-2.5 h-2.5 text-emerald-600" />
+                    )}
+                    <span>GPS</span>
+                  </button>
+                  {onOpenRouteMap && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenRouteMap('pin_pickup')}
+                      title="Select Pickup Location on Map Pin"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-slate-950 border border-slate-200 text-[10px] font-extrabold transition cursor-pointer"
+                    >
+                      <MapIcon className="w-2.5 h-2.5 text-amber-600" />
+                      <span>Map Pin</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
 
             {tripType === 'airport' && airportMode === 'pickup' ? (
               <div className="relative">
@@ -944,20 +1020,34 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           ) : (
             <div ref={dropRef} className="sm:col-span-5 relative">
-              <label
-                htmlFor={
-                  tripType === 'airport' && airportMode === 'drop'
-                    ? 'booking-drop-airport-select'
-                    : 'booking-drop-city-input'
-                }
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
-              >
-                {tripType === 'airport' && airportMode === 'drop'
-                  ? 'Destination Airport'
-                  : tripType === 'roundtrip' && roundTripStops.length > 0
-                  ? 'Stop 1 (First Destination City)'
-                  : 'To (Destination City)'}
-              </label>
+              <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                <label
+                  htmlFor={
+                    tripType === 'airport' && airportMode === 'drop'
+                      ? 'booking-drop-airport-select'
+                      : 'booking-drop-city-input'
+                  }
+                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-600"
+                >
+                  {tripType === 'airport' && airportMode === 'drop'
+                    ? 'Destination Airport'
+                    : tripType === 'roundtrip' && roundTripStops.length > 0
+                    ? 'Stop 1 (First Destination City)'
+                    : 'To (Destination City)'}
+                </label>
+
+                {!(tripType === 'airport' && airportMode === 'drop') && onOpenRouteMap && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenRouteMap('pin_drop')}
+                    title="Select Destination Location on Map Pin"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-slate-950 border border-slate-200 text-[10px] font-extrabold transition cursor-pointer"
+                  >
+                    <MapIcon className="w-2.5 h-2.5 text-emerald-600" />
+                    <span>Map Pin</span>
+                  </button>
+                )}
+              </div>
 
               {tripType === 'airport' && airportMode === 'drop' ? (
                 <div className="relative">
@@ -1496,6 +1586,60 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           >
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <span>{otpError || routeError}</span>
+          </div>
+        )}
+
+        {/* Alternative Route Selector & Interactive Map Preview Strip */}
+        {tripType !== 'local' && pickupCity.trim().length >= 2 && dropCity.trim().length >= 2 && (
+          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 font-extrabold text-slate-800">
+                <RouteIcon className="w-3.5 h-3.5 text-amber-600" />
+                <span>Road Route:</span>
+              </span>
+              {routeAlternatives.length > 1 ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {routeAlternatives.map((alt) => {
+                    const isSelected = selectedRouteId ? alt.routeId === selectedRouteId : !alt.isAlternative;
+                    return (
+                      <button
+                        key={alt.routeId}
+                        type="button"
+                        onClick={() => onSelectAlternativeRoute && onSelectAlternativeRoute(alt)}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-900 text-amber-400 border-slate-900'
+                            : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300'
+                        }`}
+                      >
+                        {alt.summary} ({alt.distanceKm} KM · {alt.durationText})
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="text-slate-600 font-semibold">
+                  {routeSummary || `${pickupCity.split(',')[0]} → ${dropCity.split(',')[0]} Highway`} ({calculatedDistance} KM
+                  {travelDuration ? ` · ${travelDuration}` : ''})
+                </span>
+              )}
+              {routeProvider && (
+                <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                  {routeProvider === 'ola_maps' ? 'Ola Maps Road API' : routeProvider === 'mappls' ? 'Mappls Fallback' : 'Verified Road Network'}
+                </span>
+              )}
+            </div>
+
+            {onOpenRouteMap && (
+              <button
+                type="button"
+                onClick={() => onOpenRouteMap('route_preview')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs transition cursor-pointer shrink-0"
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span>Interactive Route Map &amp; Pin</span>
+              </button>
+            )}
           </div>
         )}
 

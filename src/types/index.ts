@@ -66,6 +66,29 @@ export interface BookingRecord {
   driverVehicleModel?: string;
   driverVehicleNo?: string;
   driverAssignedAt?: string;
+  pickupCoords?: { lat: number; lng: number };
+  dropCoords?: { lat: number; lng: number };
+  routeProvider?: string;
+  routeSummary?: string;
+  routeDurationText?: string;
+  routeGeometry?: Array<[number, number]>;
+  fareSnapshot?: {
+    capturedAt: string;
+    provider: string;
+    actualRoadDistanceKm: number;
+    billedDistanceKm: number;
+    ratePerKm: number;
+    extraKmRate: number;
+    baseFare: number;
+    driverAllowance: number;
+    nightCharges: number;
+    highwayToll: number;
+    statePermitTax: number;
+    hillStationCharge: number;
+    gstAmount: number;
+    discountAmount: number;
+    totalFare: number;
+  };
 }
 
 export interface CustomerUser {

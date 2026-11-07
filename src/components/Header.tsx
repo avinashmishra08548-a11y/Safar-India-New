@@ -31,6 +31,7 @@ interface HeaderProps {
   onNavigateTab: (tab: NavTabId) => void;
   activeNavTab: NavTabId;
   onOpenAdmin?: () => void;
+  onOpenAdminMappingConsole?: () => void;
   onOpenDriverPartner: () => void;
   onOpenLegalPolicy?: (tab: 'privacy' | 'terms' | 'refund' | 'contact' | 'delete-account') => void;
 }
@@ -73,6 +74,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateTab,
   activeNavTab,
   onOpenAdmin,
+  onOpenAdminMappingConsole,
   onOpenDriverPartner,
   onOpenLegalPolicy
 }) => {
@@ -586,11 +588,24 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
 
-              {/* Dedicated Admin Portal Redirect (admin.safarindiacabs.com) */}
+              {/* Dedicated Admin Portal Redirect (admin.safarindiacabs.com) & Mapping Console */}
               <div className="pt-3 border-t border-slate-800 space-y-2">
                 <div className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                   Administration
                 </div>
+                {onOpenAdminMappingConsole && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenAdminMappingConsole();
+                    }}
+                    className="w-full min-h-[46px] py-2.5 px-4 text-xs text-emerald-300 font-extrabold bg-slate-900 hover:bg-slate-800 rounded-xl border border-emerald-500/40 flex items-center justify-center gap-2 cursor-pointer transition"
+                  >
+                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Mapping API, Pricing &amp; 30-Route Benchmark</span>
+                  </button>
+                )}
                 <a
                   href="https://admin.safarindiacabs.com"
                   target="_top"
