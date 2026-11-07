@@ -1640,7 +1640,6 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             <span className="text-slate-300">•</span>
             <span className="font-semibold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
               Extra KM: ₹{routePreviewFare.extraKmRate}/km
-              {routePreviewFare.isHillRoute ? ' (Hill Area Rate)' : ''}
             </span>
             {tripType === 'roundtrip' && validStops.length > 0 && (
               <>

@@ -157,14 +157,14 @@ export interface IntercityRouteBenchmarkRow {
   status: string;
 }
 
-const ADMIN_PRICING_STORAGE_KEY = 'safar_admin_pricing_config_v1';
+const ADMIN_PRICING_STORAGE_KEY = 'safar_admin_pricing_config_v2';
 
 export const DEFAULT_ADMIN_PRICING_CONFIG: AdminPricingConfig = {
   updatedAt: new Date().toISOString(),
   updatedBy: 'Default Calibrated Matrix',
   minOneWayBillableKm: 130,
   minRoundTripKmPerDay: 250,
-  nightChargePerSlot: 150,
+  nightChargePerSlot: 0,
   gstPercentOneWay: 5,
   gstPercentRoundTrip: 0,
   defaultParkingCharge: 150,
@@ -172,76 +172,77 @@ export const DEFAULT_ADMIN_PRICING_CONFIG: AdminPricingConfig = {
   statePermitMultiplier: 1.0,
   vehicles: {
     hatchback: {
-      ratePerKm: 10.2,
-      roundTripRatePerKm: 11.5,
-      extraKmRate: 11.5,
-      minBaseFare: 1326,
-      driverAllowancePerDay: 280,
-      nightChargePerNight: 300,
-      hillStationCharge: 340,
+      ratePerKm: 8.8,
+      roundTripRatePerKm: 10.5,
+      extraKmRate: 9.5,
+      minBaseFare: 1144,
+      driverAllowancePerDay: 240,
+      nightChargePerNight: 250,
+      hillStationCharge: 280,
       statePermitTax: 200,
-      local8Hr80KmFare: 1749
+      local8Hr80KmFare: 1599
     },
     sedan: {
-      ratePerKm: 11.2,
-      roundTripRatePerKm: 13.0,
-      extraKmRate: 12.5,
-      minBaseFare: 1456,
-      driverAllowancePerDay: 320,
-      nightChargePerNight: 300,
-      hillStationCharge: 420,
+      ratePerKm: 9.5,
+      roundTripRatePerKm: 11.5,
+      extraKmRate: 10.2,
+      minBaseFare: 1235,
+      driverAllowancePerDay: 260,
+      nightChargePerNight: 250,
+      hillStationCharge: 340,
       statePermitTax: 250,
-      local8Hr80KmFare: 1999
+      local8Hr80KmFare: 1799
     },
     exec_sedan: {
-      ratePerKm: 13.0,
-      roundTripRatePerKm: 15.0,
-      extraKmRate: 14.5,
-      minBaseFare: 1690,
-      driverAllowancePerDay: 360,
-      nightChargePerNight: 350,
-      hillStationCharge: 480,
+      ratePerKm: 11.0,
+      roundTripRatePerKm: 13.0,
+      extraKmRate: 11.8,
+      minBaseFare: 1430,
+      driverAllowancePerDay: 300,
+      nightChargePerNight: 300,
+      hillStationCharge: 390,
       statePermitTax: 300,
-      local8Hr80KmFare: 2449
+      local8Hr80KmFare: 2199
     },
     suv: {
-      ratePerKm: 14.5,
-      roundTripRatePerKm: 17.0,
-      extraKmRate: 16.0,
-      minBaseFare: 1885,
+      ratePerKm: 12.6,
+      roundTripRatePerKm: 15.0,
+      extraKmRate: 13.5,
+      minBaseFare: 1638,
+      driverAllowancePerDay: 320,
+      nightChargePerNight: 300,
+      hillStationCharge: 440,
+      statePermitTax: 350,
+      local8Hr80KmFare: 2499
+    },
+    innova: {
+      ratePerKm: 15.8,
+      roundTripRatePerKm: 19.0,
+      extraKmRate: 17.0,
+      minBaseFare: 2054,
       driverAllowancePerDay: 380,
       nightChargePerNight: 350,
       hillStationCharge: 550,
-      statePermitTax: 350,
-      local8Hr80KmFare: 2749
-    },
-    innova: {
-      ratePerKm: 18.0,
-      roundTripRatePerKm: 22.0,
-      extraKmRate: 20.0,
-      minBaseFare: 2340,
-      driverAllowancePerDay: 450,
-      nightChargePerNight: 400,
-      hillStationCharge: 700,
       statePermitTax: 450,
-      local8Hr80KmFare: 3499
+      local8Hr80KmFare: 3199
     },
     tempo: {
-      ratePerKm: 24.0,
-      roundTripRatePerKm: 27.0,
-      extraKmRate: 26.0,
-      minBaseFare: 3120,
-      driverAllowancePerDay: 550,
-      nightChargePerNight: 500,
-      hillStationCharge: 950,
+      ratePerKm: 21.5,
+      roundTripRatePerKm: 24.5,
+      extraKmRate: 23.0,
+      minBaseFare: 2795,
+      driverAllowancePerDay: 480,
+      nightChargePerNight: 450,
+      hillStationCharge: 750,
       statePermitTax: 650,
-      local8Hr80KmFare: 5299
+      local8Hr80KmFare: 4799
     }
   }
 };
 
 export function getAdminPricingConfigSync(): AdminPricingConfig {
   try {
+    localStorage.removeItem('safar_admin_pricing_config_v1');
     const raw = localStorage.getItem(ADMIN_PRICING_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);

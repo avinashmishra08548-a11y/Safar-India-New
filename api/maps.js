@@ -122,7 +122,7 @@ let serverAdminPricingConfig = {
   updatedBy: 'Admin Control Panel',
   minOneWayBillableKm: 130,
   minRoundTripKmPerDay: 250,
-  nightChargePerSlot: 150,
+  nightChargePerSlot: 0,
   gstPercentOneWay: 5,
   gstPercentRoundTrip: 0,
   defaultParkingCharge: 150,
@@ -130,70 +130,70 @@ let serverAdminPricingConfig = {
   statePermitMultiplier: 1.0,
   vehicles: {
     hatchback: {
-      ratePerKm: 10.2,
-      roundTripRatePerKm: 11.5,
-      extraKmRate: 11.5,
-      minBaseFare: 1326,
-      driverAllowancePerDay: 280,
-      nightChargePerNight: 300,
-      hillStationCharge: 340,
+      ratePerKm: 8.8,
+      roundTripRatePerKm: 10.5,
+      extraKmRate: 9.5,
+      minBaseFare: 1144,
+      driverAllowancePerDay: 240,
+      nightChargePerNight: 250,
+      hillStationCharge: 280,
       statePermitTax: 200,
-      local8Hr80KmFare: 1749
+      local8Hr80KmFare: 1599
     },
     sedan: {
-      ratePerKm: 11.2,
-      roundTripRatePerKm: 13.0,
-      extraKmRate: 12.5,
-      minBaseFare: 1456,
-      driverAllowancePerDay: 320,
-      nightChargePerNight: 300,
-      hillStationCharge: 420,
+      ratePerKm: 9.5,
+      roundTripRatePerKm: 11.5,
+      extraKmRate: 10.2,
+      minBaseFare: 1235,
+      driverAllowancePerDay: 260,
+      nightChargePerNight: 250,
+      hillStationCharge: 340,
       statePermitTax: 250,
-      local8Hr80KmFare: 1999
+      local8Hr80KmFare: 1799
     },
     exec_sedan: {
-      ratePerKm: 13.0,
-      roundTripRatePerKm: 15.0,
-      extraKmRate: 14.5,
-      minBaseFare: 1690,
-      driverAllowancePerDay: 360,
-      nightChargePerNight: 350,
-      hillStationCharge: 480,
+      ratePerKm: 11.0,
+      roundTripRatePerKm: 13.0,
+      extraKmRate: 11.8,
+      minBaseFare: 1430,
+      driverAllowancePerDay: 300,
+      nightChargePerNight: 300,
+      hillStationCharge: 390,
       statePermitTax: 300,
-      local8Hr80KmFare: 2449
+      local8Hr80KmFare: 2199
     },
     suv: {
-      ratePerKm: 14.5,
-      roundTripRatePerKm: 17.0,
-      extraKmRate: 16.0,
-      minBaseFare: 1885,
+      ratePerKm: 12.6,
+      roundTripRatePerKm: 15.0,
+      extraKmRate: 13.5,
+      minBaseFare: 1638,
+      driverAllowancePerDay: 320,
+      nightChargePerNight: 300,
+      hillStationCharge: 440,
+      statePermitTax: 350,
+      local8Hr80KmFare: 2499
+    },
+    innova: {
+      ratePerKm: 15.8,
+      roundTripRatePerKm: 19.0,
+      extraKmRate: 17.0,
+      minBaseFare: 2054,
       driverAllowancePerDay: 380,
       nightChargePerNight: 350,
       hillStationCharge: 550,
-      statePermitTax: 350,
-      local8Hr80KmFare: 2749
-    },
-    innova: {
-      ratePerKm: 18.0,
-      roundTripRatePerKm: 22.0,
-      extraKmRate: 20.0,
-      minBaseFare: 2340,
-      driverAllowancePerDay: 450,
-      nightChargePerNight: 400,
-      hillStationCharge: 700,
       statePermitTax: 450,
-      local8Hr80KmFare: 3499
+      local8Hr80KmFare: 3199
     },
     tempo: {
-      ratePerKm: 24.0,
-      roundTripRatePerKm: 27.0,
-      extraKmRate: 26.0,
-      minBaseFare: 3120,
-      driverAllowancePerDay: 550,
-      nightChargePerNight: 500,
-      hillStationCharge: 950,
+      ratePerKm: 21.5,
+      roundTripRatePerKm: 24.5,
+      extraKmRate: 23.0,
+      minBaseFare: 2795,
+      driverAllowancePerDay: 480,
+      nightChargePerNight: 450,
+      hillStationCharge: 750,
       statePermitTax: 650,
-      local8Hr80KmFare: 5299
+      local8Hr80KmFare: 4799
     }
   }
 };
@@ -306,7 +306,8 @@ export const INTERCITY_30_ROUTES_BENCHMARK = [
   { id: 27, from: 'Chennai, Tamil Nadu', to: 'Pondicherry (Puducherry)', origin: { lat: 13.0827, lng: 80.2707 }, dest: { lat: 11.9416, lng: 79.8083 }, via: [{ lat: 12.6208, lng: 80.1945 }], highway: 'East Coast Road (ECR / NH-332A)', olaKm: 155, mapplsKm: 154, googleRefKm: 155, durationMin: 195, terrain: 'Coastal Highway', tollInr: 195 },
   { id: 28, from: 'Lucknow, Uttar Pradesh', to: 'Ayodhya, Uttar Pradesh', origin: { lat: 26.8467, lng: 80.9462 }, dest: { lat: 26.7922, lng: 82.1998 }, via: [{ lat: 26.9268, lng: 81.1834 }], highway: 'NH-27 Lucknow-Ayodhya 6-Lane', olaKm: 135, mapplsKm: 135, googleRefKm: 135, durationMin: 150, terrain: 'National Highway', tollInr: 225 },
   { id: 29, from: 'Varanasi, Uttar Pradesh', to: 'Ayodhya, Uttar Pradesh', origin: { lat: 25.3176, lng: 82.9739 }, dest: { lat: 26.7922, lng: 82.1998 }, via: [{ lat: 25.7464, lng: 82.6837 }, { lat: 26.2648, lng: 82.0727 }], highway: 'NH-31 + Purvanchal Link Corridor', olaKm: 218, mapplsKm: 219, googleRefKm: 218, durationMin: 240, terrain: 'National Highway', tollInr: 295 },
-  { id: 30, from: 'Ahmedabad, Gujarat', to: 'Udaipur, Rajasthan', origin: { lat: 23.0225, lng: 72.5714 }, dest: { lat: 24.5854, lng: 73.7125 }, via: [{ lat: 23.5969, lng: 72.9631 }], highway: 'NH-48 Six-Lane Aravalli Highway', olaKm: 260, mapplsKm: 259, googleRefKm: 260, durationMin: 270, terrain: 'Inter-State NH-48', tollInr: 355 }
+  { id: 30, from: 'Zirakpur, Punjab', to: 'Kangra, Himachal Pradesh', origin: { lat: 30.6425, lng: 76.8173 }, dest: { lat: 32.0998, lng: 76.2691 }, via: [{ lat: 30.9661, lng: 76.5231 }, { lat: 31.4685, lng: 76.2708 }], highway: 'NH-503 Rupnagar-Anandpur Sahib-Una-Kangra', olaKm: 229, mapplsKm: 229, googleRefKm: 229, durationMin: 295, terrain: 'Himachal Hill Highway', tollInr: 216 },
+  { id: 31, from: 'Ahmedabad, Gujarat', to: 'Udaipur, Rajasthan', origin: { lat: 23.0225, lng: 72.5714 }, dest: { lat: 24.5854, lng: 73.7125 }, via: [{ lat: 23.5969, lng: 72.9631 }], highway: 'NH-48 Six-Lane Aravalli Highway', olaKm: 260, mapplsKm: 259, googleRefKm: 260, durationMin: 270, terrain: 'Inter-State NH-48', tollInr: 355 }
 ];
 
 function findBenchmarkRouteMatch(pickupStr, dropStr) {

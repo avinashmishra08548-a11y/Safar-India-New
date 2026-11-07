@@ -21,73 +21,73 @@ export const SERVER_CABS_FLEET = {
     id: 'hatchback',
     name: 'Hatchback AC',
     models: 'WagonR, Celerio, Tiago or equivalent',
-    ratePerKm: 10.2,
-    roundTripRatePerKm: 11.5,
-    extraKmRate: 11.5,
-    driverAllowancePerDay: 280,
+    ratePerKm: 8.8,
+    roundTripRatePerKm: 10.5,
+    extraKmRate: 9.5,
+    driverAllowancePerDay: 240,
     statePermitTax: 200,
-    hillStationCharge: 340,
-    local8Hr80KmFare: 1749
+    hillStationCharge: 280,
+    local8Hr80KmFare: 1599
   },
   sedan: {
     id: 'sedan',
     name: 'Sedan AC (Dzire / Etios)',
     models: 'Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura',
-    ratePerKm: 11.2,
-    roundTripRatePerKm: 13,
-    extraKmRate: 12.5,
-    driverAllowancePerDay: 320,
+    ratePerKm: 9.5,
+    roundTripRatePerKm: 11.5,
+    extraKmRate: 10.2,
+    driverAllowancePerDay: 260,
     statePermitTax: 250,
-    hillStationCharge: 420,
-    local8Hr80KmFare: 1999
+    hillStationCharge: 340,
+    local8Hr80KmFare: 1799
   },
   exec_sedan: {
     id: 'exec_sedan',
     name: 'Prime Executive Sedan',
     models: 'Honda City, Maruti Ciaz, Hyundai Verna',
-    ratePerKm: 13,
-    roundTripRatePerKm: 15,
-    extraKmRate: 14.5,
-    driverAllowancePerDay: 360,
+    ratePerKm: 11.0,
+    roundTripRatePerKm: 13.0,
+    extraKmRate: 11.8,
+    driverAllowancePerDay: 300,
     statePermitTax: 300,
-    hillStationCharge: 480,
-    local8Hr80KmFare: 2449
+    hillStationCharge: 390,
+    local8Hr80KmFare: 2199
   },
   suv: {
     id: 'suv',
     name: 'SUV AC (Ertiga / Carens)',
     models: 'Maruti Ertiga, Kia Carens, Toyota Rumion or equivalent',
-    ratePerKm: 14.5,
-    roundTripRatePerKm: 17,
-    extraKmRate: 16,
-    driverAllowancePerDay: 380,
+    ratePerKm: 12.6,
+    roundTripRatePerKm: 15.0,
+    extraKmRate: 13.5,
+    driverAllowancePerDay: 320,
     statePermitTax: 350,
-    hillStationCharge: 550,
-    local8Hr80KmFare: 2749
+    hillStationCharge: 440,
+    local8Hr80KmFare: 2499
   },
   innova: {
     id: 'innova',
     name: 'Assured Innova Crysta',
     models: 'Toyota Innova Crysta (6+1 / 7+1 Luxury)',
-    ratePerKm: 18,
-    roundTripRatePerKm: 22,
-    extraKmRate: 20,
-    driverAllowancePerDay: 450,
+    ratePerKm: 15.8,
+    roundTripRatePerKm: 19.0,
+    extraKmRate: 17.0,
+    driverAllowancePerDay: 380,
     statePermitTax: 450,
-    hillStationCharge: 700,
-    local8Hr80KmFare: 3499
+    hillStationCharge: 550,
+    local8Hr80KmFare: 3199
   },
   tempo: {
     id: 'tempo',
     name: 'Tempo Traveller AC (12 Seater)',
     models: 'Force Traveller / Urbania 12+1 Pushback AC',
-    ratePerKm: 24,
-    roundTripRatePerKm: 27,
-    extraKmRate: 26,
-    driverAllowancePerDay: 550,
+    ratePerKm: 21.5,
+    roundTripRatePerKm: 24.5,
+    extraKmRate: 23.0,
+    driverAllowancePerDay: 480,
     statePermitTax: 650,
-    hillStationCharge: 950,
-    local8Hr80KmFare: 5299
+    hillStationCharge: 750,
+    local8Hr80KmFare: 4799
   }
 };
 
@@ -676,15 +676,6 @@ function computeServerLeadTimePricing(pickupDate, pickupTime, distanceKm = 230, 
   let timingBonusFactor = 0;
   let timingAllowance = 0;
 
-  if (isEarlyOrNightPickup) {
-    timingBonusFactor += 0.02;
-    timingAllowance += 150;
-  }
-  if (isLateNightDrop) {
-    timingBonusFactor += 0.02;
-    timingAllowance += 150;
-  }
-
   try {
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const cleanPickup = String(pickupDate || '').trim().slice(0, 10);
@@ -692,7 +683,7 @@ function computeServerLeadTimePricing(pickupDate, pickupTime, distanceKm = 230, 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanPickup)) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: Number((1.0 + timingBonusFactor).toFixed(2)),
+        leadTimeMultiplier: 1.0,
         leadTimeLabel: isLateNightDrop
           ? `Late Drop (${estimatedDropTime})`
           : isEarlyOrNightPickup
@@ -709,7 +700,7 @@ function computeServerLeadTimePricing(pickupDate, pickupTime, distanceKm = 230, 
     if (!Number.isFinite(pickupMs) || !Number.isFinite(todayMs)) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: Number((1.0 + timingBonusFactor).toFixed(2)),
+        leadTimeMultiplier: 1.0,
         leadTimeLabel: 'Standard Rate',
         estimatedDropTime,
         isLateNightDrop,
@@ -722,8 +713,8 @@ function computeServerLeadTimePricing(pickupDate, pickupTime, distanceKm = 230, 
     if (daysAhead <= 0) {
       return {
         leadTimeTier: 'same_day',
-        leadTimeMultiplier: Number((1.04 + timingBonusFactor).toFixed(2)),
-        leadTimeLabel: 'Same-Day Instant Dispatch',
+        leadTimeMultiplier: Number((1.0 + timingBonusFactor).toFixed(2)),
+        leadTimeLabel: 'Same-Day Assured Rate',
         estimatedDropTime,
         isLateNightDrop,
         isEarlyOrNightPickup,
@@ -780,7 +771,7 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
         pickupIsHill: false,
         dropIsHill: false,
         hillTier: 'foothill_gateway',
-        hillRateMultiplier: 1.06,
+        hillRateMultiplier: 1.0,
         hillTierLabel: 'Foothill Gateway Corridor'
       };
     }
@@ -801,7 +792,7 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
       pickupIsHill: true,
       dropIsHill: true,
       hillTier: 'both_hills',
-      hillRateMultiplier: isDeepHillToHill ? 1.36 : 1.28,
+      hillRateMultiplier: isDeepHillToHill ? 1.30 : 1.26,
       hillTierLabel: isDeepHillToHill
         ? 'Deep Himalayan Hill-to-Hill Terrain'
         : 'Mountain Hill-to-Hill Terrain'
@@ -814,7 +805,7 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
       pickupIsHill,
       dropIsHill,
       hillTier: 'one_end_hill',
-      hillRateMultiplier: pickupIsDeep ? 1.32 : 1.24,
+      hillRateMultiplier: 1.26,
       hillTierLabel: pickupIsDeep
         ? 'Hill Station Pickup Terrain'
         : 'Mountain Hill Climb'
@@ -826,7 +817,7 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
     pickupIsHill,
     dropIsHill,
     hillTier: 'one_end_hill',
-    hillRateMultiplier: pickupIsHill ? 1.24 : 1.20,
+    hillRateMultiplier: 1.24,
     hillTierLabel: pickupIsHill ? 'Hill Station Pickup Terrain' : 'Hill Station Ghat Climb'
   };
 }
@@ -861,7 +852,7 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: true,
-      routeTierMultiplier: 1.06,
+      routeTierMultiplier: 1.02,
       routeTierLabel: 'Outer City Pickup Zone'
     };
   }
@@ -881,7 +872,7 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: true,
-      routeTierMultiplier: distanceKm > 250 ? 1.12 : 1.10,
+      routeTierMultiplier: distanceKm > 250 ? 1.03 : 1.02,
       routeTierLabel: 'Outer Pickup & Empty Return Corridor'
     };
   }
@@ -891,7 +882,7 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: false,
-      routeTierMultiplier: 1.08,
+      routeTierMultiplier: 1.02,
       routeTierLabel: 'Outer Pickup Dispatch Zone'
     };
   }
@@ -900,8 +891,8 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
     isOuterRoute: true,
     pickupIsOuter: false,
     dropIsOuter: true,
-    routeTierMultiplier: 1.07,
-    routeTierLabel: 'Outer Drop Return Deadhead'
+    routeTierMultiplier: 1.0,
+    routeTierLabel: 'Standard Highway Corridor'
   };
 }
 
@@ -910,12 +901,12 @@ function computeServerRouteTierPricing(tripType, pickupCity, dropCity, distanceK
  */
 export function calculateRoundTripFare(totalKm, numberOfDays, vehicleType, nightHalts = 0, hillMultiplier = 1.0) {
   const rates = {
-    HATCHBACK: { perKmRate: 11.5, driverAllowancePerDay: 280, nightChargePerNight: 300 },
-    SEDAN: { perKmRate: 13, driverAllowancePerDay: 320, nightChargePerNight: 300 },
-    EXEC_SEDAN: { perKmRate: 15, driverAllowancePerDay: 360, nightChargePerNight: 350 },
-    SUV: { perKmRate: 17, driverAllowancePerDay: 380, nightChargePerNight: 350 },
-    INNOVA: { perKmRate: 22, driverAllowancePerDay: 450, nightChargePerNight: 400 },
-    TEMPO: { perKmRate: 27, driverAllowancePerDay: 550, nightChargePerNight: 500 }
+    HATCHBACK: { perKmRate: 10.5, driverAllowancePerDay: 240, nightChargePerNight: 250 },
+    SEDAN: { perKmRate: 11.5, driverAllowancePerDay: 260, nightChargePerNight: 250 },
+    EXEC_SEDAN: { perKmRate: 13.0, driverAllowancePerDay: 300, nightChargePerNight: 300 },
+    SUV: { perKmRate: 15.0, driverAllowancePerDay: 320, nightChargePerNight: 300 },
+    INNOVA: { perKmRate: 19.0, driverAllowancePerDay: 380, nightChargePerNight: 350 },
+    TEMPO: { perKmRate: 24.5, driverAllowancePerDay: 480, nightChargePerNight: 450 }
   };
 
   const selectedConfig = rates[String(vehicleType || 'SEDAN').toUpperCase()] || rates['SEDAN'];
@@ -1031,38 +1022,27 @@ export function computeServerTripFare({
     Boolean(originState && destState && originState !== destState);
 
   let hillStationCharge = 0;
-  const hillDriverBonusPerDay =
-    hillTier === 'both_hills'
-      ? 150
-      : hillTier === 'one_end_hill'
-      ? 100
-      : hillTier === 'foothill_gateway'
-      ? 50
-      : 0;
+  const hillDriverBonusPerDay = 0;
 
   if (tripType === 'oneway') {
     baseBilledDistanceKm = Math.max(130, Math.round(parsedDistance));
     const slabFactor = isHillRoute
       ? 1.0
-      : baseBilledDistanceKm <= 150
-      ? 1.06
-      : baseBilledDistanceKm > 420
-      ? 1.06
+      : baseBilledDistanceKm <= 130
+      ? 1.02
       : 1.0;
 
     ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
 
     hillStationCharge =
       hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.2)
+        ? Math.round(hillBase * 1.15)
         : hillTier === 'one_end_hill'
         ? hillBase
-        : hillTier === 'foothill_gateway'
-        ? Math.round(hillBase * 0.35)
         : 0;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
 
-    const oneWayDriverDays = baseBilledDistanceKm > 450 ? 1.5 : 1;
+    const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
 
     driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
     nightCharges = timingAllowance;
@@ -1094,7 +1074,7 @@ export function computeServerTripFare({
     nightCharges = rtFare.nightAllowance;
     hillStationCharge =
       hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.2)
+        ? Math.round(hillBase * 1.15)
         : hillTier === 'one_end_hill'
         ? hillBase
         : 0;
@@ -1106,35 +1086,31 @@ export function computeServerTripFare({
       driverAllowance = 200 + hillDriverBonusPerDay;
     } else if (localPackageId === '12h_120k') {
       baseBilledDistanceKm = 120;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.33) - 320;
-      driverAllowance = 320 + hillDriverBonusPerDay;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.33) - 260;
+      driverAllowance = 260 + hillDriverBonusPerDay;
     } else {
       baseBilledDistanceKm = 80;
-      baseRouteFare = adjustedLocal8HrBase - 280;
-      driverAllowance = 280 + hillDriverBonusPerDay;
+      baseRouteFare = adjustedLocal8HrBase - 240;
+      driverAllowance = 240 + hillDriverBonusPerDay;
     }
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
-    nightCharges = isEarlyOrNightPickup ? 150 : 0;
+    nightCharges = 0;
   } else if (tripType === 'airport') {
     baseBilledDistanceKm = Math.max(40, Math.round(parsedDistance));
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     const airportFixedPickupFee =
-      cabId === 'tempo' ? 550 : cabId === 'innova' || cabId === 'suv' ? 400 : 280;
+      cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 240;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
-    driverAllowance = 220 + hillDriverBonusPerDay;
+    driverAllowance = 200 + hillDriverBonusPerDay;
     hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
-    nightCharges = isEarlyOrNightPickup ? 150 : 0;
+    nightCharges = 0;
   }
 
-  const hillSliderFactor = dropIsHill ? 1.06 : isHillRoute ? 1.05 : 1.0;
   const extraKmRate =
     tripType === 'roundtrip'
       ? ratePerKm
-      : Math.max(
-          Math.ceil(ratePerKm + (dropIsHill ? 1.5 : isHillRoute ? 1.0 : 1.0)),
-          Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
-        );
+      : Number(baseExtraKmRate.toFixed(1));
 
   const sliderExtraFare = Math.round(cleanExtraKm * extraKmRate);
   const billedDistanceKm = baseBilledDistanceKm + cleanExtraKm;

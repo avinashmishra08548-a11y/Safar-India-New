@@ -491,15 +491,7 @@ export function computeLeadTimePricing(
   let timingBonusFactor = 0;
   let timingAllowance = 0;
 
-  if (isEarlyOrNightPickup) {
-    timingBonusFactor += 0.02;
-    timingAllowance += 150;
-  }
-  if (isLateNightDrop) {
-    timingBonusFactor += 0.02;
-    timingAllowance += 150;
-  }
-
+  // Keep Night & Driver charges included in standard one-way/outstation fares (matching CabBazar's Included policy)
   try {
     const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
     const cleanPickup = (pickupDate || '').trim().slice(0, 10);
@@ -507,7 +499,7 @@ export function computeLeadTimePricing(
     if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanPickup)) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: Number((1.0 + timingBonusFactor).toFixed(2)),
+        leadTimeMultiplier: 1.0,
         leadTimeLabel: isLateNightDrop
           ? `Late Drop (${estimatedDropTime})`
           : isEarlyOrNightPickup
@@ -525,7 +517,7 @@ export function computeLeadTimePricing(
     if (!Number.isFinite(pickupMs) || !Number.isFinite(todayMs)) {
       return {
         leadTimeTier: 'tomorrow',
-        leadTimeMultiplier: Number((1.0 + timingBonusFactor).toFixed(2)),
+        leadTimeMultiplier: 1.0,
         leadTimeLabel: 'Standard Rate',
         estimatedDropTime,
         isLateNightDrop,
@@ -538,8 +530,8 @@ export function computeLeadTimePricing(
     if (daysAhead <= 0) {
       return {
         leadTimeTier: 'same_day',
-        leadTimeMultiplier: Number((1.04 + timingBonusFactor).toFixed(2)),
-        leadTimeLabel: 'Same-Day Instant Dispatch',
+        leadTimeMultiplier: Number((1.0 + timingBonusFactor).toFixed(2)),
+        leadTimeLabel: 'Same-Day Assured Rate',
         estimatedDropTime,
         isLateNightDrop,
         isEarlyOrNightPickup,
@@ -616,7 +608,7 @@ export function computeHillTerrainPricing(
         pickupIsHill: false,
         dropIsHill: false,
         hillTier: 'foothill_gateway',
-        hillRateMultiplier: 1.06,
+        hillRateMultiplier: 1.0,
         hillTierLabel: 'Foothill Gateway Corridor'
       };
     }
@@ -637,7 +629,7 @@ export function computeHillTerrainPricing(
       pickupIsHill: true,
       dropIsHill: true,
       hillTier: 'both_hills',
-      hillRateMultiplier: isDeepHillToHill ? 1.36 : 1.28,
+      hillRateMultiplier: isDeepHillToHill ? 1.30 : 1.26,
       hillTierLabel: isDeepHillToHill
         ? 'Deep Himalayan Hill-to-Hill Terrain'
         : 'Mountain Hill-to-Hill Terrain'
@@ -650,7 +642,7 @@ export function computeHillTerrainPricing(
       pickupIsHill,
       dropIsHill,
       hillTier: 'one_end_hill',
-      hillRateMultiplier: pickupIsDeep ? 1.32 : 1.24,
+      hillRateMultiplier: 1.26,
       hillTierLabel: pickupIsDeep
         ? 'Hill Station Pickup Terrain'
         : 'Mountain Hill Climb'
@@ -662,7 +654,7 @@ export function computeHillTerrainPricing(
     pickupIsHill,
     dropIsHill,
     hillTier: 'one_end_hill',
-    hillRateMultiplier: pickupIsHill ? 1.24 : 1.20,
+    hillRateMultiplier: 1.24,
     hillTierLabel: pickupIsHill ? 'Hill Station Pickup Terrain' : 'Hill Station Ghat Climb'
   };
 }
@@ -670,10 +662,8 @@ export function computeHillTerrainPricing(
 /**
  * Computes Pickup & Drop Area Tier Multiplier (Plains Hub vs Outer/Interior Empty Return):
  * - Hill Routes already include hillRateMultiplier so routeTierMultiplier stays 1.00x
- * - Daily Hub Cities (both ends): 1.00x
- * - Outer Pickup + Outer Drop: 1.12x
- * - Outer Pickup -> Hub Drop: 1.08x
- * - Hub Pickup -> Outer Drop: 1.07x
+ * - Daily Hub Cities: 1.00x
+ * - Outer Pickup + Outer Drop: 1.03x
  */
 export function computeRouteTierPricing(
   tripType: TripType,
@@ -718,7 +708,7 @@ export function computeRouteTierPricing(
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: true,
-      routeTierMultiplier: 1.06,
+      routeTierMultiplier: 1.02,
       routeTierLabel: 'Outer City Pickup Zone'
     };
   }
@@ -738,7 +728,7 @@ export function computeRouteTierPricing(
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: true,
-      routeTierMultiplier: distanceKm > 250 ? 1.12 : 1.10,
+      routeTierMultiplier: distanceKm > 250 ? 1.03 : 1.02,
       routeTierLabel: 'Outer Pickup & Empty Return Corridor'
     };
   }
@@ -748,7 +738,7 @@ export function computeRouteTierPricing(
       isOuterRoute: true,
       pickupIsOuter: true,
       dropIsOuter: false,
-      routeTierMultiplier: 1.08,
+      routeTierMultiplier: 1.02,
       routeTierLabel: 'Outer Pickup Dispatch Zone'
     };
   }
@@ -757,8 +747,8 @@ export function computeRouteTierPricing(
     isOuterRoute: true,
     pickupIsOuter: false,
     dropIsOuter: true,
-    routeTierMultiplier: 1.07,
-    routeTierLabel: 'Outer Drop Return Deadhead'
+    routeTierMultiplier: 1.0,
+    routeTierLabel: 'Standard Highway Corridor'
   };
 }
 
@@ -985,34 +975,34 @@ export function calculateRoundTripFare(
     { perKmRate: number; driverAllowancePerDay: number; nightChargePerNight: number }
   > = {
     HATCHBACK: {
-      perKmRate: adminCfg.vehicles?.hatchback?.roundTripRatePerKm ?? 11.5,
-      driverAllowancePerDay: adminCfg.vehicles?.hatchback?.driverAllowancePerDay ?? 280,
-      nightChargePerNight: adminCfg.vehicles?.hatchback?.nightChargePerNight ?? 300
+      perKmRate: adminCfg.vehicles?.hatchback?.roundTripRatePerKm ?? 10.5,
+      driverAllowancePerDay: adminCfg.vehicles?.hatchback?.driverAllowancePerDay ?? 240,
+      nightChargePerNight: adminCfg.vehicles?.hatchback?.nightChargePerNight ?? 250
     },
     SEDAN: {
-      perKmRate: adminCfg.vehicles?.sedan?.roundTripRatePerKm ?? 13,
-      driverAllowancePerDay: adminCfg.vehicles?.sedan?.driverAllowancePerDay ?? 320,
-      nightChargePerNight: adminCfg.vehicles?.sedan?.nightChargePerNight ?? 300
+      perKmRate: adminCfg.vehicles?.sedan?.roundTripRatePerKm ?? 11.5,
+      driverAllowancePerDay: adminCfg.vehicles?.sedan?.driverAllowancePerDay ?? 260,
+      nightChargePerNight: adminCfg.vehicles?.sedan?.nightChargePerNight ?? 250
     },
     EXEC_SEDAN: {
-      perKmRate: adminCfg.vehicles?.exec_sedan?.roundTripRatePerKm ?? 15,
-      driverAllowancePerDay: adminCfg.vehicles?.exec_sedan?.driverAllowancePerDay ?? 360,
-      nightChargePerNight: adminCfg.vehicles?.exec_sedan?.nightChargePerNight ?? 350
+      perKmRate: adminCfg.vehicles?.exec_sedan?.roundTripRatePerKm ?? 13.0,
+      driverAllowancePerDay: adminCfg.vehicles?.exec_sedan?.driverAllowancePerDay ?? 300,
+      nightChargePerNight: adminCfg.vehicles?.exec_sedan?.nightChargePerNight ?? 300
     },
     SUV: {
-      perKmRate: adminCfg.vehicles?.suv?.roundTripRatePerKm ?? 17,
-      driverAllowancePerDay: adminCfg.vehicles?.suv?.driverAllowancePerDay ?? 380,
-      nightChargePerNight: adminCfg.vehicles?.suv?.nightChargePerNight ?? 350
+      perKmRate: adminCfg.vehicles?.suv?.roundTripRatePerKm ?? 15.0,
+      driverAllowancePerDay: adminCfg.vehicles?.suv?.driverAllowancePerDay ?? 320,
+      nightChargePerNight: adminCfg.vehicles?.suv?.nightChargePerNight ?? 300
     },
     INNOVA: {
-      perKmRate: adminCfg.vehicles?.innova?.roundTripRatePerKm ?? 22,
-      driverAllowancePerDay: adminCfg.vehicles?.innova?.driverAllowancePerDay ?? 450,
-      nightChargePerNight: adminCfg.vehicles?.innova?.nightChargePerNight ?? 400
+      perKmRate: adminCfg.vehicles?.innova?.roundTripRatePerKm ?? 19.0,
+      driverAllowancePerDay: adminCfg.vehicles?.innova?.driverAllowancePerDay ?? 380,
+      nightChargePerNight: adminCfg.vehicles?.innova?.nightChargePerNight ?? 350
     },
     TEMPO: {
-      perKmRate: adminCfg.vehicles?.tempo?.roundTripRatePerKm ?? 27,
-      driverAllowancePerDay: adminCfg.vehicles?.tempo?.driverAllowancePerDay ?? 550,
-      nightChargePerNight: adminCfg.vehicles?.tempo?.nightChargePerNight ?? 500
+      perKmRate: adminCfg.vehicles?.tempo?.roundTripRatePerKm ?? 24.5,
+      driverAllowancePerDay: adminCfg.vehicles?.tempo?.driverAllowancePerDay ?? 480,
+      nightChargePerNight: adminCfg.vehicles?.tempo?.nightChargePerNight ?? 450
     }
   };
 
@@ -1171,42 +1161,31 @@ export function computeTripFare(params: {
     Boolean(originState && destState && originState !== destState);
 
   let hillStationCharge = 0;
-  const hillDriverBonusPerDay =
-    hillTier === 'both_hills'
-      ? 150
-      : hillTier === 'one_end_hill'
-      ? 100
-      : hillTier === 'foothill_gateway'
-      ? 50
-      : 0;
+  const hillDriverBonusPerDay = 0;
 
   if (tripType === 'oneway') {
     // Minimum outstation one-way billable slab (Admin-configurable, default 130 KM)
     baseBilledDistanceKm = Math.max(minOneWaySlabKm, Math.round(distanceKm));
 
-    // Do not stack distance slab factor on top of hill routes (hillRateMultiplier already covers deadhead)
+    // Keep slab factor flat (1.0x) on standard intercity routes so prices remain ₹200 below market
     const slabFactor = isHillRoute
       ? 1.0
-      : baseBilledDistanceKm <= 150
-      ? 1.06
-      : baseBilledDistanceKm > 420
-      ? 1.06
+      : baseBilledDistanceKm <= 130
+      ? 1.02
       : 1.0;
 
     ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
 
     hillStationCharge =
       hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.2)
+        ? Math.round(hillBase * 1.15)
         : hillTier === 'one_end_hill'
         ? hillBase
-        : hillTier === 'foothill_gateway'
-        ? Math.round(hillBase * 0.35)
         : 0;
 
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
 
-    const oneWayDriverDays = baseBilledDistanceKm > 450 ? 1.5 : 1;
+    const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
 
     driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
     nightCharges = timingAllowance;
@@ -1238,7 +1217,7 @@ export function computeTripFare(params: {
     nightCharges = rtFare.nightAllowance;
     hillStationCharge =
       hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.2)
+        ? Math.round(hillBase * 1.15)
         : hillTier === 'one_end_hill'
         ? hillBase
         : 0;
@@ -1250,36 +1229,32 @@ export function computeTripFare(params: {
       driverAllowance = 200 + hillDriverBonusPerDay;
     } else if (localPackageId === '12h_120k') {
       baseBilledDistanceKm = 120;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.33) - 320;
-      driverAllowance = 320 + hillDriverBonusPerDay;
+      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.33) - 260;
+      driverAllowance = 260 + hillDriverBonusPerDay;
     } else {
       baseBilledDistanceKm = 80;
-      baseRouteFare = adjustedLocal8HrBase - 280;
-      driverAllowance = 280 + hillDriverBonusPerDay;
+      baseRouteFare = adjustedLocal8HrBase - 240;
+      driverAllowance = 240 + hillDriverBonusPerDay;
     }
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
-    nightCharges = isEarlyOrNightPickup ? 150 : 0;
+    nightCharges = 0;
   } else if (tripType === 'airport') {
     baseBilledDistanceKm = Math.max(40, Math.round(distanceKm));
     ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
     const airportFixedPickupFee =
-      cabId === 'tempo' ? 550 : cabId === 'innova' || cabId === 'suv' ? 400 : 280;
+      cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 240;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
-    driverAllowance = 220 + hillDriverBonusPerDay;
+    driverAllowance = 200 + hillDriverBonusPerDay;
     hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
-    nightCharges = isEarlyOrNightPickup ? 150 : 0;
+    nightCharges = 0;
   }
 
-  // 4. Extra KM Rate
-  const hillSliderFactor = dropIsHill ? 1.06 : isHillRoute ? 1.05 : 1.0;
+  // 4. Extra KM Rate (Matches CabBazar standard vehicle extra KM rate: e.g., ₹10.2/km for Sedan)
   const extraKmRate =
     tripType === 'roundtrip'
       ? ratePerKm
-      : Math.max(
-          Math.ceil(ratePerKm + (dropIsHill ? 1.5 : isHillRoute ? 1.0 : 1.0)),
-          Math.round(baseExtraKmRate * dynamicRateFactor * hillSliderFactor)
-        );
+      : Number(baseExtraKmRate.toFixed(1));
 
   const sliderExtraFare = Math.round(cleanExtraKm * extraKmRate);
   const billedDistanceKm = baseBilledDistanceKm + cleanExtraKm;
