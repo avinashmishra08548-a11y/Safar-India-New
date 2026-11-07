@@ -376,19 +376,9 @@ export const InteractiveRouteMapModal: React.FC<InteractiveRouteMapModalProps> =
 
     const altSource = map.getSource('alt-route-source') as maplibregl.GeoJSONSource | undefined;
     if (altSource) {
-      const otherRoutes = (alternatives || []).filter(
-        (alt) => alt.routeId !== selectedRouteId && Array.isArray(alt.geometry) && alt.geometry.length >= 2
-      );
       altSource.setData({
         type: 'FeatureCollection',
-        features: otherRoutes.map((alt) => ({
-          type: 'Feature',
-          properties: { routeId: alt.routeId, summary: alt.summary },
-          geometry: {
-            type: 'LineString',
-            coordinates: alt.geometry
-          }
-        }))
+        features: []
       });
     }
 
@@ -790,67 +780,30 @@ export const InteractiveRouteMapModal: React.FC<InteractiveRouteMapModalProps> =
                   </div>
                 </div>
 
-                {/* Alternative Routes Selector */}
+                {/* Best Recommended Highway Route Info (Read-Only) */}
                 <div className="space-y-2">
                   <div className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
-                    Available Highway Routes ({alternatives.length > 0 ? alternatives.length : 1})
+                    Best Recommended Highway Route
                   </div>
 
-                  {alternatives && alternatives.length > 0 ? (
-                    <div className="space-y-2">
-                      {alternatives.map((alt, idx) => {
-                        const isSelected = selectedRouteId
-                          ? alt.routeId === selectedRouteId
-                          : idx === 0;
-                        return (
-                          <button
-                            key={alt.routeId}
-                            type="button"
-                            onClick={() => onSelectAlternativeRoute?.(alt)}
-                            className={`w-full text-left p-3 rounded-2xl border transition cursor-pointer ${
-                              isSelected
-                                ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20'
-                                : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-black text-slate-900">
-                                {idx === 0 ? 'Primary Recommended Route' : `Alternative Route #${idx + 1}`}
-                              </span>
-                              <span className="px-2 py-0.5 rounded-md bg-slate-900 text-amber-400 font-mono text-xs font-black">
-                                {alt.distanceKm} KM
-                              </span>
-                            </div>
-                            <div className="text-xs text-slate-600 font-semibold mt-1">
-                              {alt.summary}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500 font-medium">
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-amber-600" />
-                                Est. {alt.durationText}
-                              </span>
-                              <span>•</span>
-                              <span className="text-emerald-700 font-bold">Actual Road Distance</span>
-                            </div>
-                          </button>
-                        );
-                      })}
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-400 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-slate-900">
+                        {routeSummary || alternatives?.[0]?.summary || 'Primary National Highway Corridor'}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-md bg-slate-900 text-amber-400 font-mono text-xs font-black shrink-0">
+                        {distanceKm} KM
+                      </span>
                     </div>
-                  ) : (
-                    <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-300 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-slate-900">
-                          {routeSummary || 'Primary National Highway Corridor'}
-                        </span>
-                        <span className="font-mono text-xs font-black text-amber-900 bg-amber-200 px-2 py-0.5 rounded-md">
-                          {distanceKm} KM
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-600">
-                        Estimated Travel Duration: {durationText || 'Calculated via Ola Maps Road Network'}
-                      </div>
+                    <div className="flex items-center gap-3 text-[11px] text-slate-600 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        Est. {durationText || alternatives?.[0]?.durationText || 'Calculated via Road Network'}
+                      </span>
+                      <span>•</span>
+                      <span className="text-emerald-700 font-bold">Verified Best Road Route</span>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )}

@@ -1589,7 +1589,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         )}
 
-        {/* Alternative Route Selector & Interactive Map Preview Strip */}
+        {/* Best Road Route & Interactive Map Preview Strip (Single Recommended Route Only) */}
         {tripType !== 'local' && pickupCity.trim().length >= 2 && dropCity.trim().length >= 2 && (
           <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2.5 text-xs">
             <div className="flex flex-wrap items-center gap-2">
@@ -1597,32 +1597,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 <RouteIcon className="w-3.5 h-3.5 text-amber-600" />
                 <span>Road Route:</span>
               </span>
-              {routeAlternatives.length > 1 ? (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {routeAlternatives.map((alt) => {
-                    const isSelected = selectedRouteId ? alt.routeId === selectedRouteId : !alt.isAlternative;
-                    return (
-                      <button
-                        key={alt.routeId}
-                        type="button"
-                        onClick={() => onSelectAlternativeRoute && onSelectAlternativeRoute(alt)}
-                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-slate-900 text-amber-400 border-slate-900'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300'
-                        }`}
-                      >
-                        {alt.summary} ({alt.distanceKm} KM · {alt.durationText})
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <span className="text-slate-600 font-semibold">
-                  {routeSummary || `${pickupCity.split(',')[0]} → ${dropCity.split(',')[0]} Highway`} ({calculatedDistance} KM
-                  {travelDuration ? ` · ${travelDuration}` : ''})
-                </span>
-              )}
+              <span className="px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 font-bold text-[11px] sm:text-xs">
+                {routeSummary || `${pickupCity.split(',')[0]} → ${dropCity.split(',')[0]} Highway`} ({calculatedDistance} KM
+                {travelDuration ? ` · ${travelDuration}` : ''})
+              </span>
               {routeProvider && (
                 <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                   {routeProvider === 'ola_maps' ? 'Ola Maps Road API' : routeProvider === 'mappls' ? 'Mappls Fallback' : 'Verified Road Network'}
