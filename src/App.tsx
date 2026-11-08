@@ -35,7 +35,8 @@ import { sanitize10DigitPhone } from './utils/smsService';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsapp';
 import {
   fetchBookingsFromCloudDatabase,
-  saveBookingToCloudDatabase
+  saveBookingToCloudDatabase,
+  subscribeToBookingsFromCloudDatabase
 } from './lib/bookingDatabase';
 import { Header, NavTabId } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
@@ -253,11 +254,17 @@ export default function App() {
           setLegalPolicyModalTab('delete-account');
         }
 
+        const adminParam = (searchParams.get('admin') || '').trim().toLowerCase();
+        const hashLower = (window.location.hash || '').trim().toLowerCase();
+        if (adminParam === '1' || adminParam === 'true' || hashLower === '#admin' || hashLower === '#owner') {
+          setIsAdminMappingConsoleOpen(true);
+        }
+
         const pathname = (window.location.pathname || '').trim().toLowerCase().replace(/\/+$/, '');
         if (!pathname || pathname === '/') return;
 
         if (pathname === '/admin' || pathname === '/owner' || pathname === '/admin-login') {
-          window.location.replace('https://admin.safarindiacabs.com');
+          setIsAdminMappingConsoleOpen(true);
           return;
         }
 
@@ -720,12 +727,39 @@ export default function App() {
     }
   };
 
-  // Sync real persistent bookings from serverless backend after initial paint so UI is instant
+  // Real-time Firestore subscription + initial backfill so Admin Panel & Customer App stay synced live
   useEffect(() => {
     const timer = window.setTimeout(() => {
       refreshAllBookings(false);
+      // Ensure seeded and local bookings (including SIC2604) are persisted in Firestore
+      for (const b of SEEDED_VERIFIED_BOOKINGS) {
+        saveBookingToCloudDatabase(b).catch(() => {});
+      }
+      try {
+        const raw = localStorage.getItem('safar_bookings');
+        if (raw) {
+          const parsed: BookingRecord[] = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.slice(0, 15).forEach((b) => {
+              if (b && b.id && !b.id.includes('DEMO')) {
+                saveBookingToCloudDatabase(b).catch(() => {});
+              }
+            });
+          }
+        }
+      } catch {}
     }, 200);
-    return () => window.clearTimeout(timer);
+
+    const unsubscribeFirestore = subscribeToBookingsFromCloudDatabase((liveCloudBookings) => {
+      if (liveCloudBookings.length > 0) {
+        setAllBookings((prev) => mergeBookingsList(prev, liveCloudBookings));
+      }
+    });
+
+    return () => {
+      window.clearTimeout(timer);
+      unsubscribeFirestore();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1142,6 +1176,7 @@ export default function App() {
               onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
               onOpenReviews={() => setIsReviewsModalOpen(true)}
               onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
+              onOpenAdminPanel={() => setIsAdminMappingConsoleOpen(true)}
               onSelectRoute={(from, to) => {
                 setTripType('oneway');
                 setPickupCity(from);

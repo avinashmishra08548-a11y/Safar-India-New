@@ -23,6 +23,7 @@ interface FooterProps {
   onOpenDriverPartner?: () => void;
   onOpenReviews?: () => void;
   onOpenLegalPolicy?: (tab: 'privacy' | 'terms' | 'refund' | 'contact' | 'delete-account') => void;
+  onOpenAdminPanel?: () => void;
   onSelectRoute?: (pickup: string, drop: string) => void;
 }
 
@@ -33,6 +34,7 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenDriverPartner,
   onOpenReviews,
   onOpenLegalPolicy,
+  onOpenAdminPanel,
   onSelectRoute
 }) => {
   const popularRoutes = [
@@ -447,15 +449,20 @@ export const Footer: React.FC<FooterProps> = ({
               </>
             )}
             <span>·</span>
-            <a
-              href="https://admin.safarindiacabs.com"
-              target="_top"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenAdminPanel) {
+                  onOpenAdminPanel();
+                } else {
+                  window.location.href = '/admin';
+                }
+              }}
               className="text-slate-700 hover:text-amber-700 font-extrabold flex items-center gap-1 transition cursor-pointer"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-              <span>Admin Login</span>
-            </a>
+              <span>Admin Panel &amp; Booking Search</span>
+            </button>
           </div>
         </div>
       </div>

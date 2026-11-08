@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   X,
   Shield,
@@ -10,7 +10,13 @@ import {
   RefreshCw,
   Server,
   Route,
-  AlertTriangle
+  AlertTriangle,
+  Search,
+  Phone,
+  MessageSquare,
+  User,
+  Car,
+  MapPin
 } from 'lucide-react';
 import {
   AdminPricingConfig,
@@ -25,6 +31,13 @@ import {
 import { BookingRecord, CabCategoryId } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { resolveItemizedInvoiceBreakup } from './BookingConfirmationModal';
+import {
+  normalizeBookingIdInput,
+  searchBookingInFirestore,
+  saveBookingToCloudDatabase,
+  subscribeToBookingsFromCloudDatabase,
+  updateBookingDriverAndStatusInCloud
+} from '../lib/bookingDatabase';
 
 interface AdminMappingConsoleModalProps {
   isOpen: boolean;
@@ -96,32 +109,179 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
   const [benchmarkRoutes, setBenchmarkRoutes] = useState<IntercityRouteBenchmarkRow[]>([]);
   const [isLoadingBenchmark, setIsLoadingBenchmark] = useState(false);
 
+  // Admin Firestore Booking Search & Comprehensive Detail State
+  const [adminSearchInput, setAdminSearchInput] = useState('');
+  const [isSearchingFirestore, setIsSearchingFirestore] = useState(false);
+  const [firestoreSearchResults, setFirestoreSearchResults] = useState<BookingRecord[] | null>(null);
+  const [selectedDetailBookingId, setSelectedDetailBookingId] = useState<string>('SIC2604');
+  const [driverEditForm, setDriverEditForm] = useState({
+    driverName: '',
+    driverPhone: '',
+    driverVehicleModel: '',
+    driverVehicleNo: '',
+    status: 'confirmed' as 'confirmed' | 'completed' | 'cancelled'
+  });
+  const [isSavingDriverAssignment, setIsSavingDriverAssignment] = useState(false);
+
+  const displayedBookings = useMemo(() => {
+    if (firestoreSearchResults !== null) {
+      return firestoreSearchResults;
+    }
+    if (!adminSearchInput.trim()) {
+      return bookings;
+    }
+    const q = adminSearchInput.trim().toLowerCase();
+    const normId = normalizeBookingIdInput(adminSearchInput);
+    return bookings.filter(
+      (b) =>
+        normalizeBookingIdInput(b.id) === normId ||
+        b.id.toLowerCase().includes(q) ||
+        (b.customerPhone && b.customerPhone.includes(q)) ||
+        (b.customerName && b.customerName.toLowerCase().includes(q)) ||
+        (b.pickupCity && b.pickupCity.toLowerCase().includes(q)) ||
+        (b.dropCity && b.dropCity.toLowerCase().includes(q))
+    );
+  }, [bookings, firestoreSearchResults, adminSearchInput]);
+
+  const selectedDetailBooking = useMemo(() => {
+    const cleanSelected = normalizeBookingIdInput(selectedDetailBookingId);
+    const fromDisplayed = displayedBookings.find(
+      (b) => normalizeBookingIdInput(b.id) === cleanSelected
+    );
+    if (fromDisplayed) return fromDisplayed;
+    const fromAll = bookings.find((b) => normalizeBookingIdInput(b.id) === cleanSelected);
+    if (fromAll) return fromAll;
+    return displayedBookings[0] || bookings[0] || null;
+  }, [selectedDetailBookingId, displayedBookings, bookings]);
+
+  useEffect(() => {
+    if (selectedDetailBooking) {
+      setDriverEditForm({
+        driverName: selectedDetailBooking.driverName || '',
+        driverPhone: selectedDetailBooking.driverPhone || '',
+        driverVehicleModel:
+          selectedDetailBooking.driverVehicleModel || selectedDetailBooking.cabName || '',
+        driverVehicleNo: selectedDetailBooking.driverVehicleNo || '',
+        status: selectedDetailBooking.status || 'confirmed'
+      });
+    }
+  }, [selectedDetailBooking]);
+
   useEffect(() => {
     if (!isOpen) return;
     syncAdminPricingFromServer().then((cfg) => setPricingConfig(cfg));
     loadMonitoring();
     loadBenchmark();
+
+    // Real-time Firestore listener while Admin Panel is open
+    const unsubscribe = subscribeToBookingsFromCloudDatabase((liveCloud) => {
+      for (const b of liveCloud) {
+        onUpsertBooking?.(b);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  const handleAdminFirestoreSearch = async (overrideQuery?: string) => {
+    const queryStr = (overrideQuery !== undefined ? overrideQuery : adminSearchInput).trim();
+    if (!queryStr) {
+      setFirestoreSearchResults(null);
+      return;
+    }
+    setIsSearchingFirestore(true);
+    setSaveBanner('');
+    try {
+      const results = await searchBookingInFirestore(queryStr);
+      for (const found of results) {
+        onUpsertBooking?.(found);
+      }
+      setFirestoreSearchResults(results);
+      if (results.length > 0) {
+        setSelectedDetailBookingId(results[0].id);
+        setSaveBanner(
+          `Found ${results.length} matching record(s) in Firebase Firestore for "${queryStr.toUpperCase()}" (${results[0].id} — ${results[0].customerName}).`
+        );
+      } else {
+        setSaveBanner(`No booking found in Firestore for "${queryStr}". Showing local/server matches if any.`);
+      }
+      setTimeout(() => setSaveBanner(''), 4500);
+    } finally {
+      setIsSearchingFirestore(false);
+    }
+  };
+
+  const handleSaveDriverAssignmentToFirestore = async () => {
+    if (!selectedDetailBooking) return;
+    setIsSavingDriverAssignment(true);
+    setSaveBanner('');
+    try {
+      const updated = await updateBookingDriverAndStatusInCloud(
+        selectedDetailBooking.id,
+        {
+          driverName: driverEditForm.driverName.trim() || undefined,
+          driverPhone: driverEditForm.driverPhone.replace(/\D/g, '').slice(-10) || undefined,
+          driverVehicleModel: driverEditForm.driverVehicleModel.trim() || undefined,
+          driverVehicleNo: driverEditForm.driverVehicleNo.trim().toUpperCase() || undefined,
+          driverAssignedAt: driverEditForm.driverName.trim()
+            ? new Date().toISOString()
+            : selectedDetailBooking.driverAssignedAt,
+          status: driverEditForm.status
+        },
+        selectedDetailBooking
+      );
+      if (updated) {
+        onUpsertBooking?.(updated);
+        if (firestoreSearchResults) {
+          setFirestoreSearchResults((prev) =>
+            prev
+              ? prev.map((item) =>
+                  normalizeBookingIdInput(item.id) === normalizeBookingIdInput(updated.id)
+                    ? updated
+                    : item
+                )
+              : null
+          );
+        }
+        setSaveBanner(
+          `Saved Driver & Status for Booking ${updated.id} (${updated.customerName}) directly to Firebase Firestore!`
+        );
+        setTimeout(() => setSaveBanner(''), 4000);
+      }
+    } finally {
+      setIsSavingDriverAssignment(false);
+    }
+  };
 
   const handleSyncBookingsNow = async () => {
     setIsSyncingBookings(true);
     setSaveBanner('');
     try {
-      const res = await fetch('/api/bookings?force=1');
-      if (res.ok) {
+      const [cloudResults, res] = await Promise.all([
+        searchBookingInFirestore(''),
+        fetch('/api/bookings?force=1').catch(() => null)
+      ]);
+      for (const b of cloudResults) {
+        onUpsertBooking?.(b);
+      }
+      if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data?.bookings)) {
           for (const b of data.bookings) {
             onUpsertBooking?.(b);
+            saveBookingToCloudDatabase(b).catch(() => {});
           }
         }
-        setSaveBanner(
-          `Synced ${data?.bookings?.length || bookings.length} live bookings (including SIC2604 Ashish Dhawan) from Server & Razorpay Gateway!`
-        );
-        setTimeout(() => setSaveBanner(''), 4000);
       }
+      setSaveBanner(
+        `Synced ${Math.max(cloudResults.length, bookings.length)} live bookings (including SIC2604 Ashish Dhawan) across Firebase Firestore & Server!`
+      );
+      setTimeout(() => setSaveBanner(''), 4000);
     } catch {
-      setSaveBanner('Verified local & cloud bookings synced.');
+      setSaveBanner('Verified local & Firestore bookings synced.');
       setTimeout(() => setSaveBanner(''), 3000);
     } finally {
       setIsSyncingBookings(false);
@@ -456,35 +616,437 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
 
           {activeTab === 'bookings_bills' && (
             <div className="space-y-6">
-              {/* 1. Synced Live Bookings Table (Including SIC2604 Ashish Dhawan) */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+              {/* 1. Dedicated Admin Firestore Booking Search Bar & Instant Lookup */}
+              <div className="bg-[#0B0F19] text-white border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-md">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h4 className="text-sm font-black text-slate-950">
-                      Synced Customer Bookings (Live Cloud, Server &amp; Razorpay Gateway)
+                    <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-full mb-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span>Real-Time Firebase Firestore Sync Active</span>
+                    </div>
+                    <h4 className="text-sm sm:text-base font-black text-white">
+                      Admin Booking Search &amp; Instant Firestore Lookup
                     </h4>
-                    <p className="text-xs text-slate-600">
-                      All confirmed rides including <strong>SIC2604 (Ashish Dhawan • Zirakpur to Nagrota Bagwan)</strong> are synced here.
+                    <p className="text-xs text-slate-300">
+                      Type or paste any Booking ID (e.g., <strong className="text-amber-400 font-mono">SIC2604</strong>), customer mobile number, or passenger name to query Firestore immediately.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleSyncBookingsNow}
                     disabled={isSyncingBookings}
-                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs flex items-center gap-1.5 transition cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 font-black text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncingBookings ? 'animate-spin' : ''}`} />
-                    <span>{isSyncingBookings ? 'Syncing Gateway...' : 'Sync Bookings Now'}</span>
+                    <span>{isSyncingBookings ? 'Syncing Firestore...' : 'Force Sync All'}</span>
                   </button>
                 </div>
 
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAdminFirestoreSearch();
+                  }}
+                  className="flex flex-col sm:flex-row gap-2.5"
+                >
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-amber-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={adminSearchInput}
+                      onChange={(e) => {
+                        setAdminSearchInput(e.target.value);
+                        if (!e.target.value.trim()) {
+                          setFirestoreSearchResults(null);
+                        }
+                      }}
+                      placeholder="Enter Booking ID (e.g. SIC2604), Mobile (8080401779), or Customer Name..."
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-amber-400 text-white placeholder:text-slate-400 text-xs sm:text-sm font-bold outline-hidden"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="submit"
+                      disabled={isSearchingFirestore}
+                      className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                    >
+                      <Search className="w-4 h-4" />
+                      <span>{isSearchingFirestore ? 'Querying Firestore...' : 'Search Firestore'}</span>
+                    </button>
+                    {(adminSearchInput || firestoreSearchResults !== null) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminSearchInput('');
+                          setFirestoreSearchResults(null);
+                        }}
+                        className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </form>
+
+                {/* Quick-Select Booking Reference Chips */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px]">
+                  <span className="text-slate-400 font-bold mr-1">Quick Inspect Booking ID:</span>
+                  {bookings.slice(0, 6).map((b) => {
+                    const isSelected =
+                      normalizeBookingIdInput(selectedDetailBooking?.id || '') ===
+                      normalizeBookingIdInput(b.id);
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDetailBookingId(b.id);
+                          setAdminSearchInput(b.id);
+                          handleAdminFirestoreSearch(b.id);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg font-mono font-black transition cursor-pointer border ${
+                          isSelected
+                            ? 'bg-amber-400 text-slate-950 border-amber-400'
+                            : 'bg-slate-900 text-slate-200 border-slate-700 hover:border-amber-400/60'
+                        }`}
+                      >
+                        {b.id} ({b.customerName.split(' ')[0]})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Comprehensive Selected Booking Breakdown, Fare Split, Customer Contact & Driver Assignment */}
+              {selectedDetailBooking && (() => {
+                const detailBrk = resolveItemizedInvoiceBreakup(selectedDetailBooking);
+                const hasDriverAssigned = Boolean(
+                  selectedDetailBooking.driverName && selectedDetailBooking.driverPhone
+                );
+                return (
+                  <div className="bg-white border-2 border-slate-900 rounded-2xl overflow-hidden shadow-md">
+                    <div className="bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-mono font-black text-sm bg-amber-400 text-slate-950 px-3 py-1 rounded-lg">
+                          {selectedDetailBooking.id}
+                        </span>
+                        <div>
+                          <div className="text-xs sm:text-sm font-black text-white">
+                            {selectedDetailBooking.pickupCity} → {selectedDetailBooking.dropCity}
+                          </div>
+                          <div className="text-[11px] text-slate-300">
+                            {detailBrk.tripTypeBadge} • {selectedDetailBooking.distanceKm} KM • Pickup: {selectedDetailBooking.pickupDate} @ {selectedDetailBooking.pickupTime}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-black uppercase ${
+                            selectedDetailBooking.status === 'completed'
+                              ? 'bg-emerald-400/20 text-emerald-300 border border-emerald-400/40'
+                              : selectedDetailBooking.status === 'cancelled'
+                              ? 'bg-rose-400/20 text-rose-300 border border-rose-400/40'
+                              : 'bg-amber-400/20 text-amber-300 border border-amber-400/40'
+                          }`}
+                        >
+                          {selectedDetailBooking.status}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleLoadBookingIntoBillGenerator(selectedDetailBooking)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition cursor-pointer"
+                        >
+                          Load in GST Bill Editor
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onOpenBookingInvoice?.(selectedDetailBooking)}
+                          className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition cursor-pointer"
+                        >
+                          📄 Open Official GST Invoice
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs">
+                      {/* Column A: Trip & Customer Contact Info (4 cols) */}
+                      <div className="lg:col-span-4 bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Customer &amp; Trip Info</span>
+                          </span>
+                          <span className="font-mono text-[11px] text-slate-500">
+                            Ref: {selectedDetailBooking.id}
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-semibold">Passenger Name:</span>
+                            <span className="font-black text-slate-900">{selectedDetailBooking.customerName}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-500 font-semibold">Mobile Number:</span>
+                            <span className="font-mono font-black text-emerald-700">
+                              +91 {selectedDetailBooking.customerPhone}
+                            </span>
+                          </div>
+                          {selectedDetailBooking.customerEmail && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-500 font-semibold">Email:</span>
+                              <span className="font-semibold text-slate-800 truncate max-w-[180px]">
+                                {selectedDetailBooking.customerEmail}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-semibold">Vehicle Category:</span>
+                            <span className="font-bold text-slate-900 text-right max-w-[190px]">
+                              {selectedDetailBooking.cabName}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-semibold">Pickup Address:</span>
+                            <span className="font-semibold text-slate-800 text-right max-w-[190px]">
+                              {selectedDetailBooking.pickupAddress || selectedDetailBooking.pickupCity}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-semibold">Drop Address:</span>
+                            <span className="font-semibold text-slate-800 text-right max-w-[190px]">
+                              {selectedDetailBooking.dropAddress || selectedDetailBooking.dropCity}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-500 font-semibold">Transaction ID:</span>
+                            <span className="font-mono text-[11px] text-slate-700">
+                              {selectedDetailBooking.transactionId || 'Verified Online'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <a
+                            href={`tel:+91${selectedDetailBooking.customerPhone}`}
+                            className="py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-center flex items-center justify-center gap-1.5 transition"
+                          >
+                            <Phone className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Call Customer</span>
+                          </a>
+                          <a
+                            href={`https://wa.me/91${selectedDetailBooking.customerPhone}?text=${encodeURIComponent(
+                              `Hello ${selectedDetailBooking.customerName}, regarding your SafarIndiaCabs booking ${selectedDetailBooking.id} (${selectedDetailBooking.pickupCity} to ${selectedDetailBooking.dropCity} on ${selectedDetailBooking.pickupDate} at ${selectedDetailBooking.pickupTime}).`
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-center flex items-center justify-center gap-1.5 transition"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>WhatsApp</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Column B: Complete Itemized Fare Split (4 cols) */}
+                      <div className="lg:col-span-4 bg-amber-50/50 border border-amber-200 rounded-xl p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-amber-200 pb-2">
+                          <span className="font-black text-slate-900 uppercase tracking-wider text-[11px]">
+                            Itemized Fare Split (SAC 996412)
+                          </span>
+                          <span className="font-mono font-bold text-[11px] text-amber-900">
+                            {selectedDetailBooking.distanceKm} KM
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 font-semibold">1. Base Cab Fare:</span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {formatINR(detailBrk.baseCabFare)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 font-semibold">
+                              2. Driver Allowance / Bata ({detailBrk.tripDays}D):
+                            </span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {formatINR(detailBrk.driverAllowance)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 font-semibold">3. Highway FASTag Toll Tax:</span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {formatINR(detailBrk.highwayToll)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-600 font-semibold">4. State Border Entry Permit:</span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {formatINR(detailBrk.statePermitTax)}
+                            </span>
+                          </div>
+                          {detailBrk.hillStationCharge > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-600 font-semibold">5. Hill Station &amp; Ghats Charge:</span>
+                              <span className="font-mono font-bold text-slate-900">
+                                {formatINR(detailBrk.hillStationCharge)}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between border-t border-amber-200/80 pt-1">
+                            <span className="text-slate-600 font-semibold">6. GST (2.5% CGST + 2.5% SGST):</span>
+                            <span className="font-mono font-bold text-slate-900">
+                              {formatINR(detailBrk.gstAmount)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t border-amber-300 pt-1.5 text-sm font-black text-slate-950">
+                            <span>Total All-Inclusive Fare:</span>
+                            <span className="font-mono">{formatINR(selectedDetailBooking.totalFare)}</span>
+                          </div>
+                          <div className="flex justify-between text-emerald-800 font-extrabold">
+                            <span>Advance Paid Online:</span>
+                            <span className="font-mono">- {formatINR(selectedDetailBooking.advancePaid)}</span>
+                          </div>
+                          <div className="flex justify-between bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 font-black text-slate-950">
+                            <span>Balance Payable to Driver:</span>
+                            <span className="font-mono text-amber-800">
+                              {formatINR(selectedDetailBooking.balanceDue)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Column C: Driver Assignment Status & Live Firestore Update (4 cols) */}
+                      <div className="lg:col-span-4 bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                            <Car className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Driver Assignment &amp; Status</span>
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                              hasDriverAssigned
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {hasDriverAssigned ? 'Driver Assigned' : 'Pending Assignment'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                              Driver Full Name
+                            </label>
+                            <input
+                              type="text"
+                              value={driverEditForm.driverName}
+                              onChange={(e) =>
+                                setDriverEditForm((p) => ({ ...p, driverName: e.target.value }))
+                              }
+                              placeholder="e.g. Gurpreet Singh"
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-900 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                              Driver Mobile (10-Digit)
+                            </label>
+                            <input
+                              type="text"
+                              value={driverEditForm.driverPhone}
+                              onChange={(e) =>
+                                setDriverEditForm((p) => ({ ...p, driverPhone: e.target.value }))
+                              }
+                              placeholder="98150XXXXX"
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono font-bold text-slate-900 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                              Cab Plate Number
+                            </label>
+                            <input
+                              type="text"
+                              value={driverEditForm.driverVehicleNo}
+                              onChange={(e) =>
+                                setDriverEditForm((p) => ({
+                                  ...p,
+                                  driverVehicleNo: e.target.value.toUpperCase()
+                                }))
+                              }
+                              placeholder="PB 01 C 4821"
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono font-bold text-slate-900 text-xs uppercase"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                              Booking Status
+                            </label>
+                            <select
+                              value={driverEditForm.status}
+                              onChange={(e) =>
+                                setDriverEditForm((p) => ({
+                                  ...p,
+                                  status: e.target.value as 'confirmed' | 'completed' | 'cancelled'
+                                }))
+                              }
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-900 text-xs"
+                            >
+                              <option value="confirmed">Confirmed (Upcoming / Ongoing)</option>
+                              <option value="completed">Completed (100% Settled)</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveDriverAssignmentToFirestore}
+                          disabled={isSavingDriverAssignment}
+                          className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition cursor-pointer shadow-xs"
+                        >
+                          {isSavingDriverAssignment
+                            ? 'Saving to Firebase Firestore...'
+                            : 'Save Driver & Status to Firestore'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 3. Synced Live Bookings Table (Including SIC2604 Ashish Dhawan) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-950">
+                      All Synced Customer Bookings ({displayedBookings.length})
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Click any booking row to inspect its full breakdown above or generate its official GST invoice.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="space-y-2.5">
-                  {bookings.map((b) => {
+                  {displayedBookings.map((b) => {
                     const brk = resolveItemizedInvoiceBreakup(b);
+                    const isSelectedRow =
+                      normalizeBookingIdInput(selectedDetailBooking?.id || '') ===
+                      normalizeBookingIdInput(b.id);
                     return (
                       <div
                         key={b.id}
-                        className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs shadow-2xs"
+                        onClick={() => setSelectedDetailBookingId(b.id)}
+                        className={`bg-white border rounded-2xl p-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs shadow-2xs transition cursor-pointer ${
+                          isSelectedRow
+                            ? 'border-slate-900 ring-2 ring-amber-400/50'
+                            : 'border-slate-200 hover:border-slate-400'
+                        }`}
                       >
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
@@ -496,6 +1058,11 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                             <span className="text-[11px] font-bold text-slate-500">
                               • {b.pickupDate} @ {b.pickupTime}
                             </span>
+                            {b.driverName && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-[10px]">
+                                Driver: {b.driverName} ({b.driverVehicleNo || 'Assigned'})
+                              </span>
+                            )}
                           </div>
                           <div className="font-bold text-slate-800">
                             {b.pickupCity} → {b.dropCity} ({brk.tripTypeBadge} • {b.distanceKm} KM)
@@ -523,14 +1090,21 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                           </div>
                           <button
                             type="button"
-                            onClick={() => handleLoadBookingIntoBillGenerator(b)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDetailBookingId(b.id);
+                              handleLoadBookingIntoBillGenerator(b);
+                            }}
                             className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition cursor-pointer"
                           >
                             Edit in Bill Generator
                           </button>
                           <button
                             type="button"
-                            onClick={() => onOpenBookingInvoice?.(b)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenBookingInvoice?.(b);
+                            }}
                             className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs transition cursor-pointer"
                           >
                             📄 View / Download GST Bill

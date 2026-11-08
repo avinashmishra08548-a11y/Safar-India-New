@@ -20,7 +20,7 @@ service cloud.firestore {
     }
 
     function isValidBookingId(id) {
-      return id is string && id.matches('^SIC[0-9A-Z-]{3,20}$');
+      return id is string && id.matches('^SIC[0-9A-Z_-]{3,28}$');
     }
 
     function isValidBookingDoc(data) {
@@ -43,27 +43,27 @@ service cloud.firestore {
       ]) &&
       isValidBookingId(data.id) &&
       data.tripType in ['oneway', 'roundtrip', 'local', 'airport'] &&
-      isValidString(data.pickupCity, 1, 120) &&
-      isValidString(data.dropCity, 1, 120) &&
-      isValidString(data.pickupDate, 4, 40) &&
-      isValidString(data.pickupTime, 2, 40) &&
-      isValidString(data.cabId, 1, 40) &&
-      isValidString(data.cabName, 1, 120) &&
+      isValidString(data.pickupCity, 1, 250) &&
+      isValidString(data.dropCity, 1, 250) &&
+      isValidString(data.pickupDate, 4, 50) &&
+      isValidString(data.pickupTime, 2, 50) &&
+      isValidString(data.cabId, 1, 60) &&
+      isValidString(data.cabName, 1, 250) &&
       data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 50000 &&
       data.baseFare is number && data.baseFare >= 0 && data.baseFare <= 10000000 &&
       data.totalFare is number && data.totalFare >= 0 && data.totalFare <= 10000000 &&
-      isValidString(data.customerName, 1, 120) &&
-      isValidString(data.customerPhone, 10, 15) &&
+      isValidString(data.customerName, 1, 150) &&
+      isValidString(data.customerPhone, 5, 25) &&
       data.status in ['confirmed', 'completed', 'cancelled'] &&
-      isValidString(data.createdAt, 4, 60);
+      isValidString(data.createdAt, 4, 80);
     }
 
     function isValidCounterDoc(data) {
       return data.keys().hasAll(['seriesPrefix', 'currentSequence', 'lastBookingId', 'updatedAt']) &&
-        isValidString(data.seriesPrefix, 2, 12) &&
+        isValidString(data.seriesPrefix, 2, 16) &&
         data.currentSequence is number && data.currentSequence >= 1 && data.currentSequence <= 9999999 &&
         isValidBookingId(data.lastBookingId) &&
-        isValidString(data.updatedAt, 4, 60);
+        isValidString(data.updatedAt, 4, 80);
     }
 
     // Bookings collection: Customers use custom WhatsApp OTP auth in SafarIndiaCabs,
@@ -72,14 +72,13 @@ service cloud.firestore {
       allow get, list: if true;
       allow create: if isValidBookingDoc(request.resource.data) && request.resource.data.id == bookingId;
       allow update: if isValidBookingDoc(request.resource.data) &&
-                    request.resource.data.id == resource.data.id &&
-                    request.resource.data.createdAt == resource.data.createdAt;
+                    request.resource.data.id == resource.data.id;
       allow delete: if false;
     }
 
-    // Sequential Booking ID Counter collection for atomic SIC2601, SIC2602, SIC2603 generation
+    // Sequential Booking ID Counter collection for atomic SIC2601, SIC2602, SIC2603, SIC2604+ generation
     match /booking_counters/{counterId} {
-      allow get: if true;
+      allow get, list: if true;
       allow create: if isValidCounterDoc(request.resource.data);
       allow update: if isValidCounterDoc(request.resource.data) &&
                     request.resource.data.currentSequence >= resource.data.currentSequence;

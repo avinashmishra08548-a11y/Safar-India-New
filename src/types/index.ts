@@ -24,6 +24,10 @@ export interface CabVehicle {
 
 export interface BookingRecord {
   id: string;
+  bookingId?: string;
+  bookingReference?: string;
+  sequenceNumber?: number;
+  searchKeywords?: string[];
   tripType: TripType;
   pickupCity: string;
   dropCity: string;
@@ -66,6 +70,7 @@ export interface BookingRecord {
   gstCompanyName?: string;
   status: 'confirmed' | 'completed' | 'cancelled';
   createdAt: string;
+  updatedAt?: string;
   notes?: string;
   driverName?: string;
   driverPhone?: string;

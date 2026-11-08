@@ -7,15 +7,30 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "Sequential Booking ID starting with SIC26 (e.g. SIC2601, SIC2602, SIC2603)"
+          "description": "Sequential Booking ID starting with SIC (e.g. SIC2601, SIC2604, SIC2605)"
+        },
+        "bookingId": {
+          "type": "string",
+          "description": "Indexed human-readable Booking Reference ID (e.g. SIC2604)"
+        },
+        "bookingReference": {
+          "type": "string",
+          "description": "Human-readable Booking Reference ID alias (e.g. SIC2604)"
         },
         "sequenceNumber": {
           "type": "number",
-          "description": "Sequential numeric counter for the booking ID (e.g. 2601, 2602)"
+          "description": "Sequential numeric counter for the booking ID (e.g. 1, 2, 3, 4)"
+        },
+        "searchKeywords": {
+          "type": "array",
+          "description": "Normalized uppercase search keywords (booking ID, digits, phone, name, cities)"
         },
         "tripType": {
           "type": "string",
           "enum": ["oneway", "roundtrip", "local", "airport"]
+        },
+        "tripDays": {
+          "type": "number"
         },
         "pickupCity": {
           "type": "string"
@@ -53,6 +68,18 @@
         "tollsAndTaxes": {
           "type": "number"
         },
+        "highwayToll": {
+          "type": "number"
+        },
+        "statePermitTax": {
+          "type": "number"
+        },
+        "hillStationCharge": {
+          "type": "number"
+        },
+        "nightCharge": {
+          "type": "number"
+        },
         "gstAmount": {
           "type": "number"
         },
@@ -88,6 +115,21 @@
           "type": "string",
           "enum": ["confirmed", "completed", "cancelled"]
         },
+        "driverName": {
+          "type": "string"
+        },
+        "driverPhone": {
+          "type": "string"
+        },
+        "driverVehicleModel": {
+          "type": "string"
+        },
+        "driverVehicleNo": {
+          "type": "string"
+        },
+        "driverAssignedAt": {
+          "type": "string"
+        },
         "pickupCoords": {
           "type": "object",
           "description": "Pickup GPS coordinates { lat, lng }"
@@ -117,6 +159,10 @@
           "description": "Immutable snapshot of distance and fare components at booking confirmation"
         },
         "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
           "type": "string",
           "format": "date-time"
         }
