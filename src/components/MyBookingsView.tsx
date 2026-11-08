@@ -613,11 +613,25 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                 ? b.statePermitTax
                 : Math.max(0, rawTolls - highwayToll);
             const hillStationCharge = b.hillStationCharge || 0;
+            const extraKmDriven = b.extraKmDriven || 0;
+            const extraKmCharge = b.extraKmCharge || 0;
+            const extraTollCharges = b.extraTollCharges || 0;
+            const otherSurcharges = b.otherSurcharges || 0;
             const tripDays = Math.max(1, b.tripDays || 1);
             let driverAllowance = b.driverAllowance || 0;
             let baseFareAmount =
               b.baseFare ||
-              Math.max(0, b.totalFare - gstAmount - rawTolls - driverAllowance - hillStationCharge);
+              Math.max(
+                0,
+                b.totalFare -
+                  gstAmount -
+                  rawTolls -
+                  driverAllowance -
+                  hillStationCharge -
+                  extraKmCharge -
+                  extraTollCharges -
+                  otherSurcharges
+              );
             if (driverAllowance === 0 && baseFareAmount > 600 && b.tripType !== 'local') {
               const separatedBata = 260 * tripDays;
               if (baseFareAmount > separatedBata + 300) {
@@ -626,7 +640,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
               }
             }
             const cleanIdSuffix = b.id.replace(/^SIC-?/i, '');
-            const invoiceNumber = `INV-SIC${cleanIdSuffix}`;
+            const documentRefNumber = isCompleted ? `INV-SIC${cleanIdSuffix}` : `VCR-SIC${cleanIdSuffix}`;
             const paymentStatusLabel =
               isCompleted || b.balanceDue === 0
                 ? 'PAID IN FULL (SETTLED)'
@@ -637,14 +651,20 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                 key={b.id}
                 className="bg-white border border-slate-200 hover:border-slate-300 rounded-3xl p-5 sm:p-6 transition shadow-sm space-y-4"
               >
-                {/* Top Row: Sequential Booking ID, GST Invoice Number, Ride Date & Payment/Ride Status */}
+                {/* Top Row: Sequential Booking ID, Voucher / Final GST Invoice Number, Ride Date & Payment/Ride Status */}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <span className="text-sm sm:text-base font-black text-slate-950 font-mono bg-amber-400/30 border border-amber-400/60 px-3 py-1 rounded-xl">
                       Booking ID: {b.id}
                     </span>
-                    <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
-                      Invoice: {invoiceNumber}
+                    <span
+                      className={`text-xs font-mono font-bold px-2.5 py-1 rounded-lg border ${
+                        isCompleted
+                          ? 'text-emerald-900 bg-emerald-50 border-emerald-200'
+                          : 'text-slate-700 bg-slate-100 border-slate-200'
+                      }`}
+                    >
+                      {isCompleted ? `Final GST Invoice: ${documentRefNumber}` : `Booking Voucher: ${documentRefNumber}`}
                     </span>
                     <span className="text-[11px] font-semibold text-slate-500">
                       Ride Date: {b.pickupDate} • {b.pickupTime}
@@ -664,13 +684,13 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     {b.status === 'completed' && (
                       <span className="inline-flex items-center gap-1.5 text-[11px] bg-emerald-600 text-white px-3 py-1 rounded-full font-extrabold shadow-2xs">
                         <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        COMPLETED RIDE
+                        COMPLETED · FINAL GST INVOICE READY
                       </span>
                     )}
                     {b.status === 'confirmed' && (
                       <span className="inline-flex items-center gap-1.5 text-[11px] bg-amber-50 text-amber-900 border border-amber-300 px-3 py-1 rounded-full font-extrabold">
                         <Clock className="w-3.5 h-3.5 text-amber-600" />
-                        ONGOING / UPCOMING
+                        CONFIRMED · VOUCHER ISSUED
                       </span>
                     )}
                     {b.status === 'cancelled' && (
@@ -723,7 +743,13 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       <span>Pickup Time: {b.pickupTime}</span>
                     </div>
                     <div className="text-xs text-slate-600 font-semibold">
-                      Billed Distance: <strong className="text-slate-900">{b.distanceKm} KM</strong>
+                      Billed Distance:{' '}
+                      <strong className="text-slate-900">
+                        {b.distanceKm} KM
+                        {b.actualOdometerKm && b.actualOdometerKm > b.distanceKm
+                          ? ` (Actual Odometer: ${b.actualOdometerKm} KM)`
+                          : ''}
+                      </strong>
                     </div>
                     {b.driverName && (
                       <div className="pt-1 text-[11px] text-emerald-800 font-bold flex items-center gap-1">
@@ -735,7 +761,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     )}
                   </div>
 
-                  {/* Itemized Fare Breakup Box (Base Fare, Driver Bata, Highway Toll, State Permit Tax, Hill Charge, GST) */}
+                  {/* Itemized Fare Breakup Box (Base Fare, Driver Bata, Highway Toll, State Permit Tax, Hill Charge, Post-Trip Adjustments, GST) */}
                   <div className="lg:col-span-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
                     <div className="flex justify-between items-center text-slate-600">
                       <span>Base Cab Fare ({b.distanceKm} KM):</span>
@@ -769,12 +795,32 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                         </span>
                       </div>
                     )}
+                    {extraKmCharge > 0 && (
+                      <div className="flex justify-between items-center text-amber-900 font-semibold">
+                        <span>Extra KM Charge ({extraKmDriven} KM):</span>
+                        <span className="font-mono font-bold">+{formatINR(extraKmCharge)}</span>
+                      </div>
+                    )}
+                    {extraTollCharges > 0 && (
+                      <div className="flex justify-between items-center text-amber-900 font-semibold">
+                        <span>Extra Highway Toll Charges:</span>
+                        <span className="font-mono font-bold">+{formatINR(extraTollCharges)}</span>
+                      </div>
+                    )}
+                    {otherSurcharges > 0 && (
+                      <div className="flex justify-between items-center text-amber-900 font-semibold">
+                        <span>Other Post-Trip Surcharges:</span>
+                        <span className="font-mono font-bold">+{formatINR(otherSurcharges)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-center text-slate-600">
                       <span>GST Tax (5% SAC 996412):</span>
                       <span className="font-mono font-bold text-slate-900">{formatINR(gstAmount)}</span>
                     </div>
                     <div className="flex justify-between items-center border-t border-slate-200 pt-1.5">
-                      <span className="font-extrabold text-slate-950">Total Invoice Fare:</span>
+                      <span className="font-extrabold text-slate-950">
+                        {isCompleted ? 'Final GST Invoice Total:' : 'Estimated Total Fare:'}
+                      </span>
                       <span className="text-sm font-black font-mono text-slate-950">{formatINR(b.totalFare)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px] pt-0.5">
@@ -865,12 +911,14 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   )}
                 </div>
 
-                {/* Inline A4 GST Invoice PDF Sheet Preview when toggled */}
+                {/* Inline A4 Voucher / Final GST Invoice PDF Sheet Preview when toggled */}
                 {expandedPdfBookingId === b.id && (
                   <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-100 border-2 border-slate-300 space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs font-black text-[#0F2958] uppercase tracking-wider">
-                        📄 Official A4 GST Tax Invoice Preview ({b.id}.pdf)
+                        {isCompleted
+                          ? `📄 Official A4 Final GST Tax Invoice Preview (${b.id}.pdf)`
+                          : `📄 Booking Confirmation Voucher Preview (${b.id}.pdf)`}
                       </span>
                       <div className="flex items-center gap-2">
                         <a
@@ -891,7 +939,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     <div className="rounded-xl overflow-hidden border border-slate-300 bg-white shadow-sm">
                       <img
                         src={renderA4GstInvoicePreviewDataUrl(b)}
-                        alt={`Official GST Invoice ${b.id}`}
+                        alt={`Official Document ${b.id}`}
                         className="w-full h-auto block"
                       />
                     </div>
@@ -905,7 +953,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   </div>
                 )}
 
-                {/* Bottom Action Buttons: Prominent View Bill & Download Invoice CTA */}
+                {/* Bottom Action Buttons: Booking Voucher vs Final GST Invoice CTA */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <button
@@ -917,7 +965,11 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       className="min-h-[46px] flex items-center gap-2 text-white bg-slate-900 hover:bg-slate-800 px-4 py-2.5 rounded-xl font-black text-xs transition shadow-sm cursor-pointer"
                     >
                       <FileText className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>View Bill (A4 GST PDF Invoice)</span>
+                      <span>
+                        {isCompleted
+                          ? 'View Final GST Tax Invoice'
+                          : 'View Booking Confirmation Voucher'}
+                      </span>
                     </button>
 
                     <button
@@ -933,12 +985,14 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       {isDownloading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                          <span>Generating PDF Invoice...</span>
+                          <span>Generating PDF...</span>
                         </>
                       ) : (
                         <>
                           <Download className="w-4 h-4 shrink-0" />
-                          <span>Download Invoice (PDF)</span>
+                          <span>
+                            {isCompleted ? 'Download Final GST Invoice (PDF)' : 'Download Voucher (PDF)'}
+                          </span>
                         </>
                       )}
                     </button>
@@ -950,7 +1004,9 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       className="min-h-[46px] flex items-center gap-2 text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer"
                     >
                       <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Share Bill PDF on WhatsApp</span>
+                      <span>
+                        {isCompleted ? 'Share Final Invoice on WhatsApp' : 'Share Voucher on WhatsApp'}
+                      </span>
                     </button>
                   </div>
 

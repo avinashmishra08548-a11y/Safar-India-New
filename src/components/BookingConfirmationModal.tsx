@@ -36,6 +36,10 @@ export interface ItemizedInvoiceBreakup {
   statePermitTax: number;
   hillStationCharge: number;
   nightCharge: number;
+  extraKmDriven: number;
+  extraKmCharge: number;
+  extraTollCharges: number;
+  otherSurcharges: number;
   taxableValue: number;
   gstAmount: number;
   cgst: number;
@@ -46,7 +50,7 @@ export interface ItemizedInvoiceBreakup {
 /**
  * Resolves a transparent, itemized fare breakup for any booking so Base Fare,
  * Driver Allowance (Bata), Highway FASTag Toll Tax, State Border Entry Permit Tax,
- * Hill Station Surcharge, and GST are always displayed as separate line items.
+ * Hill Station Surcharge, Post-Trip Admin Adjustments, and GST are always displayed as separate line items.
  */
 export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedInvoiceBreakup {
   const tripDays = Math.max(1, Number(booking.tripDays || 1));
@@ -76,12 +80,27 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
 
   const hillStationCharge = Math.max(0, Number(booking.hillStationCharge || 0));
   const nightCharge = Math.max(0, Number(booking.nightCharge || 0));
+  const extraKmDriven = Math.max(0, Number(booking.extraKmDriven || 0));
+  const extraKmCharge = Math.max(0, Number(booking.extraKmCharge || 0));
+  const extraTollCharges = Math.max(0, Number(booking.extraTollCharges || 0));
+  const otherSurcharges = Math.max(0, Number(booking.otherSurcharges || 0));
 
   let driverAllowance = Math.max(0, Number(booking.driverAllowance || 0));
   const combinedTolls = highwayToll + statePermitTax;
   let baseCabFare =
     Number(booking.baseFare || 0) ||
-    Math.max(0, totalFare - gstAmount - combinedTolls - driverAllowance - hillStationCharge - nightCharge);
+    Math.max(
+      0,
+      totalFare -
+        gstAmount -
+        combinedTolls -
+        driverAllowance -
+        hillStationCharge -
+        nightCharge -
+        extraKmCharge -
+        extraTollCharges -
+        otherSurcharges
+    );
 
   // If driverAllowance was previously 0 (lumped into baseFare), split out ₹260/day so Base Fare doesn't look inflated
   if (driverAllowance === 0 && baseCabFare > 600 && booking.tripType !== 'local') {
@@ -94,13 +113,30 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
 
   // If baseCabFare still had hillStationCharge lumped in, ensure taxable sum matches totalFare - gstAmount
   const expectedTaxable = Math.max(0, totalFare - gstAmount);
-  const currentSum = baseCabFare + driverAllowance + highwayToll + statePermitTax + hillStationCharge + nightCharge;
+  const currentSum =
+    baseCabFare +
+    driverAllowance +
+    highwayToll +
+    statePermitTax +
+    hillStationCharge +
+    nightCharge +
+    extraKmCharge +
+    extraTollCharges +
+    otherSurcharges;
   if (expectedTaxable > 0 && currentSum > expectedTaxable && baseCabFare > currentSum - expectedTaxable + 200) {
     baseCabFare -= currentSum - expectedTaxable;
   }
 
   const taxableValue =
-    baseCabFare + driverAllowance + highwayToll + statePermitTax + hillStationCharge + nightCharge;
+    baseCabFare +
+    driverAllowance +
+    highwayToll +
+    statePermitTax +
+    hillStationCharge +
+    nightCharge +
+    extraKmCharge +
+    extraTollCharges +
+    otherSurcharges;
 
   return {
     tripDays,
@@ -111,6 +147,10 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
     statePermitTax,
     hillStationCharge,
     nightCharge,
+    extraKmDriven,
+    extraKmCharge,
+    extraTollCharges,
+    otherSurcharges,
     taxableValue,
     gstAmount,
     cgst,
@@ -197,16 +237,17 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
   doc.text('Regd. Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', companyX, y + 19.5);
   doc.text('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', companyX, y + 23.8);
 
-  // Right Side Tax Invoice Box (Light Theme)
+  // Right Side Voucher / Final Tax Invoice Box (Light Theme)
+  const isCompletedInvoice = booking.status === 'completed';
   const cleanIdSuffix = booking.id.replace(/^SIC-?/i, '');
-  const invoiceNo = `INV-SIC${cleanIdSuffix}`;
-  const invoiceDateStr = new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
+  const invoiceNo = isCompletedInvoice ? `INV-SIC${cleanIdSuffix}` : `VCR-SIC${cleanIdSuffix}`;
+  const invoiceDateStr = new Date(booking.completedAt || booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
   });
 
-  const badgeW = 54;
+  const badgeW = 56;
   const badgeX = pageWidth - margin - badgeW;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
@@ -214,18 +255,33 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
 
   doc.setTextColor(15, 41, 88);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text('TAX INVOICE', badgeX + badgeW - 3, y + 5.5, { align: 'right' });
+  doc.setFontSize(8.8);
+  doc.text(
+    isCompletedInvoice ? 'FINAL TAX INVOICE' : 'BOOKING VOUCHER',
+    badgeX + badgeW - 3,
+    y + 5.5,
+    { align: 'right' }
+  );
 
   doc.setTextColor(100, 116, 139);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.text('ORIGINAL FOR RECIPIENT', badgeX + badgeW - 3, y + 9.2, { align: 'right' });
+  doc.setFontSize(6.6);
+  doc.text(
+    isCompletedInvoice ? 'ORIGINAL FOR RECIPIENT' : 'ADVANCE CONFIRMATION VOUCHER',
+    badgeX + badgeW - 3,
+    y + 9.2,
+    { align: 'right' }
+  );
 
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text(`Inv No: ${invoiceNo}`, badgeX + badgeW - 3, y + 14.5, { align: 'right' });
+  doc.setFontSize(7.8);
+  doc.text(
+    `${isCompletedInvoice ? 'Inv No' : 'Voucher No'}: ${invoiceNo}`,
+    badgeX + badgeW - 3,
+    y + 14.5,
+    { align: 'right' }
+  );
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
@@ -250,10 +306,10 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
   doc.setFontSize(8.2);
   const statusLabel =
     booking.status === 'completed'
-      ? 'STATUS: COMPLETED & SETTLED'
+      ? 'STATUS: COMPLETED & FINAL GST TAX INVOICE SETTLED'
       : booking.status === 'cancelled'
       ? 'STATUS: CANCELLED'
-      : 'STATUS: CONFIRMED BOOKING';
+      : 'STATUS: CONFIRMED BOOKING (FINAL INVOICE AFTER TRIP COMPLETION)';
   doc.text(statusLabel, margin + 3.5, y + 6);
 
   doc.setFont('helvetica', 'normal');
@@ -416,6 +472,30 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
           }
         ]
       : []),
+    ...(breakup.extraKmCharge > 0
+      ? [
+          {
+            label: `Post-Trip Extra Distance Charge (${breakup.extraKmDriven} Extra KM Driven)`,
+            value: `INR ${breakup.extraKmCharge.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
+    ...(breakup.extraTollCharges > 0
+      ? [
+          {
+            label: 'Post-Trip Extra Highway Toll / FASTag Charges',
+            value: `INR ${breakup.extraTollCharges.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
+    ...(breakup.otherSurcharges > 0
+      ? [
+          {
+            label: 'Other Post-Trip Surcharges (Parking / Waiting / Detour)',
+            value: `INR ${breakup.otherSurcharges.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
     {
       label: 'CGST @ 2.5% (SAC 996412 - Commercial Cab Service)',
       value: `INR ${breakup.cgst.toLocaleString('en-IN')}.00`
@@ -425,12 +505,14 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
       value: `INR ${breakup.sgst.toLocaleString('en-IN')}.00`
     },
     {
-      label: 'TOTAL INVOICE AMOUNT (Inclusive of 5% GST)',
+      label: isCompletedInvoice
+        ? 'FINAL TAX INVOICE AMOUNT (Inclusive of 5% GST)'
+        : 'ESTIMATED TOTAL TRIP FARE (Inclusive of 5% GST)',
       value: `INR ${breakup.totalFare.toLocaleString('en-IN')}.00`,
       bold: true
     },
     {
-      label: booking.status === 'completed' ? 'Total Amount Paid (100% Settled)' : 'Advance Paid',
+      label: booking.status === 'completed' ? 'Total Amount Paid (100% Settled)' : 'Advance Paid Online',
       value:
         booking.status === 'completed'
           ? `INR ${breakup.totalFare.toLocaleString('en-IN')}.00 (PAID)`
@@ -452,7 +534,7 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
     }
   ];
 
-  const pdfRowH = rows.length > 8 ? 6.8 : 7.5;
+  const pdfRowH = rows.length > 9 ? 6.1 : rows.length > 8 ? 6.8 : 7.5;
   for (const r of rows) {
     if (r.highlight === 'gold') {
       doc.setFillColor(254, 243, 199);
@@ -552,7 +634,9 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
   doc.setFontSize(7.2);
   doc.text('Prop. Aman Mishra (Signatory)', signCenterX, y + 38.5, { align: 'center' });
 
-  const fileName = `SafarIndiaCabs_GST_Invoice_${booking.id}.pdf`;
+  const fileName = isCompletedInvoice
+    ? `SafarIndiaCabs_Final_GST_Invoice_${booking.id}.pdf`
+    : `SafarIndiaCabs_Booking_Voucher_${booking.id}.pdf`;
   return {
     doc,
     fileName,
@@ -607,6 +691,10 @@ export function buildServerInvoicePdfUrl(
   params.set('highwayToll', String(breakup.highwayToll));
   params.set('statePermitTax', String(breakup.statePermitTax));
   params.set('hillStationCharge', String(breakup.hillStationCharge));
+  if (breakup.extraKmDriven > 0) params.set('extraKmDriven', String(breakup.extraKmDriven));
+  if (breakup.extraKmCharge > 0) params.set('extraKmCharge', String(breakup.extraKmCharge));
+  if (breakup.extraTollCharges > 0) params.set('extraTollCharges', String(breakup.extraTollCharges));
+  if (breakup.otherSurcharges > 0) params.set('otherSurcharges', String(breakup.otherSurcharges));
   params.set('gstAmount', String(breakup.gstAmount));
   params.set('totalFare', String(breakup.totalFare));
   params.set('advancePaid', String(booking.advancePaid || 0));
@@ -707,16 +795,17 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
   ctx.fillText('Regd. Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', compX, y + 98);
   ctx.fillText('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', compX, y + 119);
 
-  // Right Tax Invoice Badge
+  // Right Voucher / Final Tax Invoice Badge
+  const isCompletedInvoice = booking.status === 'completed';
   const cleanIdSuffix = booking.id.replace(/^SIC-?/i, '');
-  const invoiceNo = `INV-SIC${cleanIdSuffix}`;
-  const invoiceDateStr = new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
+  const invoiceNo = isCompletedInvoice ? `INV-SIC${cleanIdSuffix}` : `VCR-SIC${cleanIdSuffix}`;
+  const invoiceDateStr = new Date(booking.completedAt || booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
   });
 
-  const badgeW = 265;
+  const badgeW = 275;
   const badgeX = W - margin - badgeW;
   ctx.fillStyle = '#F8FAFC';
   ctx.strokeStyle = '#CBD5E1';
@@ -726,14 +815,22 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
 
   ctx.textAlign = 'right';
   ctx.fillStyle = '#0F2958';
-  ctx.font = '900 19px Arial, sans-serif';
-  ctx.fillText('TAX INVOICE', badgeX + badgeW - 14, y + 28);
+  ctx.font = '900 18px Arial, sans-serif';
+  ctx.fillText(isCompletedInvoice ? 'FINAL TAX INVOICE' : 'BOOKING VOUCHER', badgeX + badgeW - 14, y + 28);
   ctx.fillStyle = '#64748B';
-  ctx.font = 'bold 12px Arial, sans-serif';
-  ctx.fillText('ORIGINAL FOR RECIPIENT', badgeX + badgeW - 14, y + 46);
+  ctx.font = 'bold 11.5px Arial, sans-serif';
+  ctx.fillText(
+    isCompletedInvoice ? 'ORIGINAL FOR RECIPIENT' : 'ADVANCE CONFIRMATION VOUCHER',
+    badgeX + badgeW - 14,
+    y + 46
+  );
   ctx.fillStyle = '#0F172A';
-  ctx.font = 'bold 15px monospace';
-  ctx.fillText(`Inv No: ${invoiceNo}`, badgeX + badgeW - 14, y + 72);
+  ctx.font = 'bold 14.5px monospace';
+  ctx.fillText(
+    `${isCompletedInvoice ? 'Inv No' : 'Voucher No'}: ${invoiceNo}`,
+    badgeX + badgeW - 14,
+    y + 72
+  );
   ctx.fillStyle = '#334155';
   ctx.font = '14px Arial, sans-serif';
   ctx.fillText(`Date: ${invoiceDateStr}`, badgeX + badgeW - 14, y + 94);
@@ -750,13 +847,13 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#047857';
-  ctx.font = '900 15px Arial, sans-serif';
+  ctx.font = '900 14.5px Arial, sans-serif';
   const statusLabel =
     booking.status === 'completed'
-      ? '✓ STATUS: COMPLETED & SETTLED'
+      ? '✓ STATUS: COMPLETED & FINAL GST TAX INVOICE SETTLED'
       : booking.status === 'cancelled'
       ? '✕ STATUS: CANCELLED'
-      : '✓ STATUS: CONFIRMED BOOKING';
+      : '✓ STATUS: CONFIRMED BOOKING VOUCHER (FINAL INVOICE ON COMPLETION)';
   ctx.fillText(statusLabel, margin + 16, y + 28);
 
   ctx.textAlign = 'right';
@@ -903,6 +1000,33 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
           }
         ]
       : []),
+    ...(breakup.extraKmCharge > 0
+      ? [
+          {
+            label: `Post-Trip Extra Distance Charge (${breakup.extraKmDriven} Extra KM Driven)`,
+            value: `INR ${breakup.extraKmCharge.toLocaleString('en-IN')}.00`,
+            bold: false
+          }
+        ]
+      : []),
+    ...(breakup.extraTollCharges > 0
+      ? [
+          {
+            label: 'Post-Trip Extra Highway Toll / FASTag Charges',
+            value: `INR ${breakup.extraTollCharges.toLocaleString('en-IN')}.00`,
+            bold: false
+          }
+        ]
+      : []),
+    ...(breakup.otherSurcharges > 0
+      ? [
+          {
+            label: 'Other Post-Trip Surcharges (Parking / Waiting / Detour)',
+            value: `INR ${breakup.otherSurcharges.toLocaleString('en-IN')}.00`,
+            bold: false
+          }
+        ]
+      : []),
     {
       label: 'Total Taxable Value',
       value: `INR ${breakup.taxableValue.toLocaleString('en-IN')}.00`,
@@ -920,7 +1044,7 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
     }
   ];
 
-  const canvasRowH = rows.length > 7 ? 31 : 34;
+  const canvasRowH = rows.length > 8 ? 28 : rows.length > 7 ? 31 : 34;
   rows.forEach((r, idx) => {
     ctx.fillStyle = idx % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
     ctx.strokeStyle = '#E2E8F0';
@@ -944,7 +1068,13 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
   ctx.fillStyle = '#0F172A';
   ctx.font = '900 18px Arial, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('TOTAL INVOICE VALUE (INCLUSIVE OF 5% GST)', margin + 16, y + 30);
+  ctx.fillText(
+    isCompletedInvoice
+      ? 'FINAL TAX INVOICE VALUE (INCLUSIVE OF 5% GST)'
+      : 'ESTIMATED TOTAL TRIP FARE (INCLUSIVE OF 5% GST)',
+    margin + 16,
+    y + 30
+  );
   ctx.textAlign = 'right';
   ctx.font = '900 19px monospace';
   ctx.fillText(`INR ${Number(booking.totalFare || 0).toLocaleString('en-IN')}.00`, W - margin - 16, y + 30);
@@ -1390,7 +1520,9 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                     Safar<span className="text-amber-500">India</span>Cabs
                   </div>
                   <div className="text-[10px] tracking-[0.16em] font-extrabold text-amber-600 uppercase mt-1">
-                    A1 Cab Services • Official GST Tax Invoice
+                    {isCompleted
+                      ? 'A1 Cab Services • Final GST Tax Invoice'
+                      : 'A1 Cab Services • Booking Confirmation Voucher'}
                   </div>
                   <div className="text-[11px] font-bold text-slate-700 mt-0.5">
                     GSTIN: <span className="font-mono text-[#0F2958]">07DQHPA3025F1ZD</span> · Prop: Aman Mishra
@@ -1404,7 +1536,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               {/* Unique Booking ID Badge (Light Theme) */}
               <div className="bg-slate-50 border border-slate-200 text-slate-900 px-3.5 py-2 rounded-xl self-start sm:self-auto text-left sm:text-right shrink-0">
                 <span className="text-[9px] font-extrabold uppercase tracking-wider block text-[#0F2958]">
-                  TAX INVOICE / ID
+                  {isCompleted ? 'FINAL TAX INVOICE / ID' : 'BOOKING VOUCHER / ID'}
                 </span>
                 <span className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-950">
                   {booking.id}
@@ -1418,13 +1550,13 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
                   {isCompleted
-                    ? 'Booking Completed · Verified GST Tax Invoice'
-                    : 'Booking Confirmed · Official GST Voucher'}
+                    ? 'Trip Completed · Official Final GST Tax Invoice Generated'
+                    : 'Booking Confirmed · Advance Confirmation Voucher (Final GST Invoice issued upon trip completion)'}
                 </span>
               </span>
               <span className="text-[11px] text-slate-600 font-mono font-bold">
                 Date:{' '}
-                {new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
+                {new Date(booking.completedAt || booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
                   day: '2-digit',
                   month: 'short',
                   year: 'numeric'
@@ -1444,7 +1576,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                       : 'text-slate-700 hover:text-slate-950'
                   }`}
                 >
-                  📄 A4 GST PDF Bill
+                  {isCompleted ? '📄 A4 Final GST Invoice' : '📄 A4 Booking Voucher'}
                 </button>
                 <button
                   type="button"
@@ -1633,7 +1765,9 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
             <div className="no-print px-4 sm:px-6 pt-4 pb-2 bg-slate-100 border-b border-slate-200">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#0F2958]">
-                  Official A4 GST Tax Invoice Sheet ({booking.id}.pdf)
+                  {isCompleted
+                    ? `Official A4 Final GST Tax Invoice Sheet (${booking.id}.pdf)`
+                    : `Booking Confirmation Voucher Sheet (${booking.id}.pdf)`}
                 </span>
                 <a
                   href={directServerPdfViewUrl}
@@ -1817,6 +1951,35 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   </div>
                 )}
 
+                {itemizedBreakup.extraKmCharge > 0 && (
+                  <div className="flex justify-between items-center text-amber-900 bg-amber-50/70 px-2 py-1 rounded">
+                    <span className="font-semibold">
+                      Post-Trip Extra Distance ({itemizedBreakup.extraKmDriven} Extra KM Driven):
+                    </span>
+                    <span className="font-mono font-bold">
+                      + {formatINR(itemizedBreakup.extraKmCharge)}
+                    </span>
+                  </div>
+                )}
+
+                {itemizedBreakup.extraTollCharges > 0 && (
+                  <div className="flex justify-between items-center text-amber-900 bg-amber-50/70 px-2 py-1 rounded">
+                    <span className="font-semibold">Post-Trip Extra Highway Toll Charges:</span>
+                    <span className="font-mono font-bold">
+                      + {formatINR(itemizedBreakup.extraTollCharges)}
+                    </span>
+                  </div>
+                )}
+
+                {itemizedBreakup.otherSurcharges > 0 && (
+                  <div className="flex justify-between items-center text-amber-900 bg-amber-50/70 px-2 py-1 rounded">
+                    <span className="font-semibold">Other Post-Trip Surcharges (Parking / Waiting):</span>
+                    <span className="font-mono font-bold">
+                      + {formatINR(itemizedBreakup.otherSurcharges)}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center text-slate-700 pt-1 border-t border-slate-100">
                   <span>CGST @ 2.5% + SGST @ 2.5% (SAC 996412):</span>
                   <span className="font-mono font-bold text-slate-900">
@@ -1826,16 +1989,22 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
 
                 <div className="flex justify-between items-center text-slate-800 pt-1.5 border-t border-slate-200">
-                  <span className="font-bold">Total Invoice Amount (Incl. 5% GST):</span>
+                  <span className="font-bold">
+                    {isCompleted
+                      ? 'Final GST Tax Invoice Total (Incl. 5% GST):'
+                      : 'Estimated Total Trip Fare (Incl. 5% GST):'}
+                  </span>
                   <span className="text-base font-black text-slate-950 font-mono">
                     INR {Number(itemizedBreakup.totalFare || 0).toLocaleString('en-IN')}.00
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-emerald-800 bg-emerald-50/80 px-3 py-2 rounded-lg border border-emerald-200">
-                  <span className="font-bold">Advance Paid:</span>
+                  <span className="font-bold">
+                    {isCompleted ? 'Total Amount Paid (100% Settled):' : 'Advance Paid Online:'}
+                  </span>
                   <span className="font-black font-mono text-sm">
-                    {formatINR(effectiveBooking.advancePaid)} ✓
+                    {formatINR(isCompleted ? itemizedBreakup.totalFare : effectiveBooking.advancePaid)} ✓
                   </span>
                 </div>
 
@@ -1953,7 +2122,13 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               className="w-full min-h-[48px] py-3.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
             >
               <Download className="w-4 h-4 text-slate-950 shrink-0" />
-              <span>{isDownloadingPdf ? 'Generating GST Invoice PDF...' : 'Download GST Bill / Invoice (PDF)'}</span>
+              <span>
+                {isDownloadingPdf
+                  ? 'Generating PDF...'
+                  : isCompleted
+                  ? 'Download Final GST Tax Invoice (PDF)'
+                  : 'Download Booking Voucher (PDF)'}
+              </span>
             </button>
 
             <button
@@ -1963,7 +2138,13 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               className="w-full min-h-[48px] py-3.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md active:scale-95 cursor-pointer"
             >
               <Share2 className="w-4 h-4 text-white shrink-0" />
-              <span>{isSharingPdf ? 'Preparing Bill PDF...' : 'Share Bill PDF on WhatsApp'}</span>
+              <span>
+                {isSharingPdf
+                  ? 'Preparing PDF...'
+                  : isCompleted
+                  ? 'Share Final GST Invoice on WhatsApp'
+                  : 'Share Booking Voucher on WhatsApp'}
+              </span>
             </button>
           </div>
 

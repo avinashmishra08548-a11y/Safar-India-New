@@ -571,7 +571,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       <div className="flex justify-between text-slate-600">
                         <span>Highway FASTag Toll Tax:</span>
                         <span className="font-mono font-bold text-slate-900">
-                          {includeTolls
+                          {activeFare.highwayToll === 0
+                            ? '₹0 (No Toll on Route)'
+                            : includeTolls
                             ? `₹${activeFare.highwayToll.toLocaleString('en-IN')} (Included)`
                             : `Est. ₹${activeFare.highwayToll.toLocaleString('en-IN')} (Extra)`}
                         </span>
@@ -629,7 +631,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                           ₹{fareWithToll.totalFare.toLocaleString('en-IN')}
                         </div>
                         <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                          Toll &amp; State Tax Included
+                          {fareWithToll.estimatedTollsAndTaxes === 0
+                            ? '₹0 Toll on Route (Same Fare)'
+                            : 'Toll & State Tax Included'}
                         </div>
                       </button>
 
@@ -652,7 +656,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                           ₹{fareWithoutToll.totalFare.toLocaleString('en-IN')}
                         </div>
                         <div className={`text-[10px] font-medium mt-0.5 ${!includeTolls ? 'text-slate-300' : 'text-slate-500'}`}>
-                          Toll &amp; State Tax Extra
+                          {fareWithToll.estimatedTollsAndTaxes === 0
+                            ? '₹0 Toll on Route'
+                            : 'Toll & State Tax Extra'}
                         </div>
                       </button>
                     </div>

@@ -280,8 +280,8 @@ const CITY_STATE_KEYWORDS: Array<{ keywords: string[]; state: string }> = [
   { keywords: ['kochi', 'cochin', 'munnar', 'thiruvananthapuram', 'trivandrum', 'alleppey', 'alappuzha', 'wayanad', 'kozhikode', 'calicut', 'thekkady', 'kovalam', 'kerala'], state: 'Kerala' },
   { keywords: ['indore', 'bhopal', 'ujjain', 'omkareshwar', 'gwalior', 'jabalpur', 'khajuraho', 'pachmarhi', 'sanchi', 'madhyapradesh'], state: 'Madhya Pradesh' },
   { keywords: ['kolkata', 'howrah', 'darjeeling', 'kalimpong', 'siliguri', 'digha', 'durgapur', 'asansol', 'westbengal'], state: 'West Bengal' },
-  { keywords: ['patna', 'gaya', 'bodhgaya', 'muzaffarpur', 'bhagalpur', 'darbhanga', 'rajgir', 'nalanda', 'bihar'], state: 'Bihar' },
-  { keywords: ['ranchi', 'jamshedpur', 'deoghar', 'dhanbad', 'bokaro', 'jharkhand'], state: 'Jharkhand' },
+  { keywords: ['patna', 'hajipur', 'sonepur', 'sonpur', 'danapur', 'bihta', 'gaya', 'bodhgaya', 'muzaffarpur', 'bhagalpur', 'darbhanga', 'samastipur', 'begusarai', 'ara', 'arrah', 'chhapra', 'chapra', 'biharsharif', 'rajgir', 'nalanda', 'sitamarhi', 'motihari', 'buxar', 'sasaram', 'purnia', 'vaishali', 'saran', 'bihar'], state: 'Bihar' },
+  { keywords: ['ranchi', 'jamshedpur', 'deoghar', 'dhanbad', 'bokaro', 'hazaribagh', 'jharkhand'], state: 'Jharkhand' },
   { keywords: ['bhubaneswar', 'puri', 'konark', 'cuttack', 'rourkela', 'odisha'], state: 'Odisha' },
   { keywords: ['raipur', 'bilaspur', 'bhilai', 'durg', 'chhattisgarh'], state: 'Chhattisgarh' },
   { keywords: ['guwahati', 'shillong', 'cherrapunji', 'kaziranga', 'gangtok', 'sikkim', 'tawang', 'assam', 'meghalaya'], state: 'North East' },
@@ -904,6 +904,57 @@ export function computeMultiStatePermitBreakdown(
   };
 }
 
+const VERIFIED_TOLL_FREE_CORRIDORS: string[] = [
+  'patna-hajipur',
+  'hajipur-patna',
+  'patna-sonepur',
+  'sonepur-patna',
+  'patna-danapur',
+  'danapur-patna',
+  'patna-bihta',
+  'bihta-patna',
+  'hajipur-sonepur',
+  'sonepur-hajipur',
+  'hajipur-danapur',
+  'danapur-hajipur',
+  'gaya-bodhgaya',
+  'bodhgaya-gaya',
+  'delhi-noida',
+  'noida-delhi',
+  'delhi-gurgaon',
+  'gurgaon-delhi',
+  'delhi-ghaziabad',
+  'ghaziabad-delhi',
+  'delhi-faridabad',
+  'faridabad-delhi',
+  'noida-ghaziabad',
+  'ghaziabad-noida',
+  'chandigarh-mohali',
+  'mohali-chandigarh',
+  'chandigarh-panchkula',
+  'panchkula-chandigarh',
+  'chandigarh-zirakpur',
+  'zirakpur-chandigarh',
+  'zirakpur-mohali',
+  'mohali-zirakpur',
+  'zirakpur-panchkula',
+  'panchkula-zirakpur',
+  'mathura-vrindavan',
+  'vrindavan-mathura',
+  'haridwar-rishikesh',
+  'rishikesh-haridwar',
+  'dehradun-mussoorie',
+  'mussoorie-dehradun',
+  'kolkata-howrah',
+  'howrah-kolkata',
+  'hyderabad-secunderabad',
+  'secunderabad-hyderabad',
+  'ahmedabad-gandhinagar',
+  'gandhinagar-ahmedabad',
+  'ajmer-pushkar',
+  'pushkar-ajmer'
+];
+
 export function lookupRouteExpresswayToll(
   pickupCity?: string,
   dropCity?: string,
@@ -912,6 +963,19 @@ export function lookupRouteExpresswayToll(
 ): { baseTollOneWay: number; expresswayName: string } {
   const nFrom = normalizeRouteToken(pickupCity);
   const nTo = normalizeRouteToken(dropCity);
+
+  // 1. Check if route is a verified toll-free corridor (e.g., Patna to Hajipur via Gandhi Setu / JP Setu)
+  if (nFrom && nTo) {
+    for (const pairKey of VERIFIED_TOLL_FREE_CORRIDORS) {
+      const [c1, c2] = pairKey.split('-');
+      if (nFrom.includes(c1) && nTo.includes(c2)) {
+        return {
+          baseTollOneWay: 0,
+          expresswayName: 'Toll-Free Corridor (₹0 Highway Toll)'
+        };
+      }
+    }
+  }
 
   let matchedToll: number | null = null;
   let matchedName = 'NHAI Highway FASTag';
@@ -933,6 +997,14 @@ export function lookupRouteExpresswayToll(
     return {
       baseTollOneWay: Math.round(matchedToll * vehicleTollMultiplier),
       expresswayName: matchedName
+    };
+  }
+
+  // 2. Intelligent short-route toll check: Short inter-city hops (< 55 KM) without a dedicated NHAI expressway toll have ₹0 toll
+  if (distanceKm < 55) {
+    return {
+      baseTollOneWay: 0,
+      expresswayName: 'Toll-Free Short Intercity Route (₹0 Toll)'
     };
   }
 
@@ -1165,8 +1237,10 @@ export function computeTripFare(params: {
   const hillDriverBonusPerDay = 0;
 
   if (tripType === 'oneway') {
-    // Minimum outstation one-way billable slab (Admin-configurable, default 130 KM)
-    baseBilledDistanceKm = Math.max(minOneWaySlabKm, Math.round(distanceKm));
+    // Do NOT force a 130 KM minimum slab on short routes (e.g., Patna to Hajipur ~27 KM).
+    // Always preserve the actual road distance on cab cards and billing.
+    const actualRoundedKm = Math.max(1, Math.round(distanceKm));
+    baseBilledDistanceKm = actualRoundedKm;
 
     // Keep slab factor flat (1.0x) on standard intercity routes so prices remain ₹200 below market
     const slabFactor = isHillRoute
@@ -1184,7 +1258,24 @@ export function computeTripFare(params: {
         ? hillBase
         : 0;
 
-    baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
+    // For short inter-city hops (< 55 KM), apply a fair minimum dispatch base fare while keeping billedDistanceKm = actual KM
+    const shortTripMinBase =
+      cab.id === 'hatchback'
+        ? 480
+        : cab.id === 'sedan'
+        ? 540
+        : cab.id === 'exec_sedan'
+        ? 660
+        : cab.id === 'suv'
+        ? 760
+        : cab.id === 'innova'
+        ? 950
+        : 1350;
+
+    baseRouteFare =
+      baseBilledDistanceKm < 55
+        ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
+        : Math.round(baseBilledDistanceKm * ratePerKm);
 
     const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
 

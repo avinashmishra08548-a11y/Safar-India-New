@@ -119,7 +119,11 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
     driverPhone: '',
     driverVehicleModel: '',
     driverVehicleNo: '',
-    status: 'confirmed' as 'confirmed' | 'completed' | 'cancelled'
+    status: 'confirmed' as 'confirmed' | 'completed' | 'cancelled',
+    actualOdometerKm: 0,
+    extraKmDriven: 0,
+    extraTollCharges: 0,
+    otherSurcharges: 0
   });
   const [isSavingDriverAssignment, setIsSavingDriverAssignment] = useState(false);
 
@@ -162,7 +166,12 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
         driverVehicleModel:
           selectedDetailBooking.driverVehicleModel || selectedDetailBooking.cabName || '',
         driverVehicleNo: selectedDetailBooking.driverVehicleNo || '',
-        status: selectedDetailBooking.status || 'confirmed'
+        status: selectedDetailBooking.status || 'confirmed',
+        actualOdometerKm:
+          selectedDetailBooking.actualOdometerKm ?? selectedDetailBooking.distanceKm ?? 0,
+        extraKmDriven: selectedDetailBooking.extraKmDriven ?? 0,
+        extraTollCharges: selectedDetailBooking.extraTollCharges ?? 0,
+        otherSurcharges: selectedDetailBooking.otherSurcharges ?? 0
       });
     }
   }, [selectedDetailBooking]);
@@ -214,11 +223,61 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
     }
   };
 
-  const handleSaveDriverAssignmentToFirestore = async () => {
+  const handleSaveDriverAssignmentToFirestore = async (overrideStatus?: 'confirmed' | 'completed' | 'cancelled') => {
     if (!selectedDetailBooking) return;
     setIsSavingDriverAssignment(true);
     setSaveBanner('');
     try {
+      const targetStatus = overrideStatus || driverEditForm.status;
+      const baseDist = Math.max(1, Number(selectedDetailBooking.distanceKm || 130));
+      const perKmExtraRate =
+        selectedDetailBooking.cabId === 'hatchback'
+          ? 11
+          : selectedDetailBooking.cabId === 'sedan'
+          ? 12
+          : selectedDetailBooking.cabId === 'exec_sedan'
+          ? 14
+          : selectedDetailBooking.cabId === 'suv'
+          ? 15
+          : selectedDetailBooking.cabId === 'innova'
+          ? 18
+          : 26;
+
+      const rawOdoKm = Math.max(0, Math.round(Number(driverEditForm.actualOdometerKm || 0)));
+      const rawExtraKm = Math.max(0, Math.round(Number(driverEditForm.extraKmDriven || 0)));
+      const computedExtraKm =
+        rawExtraKm > 0
+          ? rawExtraKm
+          : rawOdoKm > baseDist
+          ? rawOdoKm - baseDist
+          : 0;
+      const computedActualOdoKm = rawOdoKm >= baseDist ? rawOdoKm : baseDist + computedExtraKm;
+      const extraKmCharge = Math.round(computedExtraKm * perKmExtraRate);
+      const extraTollCharges = Math.max(0, Math.round(Number(driverEditForm.extraTollCharges || 0)));
+      const otherSurcharges = Math.max(0, Math.round(Number(driverEditForm.otherSurcharges || 0)));
+
+      const currentBrk = resolveItemizedInvoiceBreakup(selectedDetailBooking);
+      const originalPreAdjustmentTaxable =
+        currentBrk.baseCabFare +
+        currentBrk.driverAllowance +
+        currentBrk.highwayToll +
+        currentBrk.statePermitTax +
+        currentBrk.hillStationCharge +
+        currentBrk.nightCharge;
+
+      const newTaxableValue =
+        originalPreAdjustmentTaxable + extraKmCharge + extraTollCharges + otherSurcharges;
+      const newGstAmount = Math.round(newTaxableValue * 0.05);
+      const recalculatedTotalFare = newTaxableValue + newGstAmount;
+
+      const isMarkingCompleted = targetStatus === 'completed';
+      const nextAdvancePaid = isMarkingCompleted
+        ? recalculatedTotalFare
+        : selectedDetailBooking.advancePaid;
+      const nextBalanceDue = isMarkingCompleted
+        ? 0
+        : Math.max(0, recalculatedTotalFare - Number(selectedDetailBooking.advancePaid || 0));
+
       const updated = await updateBookingDriverAndStatusInCloud(
         selectedDetailBooking.id,
         {
@@ -229,7 +288,17 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
           driverAssignedAt: driverEditForm.driverName.trim()
             ? new Date().toISOString()
             : selectedDetailBooking.driverAssignedAt,
-          status: driverEditForm.status
+          status: targetStatus,
+          actualOdometerKm: computedActualOdoKm,
+          extraKmDriven: computedExtraKm,
+          extraKmCharge,
+          extraTollCharges,
+          otherSurcharges,
+          gstAmount: newGstAmount,
+          totalFare: recalculatedTotalFare,
+          advancePaid: nextAdvancePaid,
+          balanceDue: nextBalanceDue,
+          ...(isMarkingCompleted ? { completedAt: new Date().toISOString() } : {})
         },
         selectedDetailBooking
       );
@@ -247,9 +316,11 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
           );
         }
         setSaveBanner(
-          `Saved Driver & Status for Booking ${updated.id} (${updated.customerName}) directly to Firebase Firestore!`
+          isMarkingCompleted
+            ? `Ride ${updated.id} marked COMPLETED! Final GST Tax Invoice generated (${formatINR(updated.totalFare)}) and synced to Customer My Rides & Firebase Firestore.`
+            : `Saved Driver & Status for Booking ${updated.id} (${updated.customerName}) directly to Firebase Firestore!`
         );
-        setTimeout(() => setSaveBanner(''), 4000);
+        setTimeout(() => setSaveBanner(''), 5000);
       }
     } finally {
       setIsSavingDriverAssignment(false);
@@ -895,18 +966,52 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                               </span>
                             </div>
                           )}
+                          {detailBrk.extraKmCharge > 0 && (
+                            <div className="flex justify-between text-amber-900">
+                              <span className="font-bold">
+                                + Extra Distance ({detailBrk.extraKmDriven} Extra KM):
+                              </span>
+                              <span className="font-mono font-bold">
+                                {formatINR(detailBrk.extraKmCharge)}
+                              </span>
+                            </div>
+                          )}
+                          {detailBrk.extraTollCharges > 0 && (
+                            <div className="flex justify-between text-amber-900">
+                              <span className="font-bold">+ Extra Highway Toll Charges:</span>
+                              <span className="font-mono font-bold">
+                                {formatINR(detailBrk.extraTollCharges)}
+                              </span>
+                            </div>
+                          )}
+                          {detailBrk.otherSurcharges > 0 && (
+                            <div className="flex justify-between text-amber-900">
+                              <span className="font-bold">+ Other Post-Trip Surcharges:</span>
+                              <span className="font-mono font-bold">
+                                {formatINR(detailBrk.otherSurcharges)}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex justify-between border-t border-amber-200/80 pt-1">
-                            <span className="text-slate-600 font-semibold">6. GST (2.5% CGST + 2.5% SGST):</span>
+                            <span className="text-slate-600 font-semibold">GST (2.5% CGST + 2.5% SGST):</span>
                             <span className="font-mono font-bold text-slate-900">
                               {formatINR(detailBrk.gstAmount)}
                             </span>
                           </div>
                           <div className="flex justify-between border-t border-amber-300 pt-1.5 text-sm font-black text-slate-950">
-                            <span>Total All-Inclusive Fare:</span>
+                            <span>
+                              {selectedDetailBooking.status === 'completed'
+                                ? 'Final GST Invoice Total:'
+                                : 'Total All-Inclusive Fare:'}
+                            </span>
                             <span className="font-mono">{formatINR(selectedDetailBooking.totalFare)}</span>
                           </div>
                           <div className="flex justify-between text-emerald-800 font-extrabold">
-                            <span>Advance Paid Online:</span>
+                            <span>
+                              {selectedDetailBooking.status === 'completed'
+                                ? 'Total Paid (100% Settled):'
+                                : 'Advance Paid Online:'}
+                            </span>
                             <span className="font-mono">- {formatINR(selectedDetailBooking.advancePaid)}</span>
                           </div>
                           <div className="flex justify-between bg-white border border-amber-300 rounded-lg px-2.5 py-1.5 font-black text-slate-950">
@@ -918,12 +1023,12 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                         </div>
                       </div>
 
-                      {/* Column C: Driver Assignment Status & Live Firestore Update (4 cols) */}
+                      {/* Column C: Driver Assignment, Post-Trip Billing Adjustments & Live Firestore Update (4 cols) */}
                       <div className="lg:col-span-4 bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
                         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                           <span className="font-black text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                             <Car className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Driver Assignment &amp; Status</span>
+                            <span>Driver &amp; Post-Trip Billing</span>
                           </span>
                           <span
                             className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
@@ -984,7 +1089,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                           </div>
                           <div className="col-span-2">
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                              Booking Status
+                              Booking Status (Mark Completed to Generate Final GST Tax Invoice)
                             </label>
                             <select
                               value={driverEditForm.status}
@@ -996,23 +1101,118 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                               }
                               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-900 text-xs"
                             >
-                              <option value="confirmed">Confirmed (Upcoming / Ongoing)</option>
-                              <option value="completed">Completed (100% Settled)</option>
+                              <option value="confirmed">Confirmed (Booking Voucher Active)</option>
+                              <option value="completed">Completed (Generate Final GST Tax Invoice)</option>
                               <option value="cancelled">Cancelled</option>
                             </select>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={handleSaveDriverAssignmentToFirestore}
-                          disabled={isSavingDriverAssignment}
-                          className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition cursor-pointer shadow-xs"
-                        >
-                          {isSavingDriverAssignment
-                            ? 'Saving to Firebase Firestore...'
-                            : 'Save Driver & Status to Firestore'}
-                        </button>
+                        {/* Post-Trip Completion & Final GST Invoice Adjustments */}
+                        <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-300 space-y-2">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-amber-950">
+                            Post-Trip Odometer &amp; Surcharge Adjustments
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
+                                Actual End Odometer KM
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.actualOdometerKm}
+                                onChange={(e) => {
+                                  const odo = Math.max(0, Number(e.target.value) || 0);
+                                  const baseKm = selectedDetailBooking.distanceKm || 0;
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    actualOdometerKm: odo,
+                                    extraKmDriven: odo > baseKm ? odo - baseKm : 0
+                                  }));
+                                }}
+                                className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
+                                Extra KM Driven
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.extraKmDriven}
+                                onChange={(e) => {
+                                  const ext = Math.max(0, Number(e.target.value) || 0);
+                                  const baseKm = selectedDetailBooking.distanceKm || 0;
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    extraKmDriven: ext,
+                                    actualOdometerKm: baseKm + ext
+                                  }));
+                                }}
+                                className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
+                                Extra Toll Charges (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.extraTollCharges}
+                                onChange={(e) =>
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    extraTollCharges: Math.max(0, Number(e.target.value) || 0)
+                                  }))
+                                }
+                                className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
+                                Other Surcharges (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.otherSurcharges}
+                                onChange={(e) =>
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    otherSurcharges: Math.max(0, Number(e.target.value) || 0)
+                                  }))
+                                }
+                                className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveDriverAssignmentToFirestore()}
+                            disabled={isSavingDriverAssignment}
+                            className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs transition cursor-pointer shadow-xs"
+                          >
+                            {isSavingDriverAssignment ? 'Saving...' : 'Save Driver & Adjustments'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDriverEditForm((p) => ({ ...p, status: 'completed' }));
+                              handleSaveDriverAssignmentToFirestore('completed');
+                            }}
+                            disabled={isSavingDriverAssignment}
+                            className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition cursor-pointer shadow-xs"
+                          >
+                            ✓ Mark Completed &amp; Issue Final GST Invoice
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

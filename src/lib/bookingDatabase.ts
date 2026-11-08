@@ -205,6 +205,28 @@ function buildSearchKeywords(booking: BookingRecord, cleanId: string, cleanPhone
   return Array.from(tokenSet).filter(Boolean).slice(0, 35);
 }
 
+function validateIndianLatLng(
+  coords?: { lat: number; lng: number } | null
+): { lat: number; lng: number } | undefined {
+  if (!coords || typeof coords !== 'object') return undefined;
+  const lat = Number(coords.lat);
+  const lng = Number(coords.lng);
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < 6.0 ||
+    lat > 38.5 ||
+    lng < 67.0 ||
+    lng > 98.5
+  ) {
+    return undefined;
+  }
+  return {
+    lat: Number(lat.toFixed(6)),
+    lng: Number(lng.toFixed(6))
+  };
+}
+
 /**
  * Sanitizes a BookingRecord for Firestore (removes undefined fields and ensures required types & rule bounds)
  */
@@ -221,6 +243,9 @@ export function sanitizeBookingForFirestore(booking: BookingRecord): Record<stri
 
   const searchKeywords = buildSearchKeywords(booking, cleanId, cleanPhone);
   const nowIso = new Date().toISOString();
+
+  const validPickupCoords = validateIndianLatLng(booking.pickupCoords);
+  const validDropCoords = validateIndianLatLng(booking.dropCoords);
 
   const rawObj: Record<string, unknown> = {
     ...booking,
@@ -246,6 +271,12 @@ export function sanitizeBookingForFirestore(booking: BookingRecord): Record<stri
     statePermitTax: booking.statePermitTax !== undefined ? Math.max(0, Math.round(Number(booking.statePermitTax) || 0)) : undefined,
     hillStationCharge: booking.hillStationCharge !== undefined ? Math.max(0, Math.round(Number(booking.hillStationCharge) || 0)) : undefined,
     nightCharge: booking.nightCharge !== undefined ? Math.max(0, Math.round(Number(booking.nightCharge) || 0)) : undefined,
+    actualOdometerKm: booking.actualOdometerKm !== undefined ? Math.max(0, Math.round(Number(booking.actualOdometerKm) || 0)) : undefined,
+    extraKmDriven: booking.extraKmDriven !== undefined ? Math.max(0, Math.round(Number(booking.extraKmDriven) || 0)) : undefined,
+    extraKmCharge: booking.extraKmCharge !== undefined ? Math.max(0, Math.round(Number(booking.extraKmCharge) || 0)) : undefined,
+    extraTollCharges: booking.extraTollCharges !== undefined ? Math.max(0, Math.round(Number(booking.extraTollCharges) || 0)) : undefined,
+    otherSurcharges: booking.otherSurcharges !== undefined ? Math.max(0, Math.round(Number(booking.otherSurcharges) || 0)) : undefined,
+    completedAt: booking.completedAt ? String(booking.completedAt).trim().slice(0, 58) : undefined,
     gstAmount: Math.max(0, Math.round(Number(booking.gstAmount) || 0)),
     totalFare: Math.max(0, Math.min(10000000, Math.round(Number(booking.totalFare) || 0))),
     advancePaid: Math.max(0, Math.round(Number(booking.advancePaid) || 0)),
@@ -253,13 +284,27 @@ export function sanitizeBookingForFirestore(booking: BookingRecord): Record<stri
     customerName: String(booking.customerName || 'Verified Passenger').trim().slice(0, 115),
     customerPhone: cleanPhone,
     status: validStatus,
+    pickupCoords: validPickupCoords,
+    dropCoords: validDropCoords,
     createdAt: String(booking.createdAt || nowIso).trim().slice(0, 58),
     updatedAt: nowIso
   };
 
-  // Bound routeGeometry to at most 40 points for compact Firestore document size
+  // Bound routeGeometry to at most 40 points and validate each point within India lat/lng bounds
   const boundedGeometry = Array.isArray(booking.routeGeometry)
-    ? booking.routeGeometry.slice(0, 40)
+    ? booking.routeGeometry
+        .filter(
+          (pt) =>
+            Array.isArray(pt) &&
+            pt.length >= 2 &&
+            Number.isFinite(Number(pt[0])) &&
+            Number.isFinite(Number(pt[1])) &&
+            Number(pt[0]) >= 6.0 &&
+            Number(pt[0]) <= 38.5 &&
+            Number(pt[1]) >= 67.0 &&
+            Number(pt[1]) <= 98.5
+        )
+        .slice(0, 40)
     : undefined;
 
   const clean: Record<string, unknown> = {};

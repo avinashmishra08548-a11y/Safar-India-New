@@ -77,6 +77,12 @@ export interface BookingRecord {
   driverVehicleModel?: string;
   driverVehicleNo?: string;
   driverAssignedAt?: string;
+  actualOdometerKm?: number;
+  extraKmDriven?: number;
+  extraKmCharge?: number;
+  extraTollCharges?: number;
+  otherSurcharges?: number;
+  completedAt?: string;
   pickupCoords?: { lat: number; lng: number };
   dropCoords?: { lat: number; lng: number };
   routeProvider?: string;

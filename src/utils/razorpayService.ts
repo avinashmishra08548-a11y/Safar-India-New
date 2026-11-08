@@ -150,10 +150,9 @@ export function detectInstalledUpiApps(): InstalledUpiAppsInfo {
         if (parsed.phonepe) codes.push('phonepe');
         if (parsed.paytm) codes.push('paytm');
         if (parsed.bhim) codes.push('bhim');
-        if (parsed.cred) codes.push('cred');
-        if (parsed.amazon_pay) codes.push('amazon_pay');
 
-        // Always keep all 4 primary apps visible in Razorpay sheet if none returned so UI never hides UPI
+        // Strictly allow only the 4 native installed UPI apps (Google Pay, PhonePe, Paytm, BHIM)
+        // so unrelated third-party apps (Lxme, Scapia, Cred, etc.) never clutter the UPI Intent sheet
         const finalCodes =
           codes.length > 0 ? codes : ['google_pay', 'phonepe', 'paytm', 'bhim'];
 
@@ -162,8 +161,8 @@ export function detectInstalledUpiApps(): InstalledUpiAppsInfo {
           phonepe: parsed.phonepe !== false,
           paytm: parsed.paytm !== false,
           bhim: parsed.bhim !== false,
-          cred: Boolean(parsed.cred),
-          amazon_pay: Boolean(parsed.amazon_pay),
+          cred: false,
+          amazon_pay: false,
           hasAnyUpiApp: Boolean(parsed.hasAnyUpiApp ?? true),
           installedRazorpayAppCodes: finalCodes
         };
@@ -458,11 +457,13 @@ export async function verifyRazorpayPaymentOnServer(params: {
  */
 function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
   const installedUpi = detectInstalledUpiApps();
-  const baseApps = installedUpi.installedRazorpayAppCodes.length > 0
-    ? [...installedUpi.installedRazorpayAppCodes]
-    : ['google_pay', 'phonepe', 'paytm', 'bhim'];
+  const allowedCoreUpiApps = ['google_pay', 'phonepe', 'paytm', 'bhim'];
+  const baseApps =
+    installedUpi.installedRazorpayAppCodes.filter((c) => allowedCoreUpiApps.includes(c)).length > 0
+      ? installedUpi.installedRazorpayAppCodes.filter((c) => allowedCoreUpiApps.includes(c))
+      : allowedCoreUpiApps;
 
-  // Prioritize the user's selected UPI app at the front of the list
+  // Prioritize the user's selected native UPI app at the front of the list
   const preferredAppCode =
     preferredMethod && UPI_PACKAGE_MAP[preferredMethod]
       ? UPI_PACKAGE_MAP[preferredMethod].razorpayCode
@@ -475,6 +476,30 @@ function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
   const isAndroid =
     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
 
+  // (a) Dedicated UPI QR Code Mode: Open directly to Dynamic UPI QR Code
+  if (preferredMethod === 'qr') {
+    return {
+      display: {
+        blocks: {
+          qr_only_block: {
+            name: 'Scan Dynamic UPI QR Code (All UPI Apps Supported)',
+            instruments: [
+              {
+                method: 'upi',
+                flows: ['qr', 'collect']
+              }
+            ]
+          }
+        },
+        sequence: ['block.qr_only_block'],
+        preferences: {
+          show_default_blocks: false
+        }
+      }
+    };
+  }
+
+  // Cards & NetBanking Mode
   if (preferredMethod === 'card_netbanking') {
     return {
       display: {
@@ -484,7 +509,7 @@ function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
             instruments: [{ method: 'card' }, { method: 'netbanking' }]
           },
           upi_block: {
-            name: 'Pay via UPI Apps (GPay, PhonePe, Paytm, BHIM)',
+            name: 'Pay via Native UPI App (Google Pay, PhonePe, Paytm, BHIM)',
             instruments: [
               {
                 method: 'upi',
@@ -496,42 +521,31 @@ function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
         },
         sequence: ['block.cards_banks', 'block.upi_block'],
         preferences: {
-          show_default_blocks: true
+          show_default_blocks: false
         }
       }
     };
   }
 
-  // On Android (or when a UPI app is selected), prioritize 'intent' and 'collect' flows
-  // so installed UPI apps (Google Pay, PhonePe, Paytm, BHIM) render at the very top of the payment sheet.
-  const upiFlows =
-    preferredMethod === 'qr' && !isAndroid
-      ? ['qr', 'intent', 'collect']
-      : isAndroid
-      ? ['intent', 'collect']
-      : ['intent', 'qr', 'collect'];
-
+  // (b) Native UPI App Mode (Google Pay, PhonePe, Paytm, BHIM):
+  // Trigger native UPI Intent and strictly show only installed primary UPI apps without third-party clutter
   return {
     display: {
       blocks: {
         upi_block: {
-          name: 'UPI Apps (GPay, PhonePe, Paytm, BHIM)',
+          name: 'Pay via Installed UPI App (Google Pay, PhonePe, Paytm, BHIM)',
           instruments: [
             {
               method: 'upi',
-              flows: upiFlows,
+              flows: ['intent', 'collect'],
               apps: orderedUpiApps
             }
           ]
-        },
-        cards_banks: {
-          name: 'Cards & NetBanking',
-          instruments: [{ method: 'card' }, { method: 'netbanking' }, { method: 'wallet' }]
         }
       },
-      sequence: ['block.upi_block', 'block.cards_banks'],
+      sequence: ['block.upi_block'],
       preferences: {
-        show_default_blocks: true
+        show_default_blocks: false
       }
     }
   };

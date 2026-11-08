@@ -637,9 +637,34 @@ async function resolveLocationCoords(locationName: string): Promise<Coordinates 
 
   try {
     const preds = await searchOlaPlaces(trimmed);
-    const withCoords = preds.find((p) => typeof p.lat === 'number' && typeof p.lng === 'number');
+    const withCoords = preds.find(
+      (p) =>
+        typeof p.lat === 'number' &&
+        typeof p.lng === 'number' &&
+        p.lat >= 6.0 &&
+        p.lat <= 38.5 &&
+        p.lng >= 67.0 &&
+        p.lng <= 98.5
+    );
     if (withCoords && withCoords.lat && withCoords.lng) {
       return { lat: withCoords.lat, lng: withCoords.lng };
+    }
+  } catch {}
+
+  try {
+    const cleanQ = trimmed.toLowerCase().includes('india') ? trimmed : `${trimmed}, India`;
+    const nomRes = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&limit=1&q=${encodeURIComponent(cleanQ)}`
+    );
+    if (nomRes.ok) {
+      const nomArr = await nomRes.json();
+      if (Array.isArray(nomArr) && nomArr[0]) {
+        const lat = Number(nomArr[0].lat);
+        const lng = Number(nomArr[0].lon);
+        if (lat >= 6.0 && lat <= 38.5 && lng >= 67.0 && lng <= 98.5) {
+          return { lat, lng };
+        }
+      }
     }
   } catch {}
 

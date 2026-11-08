@@ -185,8 +185,8 @@ const SERVER_CITY_STATE_KEYWORDS = [
   { keywords: ['kochi', 'cochin', 'munnar', 'thiruvananthapuram', 'trivandrum', 'alleppey', 'alappuzha', 'wayanad', 'kozhikode', 'calicut', 'thekkady', 'kovalam', 'kerala'], state: 'Kerala' },
   { keywords: ['indore', 'bhopal', 'ujjain', 'omkareshwar', 'gwalior', 'jabalpur', 'khajuraho', 'pachmarhi', 'sanchi', 'madhyapradesh'], state: 'Madhya Pradesh' },
   { keywords: ['kolkata', 'howrah', 'darjeeling', 'siliguri', 'digha', 'durgapur', 'asansol', 'westbengal'], state: 'West Bengal' },
-  { keywords: ['patna', 'gaya', 'bodhgaya', 'muzaffarpur', 'bhagalpur', 'darbhanga', 'rajgir', 'nalanda', 'bihar'], state: 'Bihar' },
-  { keywords: ['ranchi', 'jamshedpur', 'deoghar', 'dhanbad', 'bokaro', 'jharkhand'], state: 'Jharkhand' },
+  { keywords: ['patna', 'hajipur', 'sonepur', 'danapur', 'bihta', 'gaya', 'bodhgaya', 'muzaffarpur', 'bhagalpur', 'darbhanga', 'samastipur', 'begusarai', 'ara', 'arrah', 'chhapra', 'chapra', 'biharsharif', 'rajgir', 'nalanda', 'sitamarhi', 'motihari', 'buxar', 'sasaram', 'purnia', 'katihar', 'munger', 'siwan', 'gopalganj', 'bettiah', 'kishanganj', 'araria', 'madhubani', 'saharsa', 'supaul', 'nawada', 'aurangabadbihar', 'jehanabad', 'vaishali', 'bihar'], state: 'Bihar' },
+  { keywords: ['ranchi', 'jamshedpur', 'deoghar', 'dhanbad', 'bokaro', 'hazaribagh', 'giridih', 'ramgarh', 'dumka', 'chaibasa', 'medininagar', 'daltonganj', 'jharkhand'], state: 'Jharkhand' },
   { keywords: ['bhubaneswar', 'puri', 'konark', 'cuttack', 'rourkela', 'odisha'], state: 'Odisha' },
   { keywords: ['raipur', 'bilaspur', 'bhilai', 'durg', 'chhattisgarh'], state: 'Chhattisgarh' },
   { keywords: ['guwahati', 'shillong', 'kaziranga', 'gangtok', 'sikkim', 'assam', 'meghalaya'], state: 'North East' },
@@ -411,9 +411,53 @@ function computeServerMultiStatePermitBreakdown(originState, destState, pickupCi
   return { stateRoutePath, statePermitBreakdown: breakdown, totalStatePermitTax };
 }
 
+const SERVER_VERIFIED_TOLL_FREE_CORRIDORS = [
+  'patna-hajipur', 'hajipur-patna',
+  'patna-sonepur', 'sonepur-patna',
+  'patna-danapur', 'danapur-patna',
+  'patna-bihta', 'bihta-patna',
+  'hajipur-sonepur', 'sonepur-hajipur',
+  'delhi-noida', 'noida-delhi',
+  'delhi-ghaziabad', 'ghaziabad-delhi',
+  'delhi-gurgaon', 'gurgaon-delhi',
+  'delhi-gurugram', 'gurugram-delhi',
+  'delhi-faridabad', 'faridabad-delhi',
+  'noida-greater noida', 'greater noida-noida',
+  'chandigarh-mohali', 'mohali-chandigarh',
+  'chandigarh-panchkula', 'panchkula-chandigarh',
+  'chandigarh-zirakpur', 'zirakpur-chandigarh',
+  'kolkata-howrah', 'howrah-kolkata',
+  'mumbai-thane', 'thane-mumbai',
+  'mumbai-navi mumbai', 'navi mumbai-mumbai',
+  'hyderabad-secunderabad', 'secunderabad-hyderabad',
+  'haridwar-rishikesh', 'rishikesh-haridwar',
+  'mathura-vrindavan', 'vrindavan-mathura',
+  'gaya-bodhgaya', 'bodhgaya-gaya',
+  'rajgir-nalanda', 'nalanda-rajgir'
+];
+
 function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230, cabId = 'sedan') {
   const nFrom = normalizeServerRouteToken(pickupCity);
   const nTo = normalizeServerRouteToken(dropCity);
+
+  if (nFrom && nTo) {
+    if (nFrom === nTo) {
+      return {
+        baseTollOneWay: 0,
+        expresswayName: 'Intra-City Local Route (No Highway Toll)'
+      };
+    }
+
+    for (const corridor of SERVER_VERIFIED_TOLL_FREE_CORRIDORS) {
+      const [c1, c2] = corridor.split('-').map((s) => normalizeServerRouteToken(s));
+      if (nFrom.includes(c1) && nTo.includes(c2)) {
+        return {
+          baseTollOneWay: 0,
+          expresswayName: 'Toll-Free Urban / Bridge Corridor (₹0 Toll)'
+        };
+      }
+    }
+  }
 
   let matchedToll = null;
   let matchedName = 'NHAI Highway FASTag';
@@ -437,7 +481,14 @@ function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230,
     };
   }
 
-  const highwayBillableKm = Math.max(40, Math.round(distanceKm * 0.8));
+  if (distanceKm < 55) {
+    return {
+      baseTollOneWay: 0,
+      expresswayName: 'Short Inter-City Corridor (₹0 Highway Toll)'
+    };
+  }
+
+  const highwayBillableKm = Math.max(20, Math.round(distanceKm * 0.75));
   const nhaiRatePerKm = cabId === 'tempo' ? 1.55 : cabId === 'innova' || cabId === 'suv' ? 1.05 : 0.95;
   return {
     baseTollOneWay: Math.round(highwayBillableKm * nhaiRatePerKm),
@@ -1025,7 +1076,7 @@ export function computeServerTripFare({
   const hillDriverBonusPerDay = 0;
 
   if (tripType === 'oneway') {
-    baseBilledDistanceKm = Math.max(130, Math.round(parsedDistance));
+    baseBilledDistanceKm = Math.max(1, Math.round(parsedDistance));
     const slabFactor = isHillRoute
       ? 1.0
       : baseBilledDistanceKm <= 130
@@ -1758,15 +1809,16 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.text('Regd. Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', companyX, y + 19.5);
   doc.text('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', companyX, y + 23.8);
 
+  const isCompletedInvoice = booking.status === 'completed';
   const cleanIdSuffix = String(booking.id || 'SIC2601').replace(/^SIC-?/i, '');
-  const invoiceNo = `INV-SIC${cleanIdSuffix}`;
-  const invoiceDateStr = new Date(booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
+  const invoiceNo = isCompletedInvoice ? `INV-SIC${cleanIdSuffix}` : `VCR-SIC${cleanIdSuffix}`;
+  const invoiceDateStr = new Date(booking.completedAt || booking.createdAt || Date.now()).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
   });
 
-  const badgeW = 54;
+  const badgeW = 56;
   const badgeX = pageWidth - margin - badgeW;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
@@ -1775,18 +1827,28 @@ function buildServerBookingInvoicePdfBuffer(booking) {
 
   doc.setTextColor(15, 41, 88);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.text('TAX INVOICE', badgeX + badgeW - 3, y + 5.5, { align: 'right' });
+  doc.setFontSize(8.8);
+  doc.text(isCompletedInvoice ? 'FINAL TAX INVOICE' : 'BOOKING VOUCHER', badgeX + badgeW - 3, y + 5.5, { align: 'right' });
 
   doc.setTextColor(100, 116, 139);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.text('ORIGINAL FOR RECIPIENT', badgeX + badgeW - 3, y + 9.2, { align: 'right' });
+  doc.setFontSize(6.6);
+  doc.text(
+    isCompletedInvoice ? 'ORIGINAL FOR RECIPIENT' : 'ADVANCE CONFIRMATION VOUCHER',
+    badgeX + badgeW - 3,
+    y + 9.2,
+    { align: 'right' }
+  );
 
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text(`Inv No: ${invoiceNo}`, badgeX + badgeW - 3, y + 14.5, { align: 'right' });
+  doc.setFontSize(7.8);
+  doc.text(
+    `${isCompletedInvoice ? 'Inv No' : 'Voucher No'}: ${invoiceNo}`,
+    badgeX + badgeW - 3,
+    y + 14.5,
+    { align: 'right' }
+  );
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
@@ -1810,10 +1872,10 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.setFontSize(8.2);
   const statusLabel =
     booking.status === 'completed'
-      ? 'STATUS: COMPLETED & SETTLED'
+      ? 'STATUS: COMPLETED & FINAL GST TAX INVOICE SETTLED'
       : booking.status === 'cancelled'
       ? 'STATUS: CANCELLED'
-      : 'STATUS: CONFIRMED BOOKING';
+      : 'STATUS: BOOKING CONFIRMED (FINAL INVOICE ON TRIP COMPLETION)';
   doc.text(statusLabel, margin + 3.5, y + 6);
 
   doc.setFont('helvetica', 'normal');
@@ -1955,7 +2017,20 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     }
   }
 
-  const taxableValue = baseFare + driverAllowance + highwayToll + statePermitTax + hillStationCharge;
+  const extraKmDriven = Math.max(0, Number(booking.extraKmDriven || 0));
+  const extraKmCharge = Math.max(0, Number(booking.extraKmCharge || 0));
+  const extraTollCharges = Math.max(0, Number(booking.extraTollCharges || 0));
+  const otherSurcharges = Math.max(0, Number(booking.otherSurcharges || 0));
+
+  const taxableValue =
+    baseFare +
+    driverAllowance +
+    highwayToll +
+    statePermitTax +
+    hillStationCharge +
+    extraKmCharge +
+    extraTollCharges +
+    otherSurcharges;
 
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(203, 213, 225);
@@ -1984,7 +2059,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     },
     {
       label: '3. Highway FASTag Toll Tax',
-      value: highwayToll > 0 ? `INR ${highwayToll.toLocaleString('en-IN')}.00` : 'INR 0.00 (Extra if Applicable)'
+      value: highwayToll > 0 ? `INR ${highwayToll.toLocaleString('en-IN')}.00` : 'INR 0.00 (No Toll / Extra if Applicable)'
     },
     {
       label: '4. State Border Entry Permit Tax',
@@ -1995,6 +2070,30 @@ function buildServerBookingInvoicePdfBuffer(booking) {
           {
             label: '5. Hill Station / Mountain Drive Allowance',
             value: `INR ${hillStationCharge.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
+    ...(extraKmCharge > 0
+      ? [
+          {
+            label: `Post-Trip Extra Distance Charge (${extraKmDriven} Extra KM Driven)`,
+            value: `INR ${extraKmCharge.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
+    ...(extraTollCharges > 0
+      ? [
+          {
+            label: 'Post-Trip Extra Highway Toll / FASTag Charges',
+            value: `INR ${extraTollCharges.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
+    ...(otherSurcharges > 0
+      ? [
+          {
+            label: 'Other Post-Trip Surcharges (Parking / Waiting / Detour)',
+            value: `INR ${otherSurcharges.toLocaleString('en-IN')}.00`
           }
         ]
       : []),
@@ -2013,7 +2112,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     }
   ];
 
-  const rowH = rows.length > 7 ? 6.6 : 7.2;
+  const rowH = rows.length > 8 ? 6.0 : rows.length > 7 ? 6.6 : 7.2;
   rows.forEach((row, index) => {
     doc.setFillColor(index % 2 === 0 ? 255 : 248, index % 2 === 0 ? 255 : 250, index % 2 === 0 ? 255 : 252);
     doc.setDrawColor(226, 232, 240);
@@ -2033,7 +2132,13 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.2);
-  doc.text('TOTAL INVOICE VALUE (INCLUSIVE OF 5% GST)', margin + 3.5, y + 5.9);
+  doc.text(
+    isCompletedInvoice
+      ? 'FINAL TAX INVOICE TOTAL (INCLUSIVE OF 5% GST)'
+      : 'ESTIMATED TOTAL TRIP FARE (INCLUSIVE OF 5% GST)',
+    margin + 3.5,
+    y + 5.9
+  );
   doc.text(`INR ${totalFare.toLocaleString('en-IN')}.00`, pageWidth - margin - 3.5, y + 5.9, {
     align: 'right'
   });

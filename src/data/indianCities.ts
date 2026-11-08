@@ -179,9 +179,33 @@ export const POPULAR_INDIAN_CITIES: CityData[] = [
   { name: 'Kolkata', state: 'West Bengal', isPopular: true, airportName: 'Netaji Subhash Chandra Bose Airport (CCU)', lat: 22.5726, lon: 88.3639 },
   { name: 'Darjeeling', state: 'West Bengal', isPopular: true, lat: 27.0410, lon: 88.2663 },
   { name: 'Gangtok', state: 'Sikkim', isPopular: true, lat: 27.3389, lon: 88.6065 },
-  { name: 'Patna', state: 'Bihar', isPopular: false, lat: 25.5941, lon: 85.1376 },
-  { name: 'Gaya & Bodh Gaya', state: 'Bihar', isPopular: false, lat: 24.6961, lon: 84.9870 },
-  { name: 'Ranchi', state: 'Jharkhand', isPopular: false, lat: 23.3441, lon: 85.3096 },
+  { name: 'Patna', state: 'Bihar', isPopular: true, airportName: 'Jay Prakash Narayan Airport (PAT)', lat: 25.5941, lon: 85.1376 },
+  { name: 'Hajipur', state: 'Bihar', isPopular: true, lat: 25.6858, lon: 85.2146 },
+  { name: 'Sonepur', state: 'Bihar', isPopular: false, lat: 25.6990, lon: 85.1778 },
+  { name: 'Danapur', state: 'Bihar', isPopular: false, lat: 25.6368, lon: 85.0470 },
+  { name: 'Bihta', state: 'Bihar', isPopular: false, lat: 25.5594, lon: 84.8685 },
+  { name: 'Muzaffarpur', state: 'Bihar', isPopular: true, lat: 26.1209, lon: 85.3647 },
+  { name: 'Darbhanga', state: 'Bihar', isPopular: true, airportName: 'Darbhanga Airport (DBR)', lat: 26.1542, lon: 85.8918 },
+  { name: 'Samastipur', state: 'Bihar', isPopular: false, lat: 25.8630, lon: 85.7810 },
+  { name: 'Begusarai', state: 'Bihar', isPopular: false, lat: 25.4182, lon: 86.1272 },
+  { name: 'Ara (Arrah)', state: 'Bihar', isPopular: false, lat: 25.5560, lon: 84.6603 },
+  { name: 'Chhapra (Saran)', state: 'Bihar', isPopular: false, lat: 25.7811, lon: 84.7309 },
+  { name: 'Bihar Sharif', state: 'Bihar', isPopular: false, lat: 25.1982, lon: 85.5149 },
+  { name: 'Nalanda', state: 'Bihar', isPopular: false, lat: 25.1357, lon: 85.4430 },
+  { name: 'Rajgir', state: 'Bihar', isPopular: true, lat: 25.0285, lon: 85.4216 },
+  { name: 'Gaya & Bodh Gaya', state: 'Bihar', isPopular: true, airportName: 'Gaya Airport (GAY)', lat: 24.6961, lon: 84.9870 },
+  { name: 'Bhagalpur', state: 'Bihar', isPopular: false, lat: 25.2425, lon: 86.9842 },
+  { name: 'Purnia', state: 'Bihar', isPopular: false, lat: 25.7771, lon: 87.4753 },
+  { name: 'Sitamarhi', state: 'Bihar', isPopular: false, lat: 26.5936, lon: 85.4906 },
+  { name: 'Motihari', state: 'Bihar', isPopular: false, lat: 26.6496, lon: 84.9175 },
+  { name: 'Buxar', state: 'Bihar', isPopular: false, lat: 25.5647, lon: 83.9777 },
+  { name: 'Sasaram', state: 'Bihar', isPopular: false, lat: 24.9481, lon: 84.0320 },
+  { name: 'Ranchi', state: 'Jharkhand', isPopular: true, airportName: 'Birsa Munda Airport (IXR)', lat: 23.3441, lon: 85.3096 },
+  { name: 'Deoghar', state: 'Jharkhand', isPopular: true, airportName: 'Deoghar Airport (DGH)', lat: 24.4852, lon: 86.6948 },
+  { name: 'Dhanbad', state: 'Jharkhand', isPopular: false, lat: 23.7957, lon: 86.4304 },
+  { name: 'Jamshedpur', state: 'Jharkhand', isPopular: false, lat: 22.8046, lon: 86.2029 },
+  { name: 'Bokaro', state: 'Jharkhand', isPopular: false, lat: 23.6693, lon: 86.1511 },
+  { name: 'Hazaribagh', state: 'Jharkhand', isPopular: false, lat: 23.9925, lon: 85.3637 },
   { name: 'Bhubaneswar', state: 'Odisha', isPopular: false, lat: 20.2961, lon: 85.8245 },
   { name: 'Puri (Jagannath Dham)', state: 'Odisha', isPopular: false, lat: 19.8135, lon: 85.8312 }
 ];
@@ -464,6 +488,52 @@ const RAW_HIGHWAY_PAIRS: Record<string, number> = {
   'indore-bhopal': 195,
   'bhopal-ujjain': 190,
 
+  // Bihar & Jharkhand Short & Inter-City Corridors (Exact Road KM)
+  'patna-hajipur': 27,
+  'patna-sonepur': 25,
+  'patna-danapur': 14,
+  'patna-bihta': 32,
+  'patna-ara': 55,
+  'patna-chhapra': 72,
+  'patna-muzaffarpur': 74,
+  'patna-biharsharif': 75,
+  'patna-nalanda': 88,
+  'patna-rajgir': 102,
+  'patna-gaya': 105,
+  'patna-samastipur': 95,
+  'patna-begusarai': 125,
+  'patna-buxar': 125,
+  'patna-sitamarhi': 135,
+  'patna-darbhanga': 138,
+  'patna-motihari': 152,
+  'patna-sasaram': 156,
+  'patna-bhagalpur': 235,
+  'patna-purnia': 305,
+  'patna-deoghar': 255,
+  'patna-ranchi': 325,
+  'patna-varanasi': 255,
+  'hajipur-sonepur': 7,
+  'hajipur-danapur': 24,
+  'hajipur-muzaffarpur': 54,
+  'hajipur-chhapra': 58,
+  'hajipur-samastipur': 72,
+  'hajipur-darbhanga': 115,
+  'hajipur-sitamarhi': 112,
+  'hajipur-begusarai': 110,
+  'hajipur-gaya': 122,
+  'muzaffarpur-darbhanga': 68,
+  'muzaffarpur-sitamarhi': 62,
+  'muzaffarpur-samastipur': 55,
+  'muzaffarpur-motihari': 82,
+  'gaya-rajgir': 65,
+  'gaya-nalanda': 78,
+  'gaya-ranchi': 220,
+  'ranchi-jamshedpur': 130,
+  'ranchi-dhanbad': 150,
+  'ranchi-bokaro': 112,
+  'ranchi-hazaribagh': 93,
+  'ranchi-deoghar': 250,
+
   // West & South Corridors
   'mumbai-pune': 150,
   'mumbai-goa': 585,
@@ -622,7 +692,33 @@ const CANONICAL_CITY_ALIASES: Array<{ key: string; patterns: string[] }> = [
   { key: 'varanasi', patterns: ['varanasi', 'banaras', 'kashi'] },
   { key: 'ayodhya', patterns: ['ayodhya', 'rammandir', 'faizabad'] },
   { key: 'chitrakoot', patterns: ['chitrakoot'] },
-  { key: 'gaya', patterns: ['bodhgaya', 'gaya'] },
+  { key: 'patna', patterns: ['patna', 'patnajunction', 'patnasaheb', 'jayprakashnarayan', 'kankarbagh', 'boringroad', 'baileyroad'] },
+  { key: 'hajipur', patterns: ['hajipur', 'hajipurjunction', 'ramashishchowk', 'vaishalihajipur'] },
+  { key: 'sonepur', patterns: ['sonepur', 'sonpur', 'hariharkshetra'] },
+  { key: 'danapur', patterns: ['danapur', 'khagaul'] },
+  { key: 'bihta', patterns: ['bihta', 'iitpatna'] },
+  { key: 'muzaffarpur', patterns: ['muzaffarpur', 'motijheel'] },
+  { key: 'darbhanga', patterns: ['darbhanga', 'laheriasarai'] },
+  { key: 'samastipur', patterns: ['samastipur'] },
+  { key: 'begusarai', patterns: ['begusarai', 'barauni'] },
+  { key: 'ara', patterns: ['arrah', 'ara', 'bhojpur'] },
+  { key: 'chhapra', patterns: ['chhapra', 'chapra', 'saran'] },
+  { key: 'biharsharif', patterns: ['biharsharif', 'pawapuri'] },
+  { key: 'nalanda', patterns: ['nalanda'] },
+  { key: 'rajgir', patterns: ['rajgir'] },
+  { key: 'gaya', patterns: ['bodhgaya', 'gaya', 'mahabodhi'] },
+  { key: 'bhagalpur', patterns: ['bhagalpur', 'kahalgaon'] },
+  { key: 'purnia', patterns: ['purnia', 'purnea'] },
+  { key: 'sitamarhi', patterns: ['sitamarhi'] },
+  { key: 'motihari', patterns: ['motihari', 'champaran'] },
+  { key: 'buxar', patterns: ['buxar'] },
+  { key: 'sasaram', patterns: ['sasaram', 'rohtas'] },
+  { key: 'ranchi', patterns: ['ranchi', 'birsamunda'] },
+  { key: 'deoghar', patterns: ['deoghar', 'baidyanathdham', 'jasidih'] },
+  { key: 'dhanbad', patterns: ['dhanbad', 'jharia'] },
+  { key: 'jamshedpur', patterns: ['jamshedpur', 'tatanagar'] },
+  { key: 'bokaro', patterns: ['bokaro', 'bokarosteelcity'] },
+  { key: 'hazaribagh', patterns: ['hazaribagh'] },
   { key: 'sonipat', patterns: ['sonipat', 'murthal'] },
   { key: 'panipat', patterns: ['panipat'] },
   { key: 'karnal', patterns: ['karnal'] },
@@ -815,8 +911,8 @@ export function calculateTerrainHaversineKm(
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const crowDistance = R * c;
 
-  if (crowDistance < 2) {
-    return 15;
+  if (crowDistance < 1) {
+    return 5;
   }
 
   const fromHill = isHillAreaToken(fromCity);
@@ -831,12 +927,12 @@ export function calculateTerrainHaversineKm(
     detourFactor = 1.32;
   }
 
-  return Math.max(12, Math.round(crowDistance * detourFactor));
+  return Math.max(4, Math.round(crowDistance * detourFactor));
 }
 
 export function estimateDistanceKm(fromCity: string, toCity: string): number {
   if (!fromCity || !toCity) return 150;
-  if (fromCity.trim().toLowerCase() === toCity.trim().toLowerCase()) return 20;
+  if (fromCity.trim().toLowerCase() === toCity.trim().toLowerCase()) return 15;
 
   const verifiedKm = lookupVerifiedHighwayDistance(fromCity, toCity);
   if (verifiedKm !== null) {
@@ -855,10 +951,10 @@ export function estimateDistanceKm(fromCity: string, toCity: string): number {
       fromCity,
       toCity
     );
-    return Math.max(15, calc);
+    return Math.max(4, calc);
   }
 
-  return 180;
+  return 150;
 }
 
 export interface PopularRouteDeal {

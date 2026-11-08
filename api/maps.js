@@ -463,7 +463,57 @@ export default async function handler(req, res) {
       }
     }
 
-    // 3. India Geocoding Fallback (Photon OSM bounded to India)
+    // 3. 6-Digit Indian Pincode Lookup (India Post Official Pincode Directory + Nominatim coordinates)
+    const pinMatch = input.match(/\b([1-8]\d{5})\b/);
+    if (pinMatch) {
+      const pin = pinMatch[1];
+      try {
+        const pinRes = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
+        if (pinRes.ok) {
+          const pinData = await pinRes.json();
+          const postOffices = Array.isArray(pinData) && pinData[0]?.PostOffice;
+          if (Array.isArray(postOffices) && postOffices.length > 0) {
+            const firstPo = postOffices[0];
+            let pinLat;
+            let pinLng;
+            try {
+              const nomQuery = `${firstPo.District || firstPo.Name}, ${firstPo.State}, India`;
+              const nomRes = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&limit=1&q=${encodeURIComponent(nomQuery)}`,
+                { headers: { 'User-Agent': 'SafarIndiaCabs/1.0' } }
+              );
+              if (nomRes.ok) {
+                const nomArr = await nomRes.json();
+                if (Array.isArray(nomArr) && nomArr[0]) {
+                  pinLat = Number(nomArr[0].lat);
+                  pinLng = Number(nomArr[0].lon);
+                }
+              }
+            } catch {}
+
+            const predictions = postOffices.slice(0, 7).map((po, idx) => ({
+              description: `${po.Name}, ${po.District}, ${po.State} - ${pin}, India`,
+              placeId: `ind_pin_${pin}_${idx}`,
+              mainText: `${po.Name} (${pin})`,
+              secondaryText: `${po.District}, ${po.State}, India`,
+              lat: pinLat,
+              lng: pinLng,
+              types: ['postal_code', 'locality'],
+              source: 'photon_osm'
+            }));
+            const payload = {
+              success: true,
+              provider: 'osrm_india_road',
+              predictions
+            };
+            setCache(cacheKey, payload);
+            return res.status(200).json(payload);
+          }
+        }
+      } catch {}
+    }
+
+    // 4. India Geocoding Fallback (Photon OSM bounded to India + Nominatim India Fallback)
     try {
       const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(input)}&limit=8&bbox=68.1,6.5,97.4,35.5`;
       const pRes = await fetch(pUrl);
@@ -492,13 +542,48 @@ export default async function handler(req, res) {
           })
           .filter(Boolean);
 
-        const payload = {
-          success: true,
-          provider: 'osrm_india_road',
-          predictions
-        };
-        setCache(cacheKey, payload);
-        return res.status(200).json(payload);
+        if (predictions.length > 0) {
+          const payload = {
+            success: true,
+            provider: 'osrm_india_road',
+            predictions
+          };
+          setCache(cacheKey, payload);
+          return res.status(200).json(payload);
+        }
+      }
+    } catch {}
+
+    // 5. OpenStreetMap Nominatim India Direct Search Fallback
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&addressdetails=1&limit=7&q=${encodeURIComponent(input)}`;
+      const nomRes = await fetch(nomUrl, { headers: { 'User-Agent': 'SafarIndiaCabs/1.0' } });
+      if (nomRes.ok) {
+        const nomData = await nomRes.json();
+        if (Array.isArray(nomData) && nomData.length > 0) {
+          const predictions = nomData.map((item, idx) => {
+            const parts = String(item.display_name || input)
+              .split(',')
+              .map((s) => s.trim());
+            return {
+              description: item.display_name || input,
+              placeId: `nom_in_${item.place_id || idx}`,
+              mainText: parts[0] || input,
+              secondaryText: parts.slice(1, 4).join(', ') || 'India',
+              lat: Number(item.lat),
+              lng: Number(item.lon),
+              types: ['locality'],
+              source: 'photon_osm'
+            };
+          });
+          const payload = {
+            success: true,
+            provider: 'osrm_india_road',
+            predictions
+          };
+          setCache(cacheKey, payload);
+          return res.status(200).json(payload);
+        }
       }
     } catch {}
 
