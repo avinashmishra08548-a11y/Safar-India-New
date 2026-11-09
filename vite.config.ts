@@ -79,6 +79,8 @@ export default defineConfig(() => {
                   handlerMod = await import('./api/create-order.js');
                 } else if (urlPath === '/api/verify-payment') {
                   handlerMod = await import('./api/verify-payment.js');
+                } else if (urlPath === '/api/payment-gateway' || urlPath === '/api/razorpay-webhook') {
+                  handlerMod = await import('./api/payment-gateway.js');
                 } else if (urlPath === '/api/send-whatsapp') {
                   handlerMod = await import('./api/send-whatsapp.js');
                 } else if (urlPath === '/api/send-review-email') {

@@ -204,6 +204,43 @@
         }
       },
       "required": ["seriesPrefix", "currentSequence", "lastBookingId", "updatedAt"]
+    },
+    "PaymentAuditLog": {
+      "title": "PaymentAuditLog",
+      "description": "Razorpay payment attempt, Dynamic QR, Order ID, Payment ID, and gateway diagnostic log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "totalBookingAmount": { "type": "number" },
+        "advanceAmount": { "type": "number" },
+        "amountInPaise": { "type": "number" },
+        "razorpayOrderId": { "type": "string" },
+        "razorpayPaymentId": { "type": "string" },
+        "qrId": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "failureReason": { "type": "string" },
+        "gatewayResponse": { "type": "string" },
+        "retryAttempts": { "type": "number" },
+        "webhookVerificationStatus": { "type": "string" }
+      },
+      "required": [
+        "id",
+        "bookingId",
+        "customerName",
+        "customerPhone",
+        "totalBookingAmount",
+        "advanceAmount",
+        "amountInPaise",
+        "paymentMethod",
+        "paymentStatus",
+        "timestamp"
+      ]
     }
   },
   "firestore": {
@@ -218,6 +255,13 @@
         "$ref": "#/entities/BookingCounter"
       },
       "description": "Stores atomic sequential booking ID counter state for SIC26XX series"
+    },
+    "/payment_logs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/PaymentAuditLog"
+      },
+      "description": "Stores Razorpay payment audit logs and gateway troubleshooting events"
     }
   }
 }
+

@@ -13,10 +13,16 @@
  */
 
 import {
+  appendPaymentAuditLog,
   cleanEnvVar,
   computeServerTripFare,
+  getActiveOrderForBooking,
+  getBookingRetryCount,
+  getVerifiedBookingById,
+  incrementBookingRetryAttempt,
   registerPendingOrderRecord,
   resolveNormalizedRazorpayCredentials,
+  setActiveOrderForBooking,
   signOrderVerificationToken
 } from './bookings.js';
 import { sanitize10Digit } from './send-sms.js';
@@ -61,15 +67,16 @@ export default async function handler(req, res) {
       localPackageId = '8h_80k',
       includeTolls = true,
       paymentMode = 'advance_20',
+      preferredMethod = 'upi',
       customerName,
       customerPhone,
       customerEmail,
       clientExpectedAmountRupees,
       clientTotalFareRupees,
-      clientPublicKeyId
+      clientPublicKeyId,
+      forceNewOrder = false
     } = body;
 
-    // Normalize RAZORPAY_KEY_ID, VITE_RAZORPAY_KEY_ID (automatic fallback), clientPublicKeyId, and RAZORPAY_KEY_SECRET
     const {
       keyId,
       keySecret,
@@ -81,7 +88,6 @@ export default async function handler(req, res) {
       diagnostics
     } = resolveNormalizedRazorpayCredentials(process.env, clientPublicKeyId);
 
-    // Detailed sanitized console log for key format prefix & environment diagnostics
     console.log('[/api/create-order] Key & Environment Diagnostics (sanitized):', diagnostics);
 
     if (!serverKeyId && vitePublicKeyId) {
@@ -95,7 +101,6 @@ export default async function handler(req, res) {
       );
     }
 
-    // Explicit error handling when no Razorpay Key ID is available anywhere
     if (!keyId) {
       console.error(
         '[/api/create-order] Missing Razorpay Key ID (neither RAZORPAY_KEY_ID nor VITE_RAZORPAY_KEY_ID is set):',
@@ -105,16 +110,11 @@ export default async function handler(req, res) {
         success: false,
         errorCode: 'MISSING_RAZORPAY_KEY_ID',
         error:
-          'Razorpay Key ID is missing on the server. Set RAZORPAY_KEY_ID (or VITE_RAZORPAY_KEY_ID) in Vercel Environment Variables and redeploy.'
+          'Razorpay Key ID is missing on the server. Set RAZORPAY_KEY_ID (or VITE_RAZORPAY_KEY_ID) in Environment Variables.'
       });
     }
 
     if (!keyId.startsWith('rzp_live_') && !keyId.startsWith('rzp_test_')) {
-      console.error('[/api/create-order] Invalid Razorpay Key ID format prefix:', {
-        keySource,
-        keyPrefix: keyId.slice(0, 9),
-        keyLength: keyId.length
-      });
       return res.status(500).json({
         success: false,
         errorCode: 'INVALID_KEY_FORMAT',
@@ -122,28 +122,30 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log('[/api/create-order] Incoming order request:', {
-      bookingId,
-      tripType,
-      cabId,
-      distanceKm,
-      paymentMode,
-      includeTolls: Boolean(includeTolls),
-      clientExpectedAmountRupees,
-      clientTotalFareRupees,
-      keySource,
-      keyPrefix: diagnostics.keyPrefix,
-      keyMaskedPreview: diagnostics.keyMaskedPreview,
-      keyMode: diagnostics.keyMode
-    });
-
-    // 1. Validate & normalize required booking fields (supports SIC2601, SIC2608, SIC-2608, etc.)
+    // 1. Validate & normalize required booking fields
     const rawBookingId =
       bookingId && typeof bookingId === 'string' ? bookingId.trim().replace(/^#/, '') : '';
     const normalizedBookingId =
       rawBookingId && /^SIC/i.test(rawBookingId)
         ? rawBookingId.toUpperCase()
         : rawBookingId || `SIC26${String(Math.floor(10 + Math.random() * 89))}`;
+
+    // Check if this Booking ID has already been paid and confirmed (Idempotency / Duplicate Payment Guard)
+    const alreadyVerified = getVerifiedBookingById(normalizedBookingId);
+    if (alreadyVerified && alreadyVerified.paymentId) {
+      console.log('[/api/create-order] Booking already paid & verified, blocking duplicate payment:', {
+        bookingId: normalizedBookingId,
+        paymentId: alreadyVerified.paymentId
+      });
+      return res.status(200).json({
+        success: true,
+        alreadyPaid: true,
+        bookingId: normalizedBookingId,
+        paymentId: alreadyVerified.paymentId,
+        orderId: alreadyVerified.orderId || '',
+        booking: alreadyVerified.booking
+      });
+    }
 
     if (!customerName || typeof customerName !== 'string' || customerName.trim().length < 2) {
       return res.status(400).json({
@@ -176,7 +178,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 2. Calculate fare on the server using project pricing rules, with safe fallback to client quote
+    // 2. Authoritative Server-Side Fare Calculation (Trusted Source of Truth)
     let serverFare;
     try {
       serverFare = computeServerTripFare({
@@ -199,21 +201,15 @@ export default async function handler(req, res) {
         customerName: customerName ? String(customerName) : ''
       });
     } catch (fareErr) {
-      console.warn('[/api/create-order] Fare calculation fallback to client quote:', {
+      console.warn('[/api/create-order] Fare calculation fallback notice:', {
         bookingId: normalizedBookingId,
-        tripType,
-        cabId,
-        distanceKm,
         message: fareErr?.message
       });
       const fallbackTotal = Math.max(
         100,
         Math.round(Number(clientTotalFareRupees || clientExpectedAmountRupees || 1500))
       );
-      const fallbackAdvance = Math.max(
-        1,
-        Math.round(Number(clientExpectedAmountRupees || Math.round(fallbackTotal * 0.2)))
-      );
+      const fallbackAdvance = Math.max(1, Math.round(fallbackTotal * 0.20));
       serverFare = {
         distanceKm: Number(distanceKm) || 130,
         billedDistanceKm: Number(distanceKm) || 130,
@@ -227,39 +223,14 @@ export default async function handler(req, res) {
       };
     }
 
-    const serverPayableRupees =
-      paymentMode === 'full' ? serverFare.totalFare : serverFare.advanceFare;
-    const serverBalanceDueRupees =
-      paymentMode === 'full' ? 0 : serverFare.balanceDue;
-
-    // Always honor valid client-quoted fare shown on the user's Pay button so checkout matches UI
-    let payableRupees = serverPayableRupees;
-    let finalTotalFare = serverFare.totalFare;
-    let finalBalanceDue = serverBalanceDueRupees;
-
-    if (clientTotalFareRupees !== undefined && Number(clientTotalFareRupees) >= 50) {
-      const clientTotal = Math.round(Number(clientTotalFareRupees));
-      finalTotalFare = clientTotal;
-      const clientAdvance = Math.round(clientTotal * 0.20);
-      payableRupees =
-        paymentMode === 'full'
-          ? clientTotal
-          : clientExpectedAmountRupees && Number(clientExpectedAmountRupees) >= 1
-          ? Math.round(Number(clientExpectedAmountRupees))
-          : clientAdvance;
-      finalBalanceDue = paymentMode === 'full' ? 0 : Math.max(0, finalTotalFare - payableRupees);
-    } else if (clientExpectedAmountRupees !== undefined && Number(clientExpectedAmountRupees) >= 1) {
-      payableRupees = Math.round(Number(clientExpectedAmountRupees));
-      if (paymentMode === 'full') {
-        finalTotalFare = payableRupees;
-        finalBalanceDue = 0;
-      } else {
-        finalTotalFare = Math.max(payableRupees, finalTotalFare);
-        finalBalanceDue = Math.max(0, finalTotalFare - payableRupees);
-      }
-    }
-
+    // Server-authoritative amounts:
+    // Total fare, 20% advance (Math.round(totalFare * 0.20)), balance due, and exact paise
+    const finalTotalFare = Math.max(50, Math.round(Number(serverFare.totalFare)));
+    const exactAdvanceFare = Math.max(1, Math.round(finalTotalFare * 0.20));
+    const payableRupees = paymentMode === 'full' ? finalTotalFare : exactAdvanceFare;
+    const finalBalanceDue = paymentMode === 'full' ? 0 : Math.max(0, finalTotalFare - payableRupees);
     const amountInPaise = Math.round(payableRupees * 100);
+
     if (!Number.isInteger(amountInPaise) || amountInPaise < 100) {
       return res.status(400).json({
         success: false,
@@ -267,6 +238,39 @@ export default async function handler(req, res) {
         error: 'Invalid order amount. Minimum order amount is ₹1 (100 paise).'
       });
     }
+
+    // 3. Check if an active unpaid order already exists for this exact bookingId + amountInPaise
+    if (!forceNewOrder) {
+      const existingActiveOrder = getActiveOrderForBooking(normalizedBookingId, amountInPaise);
+      if (existingActiveOrder && existingActiveOrder.orderId) {
+        const retryNum = incrementBookingRetryAttempt(normalizedBookingId);
+        appendPaymentAuditLog({
+          bookingId: normalizedBookingId,
+          customerName: customerName.trim(),
+          customerPhone: cleanPhone,
+          customerEmail: customerEmail || '',
+          totalBookingAmount: finalTotalFare,
+          advanceAmount: payableRupees,
+          amountInPaise,
+          razorpayOrderId: existingActiveOrder.orderId,
+          paymentMethod: String(preferredMethod || 'upi'),
+          paymentStatus: 'reused_active_order',
+          gatewayResponse: `Reused active unpaid Razorpay Order (${existingActiveOrder.orderId}) for retry #${retryNum}`,
+          retryAttempts: retryNum,
+          webhookVerificationStatus: process.env.RAZORPAY_WEBHOOK_SECRET ? 'configured' : 'not_configured'
+        });
+
+        return res.status(200).json({
+          ...existingActiveOrder.responsePayload,
+          reusedActiveOrder: true,
+          retryAttempts: retryNum
+        });
+      }
+    } else {
+      incrementBookingRetryAttempt(normalizedBookingId);
+    }
+
+    const retryAttempts = getBookingRetryCount(normalizedBookingId);
 
     const orderPayload = {
       amount: amountInPaise,
@@ -283,8 +287,9 @@ export default async function handler(req, res) {
         drop_address: String(body.dropAddress || safeDropCity).slice(0, 200),
         pickup_date: safePickupDate.slice(0, 30),
         pickup_time: safePickupTime.slice(0, 30),
-        distance_km: String(serverFare.distanceKm || distanceKm || 230),
+        distance_km: String(serverFare.distanceKm || distanceKm || 130),
         payment_mode: String(paymentMode),
+        expected_amount_paise: String(amountInPaise),
         total_fare_rupees: String(finalTotalFare),
         advance_paid_rupees: String(payableRupees),
         balance_due_rupees: String(finalBalanceDue),
@@ -292,7 +297,7 @@ export default async function handler(req, res) {
       }
     };
 
-    // 3. Try creating an order via official Razorpay Orders API across all candidate Key IDs
+    // 4. Create an order via official Razorpay Orders API across candidate Key IDs
     let rzpData = null;
     let matchedKeyId = keyId;
     let lastGatewayStatus = 0;
@@ -314,11 +319,6 @@ export default async function handler(req, res) {
         if (rzpResponse.ok && parsed && parsed.id) {
           rzpData = parsed;
           matchedKeyId = candidate.keyId;
-          console.log('[/api/create-order] Razorpay Order created with candidate key:', {
-            source: candidate.source,
-            keyPrefix: candidate.keyId.slice(0, 9),
-            orderId: parsed.id
-          });
           break;
         }
 
@@ -327,17 +327,22 @@ export default async function handler(req, res) {
           parsed?.error?.description ||
           parsed?.error?.reason ||
           `Razorpay Orders API returned HTTP ${rzpResponse.status}`;
-
-        console.warn('[/api/create-order] Candidate key failed on Razorpay Orders API:', {
-          source: candidate.source,
-          keyPrefix: candidate.keyId.slice(0, 9),
-          status: rzpResponse.status,
-          errorDescription: lastGatewayErrorDesc
-        });
       }
     }
 
-    // 4A. If Razorpay Order creation succeeded, return order-backed response
+    const fareSummary = {
+      distanceKm: serverFare.distanceKm,
+      billedDistanceKm: serverFare.billedDistanceKm,
+      baseFare: serverFare.baseFare,
+      driverAllowance: serverFare.driverAllowance,
+      tollsAndTaxes: serverFare.tollsAndTaxes,
+      gstAmount: serverFare.gstAmount,
+      totalFare: finalTotalFare,
+      advancePaid: payableRupees,
+      balanceDue: finalBalanceDue
+    };
+
+    // 5A. If Razorpay Order creation succeeded, return order-backed response
     if (rzpData && rzpData.id) {
       const tokenPayload = {
         bookingId: normalizedBookingId,
@@ -362,7 +367,7 @@ export default async function handler(req, res) {
         fareDetails: serverFare
       });
 
-      return res.status(200).json({
+      const responsePayload = {
         success: true,
         checkoutMode: 'order',
         orderId: rzpData.id,
@@ -372,40 +377,43 @@ export default async function handler(req, res) {
         keyId: matchedKeyId,
         bookingId: normalizedBookingId,
         verificationToken,
-        fareSummary: {
-          distanceKm: serverFare.distanceKm,
-          billedDistanceKm: serverFare.billedDistanceKm,
-          baseFare: serverFare.baseFare,
-          driverAllowance: serverFare.driverAllowance,
-          tollsAndTaxes: serverFare.tollsAndTaxes,
-          gstAmount: serverFare.gstAmount,
-          totalFare: finalTotalFare,
-          advancePaid: payableRupees,
-          balanceDue: finalBalanceDue
-        }
+        fareSummary,
+        retryAttempts
+      };
+
+      setActiveOrderForBooking(normalizedBookingId, amountInPaise, {
+        orderId: rzpData.id,
+        amountInPaise: rzpData.amount,
+        status: 'created',
+        responsePayload
       });
+
+      appendPaymentAuditLog({
+        bookingId: normalizedBookingId,
+        customerName: customerName.trim(),
+        customerPhone: cleanPhone,
+        customerEmail: customerEmail || '',
+        totalBookingAmount: finalTotalFare,
+        advanceAmount: payableRupees,
+        amountInPaise: rzpData.amount,
+        razorpayOrderId: rzpData.id,
+        paymentMethod: String(preferredMethod || 'upi'),
+        paymentStatus: 'order_created',
+        gatewayResponse: `HTTP 200 OK — Razorpay Order ${rzpData.id} created (${rzpData.amount} paise)`,
+        retryAttempts,
+        webhookVerificationStatus: process.env.RAZORPAY_WEBHOOK_SECRET ? 'configured' : 'not_configured'
+      });
+
+      return res.status(200).json(responsePayload);
     }
 
-    // 4B. If Razorpay Orders API returned 401 Authentication failed (or secret is missing/mismatched),
-    // automatically fall back to Server-Validated Direct Standard Checkout so customer payment proceeds smoothly!
+    // 5B. Fallback when RAZORPAY_KEY_SECRET is missing or mismatched with Key ID
     const fallbackClientKey =
       (vitePublicKeyId && (vitePublicKeyId.startsWith('rzp_live_') || vitePublicKeyId.startsWith('rzp_test_'))
         ? vitePublicKeyId
         : '') ||
       (cleanEnvVar(clientPublicKeyId).startsWith('rzp_') ? cleanEnvVar(clientPublicKeyId) : '') ||
       keyId;
-
-    console.warn(
-      '[/api/create-order] Falling back to Server-Validated Standard Direct Checkout (Orders API status ' +
-        `${lastGatewayStatus || 'N/A'}: ${lastGatewayErrorDesc || 'Secret mismatch/missing'}). ` +
-        'Booking fare is validated on server and checkout will open with public key:',
-      {
-        bookingId: normalizedBookingId,
-        amountInPaise,
-        keyPrefix: fallbackClientKey.slice(0, 9),
-        keyMasked: `${fallbackClientKey.slice(0, 9)}***${fallbackClientKey.slice(-4)}`
-      }
-    );
 
     const directTokenPayload = {
       bookingId: normalizedBookingId,
@@ -431,7 +439,7 @@ export default async function handler(req, res) {
       fareDetails: serverFare
     });
 
-    return res.status(200).json({
+    const directResponsePayload = {
       success: true,
       checkoutMode: 'direct',
       orderId: '',
@@ -441,18 +449,33 @@ export default async function handler(req, res) {
       keyId: fallbackClientKey,
       bookingId: normalizedBookingId,
       verificationToken,
-      fareSummary: {
-        distanceKm: serverFare.distanceKm,
-        billedDistanceKm: serverFare.billedDistanceKm,
-        baseFare: serverFare.baseFare,
-        driverAllowance: serverFare.driverAllowance,
-        tollsAndTaxes: serverFare.tollsAndTaxes,
-        gstAmount: serverFare.gstAmount,
-        totalFare: finalTotalFare,
-        advancePaid: payableRupees,
-        balanceDue: finalBalanceDue
-      }
+      fareSummary,
+      retryAttempts,
+      gatewayNotice: lastGatewayErrorDesc || 'RAZORPAY_KEY_SECRET not matched with Key ID; using Standard Checkout.'
+    };
+
+    appendPaymentAuditLog({
+      bookingId: normalizedBookingId,
+      customerName: customerName.trim(),
+      customerPhone: cleanPhone,
+      customerEmail: customerEmail || '',
+      totalBookingAmount: finalTotalFare,
+      advanceAmount: payableRupees,
+      amountInPaise,
+      razorpayOrderId: `DIRECT_${normalizedBookingId}`,
+      paymentMethod: String(preferredMethod || 'upi'),
+      paymentStatus: 'checkout_initialized',
+      failureReason: lastGatewayStatus
+        ? `Orders API HTTP ${lastGatewayStatus}: ${lastGatewayErrorDesc}`
+        : !keySecret
+        ? 'RAZORPAY_KEY_SECRET not set in server environment'
+        : '',
+      gatewayResponse: `Standard Checkout initialized (${amountInPaise} paise) with key ${diagnostics.keyMaskedPreview}`,
+      retryAttempts,
+      webhookVerificationStatus: process.env.RAZORPAY_WEBHOOK_SECRET ? 'configured' : 'not_configured'
     });
+
+    return res.status(200).json(directResponsePayload);
   } catch (err) {
     console.error('[/api/create-order] Unexpected server exception:', {
       message: err?.message || String(err)
@@ -464,3 +487,4 @@ export default async function handler(req, res) {
     });
   }
 }
+

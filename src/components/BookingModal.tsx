@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, 
   ShieldCheck, 
@@ -9,7 +9,9 @@ import {
   Loader2,
   Smartphone,
   AlertCircle,
-  Tag
+  Tag,
+  RefreshCw,
+  Clock
 } from 'lucide-react';
 import { CabVehicle, CustomerUser, TripType, BookingRecord } from '../types';
 import {
@@ -33,6 +35,9 @@ import {
   loadRazorpayScript,
   detectInstalledUpiApps,
   ensureAndroidWebViewUpiSupport,
+  createDynamicQrOnServer,
+  checkPaymentStatusOnServer,
+  closeDynamicQrOnServer,
   PreferredPaymentMethod
 } from '../utils/razorpayService';
 import {
@@ -85,7 +90,7 @@ const PAYMENT_GATEWAY_METHODS: {
   { id: 'phonepe', label: 'PhonePe', subLabel: 'Instant UPI Intent', dotColor: 'bg-purple-600' },
   { id: 'paytm', label: 'Paytm UPI', subLabel: 'Instant UPI Intent', dotColor: 'bg-sky-500' },
   { id: 'bhim', label: 'BHIM UPI', subLabel: 'All Bank UPI Apps', dotColor: 'bg-orange-500' },
-  { id: 'qr', label: 'UPI QR Code', subLabel: 'Scan with any app', dotColor: 'bg-amber-500', isQr: true },
+  { id: 'qr', label: 'UPI QR Code', subLabel: 'Official Dynamic QR', dotColor: 'bg-amber-500', isQr: true },
   { id: 'card_netbanking', label: 'Cards & Banking', subLabel: 'Visa, RuPay, Banks', dotColor: 'bg-slate-700', isCard: true },
 ];
 
@@ -126,7 +131,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [pickupAddress, setPickupAddress] = useState(pickupCity || '');
   const [landmark, setLandmark] = useState('');
   const [dropAddress, setDropAddress] = useState(dropCity || '');
-  const [specialNotes, setSpecialNotes] = useState('');
+  const [specialNotes] = useState('');
 
   // GST optional
   const [needGst, setNeedGst] = useState(false);
@@ -158,12 +163,37 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     initialPromoApplied ? { type: 'success', message: PROMO_SUCCESS_MESSAGE } : null
   );
 
+  // Stable Booking ID per BookingModal session so retries NEVER create duplicate Booking IDs
+  const [sessionBookingId, setSessionBookingId] = useState<string>(() => peekNextSequentialBookingId());
+  const hasReservedSessionIdRef = useRef<boolean>(false);
+
   // Payment choice: 20% advance or 100% full
   const [paymentMode, setPaymentMode] = useState<'advance_20' | 'full'>('advance_20');
   const [selectedGatewayMethod, setSelectedGatewayMethod] = useState<PreferredPaymentMethod>('gpay');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('Creating secure Razorpay order...');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Official Razorpay Dynamic UPI QR state
+  const [activeDynamicQr, setActiveDynamicQr] = useState<{
+    qrId: string;
+    imageUrl: string;
+    amountInRupees: number;
+    bookingId: string;
+    closeBy: number;
+    status: 'active' | 'expired' | 'paid' | 'failed';
+  } | null>(null);
+  const [qrSecondsRemaining, setQrSecondsRemaining] = useState<number>(0);
+  const [isCheckingStatus, setIsCheckingStatus] = useState<boolean>(false);
+
+  // Pending / Processing payment recovery state
+  const [pendingVerification, setPendingVerification] = useState<{
+    paymentId?: string;
+    orderId?: string;
+    qrId?: string;
+    bookingId: string;
+    message: string;
+  } | null>(null);
 
   const bottomAlertRef = useRef<HTMLDivElement | null>(null);
 
@@ -179,6 +209,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setReturnDateState(returnDate || pickupDate);
       setReturnTimeState(returnTime || '06:00 PM');
       setErrorMessage('');
+      setIsProcessing(false);
+      setActiveDynamicQr(null);
+      setPendingVerification(null);
+      hasReservedSessionIdRef.current = false;
+      setSessionBookingId(peekNextSequentialBookingId());
     }
   }, [isOpen, currentUser, pickupCity, dropCity, tripType, fareDetails.tollsAndTaxes, returnDate, pickupDate, returnTime]);
 
@@ -228,24 +263,29 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     if (isOpen) {
       ensureAndroidWebViewUpiSupport();
       const installed = detectInstalledUpiApps();
-      if (installed.gpay) setSelectedGatewayMethod('gpay');
-      else if (installed.phonepe) setSelectedGatewayMethod('phonepe');
-      else if (installed.paytm) setSelectedGatewayMethod('paytm');
-      else if (installed.bhim) setSelectedGatewayMethod('bhim');
+      if (installed.platform === 'desktop') {
+        setSelectedGatewayMethod('qr');
+      } else if (installed.gpay) {
+        setSelectedGatewayMethod('gpay');
+      } else if (installed.phonepe) {
+        setSelectedGatewayMethod('phonepe');
+      } else if (installed.paytm) {
+        setSelectedGatewayMethod('paytm');
+      } else if (installed.bhim) {
+        setSelectedGatewayMethod('bhim');
+      }
       loadRazorpayScript().catch(() => {});
     }
   }, [isOpen]);
 
   // Whenever an error occurs, make sure the error alert right above the Pay button is scrolled into view
   useEffect(() => {
-    if (isOpen && errorMessage && bottomAlertRef.current) {
+    if (isOpen && (errorMessage || pendingVerification) && bottomAlertRef.current) {
       bottomAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [isOpen, errorMessage]);
+  }, [isOpen, errorMessage, pendingVerification]);
 
-  if (!isOpen) return null;
-
-  // Live CabBazar fare calculation synchronized with server (including Hill Area, Outer Route, Pickup Time, Extra KM Slider & Promo Discount)
+  // Live CabBazar fare calculation synchronized with server
   const activeFare = computeTripFare({
     tripType,
     cabId: cab.id,
@@ -268,9 +308,391 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const payableNowAmount = paymentMode === 'advance_20' ? activeFare.advanceFare : activeFare.totalFare;
   const balanceDueAmount = paymentMode === 'advance_20' ? activeFare.balanceDue : 0;
-  const previewBookingId = peekNextSequentialBookingId();
 
-  const handlePayAndConfirm = async (overrideMethod?: PreferredPaymentMethod) => {
+  // Invalidate displayed QR if payable amount changes (e.g. user toggles 20% advance vs 100% full or tolls)
+  useEffect(() => {
+    if (activeDynamicQr && activeDynamicQr.amountInRupees !== payableNowAmount) {
+      closeDynamicQrOnServer({
+        qrId: activeDynamicQr.qrId,
+        bookingId: activeDynamicQr.bookingId,
+        paymentMode
+      }).catch(() => {});
+      setActiveDynamicQr(null);
+    }
+  }, [payableNowAmount, activeDynamicQr, paymentMode]);
+
+  const buildCurrentBookingDraft = useCallback(
+    (resolvedBookingId: string, activeMethod: PreferredPaymentMethod): BookingRecord => {
+      const cleanPhone = sanitize10DigitPhone(customerPhone) || '7710080992';
+      const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
+      const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
+      const boundedGeometry = Array.isArray(routeGeometry) ? routeGeometry.slice(0, 40) : undefined;
+      const fareSnapshot = buildBookingFareSnapshot(activeFare, routeProvider || 'ola_maps');
+
+      return {
+        id: resolvedBookingId,
+        tripType,
+        pickupCity,
+        dropCity,
+        pickupCoords: pickupCoords || undefined,
+        dropCoords: dropCoords || undefined,
+        routeProvider: routeProvider || 'ola_maps',
+        routeSummary: routeSummary || `${pickupCity} → ${dropCity} Highway`,
+        routeDurationText: routeDurationText || undefined,
+        routeGeometry: boundedGeometry,
+        fareSnapshot,
+        pickupAddress: pickupAddress.trim() || pickupCity,
+        landmark: landmark.trim() || undefined,
+        dropAddress: dropAddress.trim() || undefined,
+        pickupDate,
+        pickupTime,
+        returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
+        returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
+        tripDays: activeFare.daysCount || 1,
+        localPackage: tripType === 'local' ? localPackageId : undefined,
+        airportMode: tripType === 'airport' ? airportMode : undefined,
+        airportTerminal: airportTerminal.trim() || undefined,
+        cabId: cab.id,
+        cabName: `${cab.name} (${cab.models})`,
+        distanceKm: activeFare.billedDistanceKm,
+        baseFare: activeFare.baseFare + activeFare.addonsTotal,
+        driverAllowance: activeFare.driverAllowance,
+        tollsAndTaxes: activeFare.tollsAndTaxes,
+        highwayToll: includeTollsState ? activeFare.highwayToll : 0,
+        statePermitTax: includeTollsState ? activeFare.statePermitTax : 0,
+        hillStationCharge: activeFare.hillStationCharge || 0,
+        nightCharge: activeFare.nightCharges || 0,
+        gstAmount: activeFare.gstAmount,
+        discountAmount: activeFare.promoDiscount > 0 ? activeFare.promoDiscount : undefined,
+        promoCode: activeFare.promoCodeApplied || undefined,
+        totalFare: activeFare.totalFare,
+        advancePaid: payableNowAmount,
+        balanceDue: balanceDueAmount,
+        paymentMode,
+        paymentMethod:
+          paymentMode === 'advance_20'
+            ? `Razorpay ${methodLabel} (20% Advance)`
+            : `Razorpay ${methodLabel} (100% Full Fare)`,
+        transactionId: '',
+        customerName: customerName.trim() || 'Guest Passenger',
+        customerPhone: cleanPhone,
+        customerEmail: customerEmail.trim() || undefined,
+        customerGst: needGst ? gstNumber.trim().toUpperCase() : undefined,
+        gstCompanyName: needGst ? gstCompanyName.trim() : undefined,
+        status: 'confirmed',
+        createdAt: new Date().toISOString(),
+        notes:
+          [
+            specialNotes.trim(),
+            'PARKING EXTRA IF APPLICABLE',
+            activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
+            extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
+            addonCarrier ? 'Add-on: Roof Carrier' : '',
+            addonAssuredModel ? 'Add-on: Assured New Model' : '',
+            addonPet ? 'Add-on: Pet Travel' : ''
+          ]
+            .filter(Boolean)
+            .join(' | ') || undefined
+      };
+    },
+    [
+      customerPhone,
+      routeGeometry,
+      activeFare,
+      routeProvider,
+      tripType,
+      pickupCity,
+      dropCity,
+      pickupCoords,
+      dropCoords,
+      routeSummary,
+      routeDurationText,
+      pickupAddress,
+      landmark,
+      dropAddress,
+      pickupDate,
+      pickupTime,
+      returnDateState,
+      returnTimeState,
+      localPackageId,
+      airportMode,
+      airportTerminal,
+      cab.id,
+      cab.name,
+      cab.models,
+      includeTollsState,
+      payableNowAmount,
+      balanceDueAmount,
+      paymentMode,
+      customerName,
+      customerEmail,
+      needGst,
+      gstNumber,
+      gstCompanyName,
+      specialNotes,
+      extraKmState,
+      addonCarrier,
+      addonAssuredModel,
+      addonPet
+    ]
+  );
+
+  const finalizeVerifiedBookingSuccess = useCallback(
+    async (
+      paymentId: string,
+      bookingDraft: BookingRecord,
+      verifiedBooking?: BookingRecord,
+      serverNotificationsDispatched?: boolean
+    ) => {
+      const finalConfirmedBooking: BookingRecord = verifiedBooking
+        ? {
+            ...bookingDraft,
+            ...verifiedBooking,
+            highwayToll: verifiedBooking.highwayToll ?? bookingDraft.highwayToll,
+            statePermitTax: verifiedBooking.statePermitTax ?? bookingDraft.statePermitTax,
+            hillStationCharge: verifiedBooking.hillStationCharge ?? bookingDraft.hillStationCharge,
+            nightCharge: verifiedBooking.nightCharge ?? bookingDraft.nightCharge,
+            tripDays: verifiedBooking.tripDays ?? bookingDraft.tripDays
+          }
+        : {
+            ...bookingDraft,
+            status: 'confirmed',
+            transactionId: paymentId
+          };
+
+      try {
+        await saveBookingToCloudDatabase(finalConfirmedBooking);
+      } catch (dbErr) {
+        console.warn('Cloud booking database persistence notice:', dbErr);
+      }
+
+      if (serverNotificationsDispatched) {
+        markBookingNotificationDispatched(finalConfirmedBooking.id);
+      } else {
+        try {
+          await sendDualBookingNotifications(finalConfirmedBooking);
+        } catch (smsError) {
+          console.warn('Traccar Cloud automated dual notification notice:', smsError);
+        }
+      }
+
+      setIsProcessing(false);
+      setIsCheckingStatus(false);
+      setActiveDynamicQr(null);
+      setPendingVerification(null);
+      onBookingSuccess(finalConfirmedBooking);
+    },
+    [onBookingSuccess]
+  );
+
+  // Countdown timer & automatic 4-second status polling when Official Dynamic UPI QR is active
+  useEffect(() => {
+    if (!isOpen || !activeDynamicQr || activeDynamicQr.status !== 'active') {
+      return;
+    }
+
+    const updateTimer = () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const remaining = Math.max(0, activeDynamicQr.closeBy - nowSec);
+      setQrSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        setActiveDynamicQr((prev) => (prev ? { ...prev, status: 'expired' } : null));
+      }
+    };
+
+    updateTimer();
+    const timerInterval = setInterval(updateTimer, 1000);
+
+    const pollInterval = setInterval(async () => {
+      const draft = buildCurrentBookingDraft(activeDynamicQr.bookingId, 'qr');
+      const statusRes = await checkPaymentStatusOnServer({
+        bookingId: activeDynamicQr.bookingId,
+        qrId: activeDynamicQr.qrId,
+        bookingDraft: draft
+      });
+      if (statusRes.status === 'paid' && statusRes.verified && statusRes.booking) {
+        clearInterval(pollInterval);
+        clearInterval(timerInterval);
+        await finalizeVerifiedBookingSuccess(
+          statusRes.paymentId || statusRes.booking.transactionId,
+          draft,
+          statusRes.booking,
+          true
+        );
+      } else if (statusRes.status === 'expired') {
+        setActiveDynamicQr((prev) => (prev ? { ...prev, status: 'expired' } : null));
+      }
+    }, 4000);
+
+    return () => {
+      clearInterval(timerInterval);
+      clearInterval(pollInterval);
+    };
+  }, [isOpen, activeDynamicQr, buildCurrentBookingDraft, finalizeVerifiedBookingSuccess]);
+
+  if (!isOpen) return null;
+
+  const validatePassengerForm = (): string | null => {
+    if (!customerName.trim() || customerName.trim().length < 2) {
+      setErrorMessage('Please enter passenger Full Name (at least 2 characters) before proceeding to payment.');
+      const nameInput = document.getElementById('traveler-full-name');
+      if (nameInput) nameInput.focus();
+      return null;
+    }
+    const cleanPhone = sanitize10DigitPhone(customerPhone);
+    if (!customerPhone.trim() || cleanPhone.length !== 10) {
+      setErrorMessage('Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210).');
+      const phoneInput = document.getElementById('traveler-phone');
+      if (phoneInput) phoneInput.focus();
+      return null;
+    }
+    if (!pickupAddress.trim()) {
+      setErrorMessage('Please enter your complete doorstep pickup address.');
+      const addrInput = document.getElementById('pickup-full-address');
+      if (addrInput) addrInput.focus();
+      return null;
+    }
+    if (!activeFare || activeFare.billedDistanceKm <= 0 || activeFare.totalFare <= 0) {
+      setErrorMessage('Route distance and fare validation failed. Please re-select your pickup and drop cities.');
+      return null;
+    }
+    return cleanPhone;
+  };
+
+  const getOrReserveSessionBookingId = async (): Promise<string> => {
+    if (hasReservedSessionIdRef.current && sessionBookingId) {
+      return sessionBookingId;
+    }
+    const reservedId = await generateNextSequentialBookingId();
+    hasReservedSessionIdRef.current = true;
+    setSessionBookingId(reservedId);
+    return reservedId;
+  };
+
+  const handleManualStatusCheck = async () => {
+    if (isCheckingStatus) return;
+    setIsCheckingStatus(true);
+    setErrorMessage('');
+    try {
+      const targetBookingId =
+        pendingVerification?.bookingId || activeDynamicQr?.bookingId || sessionBookingId;
+      const draft = buildCurrentBookingDraft(targetBookingId, selectedGatewayMethod);
+      const res = await checkPaymentStatusOnServer({
+        bookingId: targetBookingId,
+        qrId: activeDynamicQr?.qrId || pendingVerification?.qrId,
+        orderId: pendingVerification?.orderId,
+        paymentId: pendingVerification?.paymentId,
+        bookingDraft: draft
+      });
+
+      if (res.status === 'paid' && res.verified && res.booking) {
+        await finalizeVerifiedBookingSuccess(
+          res.paymentId || res.booking.transactionId,
+          draft,
+          res.booking,
+          true
+        );
+        return;
+      }
+
+      if (res.status === 'processing') {
+        setErrorMessage(
+          'Your payment is still being processed by your bank/UPI app. Please wait 10–15 seconds and tap "Verify Payment Status" again.'
+        );
+      } else if (res.status === 'failed') {
+        setPendingVerification(null);
+        setErrorMessage(
+          res.error || 'The previous payment attempt failed or was declined. No amount was captured — you can safely retry.'
+        );
+      } else {
+        setErrorMessage(
+          'No completed payment was found yet for this booking. If you have not paid yet, please scan the QR or tap Pay below.'
+        );
+      }
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  const handleGenerateOfficialDynamicQr = async (forceNewQr = false) => {
+    if (isProcessing) return;
+    const cleanPhone = validatePassengerForm();
+    if (!cleanPhone) return;
+
+    setSelectedGatewayMethod('qr');
+    setErrorMessage('');
+    setIsProcessing(true);
+    setProcessingStatus('Generating official Razorpay Dynamic UPI QR Code...');
+
+    try {
+      const bookingId = await getOrReserveSessionBookingId();
+      const draft = buildCurrentBookingDraft(bookingId, 'qr');
+
+      const qrRes = await createDynamicQrOnServer({
+        bookingId,
+        tripType,
+        cabId: cab.id,
+        distanceKm: fareDetails.distanceKm,
+        extraKm: extraKmState,
+        pickupCity,
+        dropCity,
+        pickupAddress: pickupAddress.trim(),
+        pickupDate,
+        pickupTime,
+        returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
+        localPackageId,
+        includeTolls: includeTollsState,
+        addonCarrier,
+        addonPet,
+        addonAssuredModel,
+        promoCode: activeFare.promoCodeApplied || undefined,
+        promoDiscount: activeFare.promoDiscount || 0,
+        paymentMode,
+        customerName: customerName.trim(),
+        customerPhone: cleanPhone,
+        customerEmail: customerEmail.trim() || undefined,
+        clientExpectedAmountRupees: payableNowAmount,
+        clientTotalFareRupees: activeFare.totalFare,
+        forceNewQr
+      });
+
+      if (qrRes.alreadyPaid && qrRes.verifiedBooking) {
+        await finalizeVerifiedBookingSuccess(
+          qrRes.verifiedBooking.transactionId || 'VERIFIED_PAID',
+          draft,
+          qrRes.verifiedBooking,
+          true
+        );
+        return;
+      }
+
+      if (qrRes.success && qrRes.imageUrl && qrRes.qrId) {
+        setActiveDynamicQr({
+          qrId: qrRes.qrId,
+          imageUrl: qrRes.imageUrl,
+          amountInRupees: qrRes.amountInRupees || payableNowAmount,
+          bookingId: qrRes.bookingId || bookingId,
+          closeBy: qrRes.closeBy || Math.floor(Date.now() / 1000) + 600,
+          status: 'active'
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      // If standalone QR API (/v1/payments/qr_codes) is not enabled on the merchant account,
+      // launch official Razorpay Checkout with UPI QR & UPI enabled (never fake a QR code!)
+      setIsProcessing(false);
+      await handlePayAndConfirm('qr', true);
+    } catch (err: any) {
+      setIsProcessing(false);
+      setErrorMessage(err?.message || 'Unable to generate Dynamic UPI QR Code. Please try again.');
+    }
+  };
+
+  const handlePayAndConfirm = async (
+    overrideMethod?: PreferredPaymentMethod,
+    bypassStandaloneQr = false
+  ) => {
     if (isProcessing) return;
 
     const activeMethod = overrideMethod || selectedGatewayMethod;
@@ -278,108 +700,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setSelectedGatewayMethod(overrideMethod);
     }
 
-    // Form validation with immediate visible error feedback both at top and right above Pay button
-    if (!customerName.trim() || customerName.trim().length < 2) {
-      setErrorMessage('Please enter passenger Full Name (at least 2 characters) before proceeding to payment.');
-      const nameInput = document.getElementById('traveler-full-name');
-      if (nameInput) nameInput.focus();
-      return;
-    }
-    const cleanPhone = sanitize10DigitPhone(customerPhone);
-    if (!customerPhone.trim() || cleanPhone.length !== 10) {
-      setErrorMessage('Please enter a valid 10-digit mobile number without +91 (e.g. 9876543210).');
-      const phoneInput = document.getElementById('traveler-phone');
-      if (phoneInput) phoneInput.focus();
-      return;
-    }
-    if (!pickupAddress.trim()) {
-      setErrorMessage('Please enter your complete doorstep pickup address.');
-      const addrInput = document.getElementById('pickup-full-address');
-      if (addrInput) addrInput.focus();
+    // If user selected QR and we haven't tried the official standalone Dynamic QR API yet, run that first
+    if (activeMethod === 'qr' && !bypassStandaloneQr) {
+      await handleGenerateOfficialDynamicQr(false);
       return;
     }
 
-    if (!activeFare || activeFare.billedDistanceKm <= 0 || activeFare.totalFare <= 0) {
-      setErrorMessage('Route distance and fare validation failed. Please re-select your pickup and drop cities.');
-      return;
-    }
+    const cleanPhone = validatePassengerForm();
+    if (!cleanPhone) return;
 
     setErrorMessage('');
     setIsProcessing(true);
-    setProcessingStatus('Creating secure Razorpay order...');
+    setProcessingStatus('Verifying booking status & creating secure Razorpay order...');
 
-    const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
-    const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
-
-    const bookingId = await generateNextSequentialBookingId();
-    const boundedGeometry = Array.isArray(routeGeometry) ? routeGeometry.slice(0, 40) : undefined;
-    const fareSnapshot = buildBookingFareSnapshot(activeFare, routeProvider || 'ola_maps');
-
-    const bookingDraft: BookingRecord = {
-      id: bookingId,
-      tripType,
-      pickupCity,
-      dropCity,
-      pickupCoords: pickupCoords || undefined,
-      dropCoords: dropCoords || undefined,
-      routeProvider: routeProvider || 'ola_maps',
-      routeSummary: routeSummary || `${pickupCity} → ${dropCity} Highway`,
-      routeDurationText: routeDurationText || undefined,
-      routeGeometry: boundedGeometry,
-      fareSnapshot,
-      pickupAddress: pickupAddress.trim(),
-      landmark: landmark.trim() || undefined,
-      dropAddress: dropAddress.trim() || undefined,
-      pickupDate,
-      pickupTime,
-      returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
-      returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
-      tripDays: activeFare.daysCount || 1,
-      localPackage: tripType === 'local' ? localPackageId : undefined,
-      airportMode: tripType === 'airport' ? airportMode : undefined,
-      airportTerminal: airportTerminal.trim() || undefined,
-      cabId: cab.id,
-      cabName: `${cab.name} (${cab.models})`,
-      distanceKm: activeFare.billedDistanceKm,
-      baseFare: activeFare.baseFare + activeFare.addonsTotal,
-      driverAllowance: activeFare.driverAllowance,
-      tollsAndTaxes: activeFare.tollsAndTaxes,
-      highwayToll: includeTollsState ? activeFare.highwayToll : 0,
-      statePermitTax: includeTollsState ? activeFare.statePermitTax : 0,
-      hillStationCharge: activeFare.hillStationCharge || 0,
-      nightCharge: activeFare.nightCharges || 0,
-      gstAmount: activeFare.gstAmount,
-      discountAmount: activeFare.promoDiscount > 0 ? activeFare.promoDiscount : undefined,
-      promoCode: activeFare.promoCodeApplied || undefined,
-      totalFare: activeFare.totalFare,
-      advancePaid: payableNowAmount,
-      balanceDue: balanceDueAmount,
-      paymentMode,
-      paymentMethod:
-        paymentMode === 'advance_20'
-          ? `Razorpay ${methodLabel} (20% Advance)`
-          : `Razorpay ${methodLabel} (100% Full Fare)`,
-      transactionId: '',
-      customerName: customerName.trim(),
-      customerPhone: cleanPhone,
-      customerEmail: customerEmail.trim() || undefined,
-      customerGst: needGst ? gstNumber.trim().toUpperCase() : undefined,
-      gstCompanyName: needGst ? gstCompanyName.trim() : undefined,
-      status: 'confirmed',
-      createdAt: new Date().toISOString(),
-      notes:
-        [
-          specialNotes.trim(),
-          'PARKING EXTRA IF APPLICABLE',
-          activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
-          extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
-          addonCarrier ? 'Add-on: Roof Carrier' : '',
-          addonAssuredModel ? 'Add-on: Assured New Model' : '',
-          addonPet ? 'Add-on: Pet Travel' : ''
-        ]
-          .filter(Boolean)
-          .join(' | ') || undefined
-    };
+    const bookingId = await getOrReserveSessionBookingId();
+    const bookingDraft = buildCurrentBookingDraft(bookingId, activeMethod);
 
     // Save/update registered customer directory
     try {
@@ -398,6 +733,26 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         localStorage.setItem('safar_registered_customers', JSON.stringify(list));
       }
     } catch {}
+
+    // Before creating a new payment attempt, verify if an existing QR/Order was already paid
+    if (activeDynamicQr?.qrId || pendingVerification?.orderId || pendingVerification?.paymentId) {
+      const preCheck = await checkPaymentStatusOnServer({
+        bookingId,
+        qrId: activeDynamicQr?.qrId || pendingVerification?.qrId,
+        orderId: pendingVerification?.orderId,
+        paymentId: pendingVerification?.paymentId,
+        bookingDraft
+      });
+      if (preCheck.status === 'paid' && preCheck.verified && preCheck.booking) {
+        await finalizeVerifiedBookingSuccess(
+          preCheck.paymentId || preCheck.booking.transactionId,
+          bookingDraft,
+          preCheck.booking,
+          true
+        );
+        return;
+      }
+    }
 
     // Create server-side Razorpay Order, open Razorpay Standard Checkout, and verify payment on server
     await launchRazorpayStandardCheckout({
@@ -437,48 +792,23 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         verifiedBooking?: BookingRecord,
         serverNotificationsDispatched?: boolean
       ) => {
-        const finalConfirmedBooking: BookingRecord = verifiedBooking
-          ? {
-              ...bookingDraft,
-              ...verifiedBooking,
-              highwayToll: verifiedBooking.highwayToll ?? bookingDraft.highwayToll,
-              statePermitTax: verifiedBooking.statePermitTax ?? bookingDraft.statePermitTax,
-              hillStationCharge: verifiedBooking.hillStationCharge ?? bookingDraft.hillStationCharge,
-              nightCharge: verifiedBooking.nightCharge ?? bookingDraft.nightCharge,
-              tripDays: verifiedBooking.tripDays ?? bookingDraft.tripDays
-            }
-          : {
-              ...bookingDraft,
-              status: 'confirmed',
-              transactionId: paymentId,
-              paymentMethod:
-                paymentMode === 'advance_20'
-                  ? `Razorpay ${methodLabel} (${paymentId}) - 20% Advance`
-                  : `Razorpay ${methodLabel} (${paymentId}) - 100% Full Fare`
-            };
-
-        try {
-          await saveBookingToCloudDatabase(finalConfirmedBooking);
-        } catch (dbErr) {
-          console.warn('Cloud booking database persistence notice:', dbErr);
-        }
-
-        if (serverNotificationsDispatched) {
-          markBookingNotificationDispatched(finalConfirmedBooking.id);
-        } else {
-          try {
-            await sendDualBookingNotifications(finalConfirmedBooking);
-          } catch (smsError) {
-            console.warn('Traccar Cloud automated dual notification notice:', smsError);
-          }
-        }
-
+        await finalizeVerifiedBookingSuccess(
+          paymentId,
+          bookingDraft,
+          verifiedBooking,
+          serverNotificationsDispatched
+        );
+      },
+      onVerificationPending: (info) => {
         setIsProcessing(false);
-        onBookingSuccess(finalConfirmedBooking);
+        setPendingVerification(info);
+        setErrorMessage('');
       },
       onDismiss: () => {
         setIsProcessing(false);
-        setErrorMessage('Payment checkout window was closed before completing payment. Your booking is not yet confirmed.');
+        setErrorMessage(
+          'Payment checkout was closed before completing payment. Your booking is not yet confirmed — you can safely retry below.'
+        );
       },
       onError: (errMsg?: string) => {
         setIsProcessing(false);
@@ -1028,16 +1358,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* 3. Streamlined Two-Path Checkout: (A) Live Razorpay Dynamic UPI QR Code & (B) Native Installed UPI Apps */}
+          {/* 3. Official Razorpay Payment Methods: UPI Intent Apps, Official Dynamic UPI QR & Cards/Banking */}
           <div className="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 space-y-3.5">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-slate-800 flex items-center gap-1.5">
                 <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>Choose UPI QR or Installed UPI App (1-Tap):</span>
+                <span>Choose Payment Method (UPI App, Dynamic QR, or Cards):</span>
               </span>
               <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                 <CheckCircle className="w-3 h-3 text-emerald-600" />
-                <span>Verified Razorpay UPI &amp; QR</span>
+                <span>Official Razorpay Gateway</span>
               </span>
             </div>
 
@@ -1051,6 +1381,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     disabled={isProcessing}
                     onClick={() => {
                       setSelectedGatewayMethod(method.id);
+                      if (method.id !== 'qr' && activeDynamicQr) {
+                        closeDynamicQrOnServer({
+                          qrId: activeDynamicQr.qrId,
+                          bookingId: activeDynamicQr.bookingId,
+                          paymentMode
+                        }).catch(() => {});
+                        setActiveDynamicQr(null);
+                      }
                       handlePayAndConfirm(method.id);
                     }}
                     className={`px-3 py-2.5 rounded-xl text-left transition-all flex items-center justify-between gap-2 cursor-pointer active:scale-95 ${
@@ -1084,28 +1422,118 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               })}
             </div>
 
-            {/* Dedicated 1-Tap Live Razorpay Dynamic UPI QR Code Banner when 'qr' is selected */}
+            {/* Official Razorpay Dynamic UPI QR Code Panel */}
             {selectedGatewayMethod === 'qr' && (
-              <div className="bg-white border-2 border-amber-400 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
-                <div className="space-y-0.5 text-xs">
-                  <div className="font-black text-slate-950 flex items-center gap-1.5">
-                    <QrCode className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Official Razorpay Dynamic UPI QR Code ({formatINR(payableNowAmount)})</span>
+              <div className="bg-white border-2 border-amber-400 rounded-2xl p-4 shadow-xs space-y-3.5 animate-in fade-in">
+                {activeDynamicQr ? (
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className="w-full flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                      <div className="text-left">
+                        <div className="text-xs font-black text-slate-950 flex items-center gap-1.5">
+                          <QrCode className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Official Razorpay Dynamic UPI QR</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600">
+                          Locked Amount{' '}
+                          <strong className="text-slate-950">{formatINR(activeDynamicQr.amountInRupees)}</strong> · Booking ID{' '}
+                          <strong className="font-mono text-slate-950">{activeDynamicQr.bookingId}</strong>
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-100 border border-amber-300 text-amber-950 font-black text-xs font-mono">
+                        {formatINR(activeDynamicQr.amountInRupees)}
+                      </span>
+                    </div>
+
+                    {activeDynamicQr.status === 'active' ? (
+                      <>
+                        <div className="p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-xs inline-flex flex-col items-center">
+                          <img
+                            src={activeDynamicQr.imageUrl}
+                            alt={`Razorpay Dynamic UPI QR for ${activeDynamicQr.bookingId}`}
+                            className="w-52 h-52 sm:w-56 sm:h-56 object-contain rounded-lg"
+                            onError={() => {
+                              setActiveDynamicQr(null);
+                              handlePayAndConfirm('qr', true);
+                            }}
+                          />
+                          <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                            <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>
+                              Valid for {Math.floor(qrSecondsRemaining / 60)}:
+                              {String(qrSecondsRemaining % 60).padStart(2, '0')} · Auto-verifying payment...
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-600 max-w-md">
+                          Scan with <strong>Google Pay, PhonePe, Paytm, or BHIM</strong>. Your booking will confirm automatically as soon as payment succeeds.
+                        </p>
+
+                        <div className="flex flex-wrap items-center justify-center gap-2 w-full pt-1">
+                          <button
+                            type="button"
+                            disabled={isCheckingStatus}
+                            onClick={handleManualStatusCheck}
+                            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            {isCheckingStatus ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4" />
+                            )}
+                            <span>I Have Paid — Verify Status Now</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isProcessing}
+                            onClick={() => handlePayAndConfirm('qr', true)}
+                            className="px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>Open in Razorpay Checkout</span>
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-4 space-y-3">
+                        <div className="text-xs font-extrabold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
+                          This Dynamic QR Code has expired. Please generate a fresh QR code to pay.
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => handleGenerateOfficialDynamicQr(true)}
+                          className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs transition inline-flex items-center gap-2 cursor-pointer shadow-xs"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          <span>Generate Fresh Razorpay QR ({formatINR(payableNowAmount)})</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[11px] text-slate-600">
-                    Generates a verified single-use Razorpay Merchant QR for Booking ID{' '}
-                    <strong className="font-mono text-slate-900">{previewBookingId}</strong> — works with Paytm, PhonePe, Google Pay &amp; BHIM.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={() => handlePayAndConfirm('qr')}
-                  className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs transition flex items-center justify-center gap-2 cursor-pointer shrink-0 shadow-xs"
-                >
-                  <QrCode className="w-4 h-4 text-amber-400" />
-                  <span>Show Razorpay QR ({formatINR(payableNowAmount)})</span>
-                </button>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5 text-xs">
+                      <div className="font-black text-slate-950 flex items-center gap-1.5">
+                        <QrCode className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Official Razorpay Dynamic UPI QR Code ({formatINR(payableNowAmount)})</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Generates a verified single-use Razorpay Merchant QR for Booking ID{' '}
+                        <strong className="font-mono text-slate-900">{sessionBookingId}</strong> — works with Paytm, PhonePe, Google Pay &amp; BHIM.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() => handleGenerateOfficialDynamicQr(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs transition flex items-center justify-center gap-2 cursor-pointer shrink-0 shadow-xs"
+                    >
+                      <QrCode className="w-4 h-4 text-amber-400" />
+                      <span>Generate Razorpay QR ({formatINR(payableNowAmount)})</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1120,24 +1548,97 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Visible Status / Error Alert Directly Above the Pay Button */}
-          <div ref={bottomAlertRef}>
+          {/* Visible Status / Pending Verification / Error Alert Directly Above the Pay Button */}
+          <div ref={bottomAlertRef} className="space-y-2.5">
             {isProcessing && (
-              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-slate-900 text-xs flex items-center gap-2.5 font-bold shadow-2xs">
-                <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
-                <span>{processingStatus}</span>
+              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-slate-900 text-xs flex items-center justify-between gap-2.5 font-bold shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                  <span>{processingStatus}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProcessing(false);
+                    setErrorMessage('Payment attempt was reset. You can safely retry or verify status below.');
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-300 text-[11px] font-extrabold transition shrink-0 cursor-pointer"
+                >
+                  Cancel / Reset
+                </button>
+              </div>
+            )}
+
+            {!isProcessing && pendingVerification && (
+              <div className="p-3.5 bg-blue-50 border-2 border-blue-300 rounded-2xl text-blue-950 text-xs space-y-2.5 shadow-xs">
+                <div className="flex items-start gap-2.5">
+                  <Clock className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="font-extrabold text-blue-900">
+                      PAYMENT PROCESSING — VERIFY STATUS ({pendingVerification.bookingId})
+                    </div>
+                    <div className="leading-relaxed text-blue-800">{pendingVerification.message}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={isCheckingStatus}
+                    onClick={handleManualStatusCheck}
+                    className="px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-black text-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {isCheckingStatus ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    )}
+                    <span>Verify Payment Status Now</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePayAndConfirm()}
+                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-blue-300 font-bold text-xs transition cursor-pointer"
+                  >
+                    Retry Payment
+                  </button>
+                </div>
               </div>
             )}
 
             {!isProcessing && errorMessage && (
               <div
                 role="alert"
-                className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-900 text-xs flex items-start gap-2.5 font-bold shadow-xs"
+                className="p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-900 text-xs space-y-2.5 font-bold shadow-xs"
               >
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <div className="font-extrabold text-rose-800">Payment Action Notice</div>
-                  <div className="leading-relaxed">{errorMessage}</div>
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="font-extrabold text-rose-800">Payment Action Notice</div>
+                    <div className="leading-relaxed">{errorMessage}</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handlePayAndConfirm()}
+                    className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-extrabold text-[11px] transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Retry Payment ({formatINR(payableNowAmount)})</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isCheckingStatus}
+                    onClick={handleManualStatusCheck}
+                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-rose-300 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer"
+                  >
+                    {isCheckingStatus ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-3 h-3 text-emerald-600" />
+                    )}
+                    <span>Already Paid? Verify Status</span>
+                  </button>
                 </div>
               </div>
             )}

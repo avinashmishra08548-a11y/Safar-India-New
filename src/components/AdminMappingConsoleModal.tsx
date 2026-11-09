@@ -16,7 +16,9 @@ import {
   MessageSquare,
   User,
   Car,
-  MapPin
+  MapPin,
+  CreditCard,
+  QrCode
 } from 'lucide-react';
 import {
   AdminPricingConfig,
@@ -28,7 +30,7 @@ import {
   IntercityRouteBenchmarkRow,
   DEFAULT_ADMIN_PRICING_CONFIG
 } from '../utils/olaMapsService';
-import { BookingRecord, CabCategoryId } from '../types';
+import { BookingRecord, CabCategoryId, PaymentAuditLogRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { resolveItemizedInvoiceBreakup } from './BookingConfirmationModal';
 import {
@@ -36,7 +38,8 @@ import {
   searchBookingInFirestore,
   saveBookingToCloudDatabase,
   subscribeToBookingsFromCloudDatabase,
-  updateBookingDriverAndStatusInCloud
+  updateBookingDriverAndStatusInCloud,
+  fetchPaymentAuditLogsFromCloud
 } from '../lib/bookingDatabase';
 
 interface AdminMappingConsoleModalProps {
@@ -66,12 +69,19 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
   onUpsertBooking
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'bookings_bills' | 'pricing' | 'monitoring' | 'benchmark' | 'docs'
+    'bookings_bills' | 'payment_logs' | 'pricing' | 'monitoring' | 'benchmark' | 'docs'
   >('bookings_bills');
   const [pricingConfig, setPricingConfig] = useState<AdminPricingConfig>(() => getAdminPricingConfigSync());
   const [saveBanner, setSaveBanner] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingBookings, setIsSyncingBookings] = useState(false);
+
+  // Admin Payment Logs & Gateway Diagnostics State
+  const [paymentLogs, setPaymentLogs] = useState<PaymentAuditLogRecord[]>([]);
+  const [paymentDiagnostics, setPaymentDiagnostics] = useState<any>(null);
+  const [paymentLogSearch, setPaymentLogSearch] = useState('');
+  const [isLoadingPaymentLogs, setIsLoadingPaymentLogs] = useState(false);
+  const [isProbingGateway, setIsProbingGateway] = useState(false);
 
   // Custom GST Bill Generator State (Supports Round Trip Same Day 1D, 2D, 3D+, One-Way, Local)
   const [billForm, setBillForm] = useState({
@@ -176,11 +186,31 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
     }
   }, [selectedDetailBooking]);
 
+  const loadPaymentLogsAndDiagnostics = async (probe = false, searchOverride?: string) => {
+    if (probe) setIsProbingGateway(true);
+    else setIsLoadingPaymentLogs(true);
+
+    try {
+      const [gatewayRes, cloudLogs] = await Promise.all([
+        fetch(`/api/payment-gateway${probe ? '?probe=1' : ''}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        fetchPaymentAuditLogsFromCloud(searchOverride !== undefined ? searchOverride : paymentLogSearch)
+      ]);
+      if (gatewayRes?.diagnostics) {
+        setPaymentDiagnostics(gatewayRes.diagnostics);
+      }
+      setPaymentLogs(cloudLogs);
+    } finally {
+      setIsLoadingPaymentLogs(false);
+      setIsProbingGateway(false);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     syncAdminPricingFromServer().then((cfg) => setPricingConfig(cfg));
     loadMonitoring();
     loadBenchmark();
+    loadPaymentLogsAndDiagnostics(false);
 
     // Real-time Firestore listener while Admin Panel is open
     const unsubscribe = subscribeToBookingsFromCloudDatabase((liveCloud) => {
@@ -621,6 +651,22 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Live Bookings ({bookings.length}) &amp; GST Bill Generator</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('payment_logs');
+              loadPaymentLogsAndDiagnostics(false);
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'payment_logs'
+                ? 'bg-slate-900 text-amber-400 shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+            }`}
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Payment Logs &amp; Troubleshooting ({paymentLogs.length})</span>
           </button>
 
           <button
@@ -2023,6 +2069,269 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'payment_logs' && (
+            <div className="space-y-4">
+              {/* Live Razorpay Gateway Diagnostics Card */}
+              <div className="bg-[#0B0F19] text-white rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4" />
+                      <span>Razorpay Payment Gateway &amp; Dynamic QR Diagnostics</span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Real-time verification of Razorpay Orders API, Dynamic UPI QR API (`/v1/payments/qr_codes`), and Webhook HMAC security.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isProbingGateway}
+                      onClick={() => loadPaymentLogsAndDiagnostics(true)}
+                      className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isProbingGateway ? 'animate-spin' : ''}`} />
+                      <span>{isProbingGateway ? 'Probing Razorpay APIs...' : 'Run Live Gateway & QR Probe'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 text-xs">
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Key ID Preview</span>
+                    <span className="font-mono font-black text-white mt-0.5 block truncate">
+                      {paymentDiagnostics?.keyMaskedPreview || 'Not Set'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Environment Mode</span>
+                    <span
+                      className={`font-black mt-0.5 block uppercase ${
+                        paymentDiagnostics?.keyMode === 'live' ? 'text-emerald-400' : 'text-amber-400'
+                      }`}
+                    >
+                      {paymentDiagnostics?.keyMode || 'Unknown'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Key Secret (`RAZORPAY_KEY_SECRET`)</span>
+                    <span
+                      className={`font-black mt-0.5 block ${
+                        paymentDiagnostics?.hasKeySecret ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {paymentDiagnostics?.hasKeySecret ? '✓ Configured' : '✕ Missing'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Webhook Secret</span>
+                    <span
+                      className={`font-black mt-0.5 block ${
+                        paymentDiagnostics?.hasWebhookSecret ? 'text-emerald-400' : 'text-amber-400'
+                      }`}
+                    >
+                      {paymentDiagnostics?.hasWebhookSecret ? '✓ Configured' : 'API Polling Active'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Orders API (`/v1/orders`)</span>
+                    <span
+                      className={`font-black mt-0.5 block uppercase ${
+                        paymentDiagnostics?.gatewayAuthStatus === 'verified_ok'
+                          ? 'text-emerald-400'
+                          : paymentDiagnostics?.gatewayAuthStatus === 'auth_failed_401'
+                          ? 'text-rose-400'
+                          : 'text-amber-300'
+                      }`}
+                    >
+                      {paymentDiagnostics?.gatewayAuthStatus || 'Ready (Tap Probe)'}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Dynamic QR API (`/v1/payments/qr_codes`)</span>
+                    <span
+                      className={`font-black mt-0.5 block uppercase ${
+                        paymentDiagnostics?.qrApiStatus === 'supported_ok'
+                          ? 'text-emerald-400'
+                          : paymentDiagnostics?.qrApiStatus === 'feature_not_enabled'
+                          ? 'text-amber-400'
+                          : 'text-slate-300'
+                      }`}
+                    >
+                      {paymentDiagnostics?.qrApiStatus || 'Ready (Tap Probe)'}
+                    </span>
+                  </div>
+                </div>
+
+                {paymentDiagnostics?.gatewayStatusMessage && (
+                  <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-200 flex items-center gap-2">
+                    <QrCode className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>{paymentDiagnostics.gatewayStatusMessage}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Search & Filter Bar for Payment Audit Logs */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-black text-slate-900">
+                    Payment Audit Logs &amp; Transaction Troubleshooting
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Search by Booking ID (`SIC2604`), Razorpay Order ID (`order_...`), Payment ID (`pay_...`), QR ID (`qr_...`), or Customer Phone.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 sm:w-72">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={paymentLogSearch}
+                      onChange={(e) => {
+                        setPaymentLogSearch(e.target.value);
+                        loadPaymentLogsAndDiagnostics(false, e.target.value);
+                      }}
+                      placeholder="Search SIC2605, order_, pay_, qr_..."
+                      className="w-full bg-white border border-slate-300 rounded-xl pl-8 pr-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => loadPaymentLogsAndDiagnostics(false)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingPaymentLogs ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Comprehensive 14-Field Payment Audit Table */}
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-800 border-b border-slate-200">
+                      <th className="p-2.5 font-extrabold">Booking ID</th>
+                      <th className="p-2.5 font-extrabold">Customer Details</th>
+                      <th className="p-2.5 font-extrabold">Booking &amp; Advance</th>
+                      <th className="p-2.5 font-extrabold">Order ID / Payment ID / QR ID</th>
+                      <th className="p-2.5 font-extrabold">Method</th>
+                      <th className="p-2.5 font-extrabold">Status</th>
+                      <th className="p-2.5 font-extrabold">Retries &amp; Webhook</th>
+                      <th className="p-2.5 font-extrabold">Failure Reason / Gateway Response</th>
+                      <th className="p-2.5 font-extrabold">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paymentLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-8 text-center text-slate-500 font-semibold">
+                          No payment audit logs recorded yet in this session or matching your filter. Initiate a payment or QR code to view live gateway logs here.
+                        </td>
+                      </tr>
+                    ) : (
+                      paymentLogs.map((log) => {
+                        const statusBadge =
+                          log.paymentStatus === 'paid'
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : log.paymentStatus === 'failed' || log.paymentStatus === 'qr_expired'
+                            ? 'bg-rose-100 text-rose-900 border-rose-300'
+                            : log.paymentStatus === 'processing' || log.paymentStatus === 'qr_active'
+                            ? 'bg-blue-100 text-blue-900 border-blue-300'
+                            : 'bg-amber-100 text-amber-900 border-amber-300';
+
+                        return (
+                          <tr key={log.id} className="hover:bg-slate-50 align-top">
+                            <td className="p-2.5 font-mono font-black text-slate-950 whitespace-nowrap">
+                              {log.bookingId}
+                            </td>
+                            <td className="p-2.5">
+                              <div className="font-bold text-slate-900">{log.customerName || 'Guest'}</div>
+                              <div className="font-mono text-[11px] text-slate-500">{log.customerPhone || '—'}</div>
+                            </td>
+                            <td className="p-2.5 whitespace-nowrap">
+                              <div className="font-bold text-slate-900">
+                                Total: {formatINR(log.bookingAmount || log.totalBookingAmount || 0)}
+                              </div>
+                              <div className="text-[11px] font-extrabold text-amber-700">
+                                Payable: {formatINR(log.payableAmount || log.advanceAmount || 0)}
+                              </div>
+                            </td>
+                            <td className="p-2.5 font-mono text-[11px] space-y-0.5">
+                              <div>
+                                <span className="text-slate-400">ORD:</span>{' '}
+                                <span className="text-slate-800 font-bold">{log.razorpayOrderId || '—'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">PAY:</span>{' '}
+                                <span className="text-emerald-700 font-bold">{log.paymentId || log.razorpayPaymentId || '—'}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400">QR:</span>{' '}
+                                <span className="text-amber-700 font-bold">{log.qrId || '—'}</span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 font-bold uppercase text-[11px] text-slate-700">
+                              {log.paymentMethod || 'upi'}
+                            </td>
+                            <td className="p-2.5 whitespace-nowrap">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-md border font-black text-[10px] uppercase ${statusBadge}`}
+                              >
+                                {log.paymentStatus}
+                              </span>
+                            </td>
+                            <td className="p-2.5 whitespace-nowrap text-[11px]">
+                              <div className="font-bold text-slate-800">
+                                Retries: <span className="font-mono">{log.retryAttempts ?? 0}</span>
+                              </div>
+                              <div
+                                className={`font-bold ${
+                                  log.webhookVerified || log.webhookVerificationStatus === 'verified'
+                                    ? 'text-emerald-700'
+                                    : 'text-slate-500'
+                                }`}
+                              >
+                                {log.webhookVerified || log.webhookVerificationStatus === 'verified'
+                                  ? '✓ Webhook Verified'
+                                  : log.webhookVerificationStatus || 'API Verified'}
+                              </div>
+                            </td>
+                            <td className="p-2.5 max-w-xs">
+                              {log.failureReason && (
+                                <div className="text-rose-700 font-bold text-[11px] break-words">
+                                  {log.failureReason}
+                                </div>
+                              )}
+                              {(log.gatewayResponseSummary || log.gatewayResponse) && (
+                                <div className="text-slate-500 font-mono text-[10px] break-words mt-0.5">
+                                  {log.gatewayResponseSummary || log.gatewayResponse}
+                                </div>
+                              )}
+                              {!log.failureReason && !log.gatewayResponseSummary && !log.gatewayResponse && (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="p-2.5 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                              {new Date(log.timestamp).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

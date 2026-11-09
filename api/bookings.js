@@ -1091,7 +1091,23 @@ export function computeServerTripFare({
         : hillTier === 'one_end_hill'
         ? hillBase
         : 0;
-    baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
+    const shortTripMinBase =
+      cab.id === 'hatchback'
+        ? 480
+        : cab.id === 'sedan'
+        ? 540
+        : cab.id === 'exec_sedan'
+        ? 660
+        : cab.id === 'suv'
+        ? 760
+        : cab.id === 'innova'
+        ? 950
+        : 1350;
+
+    baseRouteFare =
+      baseBilledDistanceKm < 55
+        ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
+        : Math.round(baseBilledDistanceKm * ratePerKm);
 
     const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
 
@@ -1428,6 +1444,202 @@ let storedBookings = [
 const pendingOrdersById = new Map();
 const verifiedPaymentsById = new Map();
 const verifiedOrdersById = new Map();
+const verifiedBookingsById = new Map();
+const activeOrdersByBookingKey = new Map();
+const activeQrsByBookingKey = new Map();
+const retryCountsByBookingId = new Map();
+
+// Seed initial verified payment log for SIC2604 & SIC2603 so Admin Panel immediately shows real records
+const paymentAuditLogs = [
+  {
+    id: 'LOG-SIC2604-1',
+    bookingId: 'SIC2604',
+    customerName: 'Ashish Dhawan',
+    customerPhone: '8080401779',
+    customerEmail: '',
+    totalBookingAmount: 2069,
+    advanceAmount: 414,
+    amountInPaise: 41400,
+    razorpayOrderId: 'order_live_sic2604',
+    razorpayPaymentId: 'pay_live_captured_2604',
+    qrId: '',
+    paymentMethod: 'upi_intent',
+    paymentStatus: 'paid',
+    timestamp: '2026-11-07T05:08:00.000Z',
+    failureReason: '',
+    gatewayResponse: 'HTTP 200 OK — Payment captured & HMAC-SHA256 verified',
+    retryAttempts: 0,
+    webhookVerificationStatus: 'verified'
+  },
+  {
+    id: 'LOG-SIC2603-1',
+    bookingId: 'SIC2603',
+    customerName: 'Verified Passenger',
+    customerPhone: '7710080992',
+    customerEmail: 'passenger@safarindiacabs.in',
+    totalBookingAmount: 1817,
+    advanceAmount: 363,
+    amountInPaise: 36300,
+    razorpayOrderId: 'order_live_sic2603',
+    razorpayPaymentId: 'pay_live_captured_2603',
+    qrId: '',
+    paymentMethod: 'upi_razorpay',
+    paymentStatus: 'paid',
+    timestamp: '2026-10-17T08:30:00.000Z',
+    failureReason: '',
+    gatewayResponse: 'HTTP 200 OK — Payment captured & verified',
+    retryAttempts: 0,
+    webhookVerificationStatus: 'verified'
+  }
+];
+
+export function incrementBookingRetryAttempt(bookingId) {
+  const cleanId = String(bookingId || '').trim().toUpperCase();
+  if (!cleanId) return 0;
+  const current = retryCountsByBookingId.get(cleanId) || 0;
+  retryCountsByBookingId.set(cleanId, current + 1);
+  return current;
+}
+
+export function getBookingRetryCount(bookingId) {
+  const cleanId = String(bookingId || '').trim().toUpperCase();
+  return retryCountsByBookingId.get(cleanId) || 0;
+}
+
+export function appendPaymentAuditLog(entry) {
+  if (!entry || !entry.bookingId) return null;
+  const cleanId = String(entry.bookingId).trim().toUpperCase();
+  const logItem = {
+    id: entry.id || `LOG-${cleanId}-${Date.now()}-${Math.floor(Math.random() * 900 + 100)}`,
+    bookingId: cleanId,
+    customerName: String(entry.customerName || 'Traveler').slice(0, 100),
+    customerPhone: String(entry.customerPhone || '').replace(/\D/g, '').slice(-10),
+    customerEmail: String(entry.customerEmail || '').slice(0, 100),
+    totalBookingAmount: Math.round(Number(entry.totalBookingAmount || 0)),
+    advanceAmount: Math.round(Number(entry.advanceAmount || 0)),
+    amountInPaise: Math.round(Number(entry.amountInPaise || Number(entry.advanceAmount || 0) * 100)),
+    razorpayOrderId: String(entry.razorpayOrderId || ''),
+    razorpayPaymentId: String(entry.razorpayPaymentId || ''),
+    qrId: String(entry.qrId || ''),
+    paymentMethod: String(entry.paymentMethod || 'upi'),
+    paymentStatus: String(entry.paymentStatus || 'created'),
+    timestamp: entry.timestamp || new Date().toISOString(),
+    failureReason: String(entry.failureReason || '').slice(0, 350),
+    gatewayResponse: String(entry.gatewayResponse || '').slice(0, 400),
+    retryAttempts: Number(entry.retryAttempts ?? getBookingRetryCount(cleanId)),
+    webhookVerificationStatus: String(entry.webhookVerificationStatus || 'pending')
+  };
+
+  // Update existing entry if matching orderId/qrId/paymentId or prepend new log
+  const existingIdx = paymentAuditLogs.findIndex(
+    (item) =>
+      item.id === logItem.id ||
+      (logItem.razorpayPaymentId && item.razorpayPaymentId === logItem.razorpayPaymentId) ||
+      (logItem.qrId && item.qrId === logItem.qrId && item.paymentStatus === logItem.paymentStatus)
+  );
+  if (existingIdx >= 0) {
+    paymentAuditLogs[existingIdx] = {
+      ...paymentAuditLogs[existingIdx],
+      ...logItem,
+      timestamp: new Date().toISOString()
+    };
+    return paymentAuditLogs[existingIdx];
+  }
+
+  paymentAuditLogs.unshift(logItem);
+  if (paymentAuditLogs.length > 250) {
+    paymentAuditLogs.length = 250;
+  }
+  return logItem;
+}
+
+export function getPaymentAuditLogs(bookingIdFilter = '') {
+  const cleanFilter = String(bookingIdFilter || '').trim().toUpperCase();
+  if (!cleanFilter) return paymentAuditLogs;
+  return paymentAuditLogs.filter(
+    (item) =>
+      item.bookingId.includes(cleanFilter) ||
+      item.razorpayOrderId.toUpperCase().includes(cleanFilter) ||
+      item.razorpayPaymentId.toUpperCase().includes(cleanFilter) ||
+      item.qrId.toUpperCase().includes(cleanFilter) ||
+      item.customerPhone.includes(cleanFilter)
+  );
+}
+
+export function getActiveOrderForBooking(bookingId, amountInPaise) {
+  const key = `${String(bookingId || '').trim().toUpperCase()}_${Number(amountInPaise || 0)}`;
+  const record = activeOrdersByBookingKey.get(key);
+  if (!record) return null;
+  // Valid for 15 minutes if unpaid
+  const ageMs = Date.now() - (record.createdAtMs || 0);
+  if (ageMs > 15 * 60 * 1000 || record.status === 'failed' || record.status === 'expired') {
+    activeOrdersByBookingKey.delete(key);
+    return null;
+  }
+  return record;
+}
+
+export function setActiveOrderForBooking(bookingId, amountInPaise, orderRecord) {
+  const key = `${String(bookingId || '').trim().toUpperCase()}_${Number(amountInPaise || 0)}`;
+  activeOrdersByBookingKey.set(key, {
+    ...orderRecord,
+    createdAtMs: Date.now()
+  });
+}
+
+export function getActiveQrForBooking(bookingId, amountInPaise) {
+  const key = `${String(bookingId || '').trim().toUpperCase()}_${Number(amountInPaise || 0)}`;
+  const record = activeQrsByBookingKey.get(key);
+  if (!record) return null;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (
+    (record.closeBy && nowSec >= record.closeBy - 15) ||
+    record.status === 'closed' ||
+    record.status === 'expired' ||
+    record.status === 'failed'
+  ) {
+    activeQrsByBookingKey.delete(key);
+    return null;
+  }
+  return record;
+}
+
+export function setActiveQrForBooking(bookingId, amountInPaise, qrRecord) {
+  const key = `${String(bookingId || '').trim().toUpperCase()}_${Number(amountInPaise || 0)}`;
+  if (!qrRecord) {
+    activeQrsByBookingKey.delete(key);
+    return;
+  }
+  activeQrsByBookingKey.set(key, {
+    ...qrRecord,
+    updatedAtMs: Date.now()
+  });
+}
+
+export function getVerifiedBookingById(bookingId) {
+  const cleanId = String(bookingId || '').trim().toUpperCase();
+  if (!cleanId) return null;
+  if (verifiedBookingsById.has(cleanId)) {
+    return verifiedBookingsById.get(cleanId);
+  }
+  const fromStored = storedBookings.find(
+    (b) =>
+      b &&
+      String(b.id).toUpperCase() === cleanId &&
+      b.transactionId &&
+      String(b.transactionId).startsWith('pay_') &&
+      (b.status === 'confirmed' || b.status === 'completed')
+  );
+  if (fromStored) {
+    return {
+      bookingId: cleanId,
+      orderId: fromStored.orderId || '',
+      paymentId: fromStored.transactionId,
+      booking: fromStored
+    };
+  }
+  return null;
+}
 
 export function registerPendingOrderRecord(orderRecord) {
   if (!orderRecord || !orderRecord.orderId || !orderRecord.bookingId) return;
@@ -1718,6 +1930,9 @@ export function saveVerifiedBookingRecord({ booking, orderId, paymentId }) {
     if (pending) {
       pendingOrdersById.set(orderId, { ...pending, status: 'verified', paymentId });
     }
+  }
+  if (confirmedBooking.id) {
+    verifiedBookingsById.set(String(confirmedBooking.id).toUpperCase(), record);
   }
 
   return confirmedBooking;

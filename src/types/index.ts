@@ -126,3 +126,31 @@ export interface CityData {
   lat: number;
   lon: number;
 }
+
+export interface PaymentAuditLogRecord {
+  id: string;
+  bookingId: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  bookingAmount?: number;
+  totalBookingAmount?: number;
+  advanceAmount: number;
+  payableAmount?: number;
+  amountInPaise?: number;
+  razorpayOrderId: string;
+  paymentId?: string;
+  razorpayPaymentId?: string;
+  qrId?: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  timestamp: string;
+  failureReason?: string;
+  gatewayResponse?: string;
+  gatewayResponseSummary?: string;
+  retryAttempts: number;
+  webhookVerified?: boolean;
+  webhookVerificationStatus?: string;
+}
+
+

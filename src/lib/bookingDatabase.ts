@@ -13,10 +13,11 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
-import { BookingRecord } from '../types';
+import { BookingRecord, PaymentAuditLogRecord } from '../types';
 
 const COUNTER_STORAGE_KEY = 'safar_sic26_confirmed_seq_v2';
 const BOOKINGS_STORAGE_KEY = 'safar_bookings';
+const PAYMENT_LOGS_STORAGE_KEY = 'safar_payment_audit_logs_v1';
 const SERIES_YEAR_CODE = '26';
 const SERIES_PREFIX = `SIC${SERIES_YEAR_CODE}`; // 'SIC26'
 
@@ -772,3 +773,116 @@ export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]>
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 }
+
+/**
+ * Persists a PaymentAuditLogRecord to Firestore (`payment_logs/{id}`) and localStorage
+ */
+export async function savePaymentAuditLogToCloud(log: PaymentAuditLogRecord): Promise<void> {
+  if (!log || !log.id) return;
+
+  const cleanLog: PaymentAuditLogRecord = {
+    id: String(log.id).slice(0, 80),
+    bookingId: normalizeBookingIdInput(log.bookingId) || String(log.bookingId || 'PENDING').slice(0, 36),
+    customerName: String(log.customerName || 'Guest Passenger').slice(0, 110),
+    customerPhone: String(log.customerPhone || '').replace(/\D/g, '').slice(-10),
+    bookingAmount: Math.max(0, Math.round(Number(log.bookingAmount) || 0)),
+    advanceAmount: Math.max(0, Math.round(Number(log.advanceAmount) || 0)),
+    payableAmount: Math.max(0, Math.round(Number(log.payableAmount) || 0)),
+    razorpayOrderId: String(log.razorpayOrderId || '').slice(0, 80),
+    paymentId: String(log.paymentId || '').slice(0, 80),
+    qrId: String(log.qrId || '').slice(0, 80),
+    paymentMethod: String(log.paymentMethod || 'upi').slice(0, 60),
+    paymentStatus: log.paymentStatus || 'order_created',
+    timestamp: String(log.timestamp || new Date().toISOString()).slice(0, 60),
+    failureReason: String(log.failureReason || '').slice(0, 240),
+    gatewayResponseSummary: String(log.gatewayResponseSummary || '').slice(0, 280),
+    retryAttempts: Math.max(0, Math.round(Number(log.retryAttempts) || 0)),
+    webhookVerified: Boolean(log.webhookVerified)
+  };
+
+  try {
+    const raw = localStorage.getItem(PAYMENT_LOGS_STORAGE_KEY);
+    const list: PaymentAuditLogRecord[] = raw ? JSON.parse(raw) : [];
+    const safeList = Array.isArray(list) ? list : [];
+    const filtered = safeList.filter((item) => item && item.id !== cleanLog.id);
+    filtered.unshift(cleanLog);
+    localStorage.setItem(PAYMENT_LOGS_STORAGE_KEY, JSON.stringify(filtered.slice(0, 200)));
+  } catch {}
+
+  try {
+    await setDoc(doc(db, 'payment_logs', cleanLog.id), cleanLog as unknown as Record<string, unknown>, {
+      merge: true
+    });
+  } catch {}
+}
+
+/**
+ * Fetches Payment Audit Logs from `/api/payment-gateway`, Firestore (`payment_logs`), and localStorage
+ */
+export async function fetchPaymentAuditLogsFromCloud(
+  searchFilter?: string
+): Promise<PaymentAuditLogRecord[]> {
+  const logsMap = new Map<string, PaymentAuditLogRecord>();
+
+  const addLog = (item?: PaymentAuditLogRecord | null) => {
+    if (!item || !item.id) return;
+    logsMap.set(item.id, item);
+  };
+
+  // 1. Fetch from server `/api/payment-gateway`
+  try {
+    const res = await fetch('/api/payment-gateway');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.logs)) {
+        for (const item of data.logs as PaymentAuditLogRecord[]) {
+          addLog(item);
+        }
+      }
+    }
+  } catch {}
+
+  // 2. Fetch from Firestore `payment_logs`
+  try {
+    const q = query(collection(db, 'payment_logs'), orderBy('timestamp', 'desc'), limit(120));
+    const snap = await getDocs(q);
+    snap.forEach((d) => addLog(d.data() as unknown as PaymentAuditLogRecord));
+  } catch {}
+
+  // 3. Merge local storage payment logs
+  try {
+    const raw = localStorage.getItem(PAYMENT_LOGS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed as PaymentAuditLogRecord[]) {
+          if (!logsMap.has(item.id)) {
+            addLog(item);
+          }
+        }
+      }
+    }
+  } catch {}
+
+  let allLogs = Array.from(logsMap.values()).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+
+  if (searchFilter && searchFilter.trim()) {
+    const qLower = searchFilter.trim().toLowerCase();
+    const normId = normalizeBookingIdInput(searchFilter);
+    allLogs = allLogs.filter(
+      (l) =>
+        (l.bookingId && (l.bookingId.toLowerCase().includes(qLower) || l.bookingId === normId)) ||
+        (l.razorpayOrderId && l.razorpayOrderId.toLowerCase().includes(qLower)) ||
+        (l.paymentId && l.paymentId.toLowerCase().includes(qLower)) ||
+        (l.qrId && l.qrId.toLowerCase().includes(qLower)) ||
+        (l.customerPhone && l.customerPhone.toLowerCase().includes(qLower)) ||
+        (l.customerName && l.customerName.toLowerCase().includes(qLower)) ||
+        (l.paymentStatus && l.paymentStatus.toLowerCase().includes(qLower))
+    );
+  }
+
+  return allLogs;
+}
+

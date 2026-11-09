@@ -66,6 +66,14 @@ service cloud.firestore {
         isValidString(data.updatedAt, 4, 80);
     }
 
+    function isValidPaymentLogDoc(data) {
+      return data.keys().hasAll(['id', 'bookingId', 'paymentStatus', 'timestamp']) &&
+        isValidString(data.id, 3, 90) &&
+        isValidString(data.bookingId, 3, 40) &&
+        isValidString(data.paymentStatus, 2, 40) &&
+        isValidString(data.timestamp, 4, 80);
+    }
+
     // Bookings collection: Customers use custom WhatsApp OTP auth in SafarIndiaCabs,
     // so bookings are validated strictly by schema, booking ID format, and field bounds.
     match /bookings/{bookingId} {
@@ -82,6 +90,13 @@ service cloud.firestore {
       allow create: if isValidCounterDoc(request.resource.data);
       allow update: if isValidCounterDoc(request.resource.data) &&
                     request.resource.data.currentSequence >= resource.data.currentSequence;
+      allow delete: if false;
+    }
+
+    // Payment Audit Logs collection for Admin Payment Logs & Troubleshooting
+    match /payment_logs/{logId} {
+      allow get, list: if true;
+      allow create, update: if isValidPaymentLogDoc(request.resource.data);
       allow delete: if false;
     }
   }
