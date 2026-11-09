@@ -138,10 +138,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [gstNumber, setGstNumber] = useState(currentUser?.gstNumber || '');
   const [gstCompanyName, setGstCompanyName] = useState(currentUser?.companyName || '');
 
-  // SafarIndiaCabs Fare Mode: Include Toll + State Tax OR Toll + State Tax Extra (Alag Se) + Parking Extra If Applicable (Default Selected)
-  const [includeTollsState, setIncludeTollsState] = useState<boolean>(
-    tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0
-  );
+  // SafarIndiaCabs Fare Mode: Toll Tax, State Tax & Parking Extra (As Per Actuals) pre-filled & locked
+  const [includeTollsState, setIncludeTollsState] = useState<boolean>(false);
   const [extraKmState] = useState<number>(fareDetails.extraKm || 0);
   const [returnDateState, setReturnDateState] = useState<string>(returnDate || pickupDate);
   const [returnTimeState, setReturnTimeState] = useState<string>(returnTime || '06:00 PM');
@@ -205,7 +203,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       if (currentUser?.email) setCustomerEmail(currentUser.email);
       setPickupAddress(pickupCity || '');
       setDropAddress(dropCity || '');
-      setIncludeTollsState(tripType === 'local' ? false : fareDetails.tollsAndTaxes > 0);
+      setIncludeTollsState(false);
       setReturnDateState(returnDate || pickupDate);
       setReturnTimeState(returnTime || '06:00 PM');
       setErrorMessage('');
@@ -385,7 +383,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         notes:
           [
             specialNotes.trim(),
-            'PARKING EXTRA IF APPLICABLE',
+            'TOLL TAX, STATE TAX & PARKING EXTRA AS PER ACTUALS',
             activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
             extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
             addonCarrier ? 'Add-on: Roof Carrier' : '',
@@ -957,14 +955,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Transparent Itemized Fare & Real Counted Toll Breakdown */}
+          {/* Transparent Itemized Fare Breakdown */}
           <div className="bg-white rounded-xl border border-slate-200/90 p-3 space-y-1.5 text-[11px]">
             <div className="flex items-center justify-between font-extrabold text-slate-900 border-b border-slate-100 pb-1">
               <span>Transparent Itemized Fare Breakdown ({activeFare.billedDistanceKm} KM)</span>
               <span className="text-emerald-700 font-bold">
-                {activeFare.tollPlazaCount === 0
-                  ? '✓ 0 Toll Plazas on Route'
-                  : `${activeFare.tollPlazaCount} Counted Toll Plaza${activeFare.tollPlazaCount === 1 ? '' : 's'}`}
+                100% Honest Pricing
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1">
@@ -991,35 +987,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               {tripType !== 'local' && (
                 <>
                   <div className="flex justify-between text-slate-600">
-                    <span>
-                      Real Counted Highway Tolls ({activeFare.tollPlazaCount || 0} Plaza{activeFare.tollPlazaCount === 1 ? '' : 's'}):
-                    </span>
-                    <span
-                      className={`font-mono font-bold ${
-                        activeFare.highwayToll === 0 ? 'text-emerald-700' : 'text-slate-900'
-                      }`}
-                    >
-                      {activeFare.highwayToll === 0
-                        ? '0 Plazas · ₹0'
-                        : includeTollsState
-                        ? `${formatINR(activeFare.highwayToll)} (Included)`
-                        : `${formatINR(activeFare.highwayToll)} (Pay at Plaza)`}
+                    <span>Highway Toll Tax:</span>
+                    <span className="font-mono font-bold text-amber-800">
+                      Extra (As per actuals)
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>
-                      State Tax / Permit ({activeFare.isInterState ? activeFare.destState : 'Intra-State'}):
+                    <span>State Tax / Border Permit:</span>
+                    <span className="font-mono font-bold text-amber-800">
+                      Extra (If applicable)
                     </span>
-                    <span
-                      className={`font-mono font-bold ${
-                        activeFare.statePermitTax === 0 ? 'text-emerald-700' : 'text-slate-900'
-                      }`}
-                    >
-                      {activeFare.statePermitTax === 0
-                        ? '₹0 (Same State)'
-                        : includeTollsState
-                        ? `${formatINR(activeFare.statePermitTax)} (Included)`
-                        : `${formatINR(activeFare.statePermitTax)} (Extra)`}
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Parking Charges:</span>
+                    <span className="font-mono font-bold text-amber-800">
+                      Extra (If applicable)
                     </span>
                   </div>
                 </>
@@ -1035,12 +1017,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </div>
               )}
             </div>
-            {activeFare.tollPlazaCount > 0 && activeFare.tollPlazas?.length > 0 && (
-              <div className="pt-1 border-t border-slate-100 text-[10px] text-slate-500">
-                <span className="font-bold text-slate-700">Counted NHAI Plazas on Route:</span>{' '}
-                {activeFare.tollPlazas.join(' → ')}
-              </div>
-            )}
           </div>
 
           {/* Promo Code Input Field & 'Apply' Button on Booking Summary */}
@@ -1110,38 +1086,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             )}
           </div>
 
-          {/* Fare Mode Selector + Parking Extra If Applicable (Default Selected) */}
+          {/* Pre-filled Toll, State Tax & Parking Extra Notice */}
           {tripType !== 'local' && (
-            <div className="pt-2.5 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px]">
-              <span className="font-bold text-slate-700">Select Fare Mode:</span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIncludeTollsState(true)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
-                    includeTollsState
-                      ? 'bg-[#F59E0B] text-slate-950 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-950'
-                  }`}
-                >
-                  <CheckCircle className="w-3 h-3 shrink-0" />
-                  <span>Include Toll</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIncludeTollsState(false)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold transition flex items-center justify-center gap-1 cursor-pointer ${
-                    !includeTollsState
-                      ? 'bg-slate-900 text-white shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-950'
-                  }`}
-                >
-                  <span>Toll Extra (Alag Se)</span>
-                </button>
-                <div className="px-3 py-1.5 rounded-lg text-[11px] font-extrabold bg-emerald-50 text-emerald-900 border border-emerald-200 flex items-center justify-center gap-1 select-none">
-                  <CheckCircle className="w-3 h-3 text-emerald-600 shrink-0" />
-                  <span>PARKING EXTRA IF APPLICABLE</span>
-                </div>
+            <div className="pt-2.5 border-t border-slate-200/80 flex items-center justify-between gap-2 text-[11px]">
+              <div className="w-full px-3.5 py-2 rounded-xl text-[11px] font-extrabold bg-emerald-50 text-emerald-950 border border-emerald-200 flex items-center justify-between gap-2 select-none">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>TOLL TAX, STATE TAX &amp; PARKING EXTRA (IF APPLICABLE)</span>
+                </span>
+                <span className="text-emerald-800 font-bold whitespace-nowrap">As Per Actuals</span>
               </div>
             </div>
           )}
@@ -1324,32 +1277,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
               {tripType !== 'local' && (
-                <div
-                  onClick={() => setIncludeTollsState(!includeTollsState)}
-                  className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition ${
-                    includeTollsState
-                      ? 'border-emerald-200 bg-emerald-50/70'
-                      : 'border-amber-200 bg-amber-50/70'
-                  }`}
-                >
-                  <span className={`font-bold ${includeTollsState ? 'text-emerald-950' : 'text-amber-950'}`}>
-                    {includeTollsState
-                      ? '✓ Best Price (Toll + State Tax Included)'
-                      : '• Base Fare (Toll + State Tax Extra)'}
+                <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/80 select-none sm:col-span-2">
+                  <span className="flex items-center gap-2">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="font-extrabold text-emerald-950">
+                      TOLL TAX, STATE TAX &amp; PARKING EXTRA (IF APPLICABLE)
+                    </span>
                   </span>
-                  <span className={`font-bold text-[11px] ${includeTollsState ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {includeTollsState ? 'Included ✓' : 'Alag Se'}
-                  </span>
+                  <span className="font-bold text-[11px] text-emerald-700 whitespace-nowrap">As Per Actuals</span>
                 </div>
               )}
-
-              <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/80 select-none">
-                <span className="flex items-center gap-2">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="font-extrabold text-emerald-950">PARKING EXTRA IF APPLICABLE</span>
-                </span>
-                <span className="font-bold text-[11px] text-emerald-700">As Per Actuals</span>
-              </div>
 
               <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:border-amber-400 transition">
                 <span className="flex items-center gap-2">

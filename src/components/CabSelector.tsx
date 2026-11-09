@@ -85,8 +85,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Pre-filled by default (non-toggleable): PARKING EXTRA IF APPLICABLE = true
+  // Pre-filled by default (non-toggleable): TOLL TAX, STATE TAX & PARKING EXTRA (AS PER ACTUALS)
   useEffect(() => {
+    setIncludeTolls(false);
     setExternalParkingExtra?.(true);
   }, []);
 
@@ -338,34 +339,11 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           )}
 
           {tripType !== 'local' && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-1.5 flex flex-wrap items-center gap-1.5 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => setIncludeTolls(true)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-                  includeTolls
-                    ? 'bg-amber-400 text-slate-950 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Include Toll</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIncludeTolls(false)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                  !includeTolls
-                    ? 'bg-slate-900 text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Toll Extra
-              </button>
-              <div className="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-emerald-50 text-emerald-900 border border-emerald-200 flex items-center gap-1.5 whitespace-nowrap select-none">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>PARKING EXTRA IF APPLICABLE</span>
-              </div>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 flex items-center gap-2 shadow-2xs select-none">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="text-xs font-extrabold text-emerald-950 tracking-wide">
+                TOLL TAX, STATE TAX &amp; PARKING EXTRA (AS PER ACTUALS)
+              </span>
             </div>
           )}
         </div>
@@ -442,7 +420,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               : 'Outstation & One-Way Routes'}
           </h3>
           <p className="text-xs text-slate-300">
-            100% Transparent Billing: Base Fare, Driver Allowance (DA), {sampleFare.billedDistanceKm} KM, State Permit &amp; 5% GST shown upfront. Zero hidden charges.
+            100% Transparent Billing: Base Fare, Driver Allowance (DA), {sampleFare.billedDistanceKm} KM &amp; 5% GST shown upfront. Toll Tax, State Tax &amp; Parking Extra as per actuals.
           </p>
         </div>
 
@@ -475,8 +453,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
       {/* Spacious Cab Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {computedFleetFares.map(({ cab, fareWithToll, fareWithoutToll }) => {
-          const activeFare = includeTolls ? fareWithToll : fareWithoutToll;
+        {computedFleetFares.map(({ cab, fareWithoutToll }) => {
+          const activeFare = fareWithoutToll;
 
           return (
             <div
@@ -576,41 +554,21 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   {tripType !== 'local' && (
                     <>
                       <div className="flex justify-between text-slate-600">
-                        <span>
-                          Real Counted Highway Tolls ({activeFare.tollPlazaCount || 0} Plaza{activeFare.tollPlazaCount === 1 ? '' : 's'}):
-                        </span>
-                        <span
-                          className={`font-mono font-bold ${
-                            activeFare.highwayToll === 0 ? 'text-emerald-700' : 'text-slate-900'
-                          }`}
-                        >
-                          {activeFare.highwayToll === 0
-                            ? '0 Plazas · ₹0'
-                            : includeTolls
-                            ? `₹${activeFare.highwayToll.toLocaleString('en-IN')} (Included)`
-                            : `₹${activeFare.highwayToll.toLocaleString('en-IN')} (Extra)`}
+                        <span>Highway Toll Tax:</span>
+                        <span className="font-mono font-bold text-amber-800">
+                          Extra (As per actuals)
                         </span>
                       </div>
-                      {activeFare.tollPlazaCount > 0 && activeFare.tollPlazas?.length > 0 && (
-                        <div className="text-[10px] text-slate-500 pl-2 border-l-2 border-amber-300 leading-tight">
-                          Plazas: {activeFare.tollPlazas.slice(0, 4).join(' → ')}
-                          {activeFare.tollPlazas.length > 4 ? ` +${activeFare.tollPlazas.length - 4} more` : ''}
-                        </div>
-                      )}
                       <div className="flex justify-between text-slate-600">
-                        <span>
-                          State Tax / Border Permit ({activeFare.isInterState ? activeFare.destState : 'Intra-State'}):
+                        <span>State Tax / Border Permit:</span>
+                        <span className="font-mono font-bold text-amber-800">
+                          Extra (If applicable)
                         </span>
-                        <span
-                          className={`font-mono font-bold ${
-                            activeFare.statePermitTax === 0 ? 'text-emerald-700' : 'text-slate-900'
-                          }`}
-                        >
-                          {activeFare.statePermitTax === 0
-                            ? '₹0 (Same State)'
-                            : includeTolls
-                            ? `₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Included)`
-                            : `₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Extra)`}
+                      </div>
+                      <div className="flex justify-between text-slate-600">
+                        <span>Parking Charges:</span>
+                        <span className="font-mono font-bold text-amber-800">
+                          Extra (If applicable)
                         </span>
                       </div>
                     </>
@@ -637,66 +595,14 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
                 {/* Clean Fare Selector with Parking Extra If Applicable (Default Selected) */}
                 {tripType !== 'local' ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setIncludeTolls(true)}
-                        className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-                          includeTolls
-                            ? 'bg-amber-50/80 border-amber-500 ring-1 ring-amber-400/50'
-                            : 'bg-slate-50/60 border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="text-[11px] font-bold text-slate-700">Include Toll</span>
-                          {includeTolls && <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
-                        </div>
-                        <div className="text-base font-black text-slate-950 font-mono tabular-nums">
-                          ₹{fareWithToll.totalFare.toLocaleString('en-IN')}
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                          {fareWithToll.estimatedTollsAndTaxes === 0
-                            ? '₹0 Toll on Route (Same Fare)'
-                            : 'Toll & State Tax Included'}
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIncludeTolls(false)}
-                        className={`p-3 rounded-xl border text-left transition cursor-pointer ${
-                          !includeTolls
-                            ? 'bg-slate-900 border-slate-900 text-white'
-                            : 'bg-slate-50/60 border-slate-200 hover:border-slate-300 text-slate-900'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className={`text-[11px] font-bold ${!includeTolls ? 'text-amber-400' : 'text-slate-700'}`}>
-                            Toll Extra
-                          </span>
-                          {!includeTolls && <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
-                        </div>
-                        <div className={`text-base font-black font-mono tabular-nums ${!includeTolls ? 'text-white' : 'text-slate-950'}`}>
-                          ₹{fareWithoutToll.totalFare.toLocaleString('en-IN')}
-                        </div>
-                        <div className={`text-[10px] font-medium mt-0.5 ${!includeTolls ? 'text-slate-300' : 'text-slate-500'}`}>
-                          {fareWithToll.estimatedTollsAndTaxes === 0
-                            ? '₹0 Toll on Route'
-                            : 'Toll & State Tax Extra'}
-                        </div>
-                      </button>
-                    </div>
-
-                    <div className="w-full px-3 py-2 rounded-xl border bg-emerald-50/80 border-emerald-200 text-emerald-950 flex items-center justify-between gap-2 select-none">
-                      <span className="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wide">
-                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                        <span>PARKING EXTRA IF APPLICABLE</span>
-                      </span>
-                      <span className="text-[10px] font-bold text-emerald-800">
-                        As Per Actuals
-                      </span>
-                    </div>
+                  <div className="w-full px-3.5 py-2.5 rounded-xl border bg-emerald-50/90 border-emerald-200 text-emerald-950 flex items-center justify-between gap-2 select-none">
+                    <span className="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wide">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <span>TOLL TAX, STATE TAX &amp; PARKING EXTRA</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-800 whitespace-nowrap">
+                      As Per Actuals
+                    </span>
                   </div>
                 ) : (
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">

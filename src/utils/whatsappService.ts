@@ -193,7 +193,7 @@ export function formatWhatsAppBookingConfirmationMessage(params: {
     `💵 FARE & PAYMENT BREAKUP`,
     `• Total Fare: ₹${totalStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Parking Extra If Applicable)`,
+    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll, State Tax & Parking Extra)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
     `• Helpline: +91-7710080992`,
@@ -409,7 +409,7 @@ export class WhatsAppService {
         formattedCab,
         `${formatWhatsAppAmount(fare)}/-`,
         `${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
-        `${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Parking Extra If Applicable)`
+        `${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll, State Tax & Parking Extra)`
       ],
       backups: [
         {
@@ -426,7 +426,7 @@ export class WhatsAppService {
           params: [
             customerName,
             cleanId,
-            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Parking Extra If Applicable)`
+            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll, State Tax & Parking Extra)`
           ]
         }
       ]
@@ -467,9 +467,9 @@ export class WhatsAppService {
       `• Cab Category: ${formattedCab}`,
       `└──────────────────────────┘`,
       `💵 FARE & PAYMENT BREAKUP`,
-      `• Total Fare: ₹${formatWhatsAppAmount(details?.totalFare ?? 0)}/- (All Inclusive)`,
+      `• Total Fare: ₹${formatWhatsAppAmount(details?.totalFare ?? 0)}/-`,
       `• Advance Paid: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
-      `• Balance Payable: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/-`,
+      `• Balance Payable: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll, State Tax & Parking Extra)`,
       ``,
       `⚡ Please assign a driver from the Owner Panel.`
     ].join('\n');

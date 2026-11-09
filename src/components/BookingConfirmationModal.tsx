@@ -447,14 +447,14 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
       value:
         breakup.highwayToll > 0
           ? `INR ${breakup.highwayToll.toLocaleString('en-IN')}.00`
-          : 'INR 0.00 (As Applicable)'
+          : 'Extra (As Per Actuals)'
     },
     {
       label: '4. State Border Entry Permit Tax',
       value:
         breakup.statePermitTax > 0
           ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00`
-          : 'INR 0.00 (Included)'
+          : 'Extra (As Per Actuals)'
     },
     ...(breakup.hillStationCharge > 0
       ? [
@@ -980,7 +980,7 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
       value:
         breakup.highwayToll > 0
           ? `INR ${breakup.highwayToll.toLocaleString('en-IN')}.00`
-          : 'INR 0.00 (As Applicable)',
+          : 'Extra (As Per Actuals)',
       bold: false
     },
     {
@@ -988,7 +988,7 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
       value:
         breakup.statePermitTax > 0
           ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00`
-          : 'INR 0.00 (Included)',
+          : 'Extra (As Per Actuals)',
       bold: false
     },
     ...(breakup.hillStationCharge > 0
@@ -1131,7 +1131,7 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
   ctx.fillStyle = '#475569';
   ctx.font = '13px Arial, sans-serif';
   ctx.fillText('1. Certified that particulars given above are true & correct.', margin + 16, y + 55);
-  ctx.fillText('2. Extra KM/Hour or parking if applicable as per tariff.', margin + 16, y + 78);
+  ctx.fillText('2. Toll Tax, State Tax & Parking are extra as per actuals.', margin + 16, y + 78);
   ctx.fillText('3. Subject to North Delhi Jurisdiction only.', margin + 16, y + 101);
   ctx.fillText('4. 24x7 Helpline: +91 7710080992 | Safarindiacabs01@gmail.com', margin + 16, y + 124);
   ctx.fillStyle = '#0F172A';
@@ -1926,19 +1926,26 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
 
                 <div className="flex justify-between items-center text-slate-700">
                   <span>3. Highway FASTag Toll Tax:</span>
-                  <span className="font-mono font-bold text-slate-900">
+                  <span className="font-mono font-bold text-amber-800">
                     {itemizedBreakup.highwayToll > 0
                       ? `${formatINR(itemizedBreakup.highwayToll)} (Included)`
-                      : '₹0 (As Applicable)'}
+                      : 'Extra (As Per Actuals)'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-slate-700">
                   <span>4. State Border Entry Permit Tax:</span>
-                  <span className="font-mono font-bold text-slate-900">
+                  <span className="font-mono font-bold text-amber-800">
                     {itemizedBreakup.statePermitTax > 0
                       ? `${formatINR(itemizedBreakup.statePermitTax)} (Included)`
-                      : '₹0 (Included)'}
+                      : 'Extra (As Per Actuals)'}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-slate-700">
+                  <span>5. Parking Charges:</span>
+                  <span className="font-mono font-bold text-amber-800">
+                    Extra (If Applicable)
                   </span>
                 </div>
 

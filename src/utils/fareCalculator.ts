@@ -2280,8 +2280,12 @@ export function computeTripFare(params: {
     tollPlazas = [];
   }
 
+  // Toll Tax, State Tax & Parking are ALWAYS extra as per actuals in customer online booking fares
+  const effectiveIncludeTolls = false;
   const estimatedTollsAndTaxes = highwayToll + statePermitTax;
-  const tollsAndTaxes = includeTolls ? estimatedTollsAndTaxes : 0;
+  const tollsAndTaxes = effectiveIncludeTolls ? estimatedTollsAndTaxes : 0;
+  highwayToll = 0;
+  statePermitTax = 0;
 
   // Optional SafarIndiaCabs Add-Ons
   const carrierFee = addonCarrier ? 250 : 0;

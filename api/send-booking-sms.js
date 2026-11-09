@@ -712,9 +712,9 @@ export async function dispatchBookingConfirmationNotifications(booking) {
   const pickupCity = booking.pickupCity || booking.pickup || 'Pickup';
   const dropCity = booking.dropCity || booking.drop || 'Drop';
 
-  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${cleanId}\nRoute: ${pickupCity} to ${dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFareStr}/-\nAdvance Paid: ₹${advanceStr}/-\nBalance Payable: ₹${balanceStr}/- (Parking Extra If Applicable)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
+  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${cleanId}\nRoute: ${pickupCity} to ${dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFareStr}/-\nAdvance Paid: ₹${advanceStr}/-\nBalance Payable: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
 
-  const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${pickupCity} -> ${dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advanceStr}/-\nBalance Due: ₹${balanceStr}/- (Parking Extra If Applicable)`;
+  const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${pickupCity} -> ${dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advanceStr}/-\nBalance Due: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)`;
 
   const waCustomerMessage = [
     `🚗 SAFARINDIACABS | BOOKING CONFIRMATION`,
@@ -733,7 +733,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
     `💵 FARE & PAYMENT BREAKUP`,
     `• Total Fare: ₹${totalFareStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Parking Extra If Applicable)`,
+    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll, State Tax & Parking Extra)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
     `• Helpline: +91-7710080992`,
@@ -758,7 +758,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
     `💵 FARE & PAYMENT BREAKUP`,
     `• Total Fare: ₹${totalFareStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Parking Extra If Applicable)`,
+    `• Balance Payable: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)`,
     ``,
     `⚡ Please assign a driver from the Owner Panel.`
   ].join('\n');
@@ -777,7 +777,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
       cabClass,
       `${totalFareStr}/-`,
       `${advanceStr}/-`,
-      `${balanceStr}/- (Parking Extra If Applicable)`
+      `${balanceStr}/- (Toll, State Tax & Parking Extra)`
     ],
     backups: [
       {
@@ -794,7 +794,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
         params: [
           customerName,
           cleanId,
-          `BOOKING CONFIRMED - Route: ${pickupCity} to ${dropCity} (${travelDateTime}) | Cab: ${cabClass} | Total: Rs.${totalFareStr}/- | Advance Paid: Rs.${advanceStr}/- | Balance: Rs.${balanceStr}/- (Parking Extra If Applicable)`
+          `BOOKING CONFIRMED - Route: ${pickupCity} to ${dropCity} (${travelDateTime}) | Cab: ${cabClass} | Total: Rs.${totalFareStr}/- | Advance Paid: Rs.${advanceStr}/- | Balance: Rs.${balanceStr}/- (Toll, State Tax & Parking Extra)`
         ]
       },
       {
@@ -824,7 +824,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
       cabClass,
       totalFareStr,
       advanceStr,
-      `${balanceStr} (Parking Extra If Applicable)`
+      `${balanceStr} (Toll, State Tax & Parking Extra)`
     ],
     backups: [
       {

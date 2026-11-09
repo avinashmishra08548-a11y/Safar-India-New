@@ -868,7 +868,7 @@ export async function launchRazorpayStandardCheckout(
     const pickupDateRaw =
       checkoutParams.pickupDateRaw || new Date().toISOString().split('T')[0];
     const pickupTimeRaw = checkoutParams.pickupTimeRaw || '08:00 AM';
-    const includeTolls = checkoutParams.includeTolls ?? true;
+    const includeTolls = false;
     const totalFareRupees =
       checkoutParams.totalFareRupees ??
       (checkoutParams.paymentMode === 'full'

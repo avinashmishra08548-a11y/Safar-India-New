@@ -1363,8 +1363,11 @@ export function computeServerTripFare({
     tollPlazas = tollInfo.tollPlazas || [];
   }
 
+  const effectiveIncludeTolls = false;
   const estimatedTollsAndTaxes = highwayToll + statePermitTax;
-  const tollsAndTaxes = includeTolls ? estimatedTollsAndTaxes : 0;
+  const tollsAndTaxes = effectiveIncludeTolls ? estimatedTollsAndTaxes : 0;
+  highwayToll = 0;
+  statePermitTax = 0;
 
   const carrierFee = addonCarrier ? 250 : 0;
   const petFee = addonPet
@@ -2407,11 +2410,11 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     },
     {
       label: '3. Highway FASTag Toll Tax',
-      value: highwayToll > 0 ? `INR ${highwayToll.toLocaleString('en-IN')}.00` : 'INR 0.00 (No Toll / Extra if Applicable)'
+      value: highwayToll > 0 ? `INR ${highwayToll.toLocaleString('en-IN')}.00` : 'Extra (As Per Actuals)'
     },
     {
       label: '4. State Border Entry Permit Tax',
-      value: statePermitTax > 0 ? `INR ${statePermitTax.toLocaleString('en-IN')}.00` : 'INR 0.00 (Included)'
+      value: statePermitTax > 0 ? `INR ${statePermitTax.toLocaleString('en-IN')}.00` : 'Extra (As Per Actuals)'
     },
     ...(hillStationCharge > 0
       ? [
@@ -2548,7 +2551,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.setFontSize(6.8);
   doc.setTextColor(71, 85, 105);
   doc.text('1. Certified that particulars given above are true & correct.', margin + 3.5, y + 11);
-  doc.text('2. Extra KM/Hour or parking if applicable as per tariff.', margin + 3.5, y + 15.2);
+  doc.text('2. Toll Tax, State Tax & Parking are extra as per actuals.', margin + 3.5, y + 15.2);
   doc.text('3. Subject to North Delhi Jurisdiction only.', margin + 3.5, y + 19.4);
   doc.text('4. 24x7 Helpline: +91 7710080992 | Safarindiacabs01@gmail.com', margin + 3.5, y + 23.6);
   doc.setFont('helvetica', 'bold');
