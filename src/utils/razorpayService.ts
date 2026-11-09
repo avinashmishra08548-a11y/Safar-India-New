@@ -94,29 +94,74 @@ export const UPI_PACKAGE_MAP: Record<string, { razorpayCode: string; packageName
   }
 };
 
+const DESKTOP_QR_USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
 /**
- * Normalizes Android WebView User-Agent before Razorpay checkout.js initializes.
- * Razorpay's web script hides UPI Intent apps when it sees "; wv" or "Version/4.0" in navigator.userAgent.
+ * Normalizes Android WebView User-Agent before Razorpay checkout.js initializes,
+ * or switches to Desktop User-Agent mode when `forQrMode === true` so Razorpay's checkout.js
+ * renders the official live Razorpay Dynamic UPI QR Code even on mobile phones!
  */
-export function ensureAndroidWebViewUpiSupport(): void {
+export function ensureAndroidWebViewUpiSupport(forQrMode = false): void {
   if (typeof window === 'undefined' || !window.navigator) return;
   try {
-    const ua = window.navigator.userAgent || '';
-    if (/Android/i.test(ua) && (/;\s*wv\b/i.test(ua) || /\bwv\)/i.test(ua) || /Version\/\d+\.\d+/i.test(ua))) {
-      const cleanUa = ua
-        .replace(/;\s*wv\)/gi, ')')
-        .replace(/;\s*wv;/gi, ';')
-        .replace(/\bwv\b/gi, '')
-        .replace(/Version\/\d+\.\d+\s*/gi, '');
+    const win = window as any;
+    if (!win.__SAFAR_ORIGINAL_UA__) {
+      win.__SAFAR_ORIGINAL_UA__ = window.navigator.userAgent || '';
+      win.__SAFAR_ORIGINAL_PLATFORM__ = window.navigator.platform || '';
+      win.__SAFAR_ORIGINAL_TOUCH__ = window.navigator.maxTouchPoints ?? 0;
+    }
+
+    const origUa: string = win.__SAFAR_ORIGINAL_UA__;
+    const cleanMobileUa = origUa
+      .replace(/;\s*wv\)/gi, ')')
+      .replace(/;\s*wv;/gi, ';')
+      .replace(/\bwv\b/gi, '')
+      .replace(/Version\/\d+\.\d+\s*/gi, '');
+
+    if (forQrMode) {
       Object.defineProperty(window.navigator, 'userAgent', {
-        get: () => cleanUa,
+        get: () => DESKTOP_QR_USER_AGENT,
         configurable: true
       });
       Object.defineProperty(window.navigator, 'appVersion', {
-        get: () => cleanUa.replace(/^Mozilla\//i, ''),
+        get: () => DESKTOP_QR_USER_AGENT.replace(/^Mozilla\//i, ''),
         configurable: true
       });
-      (window as any).__SAFAR_ANDROID_WEBVIEW__ = true;
+      Object.defineProperty(window.navigator, 'platform', {
+        get: () => 'Win32',
+        configurable: true
+      });
+      Object.defineProperty(window.navigator, 'maxTouchPoints', {
+        get: () => 0,
+        configurable: true
+      });
+      return;
+    }
+
+    // Restore mobile UA (with WebView token stripped so UPI Intent works in Android WebView & Chrome)
+    Object.defineProperty(window.navigator, 'userAgent', {
+      get: () => cleanMobileUa,
+      configurable: true
+    });
+    Object.defineProperty(window.navigator, 'appVersion', {
+      get: () => cleanMobileUa.replace(/^Mozilla\//i, ''),
+      configurable: true
+    });
+    if (win.__SAFAR_ORIGINAL_PLATFORM__ !== undefined) {
+      Object.defineProperty(window.navigator, 'platform', {
+        get: () => win.__SAFAR_ORIGINAL_PLATFORM__,
+        configurable: true
+      });
+    }
+    if (win.__SAFAR_ORIGINAL_TOUCH__ !== undefined) {
+      Object.defineProperty(window.navigator, 'maxTouchPoints', {
+        get: () => win.__SAFAR_ORIGINAL_TOUCH__,
+        configurable: true
+      });
+    }
+    if (/Android/i.test(origUa) && (/;\s*wv\b/i.test(origUa) || /\bwv\)/i.test(origUa) || /Version\/\d+\.\d+/i.test(origUa))) {
+      win.__SAFAR_ANDROID_WEBVIEW__ = true;
     }
   } catch {}
 }
@@ -176,17 +221,28 @@ export function detectInstalledUpiApps(): InstalledUpiAppsInfo {
 }
 
 /**
- * Ensure Razorpay checkout.js script is loaded in document with timeout protection
+ * Ensure Razorpay checkout.js script is loaded in document with timeout protection.
+ * If switching between Mobile UPI Intent mode and Desktop QR mode, reloads checkout.js
+ * so Razorpay's internal device detector matches the requested mode.
  */
-export function loadRazorpayScript(timeoutMs = 10000): Promise<boolean> {
+export function loadRazorpayScript(timeoutMs = 10000, forQrMode = false): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
       return resolve(false);
     }
-    ensureAndroidWebViewUpiSupport();
+    const win = window as any;
+    const targetMode = forQrMode ? 'desktop_qr' : 'mobile_upi';
+    ensureAndroidWebViewUpiSupport(forQrMode);
 
-    if (typeof (window as any).Razorpay === 'function') {
+    if (typeof win.Razorpay === 'function' && win.__SAFAR_RZP_MODE__ === targetMode) {
       return resolve(true);
+    }
+
+    // Force fresh initialization if switching between QR mode and UPI App Intent mode
+    try {
+      delete win.Razorpay;
+    } catch {
+      win.Razorpay = undefined;
     }
 
     let settled = false;
@@ -194,12 +250,15 @@ export function loadRazorpayScript(timeoutMs = 10000): Promise<boolean> {
       if (!settled) {
         settled = true;
         clearTimeout(timer);
+        if (ok) {
+          win.__SAFAR_RZP_MODE__ = targetMode;
+        }
         resolve(ok);
       }
     };
 
     const timer = setTimeout(() => {
-      finish(typeof (window as any).Razorpay === 'function');
+      finish(typeof win.Razorpay === 'function');
     }, timeoutMs);
 
     const existingScript = document.getElementById('razorpay-checkout-js');
@@ -211,7 +270,7 @@ export function loadRazorpayScript(timeoutMs = 10000): Promise<boolean> {
     script.id = 'razorpay-checkout-js';
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
-    script.onload = () => finish(typeof (window as any).Razorpay === 'function');
+    script.onload = () => finish(typeof win.Razorpay === 'function');
     script.onerror = () => finish(false);
     document.body.appendChild(script);
   });
@@ -476,17 +535,17 @@ function buildCheckoutDisplayConfig(preferredMethod?: PreferredPaymentMethod) {
   const isAndroid =
     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
 
-  // (a) Dedicated UPI QR Code Mode: Open directly to Dynamic UPI QR Code
+  // (a) Dedicated UPI QR Code Mode: Open directly to Razorpay's official live Dynamic UPI QR Code
   if (preferredMethod === 'qr') {
     return {
       display: {
         blocks: {
           qr_only_block: {
-            name: 'Scan Dynamic UPI QR Code (All UPI Apps Supported)',
+            name: 'Scan Dynamic UPI QR Code (Paytm, PhonePe, GPay, BHIM)',
             instruments: [
               {
                 method: 'upi',
-                flows: ['qr', 'collect']
+                flows: ['qr']
               }
             ]
           }
@@ -558,7 +617,8 @@ export async function launchRazorpayStandardCheckout(
   checkoutParams: RazorpayCheckoutOptions
 ): Promise<void> {
   try {
-    ensureAndroidWebViewUpiSupport();
+    const isQrMode = checkoutParams.preferredMethod === 'qr';
+    ensureAndroidWebViewUpiSupport(isQrMode);
 
     const tripType: TripType = checkoutParams.tripType || 'oneway';
     const cabId: CabCategoryId = checkoutParams.cabId || 'sedan';
@@ -575,7 +635,11 @@ export async function launchRazorpayStandardCheckout(
         : Math.round(checkoutParams.amountInRupees * 5));
     const clientPublicKeyId = getRazorpayKeyId();
 
-    checkoutParams.onStatusChange?.('Preparing secure Razorpay payment...');
+    checkoutParams.onStatusChange?.(
+      isQrMode
+        ? 'Generating live Razorpay Dynamic UPI QR Code...'
+        : 'Preparing secure Razorpay payment...'
+    );
     const [orderData, isSdkLoaded] = await Promise.all([
       createRazorpayOrderOnServer({
         bookingId: checkoutParams.bookingId,
@@ -632,7 +696,7 @@ export async function launchRazorpayStandardCheckout(
         }
         throw orderErr;
       }),
-      loadRazorpayScript()
+      loadRazorpayScript(10000, isQrMode)
     ]);
 
     const RazorpayConstructor =
@@ -730,15 +794,24 @@ export async function launchRazorpayStandardCheckout(
           ? `Full Cab Booking Payment (${resolvedBookingId})`
           : `Advance Cab Booking Payment (${resolvedBookingId})`,
       image: '/logo.png',
-      // Explicitly enable UPI first and disable EMI/PayLater clutter so UPI is always rendered
-      method: {
-        upi: true,
-        card: true,
-        netbanking: true,
-        wallet: true,
-        emi: false,
-        paylater: false
-      },
+      // In QR mode, enable only UPI so Razorpay opens straight into the Dynamic UPI QR Code
+      method: isQrMode
+        ? {
+            upi: true,
+            card: false,
+            netbanking: false,
+            wallet: false,
+            emi: false,
+            paylater: false
+          }
+        : {
+            upi: true,
+            card: checkoutParams.preferredMethod === 'card_netbanking',
+            netbanking: checkoutParams.preferredMethod === 'card_netbanking',
+            wallet: false,
+            emi: false,
+            paylater: false
+          },
       ...(selectedUpiPkg ? { upi_app_package_name: selectedUpiPkg } : {}),
       config: buildCheckoutDisplayConfig(checkoutParams.preferredMethod),
       prefill: {
@@ -768,6 +841,7 @@ export async function launchRazorpayStandardCheckout(
         backdropclose: false,
         animation: true,
         ondismiss: function () {
+          ensureAndroidWebViewUpiSupport(false);
           checkoutParams.onDismiss?.();
         }
       },
@@ -776,6 +850,7 @@ export async function launchRazorpayStandardCheckout(
         razorpay_order_id?: string;
         razorpay_signature?: string;
       }) {
+        ensureAndroidWebViewUpiSupport(false);
         if (!response || !response.razorpay_payment_id) {
           checkoutParams.onError?.(
             'Payment response from Razorpay is incomplete. Booking could not be verified.'
