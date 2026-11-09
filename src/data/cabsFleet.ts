@@ -134,7 +134,7 @@ export const INCLUSIONS_EXCLUSIONS = {
     'Doorstep pickup from your home/hotel and drop at destination'
   ],
   exclusions: [
-    'Toll Taxes & Inter-State Entry Permit Tax (Included in "Include Toll" mode, or paid at actuals at Toll Plaza in "Toll Extra" mode)',
+    'Highway FASTag Toll Tax, State Border Entry Permit Tax & Parking Charges (extra as per actuals during the trip)',
     'Extra KM beyond included package distance (billed transparently at vehicle Extra Fare/Km rate)',
     'Airport / Hotel / Mall parking fees if applicable (paid at actuals against slip)',
     'Waiting charges beyond 45 minutes of free pickup grace period (₹100/hr)'

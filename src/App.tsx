@@ -560,11 +560,11 @@ export default function App() {
       cabId: 'sedan',
       cabName: 'Comfort Sedan AC (Maruti Suzuki Dzire, Toyota Etios, Hyundai Aura)',
       distanceKm: 235,
-      baseFare: 1210,
+      baseFare: 1550,
       driverAllowance: 260,
-      tollsAndTaxes: 340,
-      highwayToll: 140,
-      statePermitTax: 200,
+      tollsAndTaxes: 0,
+      highwayToll: 0,
+      statePermitTax: 0,
       hillStationCharge: 160,
       gstAmount: 99,
       totalFare: 2069,
@@ -578,7 +578,7 @@ export default function App() {
       customerEmail: '',
       status: 'confirmed',
       createdAt: '2026-11-07T05:08:00.000Z',
-      notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip.'
+      notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip (Toll, State Tax & Parking Extra as per actuals).'
     },
     {
       id: 'SIC2603',
@@ -594,11 +594,11 @@ export default function App() {
       cabId: 'sedan',
       cabName: 'Sedan AC (Maruti Dzire)',
       distanceKm: 230,
-      baseFare: 1190,
+      baseFare: 1470,
       driverAllowance: 260,
-      tollsAndTaxes: 280,
-      highwayToll: 155,
-      statePermitTax: 125,
+      tollsAndTaxes: 0,
+      highwayToll: 0,
+      statePermitTax: 0,
       hillStationCharge: 0,
       gstAmount: 87,
       totalFare: 1817,
@@ -612,7 +612,7 @@ export default function App() {
       customerEmail: 'passenger@safarindiacabs.in',
       status: 'confirmed',
       createdAt: '2026-10-17T08:30:00.000Z',
-      notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination.'
+      notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination (Toll, State Tax & Parking Extra as per actuals).'
     }
   ];
 

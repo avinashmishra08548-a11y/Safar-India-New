@@ -678,7 +678,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     pickupTime,
     returnDate: tripType === 'roundtrip' ? returnDate : undefined,
     localPackageId,
-    includeTolls: true
+    includeTolls: false
   });
 
   const renderAutocompleteDropdown = (

@@ -249,7 +249,7 @@ export async function handleCreateOrder(req, res, body) {
         billedDistanceKm: Number(distanceKm) || 130,
         baseFare: Math.round(fallbackTotal * 0.85),
         driverAllowance: 0,
-        tollsAndTaxes: Boolean(includeTolls) ? Math.round(fallbackTotal * 0.1) : 0,
+        tollsAndTaxes: 0,
         gstAmount: Math.round(fallbackTotal * 0.05),
         totalFare: fallbackTotal,
         advanceFare: fallbackAdvance,

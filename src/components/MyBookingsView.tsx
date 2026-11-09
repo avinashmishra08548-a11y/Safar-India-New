@@ -777,14 +777,20 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     </div>
                     <div className="flex justify-between items-center text-slate-600">
                       <span>Highway FASTag Toll Tax:</span>
-                      <span className="font-mono font-bold text-slate-900">
-                        {highwayToll > 0 ? formatINR(highwayToll) : '₹0'}
+                      <span className="font-mono font-bold text-amber-800">
+                        {highwayToll > 0 ? formatINR(highwayToll) : 'Extra (As Per Actuals)'}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-slate-600">
                       <span>State Border Permit Tax:</span>
-                      <span className="font-mono font-bold text-slate-900">
-                        {statePermitTax > 0 ? formatINR(statePermitTax) : '₹0'}
+                      <span className="font-mono font-bold text-amber-800">
+                        {statePermitTax > 0 ? formatINR(statePermitTax) : 'Extra (As Per Actuals)'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-600">
+                      <span>Parking Charges:</span>
+                      <span className="font-mono font-bold text-amber-800">
+                        Extra (If Applicable)
                       </span>
                     </div>
                     {hillStationCharge > 0 && (

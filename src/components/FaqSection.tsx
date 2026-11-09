@@ -28,8 +28,8 @@ const FAQS: FaqItem[] = [
     answer: 'Yes! Simply check the "Add GST Details" box during booking and enter your company name and 15-digit GSTIN. An official GST tax invoice with SAC Code 9964 (Passenger Transport) will be generated and downloadable immediately.'
   },
   {
-    question: 'Are tolls and state entry taxes included in the total quote?',
-    answer: 'When you select "Include Highway Tolls & State Tax" in the booking form, your total fare incorporates all estimated FASTag tolls and interstate taxes for the route. Parking fees (if incurred at private airports or monuments) are payable against physical receipt.'
+    question: 'How are Highway Toll Tax, State Tax, and Parking charges billed?',
+    answer: 'To keep your upfront cab fare 100% transparent and lowest in the market, Base Cab Fare, Fuel, Driver Allowance (Daily Bata), and 5% GST are included in your booking quote. Highway FASTag Toll Tax, State Border Entry Permit Tax, and Parking charges (if applicable) are extra and payable as per actuals during the trip.'
   }
 ];
 

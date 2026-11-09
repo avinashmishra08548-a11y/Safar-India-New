@@ -320,7 +320,7 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
                     <strong>Waiting &amp; Detour Charges:</strong> For One-Way and Airport trips, up to <strong>30 minutes</strong> of waiting at pickup is complimentary. Beyond 30 minutes, waiting charges of <strong>₹150 per hour</strong> (or ₹2.5/min) apply. Any unscheduled detours or extra city pickups/drops will be billed as per actual extra kilometres.
                   </li>
                   <li>
-                    <strong>Tolls, State Border Tax &amp; Parking:</strong> Unless you explicitly select the <em>&ldquo;Include Tolls &amp; State Tax&rdquo;</em> option during booking, highway FASTag tolls, state border entry taxes, airport/hotel parking fees, and green taxes (e.g., Manali/Shimla/Mussoorie entry) are payable directly by the passenger as per actual official receipts.
+                    <strong>Tolls, State Border Tax &amp; Parking:</strong> Highway FASTag tolls, state border entry permit taxes, airport/hotel parking fees, and green taxes (e.g., Manali/Shimla/Mussoorie entry) are extra and payable directly by the passenger as per actual official receipts during the trip.
                   </li>
                   <li>
                     <strong>Driver Allowance &amp; Night Driving Charge:</strong> For One-Way trips, driver allowance is already included. For Round Trips, standard driver allowance (₹300/day for Hatchback/Sedan/SUV; ₹400/day for Innova Crysta) and night driving allowance (₹300/night for driving between 10:00 PM and 06:00 AM) apply as displayed in the fare breakup.
