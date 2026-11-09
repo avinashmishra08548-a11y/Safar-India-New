@@ -150,6 +150,14 @@
       "destination": "/api/send-booking-sms?endpoint=verify-otp"
     },
     {
+      "source": "/api/send-sms",
+      "destination": "/api/send-booking-sms?endpoint=send-sms"
+    },
+    {
+      "source": "/api/send-whatsapp",
+      "destination": "/api/send-booking-sms?endpoint=send-whatsapp"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/sitemap.xml"
     },

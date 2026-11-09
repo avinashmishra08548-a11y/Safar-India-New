@@ -1,28 +1,48 @@
 /**
  * Vercel Unified Serverless API Route: /api/send-booking-sms
  *
- * Consolidated Communications & Notification Hub (keeps Vercel Serverless Functions well under Hobby 12-function limit):
+ * Consolidated Communications, SMS, WhatsApp, OTP & Email Hub (keeps Vercel Serverless Functions at 4 total):
  * 1. /api/send-booking-sms & /api/booking-notifications — Customer Booking Confirmation + Admin Alert
  * 2. /api/assign-driver & /api/send-driver-sms — Driver Duty Allotment + Customer Driver Details
  * 3. /api/send-review-email — Automated Customer Review Email Alert (Resend + EmailJS + FormSubmit + Admin WhatsApp)
  * 4. /api/verify-otp — Server-Side OTP Generation & Verification (Meta WhatsApp Cloud API + Fast2SMS)
+ * 5. /api/send-whatsapp — Meta WhatsApp Cloud API Dispatcher (Templates + Rich Text + 24h Outbox Queue + Webhook)
+ * 6. /api/send-sms — Dual-Mode Traccar Local + Cloud SMS Gateway Dispatcher
  */
 
 import crypto from 'crypto';
-import { sendWhatsAppCloudMessage } from './send-whatsapp.js';
-import { dispatchTraccarSms } from './send-sms.js';
 
 export const ADMIN_PHONE_NUMBER = '7710080992';
 export const TARGET_REVIEW_EMAIL =
   process.env.REVIEW_ALERT_EMAIL || 'safarindiacabs01@gmail.com';
 export const ADMIN_WHATSAPP_NUMBER = '7710080992';
 
-const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
-const DEFAULT_KEY =
-  '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
-const OTP_SECRET = process.env.OTP_SECRET || 'safar_india_cabs_secure_secret_2026_key';
+// ============================================================================
+// TRACCAR LOCAL + CLOUD SMS GATEWAY (/api/send-sms)
+// ============================================================================
+export const DEFAULT_LOCAL_ENDPOINT = 'http://172.24.139.153:8082';
+export const DEFAULT_LOCAL_TOKEN = 'b45b4260-7725-485b-8a65-15a2dd324fb9';
+export const TRACCAR_CLOUD_ENDPOINT = 'https://www.traccar.org/sms/';
+export const DEFAULT_CLOUD_TOKEN =
+  'f81x7L5jTmSJNsNrLn_vP9:APA91bEZh7cloIKBCB0sozFUOBiX9TvBGH_Osxi8dM-HdoGWmXIlYhmZbxnKizpCoDSII5t66VaGz6UVO2tno2UpqRXji0X4J3PWFDsrKiy2H9y_kSKJOV8';
 
-function sanitize10Digit(num) {
+export let ACTIVE_LOCAL_ENDPOINT = process.env.TRACCAR_LOCAL_ENDPOINT || DEFAULT_LOCAL_ENDPOINT;
+export let ACTIVE_LOCAL_TOKEN = process.env.TRACCAR_LOCAL_TOKEN || DEFAULT_LOCAL_TOKEN;
+export let ACTIVE_CLOUD_TOKEN = process.env.TRACCAR_SMS_TOKEN || DEFAULT_CLOUD_TOKEN;
+
+export function updateServerTraccarConfig({ localEndpoint, localToken, cloudToken } = {}) {
+  if (localEndpoint && typeof localEndpoint === 'string' && localEndpoint.trim().startsWith('http')) {
+    ACTIVE_LOCAL_ENDPOINT = localEndpoint.trim();
+  }
+  if (localToken && typeof localToken === 'string' && localToken.trim().length > 5) {
+    ACTIVE_LOCAL_TOKEN = localToken.trim();
+  }
+  if (cloudToken && typeof cloudToken === 'string' && cloudToken.trim().length > 20) {
+    ACTIVE_CLOUD_TOKEN = cloudToken.trim();
+  }
+}
+
+export function sanitize10Digit(num) {
   let clean = String(num || '').replace(/\D/g, '');
   if (clean.length === 12 && clean.startsWith('91')) {
     clean = clean.slice(2);
@@ -33,6 +53,560 @@ function sanitize10Digit(num) {
   }
   return clean;
 }
+
+export function formatIndianE164(phone) {
+  const clean = sanitize10Digit(phone);
+  return clean.length === 10 ? `+91${clean}` : phone;
+}
+
+async function fetchWithTimeoutSms(url, options, timeoutMs = 3500) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
+export async function dispatchTraccarSms(phone, message, options = {}) {
+  const cleanPhone = sanitize10Digit(phone);
+  if (cleanPhone.length !== 10) {
+    return {
+      success: false,
+      reason: `Invalid 10-digit Indian phone number: ${phone}`,
+      errorCode: 'INVALID_PHONE'
+    };
+  }
+
+  const localEndpoint = (options.localEndpoint || ACTIVE_LOCAL_ENDPOINT || DEFAULT_LOCAL_ENDPOINT).trim();
+  const localToken = (options.localToken || ACTIVE_LOCAL_TOKEN || DEFAULT_LOCAL_TOKEN).trim();
+  const cloudToken = (options.cloudToken || options.token || ACTIVE_CLOUD_TOKEN || DEFAULT_CLOUD_TOKEN).trim();
+
+  const recipient = `+91${cleanPhone}`;
+  const payload = {
+    to: recipient,
+    message
+  };
+
+  let localErrorLog = null;
+
+  try {
+    const localRes = await fetchWithTimeoutSms(
+      localEndpoint,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: localToken
+        },
+        body: JSON.stringify(payload)
+      },
+      2500
+    );
+
+    const localText = await localRes.text().catch(() => '');
+
+    if (localRes.ok) {
+      return {
+        success: true,
+        status: localRes.status,
+        to: recipient,
+        gateway: 'traccar_local',
+        endpointUsed: localEndpoint,
+        data: localText || 'Delivered via Traccar Local Service'
+      };
+    }
+
+    localErrorLog = `Local Service HTTP ${localRes.status}: ${localText}`;
+  } catch (localErr) {
+    localErrorLog =
+      localErr?.name === 'AbortError'
+        ? `Local Service timeout (2.5s) reaching ${localEndpoint}`
+        : `Local Service unreachable (${localEndpoint}): ${localErr?.message || localErr}`;
+  }
+
+  try {
+    const cloudRes = await fetchWithTimeoutSms(
+      TRACCAR_CLOUD_ENDPOINT,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: cloudToken
+        },
+        body: JSON.stringify(payload)
+      },
+      5000
+    );
+
+    const responseText = await cloudRes.text().catch(() => '');
+    let responseData = responseText;
+    try {
+      responseData = responseText ? JSON.parse(responseText) : {};
+    } catch {}
+
+    if (responseData && typeof responseData === 'object') {
+      const failureCount = Number(responseData.failureCount ?? 0);
+      const successCount = Number(responseData.successCount ?? -1);
+      const firstResp = Array.isArray(responseData.responses) ? responseData.responses[0] : null;
+      const fcmError = firstResp?.error;
+
+      if (failureCount > 0 || successCount === 0 || (firstResp && firstResp.success === false)) {
+        const errCode = fcmError?.code || 'FCM_DISPATCH_FAILED';
+        const errMsg = fcmError?.message || 'Traccar Cloud FCM delivery failed';
+
+        return {
+          success: false,
+          status: cloudRes.status,
+          to: recipient,
+          gateway: 'traccar_local_and_cloud_failed',
+          localError: localErrorLog,
+          errorCode: errCode,
+          error: `Local (${localEndpoint}) unreachable from cloud server & Cloud Fallback returned ${errCode} (${errMsg}). Client will attempt direct Local Service dispatch.`,
+          rawResponse: {
+            localAttempt: { endpoint: localEndpoint, error: localErrorLog },
+            cloudAttempt: responseData
+          }
+        };
+      }
+    }
+
+    if (cloudRes.ok) {
+      return {
+        success: true,
+        status: cloudRes.status,
+        to: recipient,
+        gateway: 'traccar_cloud_fallback',
+        endpointUsed: TRACCAR_CLOUD_ENDPOINT,
+        data: responseData
+      };
+    }
+
+    return {
+      success: false,
+      status: cloudRes.status,
+      to: recipient,
+      gateway: 'traccar_cloud_fallback',
+      localError: localErrorLog,
+      errorCode: `HTTP_${cloudRes.status}`,
+      error: `Local (${localErrorLog}) & Cloud HTTP ${cloudRes.status}`,
+      rawResponse: {
+        localAttempt: { endpoint: localEndpoint, error: localErrorLog },
+        cloudAttempt: responseData
+      }
+    };
+  } catch (cloudErr) {
+    return {
+      success: false,
+      to: recipient,
+      gateway: 'traccar_local_and_cloud_failed',
+      localError: localErrorLog,
+      errorCode: 'NETWORK_ERROR',
+      error: `Local (${localErrorLog}) & Cloud (${cloudErr?.message || 'Network error'})`
+    };
+  }
+}
+
+// ============================================================================
+// META WHATSAPP CLOUD API DISPATCHER (/api/send-whatsapp)
+// ============================================================================
+export const DEFAULT_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '902764639583293';
+export const DEFAULT_WABA_ID = process.env.WHATSAPP_WABA_ID || '837811205522579';
+export const DEFAULT_ACCESS_TOKEN =
+  process.env.WHATSAPP_ACCESS_TOKEN ||
+  'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
+
+const pendingWhatsAppQueue = new Map();
+let cachedApprovedTemplates = null;
+let cachedApprovedTemplatesAt = 0;
+
+export function formatWhatsAppPhone(phone) {
+  const digits = String(phone || '').replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  if (last10.length === 10) {
+    return '91' + last10;
+  }
+  return digits;
+}
+
+export function sanitizeTemplateParam(val) {
+  const str = String(val ?? '')
+    .replace(/[\r\n\t]+/g, ' | ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return str.slice(0, 900) || '-';
+}
+
+async function getApprovedWabaTemplates(accessToken) {
+  const now = Date.now();
+  if (cachedApprovedTemplates && now - cachedApprovedTemplatesAt < 30000) {
+    return cachedApprovedTemplates;
+  }
+  try {
+    const url = `https://graph.facebook.com/v20.0/${DEFAULT_WABA_ID}/message_templates?fields=name,status,language,components&limit=50`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json'
+      }
+    });
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      const list = Array.isArray(data?.data)
+        ? data.data.filter((t) => t && t.status === 'APPROVED')
+        : [];
+      cachedApprovedTemplates = list;
+      cachedApprovedTemplatesAt = now;
+      return list;
+    }
+  } catch {}
+  return cachedApprovedTemplates || [];
+}
+
+export async function sendSingleTemplatePayload(
+  apiUrl,
+  activeToken,
+  formattedTo,
+  templateName,
+  languageCode = 'en_US',
+  bodyParams = []
+) {
+  const components = [];
+  if (Array.isArray(bodyParams) && bodyParams.length > 0) {
+    components.push({
+      type: 'body',
+      parameters: bodyParams.map((p) => ({
+        type: 'text',
+        text: sanitizeTemplateParam(p)
+      }))
+    });
+  }
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: formattedTo,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: languageCode },
+      ...(components.length > 0 ? { components } : {})
+    }
+  };
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${activeToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => null);
+    if (response.status === 200 || response.status === 201) {
+      return {
+        success: true,
+        status: response.status,
+        templateName,
+        messageId: data?.messages?.[0]?.id || null,
+        data
+      };
+    }
+    return {
+      success: false,
+      status: response.status,
+      templateName,
+      errorCode: data?.error?.code,
+      error: data?.error?.message || `HTTP ${response.status}`
+    };
+  } catch (err) {
+    return {
+      success: false,
+      templateName,
+      error: err?.message || 'Template network error'
+    };
+  }
+}
+
+export async function dispatchWhatsAppTemplateWithFallback(
+  apiUrl,
+  activeToken,
+  formattedTo,
+  messageText,
+  templateConfig
+) {
+  const candidateTemplates = [];
+
+  if (templateConfig && templateConfig.name) {
+    candidateTemplates.push({
+      name: templateConfig.name,
+      language: templateConfig.language || 'en_US',
+      params: Array.isArray(templateConfig.params) ? templateConfig.params : []
+    });
+  }
+
+  if (templateConfig && Array.isArray(templateConfig.backups)) {
+    for (const b of templateConfig.backups) {
+      if (b && b.name) {
+        candidateTemplates.push({
+          name: b.name,
+          language: b.language || 'en_US',
+          params: Array.isArray(b.params) ? b.params : []
+        });
+      }
+    }
+  }
+
+  const cleanSummary = sanitizeTemplateParam(messageText);
+  candidateTemplates.push(
+    {
+      name: 'safar_ride_update',
+      language: 'en_US',
+      params: [
+        templateConfig?.recipientName || 'Traveler',
+        templateConfig?.referenceId || 'SAFAR-CAB',
+        cleanSummary
+      ]
+    },
+    {
+      name: 'safar_trip_alert',
+      language: 'en_US',
+      params: [templateConfig?.recipientName || 'Traveler', cleanSummary]
+    },
+    {
+      name: 'safar_booking_pin_update',
+      language: 'en_US',
+      params: [
+        templateConfig?.recipientName || 'Traveler',
+        templateConfig?.referenceId || cleanSummary.slice(0, 60)
+      ]
+    }
+  );
+
+  const approvedList = await getApprovedWabaTemplates(activeToken);
+  if (approvedList.length > 0) {
+    const approvedMap = new Map(approvedList.map((t) => [t.name, t]));
+    for (const cand of candidateTemplates) {
+      if (approvedMap.has(cand.name)) {
+        const res = await sendSingleTemplatePayload(
+          apiUrl,
+          activeToken,
+          formattedTo,
+          cand.name,
+          cand.language,
+          cand.params
+        );
+        if (res.success) return res;
+      }
+    }
+    for (const approved of approvedList) {
+      const bodyComp = (approved.components || []).find((c) => c.type === 'BODY');
+      const bodyText = bodyComp?.text || '';
+      const matches = bodyText.match(/\{\{\d+\}\}/g) || [];
+      const paramCount = matches.length;
+      let autoParams = [];
+      if (paramCount === 1) {
+        autoParams = [cleanSummary];
+      } else if (paramCount === 2) {
+        autoParams = [templateConfig?.recipientName || 'Traveler', cleanSummary];
+      } else if (paramCount >= 3) {
+        autoParams = [
+          templateConfig?.recipientName || 'Traveler',
+          templateConfig?.referenceId || 'SAFAR-CAB',
+          cleanSummary,
+          ...Array(Math.max(0, paramCount - 3)).fill('-')
+        ];
+      }
+      const res = await sendSingleTemplatePayload(
+        apiUrl,
+        activeToken,
+        formattedTo,
+        approved.name,
+        approved.language || 'en_US',
+        autoParams
+      );
+      if (res.success) return res;
+    }
+  } else {
+    const primary = candidateTemplates[0];
+    if (primary) {
+      const res = await sendSingleTemplatePayload(
+        apiUrl,
+        activeToken,
+        formattedTo,
+        primary.name,
+        primary.language,
+        primary.params
+      );
+      if (res.success) return res;
+    }
+  }
+
+  return { success: false, reason: 'No approved template matched yet' };
+}
+
+const recentWhatsAppDispatches = new Map();
+
+async function sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText) {
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: formattedTo,
+    type: 'text',
+    text: {
+      preview_url: false,
+      body: messageText
+    }
+  };
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${activeToken}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json().catch(() => null);
+    if (response.status === 200 || response.status === 201) {
+      return {
+        success: true,
+        status: response.status,
+        to: formattedTo,
+        messageId: data?.messages?.[0]?.id || null,
+        data
+      };
+    }
+    return {
+      success: false,
+      status: response.status,
+      to: formattedTo,
+      errorCode: data?.error?.code,
+      error: data?.error?.message || `HTTP Error Code: ${response.status}`,
+      data
+    };
+  } catch (err) {
+    return {
+      success: false,
+      to: formattedTo,
+      error: err?.message || 'Network or Exception Error'
+    };
+  }
+}
+
+export async function sendWhatsAppCloudMessage(
+  recipientPhone,
+  messageText,
+  customPhoneId,
+  customAccessToken,
+  templateConfig = null,
+  options = {}
+) {
+  const formattedTo = formatWhatsAppPhone(recipientPhone);
+  if (!formattedTo || formattedTo.length < 12) {
+    return { success: false, error: 'Invalid recipient phone number' };
+  }
+
+  const now = Date.now();
+  const refId = templateConfig?.referenceId ? String(templateConfig.referenceId).trim() : '';
+  const tplName = templateConfig?.name ? String(templateConfig.name).trim() : 'text';
+  const dedupeKey = refId
+    ? `${formattedTo}:${tplName}:${refId}`
+    : `${formattedTo}:${String(messageText || '').trim().slice(0, 120)}`;
+  const previousDispatch = recentWhatsAppDispatches.get(dedupeKey);
+  if (!options?.force && previousDispatch && now - previousDispatch.sentAt < 90000) {
+    return {
+      ...previousDispatch.result,
+      deduplicated: true
+    };
+  }
+
+  const activePhoneId = (customPhoneId && String(customPhoneId).trim()) || DEFAULT_PHONE_NUMBER_ID;
+  const activeToken =
+    (customAccessToken && String(customAccessToken).trim()) || DEFAULT_ACCESS_TOKEN;
+  const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
+
+  recentWhatsAppDispatches.set(dedupeKey, {
+    sentAt: now,
+    result: {
+      success: true,
+      status: 200,
+      to: formattedTo,
+      phoneNumberId: activePhoneId,
+      deduplicated: true
+    }
+  });
+
+  let templateResult = { success: false, status: null, templateName: null, messageId: null, data: null, error: null };
+  let textResult = { success: false, status: null, messageId: null, data: null, error: null };
+
+  templateResult = await dispatchWhatsAppTemplateWithFallback(
+    apiUrl,
+    activeToken,
+    formattedTo,
+    messageText,
+    templateConfig
+  );
+
+  if (!templateResult.success) {
+    textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
+  }
+
+  const overallSuccess = Boolean(templateResult.success || textResult.success);
+
+  const finalResult = {
+    success: overallSuccess,
+    status: textResult.status || templateResult.status || (overallSuccess ? 200 : 502),
+    to: formattedTo,
+    phoneNumberId: activePhoneId,
+    templateDispatched: Boolean(templateResult.success),
+    templateName: templateResult.templateName || null,
+    textDispatched: Boolean(textResult.success),
+    messageId: textResult.messageId || templateResult.messageId || null,
+    data: textResult.data || templateResult.data || null,
+    error: overallSuccess ? undefined : textResult.error || templateResult.error
+  };
+
+  if (overallSuccess) {
+    recentWhatsAppDispatches.set(dedupeKey, {
+      sentAt: now,
+      result: finalResult
+    });
+    pendingWhatsAppQueue.delete(formattedTo);
+  } else {
+    recentWhatsAppDispatches.delete(dedupeKey);
+    pendingWhatsAppQueue.set(formattedTo, {
+      to: formattedTo,
+      messageText,
+      templateConfig,
+      apiUrl,
+      activeToken,
+      updatedAt: now,
+      lastFlushedAt: now
+    });
+  }
+
+  return finalResult;
+}
+
+const FAST2SMS_ENDPOINT = 'https://www.fast2sms.com/dev/bulkV2';
+const DEFAULT_KEY =
+  '6B8sTgArm4kSQUaZC9iNhVdFEf3IPlMqoRDeuYjwGHvtnpXW51IKdZWsjBgMr2wl54C0JOYh9nuiVxcz';
+const OTP_SECRET = process.env.OTP_SECRET || 'safar_india_cabs_secure_secret_2026_key';
 
 async function dispatchFast2Sms(phone, message, apiKey) {
   const cleanPhone = sanitize10Digit(phone);
@@ -1204,6 +1778,136 @@ async function handleVerifyOtp(req, res, body) {
 }
 
 // ============================================================================
+// 5. DIRECT TRACCAR SMS ROUTE HANDLER (/api/send-sms)
+// ============================================================================
+async function handleSendSmsEndpoint(req, res, body) {
+  try {
+    const { action, to, phone, message, localEndpoint, localToken, cloudToken, token } = body || {};
+
+    if (action === 'update_config' || action === 'update_token') {
+      updateServerTraccarConfig({
+        localEndpoint,
+        localToken,
+        cloudToken: cloudToken || token
+      });
+      return res.status(200).json({
+        success: true,
+        message: 'Server Traccar Local + Cloud configuration updated',
+        localEndpoint: ACTIVE_LOCAL_ENDPOINT
+      });
+    }
+
+    const targetPhone = to || phone;
+    if (!targetPhone || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing recipient phone number ("to") or "message"'
+      });
+    }
+
+    const result = await dispatchTraccarSms(targetPhone, message, {
+      localEndpoint,
+      localToken,
+      cloudToken: cloudToken || token
+    });
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Internal server error while dispatching Traccar SMS'
+    });
+  }
+}
+
+// ============================================================================
+// 6. DIRECT WHATSAPP CLOUD API ROUTE HANDLER (/api/send-whatsapp)
+// ============================================================================
+async function handleSendWhatsAppEndpoint(req, res, body) {
+  try {
+    // 1. Handle Incoming Meta WhatsApp Webhook Events
+    if (body && body.object === 'whatsapp_business_account' && Array.isArray(body.entry)) {
+      const flushed = [];
+      for (const entry of body.entry) {
+        for (const change of entry?.changes || []) {
+          const messages = change?.value?.messages || [];
+          for (const msg of messages) {
+            const senderPhone = formatWhatsAppPhone(msg?.from);
+            const queued = pendingWhatsAppQueue.get(senderPhone);
+            if (
+              queued &&
+              Date.now() - queued.updatedAt < 30 * 60 * 1000 &&
+              (!queued.lastWebhookFlushedAt || Date.now() - queued.lastWebhookFlushedAt > 20000)
+            ) {
+              queued.lastWebhookFlushedAt = Date.now();
+              queued.lastFlushedAt = Date.now();
+              const flushRes = await sendRawTextPayload(
+                queued.apiUrl,
+                queued.activeToken,
+                senderPhone,
+                queued.messageText
+              );
+              flushed.push({ to: senderPhone, success: flushRes.success });
+            }
+          }
+        }
+      }
+      return res.status(200).json({ success: true, webhookProcessed: true, flushed });
+    }
+
+    // 2. Standard Outbound WhatsApp Dispatch Request
+    const {
+      recipientPhone,
+      messageText,
+      phoneNumberId,
+      accessToken,
+      templateConfig,
+      action
+    } = body || {};
+
+    if (action === 'flush_pending' && recipientPhone) {
+      const formattedTo = formatWhatsAppPhone(recipientPhone);
+      const queued = pendingWhatsAppQueue.get(formattedTo);
+      if (queued && Date.now() - queued.updatedAt < 30 * 60 * 1000) {
+        if (queued.lastFlushedAt && Date.now() - queued.lastFlushedAt < 20000) {
+          return res.status(200).json({ success: true, throttled: true, to: formattedTo });
+        }
+        queued.lastFlushedAt = Date.now();
+        const flushRes = await sendRawTextPayload(
+          queued.apiUrl,
+          queued.activeToken,
+          formattedTo,
+          queued.messageText
+        );
+        return res.status(200).json({
+          success: flushRes.success,
+          to: formattedTo,
+          messageId: flushRes.messageId || null
+        });
+      }
+      return res.status(200).json({ success: false, reason: 'No pending message for phone' });
+    }
+
+    if (!recipientPhone || !messageText) {
+      return res.status(400).json({ error: 'recipientPhone and messageText are required' });
+    }
+
+    const result = await sendWhatsAppCloudMessage(
+      recipientPhone,
+      messageText,
+      phoneNumberId,
+      accessToken,
+      templateConfig
+    );
+    return res.status(result.success ? 200 : 502).json(result);
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err?.message || 'Internal server error'
+    });
+  }
+}
+
+// ============================================================================
 // UNIFIED SERVERLESS ROUTE HANDLER
 // ============================================================================
 export default async function handler(req, res) {
@@ -1212,12 +1916,32 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization'
   );
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
+  }
+
+  // Support Meta Webhook Verification & Status on GET
+  if (req.method === 'GET') {
+    const urlObj = new URL(req.url || '', 'http://localhost');
+    const mode = urlObj.searchParams.get('hub.mode');
+    const challenge = urlObj.searchParams.get('hub.challenge');
+    if (mode === 'subscribe' && challenge) {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/plain');
+      res.end(challenge);
+      return;
+    }
+    return res.status(200).json({
+      success: true,
+      service: 'Safar India Cabs Unified Communications & Notification Hub',
+      phoneNumberId: DEFAULT_PHONE_NUMBER_ID,
+      wabaId: DEFAULT_WABA_ID,
+      queuedNumbers: pendingWhatsAppQueue.size
+    });
   }
 
   if (req.method !== 'POST') {
@@ -1229,7 +1953,29 @@ export default async function handler(req, res) {
     const reqUrl = String(req.url || '');
     const queryEndpoint = String(req.query?.endpoint || body?.endpoint || '').toLowerCase();
 
-    // 1. Route to OTP verification (/api/verify-otp)
+    // 1. Route to WhatsApp Cloud API (/api/send-whatsapp)
+    if (
+      reqUrl.includes('/send-whatsapp') ||
+      queryEndpoint === 'send-whatsapp' ||
+      body.object === 'whatsapp_business_account' ||
+      body.action === 'flush_pending' ||
+      Boolean(body.recipientPhone && body.messageText)
+    ) {
+      return await handleSendWhatsAppEndpoint(req, res, body);
+    }
+
+    // 2. Route to Traccar SMS Gateway (/api/send-sms)
+    if (
+      reqUrl.includes('/send-sms') ||
+      queryEndpoint === 'send-sms' ||
+      body.action === 'update_config' ||
+      body.action === 'update_token' ||
+      Boolean((body.to || body.phone) && body.message && !body.booking && !body.id)
+    ) {
+      return await handleSendSmsEndpoint(req, res, body);
+    }
+
+    // 3. Route to OTP verification (/api/verify-otp)
     if (
       reqUrl.includes('/verify-otp') ||
       queryEndpoint === 'verify-otp' ||
@@ -1239,7 +1985,7 @@ export default async function handler(req, res) {
       return await handleVerifyOtp(req, res, body);
     }
 
-    // 2. Route to Driver Assignment (/api/assign-driver, /api/send-driver-sms)
+    // 4. Route to Driver Assignment (/api/assign-driver, /api/send-driver-sms)
     if (
       reqUrl.includes('/assign-driver') ||
       reqUrl.includes('/send-driver-sms') ||
@@ -1250,7 +1996,7 @@ export default async function handler(req, res) {
       return await handleAssignDriverNotification(req, res, body);
     }
 
-    // 3. Route to Review Email Alert (/api/send-review-email)
+    // 5. Route to Review Email Alert (/api/send-review-email)
     if (
       reqUrl.includes('/send-review-email') ||
       queryEndpoint === 'send-review-email' ||
@@ -1259,7 +2005,7 @@ export default async function handler(req, res) {
       return await handleSendReviewEmail(req, res, body);
     }
 
-    // 4. Default: Booking Confirmation Notification (/api/send-booking-sms, /api/booking-notifications)
+    // 6. Default: Booking Confirmation Notification (/api/send-booking-sms, /api/booking-notifications)
     const booking = body?.booking || body;
 
     if (!booking || !booking.id || !booking.customerPhone) {

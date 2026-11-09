@@ -278,12 +278,13 @@ export async function dispatchReviewEmailAlert(rev: Review): Promise<EmailDispat
     }
   }
 
-  // 3. Serverless Backend API (/api/send-review-email -> Resend API / EmailJS / Admin WhatsApp Alert)
+  // 3. Unified Serverless Backend API (/api/send-booking-sms?endpoint=send-review-email -> Resend API / EmailJS / Admin WhatsApp Alert)
   try {
-    const apiRes = await fetch('/api/send-review-email', {
+    const apiRes = await fetch('/api/send-booking-sms?endpoint=send-review-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        endpoint: 'send-review-email',
         toEmail: REVIEW_ALERT_RECIPIENT_EMAIL,
         customerName: rev.name,
         city: rev.city,

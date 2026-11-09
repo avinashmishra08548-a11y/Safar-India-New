@@ -36,8 +36,10 @@ import {
   signOrderVerificationToken,
   verifyOrderVerificationToken
 } from './bookings.js';
-import { sanitize10Digit } from './send-sms.js';
-import { dispatchBookingConfirmationNotifications } from './send-booking-sms.js';
+import {
+  sanitize10Digit,
+  dispatchBookingConfirmationNotifications
+} from './send-booking-sms.js';
 
 const RAZORPAY_API_BASE = 'https://api.razorpay.com/v1';
 const RAZORPAY_ORDERS_API_URL = 'https://api.razorpay.com/v1/orders';

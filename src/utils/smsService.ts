@@ -490,8 +490,8 @@ export async function sendDualBookingNotifications(booking: {
   const advance = booking.paidAmount ?? booking.advancePaid ?? 0;
   const balance = booking.balanceAmount ?? booking.balanceDue ?? 0;
 
-  // STEP 1: Attempt backend API request (/api/send-booking-sms or /api/booking-notifications)
-  for (const endpoint of ['/api/send-booking-sms', '/api/booking-notifications']) {
+  // STEP 1: Attempt unified backend API request (/api/send-booking-sms?endpoint=booking-notifications)
+  for (const endpoint of ['/api/send-booking-sms?endpoint=booking-notifications', '/api/send-booking-sms']) {
     try {
       const apiRes = await fetch(endpoint, {
         method: 'POST',
@@ -499,6 +499,7 @@ export async function sendDualBookingNotifications(booking: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
+          endpoint: 'booking-notifications',
           booking: {
             ...booking,
             cabClass,
@@ -656,8 +657,8 @@ export async function sendDriverAssignmentSms(params: {
   const cabClass = params.cabClass || 'Commercial Cab';
   const balance = params.balanceAmount ?? 0;
 
-  // 1. Try backend API endpoints (/api/assign-driver and /api/send-driver-sms)
-  for (const endpoint of ['/api/assign-driver', '/api/send-driver-sms']) {
+  // 1. Try unified backend API endpoint (/api/send-booking-sms?endpoint=assign-driver)
+  for (const endpoint of ['/api/send-booking-sms?endpoint=assign-driver', '/api/send-booking-sms?endpoint=send-driver-sms']) {
     try {
       const apiRes = await fetch(endpoint, {
         method: 'POST',
@@ -665,6 +666,7 @@ export async function sendDriverAssignmentSms(params: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          endpoint: 'assign-driver',
           ...params,
           customerPhone: cleanCustomerPhone,
           driverPhone: cleanDriverPhone,
@@ -798,10 +800,11 @@ export async function requestServerOtp(
 
   const requestPromise = (async () => {
     try {
-      const res = await fetch('/api/verify-otp', {
+      const res = await fetch('/api/send-booking-sms?endpoint=verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          endpoint: 'verify-otp',
           action: 'send',
           phone: cleanPhone,
           name: customerName,
@@ -880,10 +883,11 @@ export async function retriggerWhatsAppOtpFromToken(
   const cleanPhone = sanitize10DigitPhone(phoneNumber);
   if (cleanPhone.length !== 10) return false;
   try {
-    const res = await fetch('/api/send-whatsapp', {
+    const res = await fetch('/api/send-booking-sms?endpoint=send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        endpoint: 'send-whatsapp',
         action: 'flush_pending',
         recipientPhone: cleanPhone
       })
@@ -942,12 +946,13 @@ export async function verifyServerOtp(
     }
   }
 
-  // Verify against /api/verify-otp serverless function
+  // Verify against unified /api/send-booking-sms?endpoint=verify-otp serverless function
   try {
-    const res = await fetch('/api/verify-otp', {
+    const res = await fetch('/api/send-booking-sms?endpoint=verify-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        endpoint: 'verify-otp',
         action: 'verify',
         phone: cleanPhone,
         otp: cleanOtp,

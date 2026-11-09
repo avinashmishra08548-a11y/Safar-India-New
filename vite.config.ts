@@ -65,15 +65,15 @@ export default defineConfig(() => {
               const urlPath = req.url.split('?')[0];
               try {
                 let handlerMod: any;
-                if (urlPath === '/api/send-sms') {
-                  handlerMod = await import('./api/send-sms.js');
-                } else if (
+                if (
                   urlPath === '/api/send-booking-sms' ||
                   urlPath === '/api/booking-notifications' ||
                   urlPath === '/api/assign-driver' ||
                   urlPath === '/api/send-driver-sms' ||
                   urlPath === '/api/send-review-email' ||
-                  urlPath === '/api/verify-otp'
+                  urlPath === '/api/verify-otp' ||
+                  urlPath === '/api/send-sms' ||
+                  urlPath === '/api/send-whatsapp'
                 ) {
                   handlerMod = await import('./api/send-booking-sms.js');
                 } else if (urlPath === '/api/bookings') {
@@ -85,8 +85,6 @@ export default defineConfig(() => {
                   urlPath === '/api/razorpay-webhook'
                 ) {
                   handlerMod = await import('./api/payment-gateway.js');
-                } else if (urlPath === '/api/send-whatsapp') {
-                  handlerMod = await import('./api/send-whatsapp.js');
                 } else if (urlPath === '/api/maps') {
                   handlerMod = await import('./api/maps.js');
                 }

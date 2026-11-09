@@ -648,12 +648,13 @@ export class WhatsAppService {
     const activeToken = getWhatsAppAccessToken();
     const formattedPhone = this.formatPhoneNumber(recipientPhone);
 
-    // 1. Primary: Serverless backend proxy (/api/send-whatsapp)
+    // 1. Primary: Unified Serverless backend proxy (/api/send-booking-sms?endpoint=send-whatsapp)
     try {
-      const serverRes = await fetch('/api/send-whatsapp', {
+      const serverRes = await fetch('/api/send-booking-sms?endpoint=send-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          endpoint: 'send-whatsapp',
           recipientPhone: formattedPhone,
           messageText,
           phoneNumberId: activePhoneId,

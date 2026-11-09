@@ -495,14 +495,18 @@ export async function createRazorpayOrderOnServer(
   let response: Response;
   try {
     response = await fetchWithTimeout(
-      '/api/create-order',
+      '/api/payment-gateway?endpoint=create-order',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          action: 'create_order',
+          endpoint: 'create-order',
+          ...payload
+        })
       },
       14000
     );
@@ -521,7 +525,7 @@ export async function createRazorpayOrderOnServer(
     data = rawText ? JSON.parse(rawText) : null;
   } catch {
     throw new Error(
-      `Server endpoint /api/create-order returned an invalid response (HTTP ${response.status}).`
+      `Server endpoint /api/payment-gateway?endpoint=create-order returned an invalid response (HTTP ${response.status}).`
     );
   }
 
@@ -678,14 +682,18 @@ export async function verifyRazorpayPaymentOnServer(params: {
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const response = await fetchWithTimeout(
-        '/api/verify-payment',
+        '/api/payment-gateway?endpoint=verify-payment',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json'
           },
-          body: JSON.stringify(params)
+          body: JSON.stringify({
+            action: 'verify_payment',
+            endpoint: 'verify-payment',
+            ...params
+          })
         },
         14000
       );
