@@ -92,78 +92,108 @@ export const SERVER_CABS_FLEET = {
 };
 
 const SERVER_EXPRESSWAY_TOLLS = {
-  'delhi-agra': { toll: 515, name: 'Yamuna Expressway FASTag' },
-  'agra-delhi': { toll: 515, name: 'Yamuna Expressway FASTag' },
-  'delhi-mathura': { toll: 320, name: 'Yamuna / NH-19 FASTag' },
-  'mathura-delhi': { toll: 320, name: 'Yamuna / NH-19 FASTag' },
-  'delhi-jaipur': { toll: 475, name: 'NH-48 / Delhi-Mumbai Expwy' },
-  'jaipur-delhi': { toll: 475, name: 'NH-48 / Delhi-Mumbai Expwy' },
-  'delhi-chandigarh': { toll: 445, name: 'NH-44 GT Road FASTag' },
-  'chandigarh-delhi': { toll: 445, name: 'NH-44 GT Road FASTag' },
-  'delhi-haridwar': { toll: 385, name: 'Delhi-Meerut Expwy + NH-334' },
-  'haridwar-delhi': { toll: 385, name: 'Delhi-Meerut Expwy + NH-334' },
-  'delhi-rishikesh': { toll: 410, name: 'Delhi-Meerut Expwy + NH-334' },
-  'rishikesh-delhi': { toll: 410, name: 'Delhi-Meerut Expwy + NH-334' },
-  'delhi-dehradun': { toll: 430, name: 'Delhi-Dehradun Highway FASTag' },
-  'dehradun-delhi': { toll: 430, name: 'Delhi-Dehradun Highway FASTag' },
-  'delhi-shimla': { toll: 560, name: 'NH-44 + Himalayan Expwy' },
-  'shimla-delhi': { toll: 560, name: 'NH-44 + Himalayan Expwy' },
-  'delhi-manali': { toll: 720, name: 'NH-44 + Kiratpur-Manali Expwy' },
-  'manali-delhi': { toll: 720, name: 'NH-44 + Kiratpur-Manali Expwy' },
-  'delhi-amritsar': { toll: 690, name: 'NH-44 Delhi-Amritsar Expwy' },
-  'amritsar-delhi': { toll: 690, name: 'NH-44 Delhi-Amritsar Expwy' },
-  'delhi-lucknow': { toll: 840, name: 'Yamuna + Agra-Lucknow Expwy' },
-  'lucknow-delhi': { toll: 840, name: 'Yamuna + Agra-Lucknow Expwy' },
-  'delhi-nainital': { toll: 420, name: 'NH-9 Moradabad-Rampur FASTag' },
-  'nainital-delhi': { toll: 420, name: 'NH-9 Moradabad-Rampur FASTag' },
-  'delhi-mussoorie': { toll: 450, name: 'Delhi-Dehradun Expwy FASTag' },
-  'mussoorie-delhi': { toll: 450, name: 'Delhi-Dehradun Expwy FASTag' },
-  'mumbai-pune': { toll: 320, name: 'Mumbai-Pune Expressway' },
-  'pune-mumbai': { toll: 320, name: 'Mumbai-Pune Expressway' },
-  'mumbai-lonavala': { toll: 240, name: 'Mumbai-Pune Expressway' },
-  'lonavala-mumbai': { toll: 240, name: 'Mumbai-Pune Expressway' },
-  'mumbai-shirdi': { toll: 360, name: 'Samruddhi / NH-160 FASTag' },
-  'shirdi-mumbai': { toll: 360, name: 'Samruddhi / NH-160 FASTag' },
-  'mumbai-nashik': { toll: 265, name: 'Mumbai-Nashik NH-160 FASTag' },
-  'nashik-mumbai': { toll: 265, name: 'Mumbai-Nashik NH-160 FASTag' },
-  'mumbai-goa': { toll: 640, name: 'NH-66 / Atal Setu FASTag' },
-  'goa-mumbai': { toll: 640, name: 'NH-66 / Atal Setu FASTag' },
-  'mumbai-mahabaleshwar': { toll: 410, name: 'Mumbai-Pune Expwy + NH-48' },
-  'mahabaleshwar-mumbai': { toll: 410, name: 'Mumbai-Pune Expwy + NH-48' },
-  'pune-shirdi': { toll: 240, name: 'Pune-Sangamner Highway FASTag' },
-  'shirdi-pune': { toll: 240, name: 'Pune-Sangamner Highway FASTag' },
-  'pune-mahabaleshwar': { toll: 165, name: 'NH-48 Khed-Shivapur FASTag' },
-  'mahabaleshwar-pune': { toll: 165, name: 'NH-48 Khed-Shivapur FASTag' },
-  'bangalore-mysore': { toll: 335, name: 'Bangalore-Mysore Expressway' },
-  'mysore-bangalore': { toll: 335, name: 'Bangalore-Mysore Expressway' },
-  'bangalore-chennai': { toll: 465, name: 'NH-48 Krishnagiri-Vellore FASTag' },
-  'chennai-bangalore': { toll: 465, name: 'NH-48 Krishnagiri-Vellore FASTag' },
-  'bangalore-tirupati': { toll: 315, name: 'NH-75 Mulbagal-Chittoor FASTag' },
-  'tirupati-bangalore': { toll: 315, name: 'NH-75 Mulbagal-Chittoor FASTag' },
-  'bangalore-ooty': { toll: 340, name: 'Bangalore-Mysore Expwy + Nilgiri' },
-  'ooty-bangalore': { toll: 340, name: 'Bangalore-Mysore Expwy + Nilgiri' },
-  'bangalore-coorg': { toll: 290, name: 'Bangalore-Mysore Expwy FASTag' },
-  'coorg-bangalore': { toll: 290, name: 'Bangalore-Mysore Expwy FASTag' },
-  'chennai-pondicherry': { toll: 195, name: 'East Coast Road (ECR) Toll' },
-  'pondicherry-chennai': { toll: 195, name: 'East Coast Road (ECR) Toll' },
-  'ahmedabad-udaipur': { toll: 355, name: 'NH-48 Himatnagar-Shamlaji FASTag' },
-  'udaipur-ahmedabad': { toll: 355, name: 'NH-48 Himatnagar-Shamlaji FASTag' },
-  'jaipur-udaipur': { toll: 460, name: 'NH-48 Kishangarh-Bhilwara FASTag' },
-  'udaipur-jaipur': { toll: 460, name: 'NH-48 Kishangarh-Bhilwara FASTag' },
-  'jaipur-jodhpur': { toll: 375, name: 'NH-48 + Beawar-Pali FASTag' },
-  'jodhpur-jaipur': { toll: 375, name: 'NH-48 + Beawar-Pali FASTag' },
-  'lucknow-varanasi': { toll: 410, name: 'Purvanchal / NH-31 FASTag' },
-  'varanasi-lucknow': { toll: 410, name: 'Purvanchal / NH-31 FASTag' },
-  'lucknow-ayodhya': { toll: 225, name: 'NH-27 Barabanki-Ayodhya FASTag' },
-  'ayodhya-lucknow': { toll: 225, name: 'NH-27 Barabanki-Ayodhya FASTag' },
-  'varanasi-ayodhya': { toll: 295, name: 'Purvanchal Expwy FASTag' },
-  'ayodhya-varanasi': { toll: 295, name: 'Purvanchal Expwy FASTag' },
-  'chandigarh-manali': { toll: 380, name: 'Kiratpur-Nerchowk-Manali Expwy' },
-  'manali-chandigarh': { toll: 380, name: 'Kiratpur-Nerchowk-Manali Expwy' },
-  'chandigarh-shimla': { toll: 185, name: 'Chandimandir-Solan Himalayan Expwy' },
-  'shimla-chandigarh': { toll: 185, name: 'Chandimandir-Solan Himalayan Expwy' },
-  'chandigarh-amritsar': { toll: 330, name: 'NH-5 / NH-44 Punjab FASTag' },
-  'amritsar-chandigarh': { toll: 330, name: 'NH-5 / NH-44 Punjab FASTag' }
+  'delhi-agra': { toll: 465, name: 'Yamuna Expressway FASTag (3 Plazas)', plazaCount: 3, plazas: ['Jewar Toll Plaza', 'Mathura Toll Plaza', 'Agra Toll Plaza'] },
+  'agra-delhi': { toll: 465, name: 'Yamuna Expressway FASTag (3 Plazas)', plazaCount: 3, plazas: ['Agra Toll Plaza', 'Mathura Toll Plaza', 'Jewar Toll Plaza'] },
+  'delhi-mathura': { toll: 240, name: 'Yamuna / NH-19 FASTag (2 Plazas)', plazaCount: 2, plazas: ['Srinagar/Faridabad Toll', 'Mahuvan (Mathura) Toll Plaza'] },
+  'mathura-delhi': { toll: 240, name: 'Yamuna / NH-19 FASTag (2 Plazas)', plazaCount: 2, plazas: ['Mahuvan (Mathura) Toll Plaza', 'Srinagar/Faridabad Toll'] },
+  'delhi-jaipur': { toll: 395, name: 'NH-48 / Delhi-Jaipur FASTag (3 Plazas)', plazaCount: 3, plazas: ['Kherki Daula Toll', 'Shahjahanpur Toll Plaza', 'Manoharpur/Daulatpur Toll'] },
+  'jaipur-delhi': { toll: 395, name: 'NH-48 / Delhi-Jaipur FASTag (3 Plazas)', plazaCount: 3, plazas: ['Manoharpur/Daulatpur Toll', 'Shahjahanpur Toll Plaza', 'Kherki Daula Toll'] },
+  'delhi-chandigarh': { toll: 390, name: 'NH-44 GT Road FASTag (4 Plazas)', plazaCount: 4, plazas: ['Murthal/Bhalgarh Toll', 'Panipat Toll Plaza', 'Gharaunda (Karnal) Toll', 'Ghaggar (Ambala) Toll'] },
+  'chandigarh-delhi': { toll: 390, name: 'NH-44 GT Road FASTag (4 Plazas)', plazaCount: 4, plazas: ['Ghaggar (Ambala) Toll', 'Gharaunda (Karnal) Toll', 'Panipat Toll Plaza', 'Murthal/Bhalgarh Toll'] },
+  'delhi-haridwar': { toll: 310, name: 'Delhi-Meerut Expwy + NH-334 (3 Plazas)', plazaCount: 3, plazas: ['Kashi (Meerut Expwy) Toll', 'Saini/Muzaffarnagar Toll', 'Bahadrabad (Haridwar) Toll'] },
+  'haridwar-delhi': { toll: 310, name: 'Delhi-Meerut Expwy + NH-334 (3 Plazas)', plazaCount: 3, plazas: ['Bahadrabad (Haridwar) Toll', 'Saini/Muzaffarnagar Toll', 'Kashi (Meerut Expwy) Toll'] },
+  'delhi-rishikesh': { toll: 310, name: 'Delhi-Meerut Expwy + NH-334 (3 Plazas)', plazaCount: 3, plazas: ['Kashi (Meerut Expwy) Toll', 'Saini/Muzaffarnagar Toll', 'Bahadrabad Toll'] },
+  'rishikesh-delhi': { toll: 310, name: 'Delhi-Meerut Expwy + NH-334 (3 Plazas)', plazaCount: 3, plazas: ['Bahadrabad Toll', 'Saini/Muzaffarnagar Toll', 'Kashi (Meerut Expwy) Toll'] },
+  'delhi-dehradun': { toll: 335, name: 'Delhi-Dehradun Highway FASTag (3 Plazas)', plazaCount: 3, plazas: ['Kashi (Meerut Expwy) Toll', 'Saini Toll Plaza', 'Lacchiwala (Dehradun) Toll'] },
+  'dehradun-delhi': { toll: 335, name: 'Delhi-Dehradun Highway FASTag (3 Plazas)', plazaCount: 3, plazas: ['Lacchiwala (Dehradun) Toll', 'Saini Toll Plaza', 'Kashi (Meerut Expwy) Toll'] },
+  'delhi-shimla': { toll: 510, name: 'NH-44 + Himalayan Expwy (6 Plazas)', plazaCount: 6, plazas: ['Murthal Toll', 'Panipat Toll', 'Gharaunda Toll', 'Ghaggar Toll', 'Chandimandir Toll', 'Sanwara Toll'] },
+  'shimla-delhi': { toll: 510, name: 'NH-44 + Himalayan Expwy (6 Plazas)', plazaCount: 6, plazas: ['Sanwara Toll', 'Chandimandir Toll', 'Ghaggar Toll', 'Gharaunda Toll', 'Panipat Toll', 'Murthal Toll'] },
+  'delhi-manali': { toll: 580, name: 'NH-44 + Kiratpur-Manali Expwy (6 Plazas)', plazaCount: 6, plazas: ['Murthal Toll', 'Panipat Toll', 'Gharaunda Toll', 'Ghaggar Toll', 'Behrampur/Kiratpur Toll', 'Takoli (Kullu) Toll'] },
+  'manali-delhi': { toll: 580, name: 'NH-44 + Kiratpur-Manali Expwy (6 Plazas)', plazaCount: 6, plazas: ['Takoli (Kullu) Toll', 'Behrampur/Kiratpur Toll', 'Ghaggar Toll', 'Gharaunda Toll', 'Panipat Toll', 'Murthal Toll'] },
+  'delhi-amritsar': { toll: 610, name: 'NH-44 Delhi-Amritsar Expwy (6 Plazas)', plazaCount: 6, plazas: ['Murthal Toll', 'Panipat Toll', 'Gharaunda Toll', 'Ghaggar Toll', 'Ladowal (Ludhiana) Toll', 'Nijjarpura (Amritsar) Toll'] },
+  'amritsar-delhi': { toll: 610, name: 'NH-44 Delhi-Amritsar Expwy (6 Plazas)', plazaCount: 6, plazas: ['Nijjarpura (Amritsar) Toll', 'Ladowal (Ludhiana) Toll', 'Ghaggar Toll', 'Gharaunda Toll', 'Panipat Toll', 'Murthal Toll'] },
+  'delhi-lucknow': { toll: 780, name: 'Yamuna + Agra-Lucknow Expwy (4 Plazas)', plazaCount: 4, plazas: ['Jewar Toll', 'Mathura Toll', 'Agra Toll', 'Agra-Lucknow Expressway Toll'] },
+  'lucknow-delhi': { toll: 780, name: 'Yamuna + Agra-Lucknow Expwy (4 Plazas)', plazaCount: 4, plazas: ['Agra-Lucknow Expressway Toll', 'Agra Toll', 'Mathura Toll', 'Jewar Toll'] },
+  'delhi-nainital': { toll: 345, name: 'NH-9 Hapur-Moradabad FASTag (3 Plazas)', plazaCount: 3, plazas: ['Chhijarsi (Pilkhuwa) Toll', 'Brijghat (Garhmukteshwar) Toll', 'Joya (Amroha) Toll'] },
+  'nainital-delhi': { toll: 345, name: 'NH-9 Hapur-Moradabad FASTag (3 Plazas)', plazaCount: 3, plazas: ['Joya (Amroha) Toll', 'Brijghat (Garhmukteshwar) Toll', 'Chhijarsi (Pilkhuwa) Toll'] },
+  'delhi-mussoorie': { toll: 335, name: 'Delhi-Dehradun Highway FASTag (3 Plazas)', plazaCount: 3, plazas: ['Kashi (Meerut Expwy) Toll', 'Saini Toll Plaza', 'Lacchiwala (Dehradun) Toll'] },
+  'mussoorie-delhi': { toll: 335, name: 'Delhi-Dehradun Highway FASTag (3 Plazas)', plazaCount: 3, plazas: ['Lacchiwala (Dehradun) Toll', 'Saini Toll Plaza', 'Kashi (Meerut Expwy) Toll'] },
+  'zirakpur-kangra': { toll: 135, name: 'NH-503 Kiratpur-Nangal Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'kangra-zirakpur': { toll: 135, name: 'NH-503 Kiratpur-Nangal Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'chandigarh-kangra': { toll: 135, name: 'NH-503 Kiratpur-Nangal Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'kangra-chandigarh': { toll: 135, name: 'NH-503 Kiratpur-Nangal Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'zirakpur-nagrota': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'nagrota-zirakpur': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'chandigarh-nagrota': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'nagrota-chandigarh': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'zirakpur-dharamshala': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'dharamshala-zirakpur': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'chandigarh-dharamshala': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'dharamshala-chandigarh': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'zirakpur-palampur': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'palampur-zirakpur': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'chandigarh-palampur': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Solakhian (Ropar) Toll Plaza', 'Behrampur (Kiratpur) Toll Plaza'] },
+  'palampur-chandigarh': { toll: 135, name: 'NH-503 Kiratpur-Kangra Corridor (2 Plazas)', plazaCount: 2, plazas: ['Behrampur (Kiratpur) Toll Plaza', 'Solakhian (Ropar) Toll Plaza'] },
+  'chandigarh-manali': { toll: 210, name: 'Kiratpur-Nerchowk-Manali Expwy (3 Plazas)', plazaCount: 3, plazas: ['Solakhian (Ropar) Toll', 'Behrampur (Kiratpur) Toll', 'Takoli (Kullu) Toll'] },
+  'manali-chandigarh': { toll: 210, name: 'Kiratpur-Nerchowk-Manali Expwy (3 Plazas)', plazaCount: 3, plazas: ['Takoli (Kullu) Toll', 'Behrampur (Kiratpur) Toll', 'Solakhian (Ropar) Toll'] },
+  'zirakpur-manali': { toll: 210, name: 'Kiratpur-Nerchowk-Manali Expwy (3 Plazas)', plazaCount: 3, plazas: ['Solakhian (Ropar) Toll', 'Behrampur (Kiratpur) Toll', 'Takoli (Kullu) Toll'] },
+  'manali-zirakpur': { toll: 210, name: 'Kiratpur-Nerchowk-Manali Expwy (3 Plazas)', plazaCount: 3, plazas: ['Takoli (Kullu) Toll', 'Behrampur (Kiratpur) Toll', 'Solakhian (Ropar) Toll'] },
+  'chandigarh-shimla': { toll: 115, name: 'Chandimandir-Solan Himalayan Expwy (2 Plazas)', plazaCount: 2, plazas: ['Chandimandir Toll Plaza', 'Sanwara (Solan) Toll Plaza'] },
+  'shimla-chandigarh': { toll: 115, name: 'Chandimandir-Solan Himalayan Expwy (2 Plazas)', plazaCount: 2, plazas: ['Sanwara (Solan) Toll Plaza', 'Chandimandir Toll Plaza'] },
+  'zirakpur-shimla': { toll: 115, name: 'Chandimandir-Solan Himalayan Expwy (2 Plazas)', plazaCount: 2, plazas: ['Chandimandir Toll Plaza', 'Sanwara (Solan) Toll Plaza'] },
+  'shimla-zirakpur': { toll: 115, name: 'Chandimandir-Solan Himalayan Expwy (2 Plazas)', plazaCount: 2, plazas: ['Sanwara (Solan) Toll Plaza', 'Chandimandir Toll Plaza'] },
+  'chandigarh-amritsar': { toll: 265, name: 'NH-5 / NH-44 Punjab FASTag (3 Plazas)', plazaCount: 3, plazas: ['Ladowal (Ludhiana) Toll', 'Chiddan/Dhilwan Toll', 'Nijjarpura (Amritsar) Toll'] },
+  'amritsar-chandigarh': { toll: 265, name: 'NH-5 / NH-44 Punjab FASTag (3 Plazas)', plazaCount: 3, plazas: ['Nijjarpura (Amritsar) Toll', 'Chiddan/Dhilwan Toll', 'Ladowal (Ludhiana) Toll'] },
+  'patna-muzaffarpur': { toll: 110, name: 'NH-22 Hajipur-Muzaffarpur Highway (1 Plaza)', plazaCount: 1, plazas: ['Goraul (Vaishali) Toll Plaza'] },
+  'muzaffarpur-patna': { toll: 110, name: 'NH-22 Hajipur-Muzaffarpur Highway (1 Plaza)', plazaCount: 1, plazas: ['Goraul (Vaishali) Toll Plaza'] },
+  'patna-darbhanga': { toll: 195, name: 'NH-22 + NH-27 Darbhanga Corridor (2 Plazas)', plazaCount: 2, plazas: ['Goraul Toll Plaza', 'Maithi (Muzaffarpur-Darbhanga) Toll Plaza'] },
+  'darbhanga-patna': { toll: 195, name: 'NH-22 + NH-27 Darbhanga Corridor (2 Plazas)', plazaCount: 2, plazas: ['Maithi (Muzaffarpur-Darbhanga) Toll Plaza', 'Goraul Toll Plaza'] },
+  'patna-gaya': { toll: 85, name: 'NH-22 Patna-Gaya Highway (1 Plaza)', plazaCount: 1, plazas: ['Kewali (Jehanabad) Toll Plaza'] },
+  'gaya-patna': { toll: 85, name: 'NH-22 Patna-Gaya Highway (1 Plaza)', plazaCount: 1, plazas: ['Kewali (Jehanabad) Toll Plaza'] },
+  'patna-biharsharif': { toll: 120, name: 'NH-30 / NH-20 Bakhtiyarpur Corridor (1 Plaza)', plazaCount: 1, plazas: ['Didarganj (Patna-Bakhtiyarpur) Toll Plaza'] },
+  'biharsharif-patna': { toll: 120, name: 'NH-30 / NH-20 Bakhtiyarpur Corridor (1 Plaza)', plazaCount: 1, plazas: ['Didarganj (Patna-Bakhtiyarpur) Toll Plaza'] },
+  'patna-rajgir': { toll: 120, name: 'NH-30 / NH-20 Rajgir Corridor (1 Plaza)', plazaCount: 1, plazas: ['Didarganj (Patna-Bakhtiyarpur) Toll Plaza'] },
+  'rajgir-patna': { toll: 120, name: 'NH-30 / NH-20 Rajgir Corridor (1 Plaza)', plazaCount: 1, plazas: ['Didarganj (Patna-Bakhtiyarpur) Toll Plaza'] },
+  'mumbai-pune': { toll: 320, name: 'Mumbai-Pune Expressway (2 Plazas)', plazaCount: 2, plazas: ['Khalapur Toll Plaza', 'Talegaon Toll Plaza'] },
+  'pune-mumbai': { toll: 320, name: 'Mumbai-Pune Expressway (2 Plazas)', plazaCount: 2, plazas: ['Talegaon Toll Plaza', 'Khalapur Toll Plaza'] },
+  'mumbai-lonavala': { toll: 240, name: 'Mumbai-Pune Expressway (1 Plaza)', plazaCount: 1, plazas: ['Khalapur Expressway Toll Plaza'] },
+  'lonavala-mumbai': { toll: 240, name: 'Mumbai-Pune Expressway (1 Plaza)', plazaCount: 1, plazas: ['Khalapur Expressway Toll Plaza'] },
+  'mumbai-shirdi': { toll: 295, name: 'NH-160 / Samruddhi FASTag (3 Plazas)', plazaCount: 3, plazas: ['Argoan/Padgha Toll', 'Ghoti Toll Plaza', 'Sinnar/Shirdi Toll'] },
+  'shirdi-mumbai': { toll: 295, name: 'NH-160 / Samruddhi FASTag (3 Plazas)', plazaCount: 3, plazas: ['Sinnar/Shirdi Toll', 'Ghoti Toll Plaza', 'Argoan/Padgha Toll'] },
+  'mumbai-nashik': { toll: 235, name: 'Mumbai-Nashik NH-160 FASTag (2 Plazas)', plazaCount: 2, plazas: ['Padgha Toll Plaza', 'Ghoti Toll Plaza'] },
+  'nashik-mumbai': { toll: 235, name: 'Mumbai-Nashik NH-160 FASTag (2 Plazas)', plazaCount: 2, plazas: ['Ghoti Toll Plaza', 'Padgha Toll Plaza'] },
+  'mumbai-goa': { toll: 520, name: 'NH-66 / Expressway FASTag (5 Plazas)', plazaCount: 5, plazas: ['Khalapur Toll', 'Talegaon Toll', 'Khed Shivapur Toll', 'Anewadi Toll', 'Kini (Kolhapur) Toll'] },
+  'goa-mumbai': { toll: 520, name: 'NH-66 / Expressway FASTag (5 Plazas)', plazaCount: 5, plazas: ['Kini (Kolhapur) Toll', 'Anewadi Toll', 'Khed Shivapur Toll', 'Talegaon Toll', 'Khalapur Toll'] },
+  'mumbai-mahabaleshwar': { toll: 410, name: 'Mumbai-Pune Expwy + NH-48 (3 Plazas)', plazaCount: 3, plazas: ['Khalapur Toll', 'Talegaon Toll', 'Khed Shivapur Toll'] },
+  'mahabaleshwar-mumbai': { toll: 410, name: 'Mumbai-Pune Expwy + NH-48 (3 Plazas)', plazaCount: 3, plazas: ['Khed Shivapur Toll', 'Talegaon Toll', 'Khalapur Toll'] },
+  'pune-shirdi': { toll: 195, name: 'Pune-Sangamner Highway FASTag (2 Plazas)', plazaCount: 2, plazas: ['Chakan/Moshi Toll Plaza', 'Chalakhwadi (Alephata) Toll'] },
+  'shirdi-pune': { toll: 195, name: 'Pune-Sangamner Highway FASTag (2 Plazas)', plazaCount: 2, plazas: ['Chalakhwadi (Alephata) Toll', 'Chakan/Moshi Toll Plaza'] },
+  'pune-mahabaleshwar': { toll: 135, name: 'NH-48 Khed-Shivapur FASTag (1 Plaza)', plazaCount: 1, plazas: ['Khed Shivapur Toll Plaza'] },
+  'mahabaleshwar-pune': { toll: 135, name: 'NH-48 Khed-Shivapur FASTag (1 Plaza)', plazaCount: 1, plazas: ['Khed Shivapur Toll Plaza'] },
+  'bangalore-mysore': { toll: 335, name: 'Bangalore-Mysore Expressway (2 Plazas)', plazaCount: 2, plazas: ['Kaniminike Toll Plaza', 'Gananguru (Srirangapatna) Toll Plaza'] },
+  'mysore-bangalore': { toll: 335, name: 'Bangalore-Mysore Expressway (2 Plazas)', plazaCount: 2, plazas: ['Gananguru (Srirangapatna) Toll Plaza', 'Kaniminike Toll Plaza'] },
+  'bangalore-chennai': { toll: 435, name: 'NH-48 Krishnagiri-Vellore FASTag (5 Plazas)', plazaCount: 5, plazas: ['Attibele Toll', 'Krishnagiri Toll', 'Pallikonda Toll', 'Chennasamudram Toll', 'Sriperumbudur Toll'] },
+  'chennai-bangalore': { toll: 435, name: 'NH-48 Krishnagiri-Vellore FASTag (5 Plazas)', plazaCount: 5, plazas: ['Sriperumbudur Toll', 'Chennasamudram Toll', 'Pallikonda Toll', 'Krishnagiri Toll', 'Attibele Toll'] },
+  'bangalore-tirupati': { toll: 265, name: 'NH-75 Mulbagal-Chittoor FASTag (3 Plazas)', plazaCount: 3, plazas: ['Hoskote Toll Plaza', 'Mulbagal Toll Plaza', 'Gadanki (Tirupati) Toll'] },
+  'tirupati-bangalore': { toll: 265, name: 'NH-75 Mulbagal-Chittoor FASTag (3 Plazas)', plazaCount: 3, plazas: ['Gadanki (Tirupati) Toll', 'Mulbagal Toll Plaza', 'Hoskote Toll Plaza'] },
+  'bangalore-ooty': { toll: 335, name: 'Bangalore-Mysore Expwy (2 Plazas)', plazaCount: 2, plazas: ['Kaniminike Toll Plaza', 'Gananguru Toll Plaza'] },
+  'ooty-bangalore': { toll: 335, name: 'Bangalore-Mysore Expwy (2 Plazas)', plazaCount: 2, plazas: ['Gananguru Toll Plaza', 'Kaniminike Toll Plaza'] },
+  'bangalore-coorg': { toll: 265, name: 'Bangalore-Mysore Expwy FASTag (2 Plazas)', plazaCount: 2, plazas: ['Kaniminike Toll Plaza', 'Gananguru Toll Plaza'] },
+  'coorg-bangalore': { toll: 265, name: 'Bangalore-Mysore Expwy FASTag (2 Plazas)', plazaCount: 2, plazas: ['Gananguru Toll Plaza', 'Kaniminike Toll Plaza'] },
+  'chennai-pondicherry': { toll: 145, name: 'East Coast Road (ECR) Toll (2 Plazas)', plazaCount: 2, plazas: ['Akkarai ECR Toll Plaza', 'Mahabalipuram ECR Toll'] },
+  'pondicherry-chennai': { toll: 145, name: 'East Coast Road (ECR) Toll (2 Plazas)', plazaCount: 2, plazas: ['Mahabalipuram ECR Toll', 'Akkarai ECR Toll Plaza'] },
+  'ahmedabad-udaipur': { toll: 295, name: 'NH-48 Himatnagar-Shamlaji FASTag (3 Plazas)', plazaCount: 3, plazas: ['Kathpur (Himatnagar) Toll', 'Vantada (Modasa) Toll', 'Khandi Obri (Udaipur) Toll'] },
+  'udaipur-ahmedabad': { toll: 295, name: 'NH-48 Himatnagar-Shamlaji FASTag (3 Plazas)', plazaCount: 3, plazas: ['Khandi Obri (Udaipur) Toll', 'Vantada (Modasa) Toll', 'Kathpur (Himatnagar) Toll'] },
+  'jaipur-udaipur': { toll: 415, name: 'NH-48 Kishangarh-Bhilwara FASTag (4 Plazas)', plazaCount: 4, plazas: ['Thikariya (Jaipur) Toll', 'Kishangarh Toll', 'Lambiya (Bhilwara) Toll', 'Narayanpura (Udaipur) Toll'] },
+  'udaipur-jaipur': { toll: 415, name: 'NH-48 Kishangarh-Bhilwara FASTag (4 Plazas)', plazaCount: 4, plazas: ['Narayanpura (Udaipur) Toll', 'Lambiya (Bhilwara) Toll', 'Kishangarh Toll', 'Thikariya (Jaipur) Toll'] },
+  'jaipur-jodhpur': { toll: 315, name: 'NH-48 + Beawar-Pali FASTag (3 Plazas)', plazaCount: 3, plazas: ['Thikariya Toll', 'Kishangarh Toll', 'Raipur/Nimbol (Beawar) Toll'] },
+  'jodhpur-jaipur': { toll: 315, name: 'NH-48 + Beawar-Pali FASTag (3 Plazas)', plazaCount: 3, plazas: ['Raipur/Nimbol (Beawar) Toll', 'Kishangarh Toll', 'Thikariya Toll'] },
+  'lucknow-varanasi': { toll: 375, name: 'Purvanchal / NH-31 FASTag (3 Plazas)', plazaCount: 3, plazas: ['Dakhina Shekhpur Toll', 'Asoga (Sultanpur) Toll', 'Hauz (Jaunpur) Toll'] },
+  'varanasi-lucknow': { toll: 375, name: 'Purvanchal / NH-31 FASTag (3 Plazas)', plazaCount: 3, plazas: ['Hauz (Jaunpur) Toll', 'Asoga (Sultanpur) Toll', 'Dakhina Shekhpur Toll'] },
+  'lucknow-ayodhya': { toll: 195, name: 'NH-27 Barabanki-Ayodhya FASTag (2 Plazas)', plazaCount: 2, plazas: ['Ahmadpur (Barabanki) Toll Plaza', 'Ronahi (Ayodhya) Toll Plaza'] },
+  'ayodhya-lucknow': { toll: 195, name: 'NH-27 Barabanki-Ayodhya FASTag (2 Plazas)', plazaCount: 2, plazas: ['Ronahi (Ayodhya) Toll Plaza', 'Ahmadpur (Barabanki) Toll Plaza'] },
+  'varanasi-ayodhya': { toll: 225, name: 'NH-31 / NH-27 Ayodhya FASTag (2 Plazas)', plazaCount: 2, plazas: ['Hauz (Jaunpur) Toll Plaza', 'Tahapur/Akbarpur Toll Plaza'] },
+  'ayodhya-varanasi': { toll: 225, name: 'NH-31 / NH-27 Ayodhya FASTag (2 Plazas)', plazaCount: 2, plazas: ['Tahapur/Akbarpur Toll Plaza', 'Hauz (Jaunpur) Toll Plaza'] }
 };
 
 const SERVER_CITY_STATE_KEYWORDS = [
@@ -414,37 +444,85 @@ function computeServerMultiStatePermitBreakdown(originState, destState, pickupCi
 const SERVER_VERIFIED_TOLL_FREE_CORRIDORS = [
   'patna-hajipur', 'hajipur-patna',
   'patna-sonepur', 'sonepur-patna',
+  'patna-sonpur', 'sonpur-patna',
   'patna-danapur', 'danapur-patna',
   'patna-bihta', 'bihta-patna',
+  'patna-arrah', 'arrah-patna',
+  'patna-ara', 'ara-patna',
+  'patna-chhapra', 'chhapra-patna',
+  'patna-chapra', 'chapra-patna',
   'hajipur-sonepur', 'sonepur-hajipur',
+  'hajipur-danapur', 'danapur-hajipur',
+  'hajipur-bihta', 'bihta-hajipur',
+  'gaya-bodhgaya', 'bodhgaya-gaya',
+  'rajgir-nalanda', 'nalanda-rajgir',
+  'biharsharif-rajgir', 'rajgir-biharsharif',
+  'biharsharif-nalanda', 'nalanda-biharsharif',
   'delhi-noida', 'noida-delhi',
+  'delhi-greaternoida', 'greaternoida-delhi',
   'delhi-ghaziabad', 'ghaziabad-delhi',
   'delhi-gurgaon', 'gurgaon-delhi',
   'delhi-gurugram', 'gurugram-delhi',
   'delhi-faridabad', 'faridabad-delhi',
-  'noida-greater noida', 'greater noida-noida',
+  'noida-ghaziabad', 'ghaziabad-noida',
+  'noida-greaternoida', 'greaternoida-noida',
+  'gurgaon-faridabad', 'faridabad-gurgaon',
   'chandigarh-mohali', 'mohali-chandigarh',
   'chandigarh-panchkula', 'panchkula-chandigarh',
   'chandigarh-zirakpur', 'zirakpur-chandigarh',
+  'zirakpur-mohali', 'mohali-zirakpur',
+  'zirakpur-panchkula', 'panchkula-zirakpur',
+  'mohali-panchkula', 'panchkula-mohali',
+  'mathura-vrindavan', 'vrindavan-mathura',
+  'agra-fatehpursikri', 'fatehpursikri-agra',
+  'haridwar-rishikesh', 'rishikesh-haridwar',
+  'dehradun-mussoorie', 'mussoorie-dehradun',
+  'dehradun-rishikesh', 'rishikesh-dehradun',
+  'haldwani-nainital', 'nainital-haldwani',
+  'kathgodam-nainital', 'nainital-kathgodam',
+  'nainital-bhimtal', 'bhimtal-nainital',
+  'nainital-almora', 'almora-nainital',
+  'shimla-kufri', 'kufri-shimla',
+  'shimla-narkanda', 'narkanda-shimla',
+  'shimla-chail', 'chail-shimla',
+  'kullu-manali', 'manali-kullu',
+  'kullu-kasol', 'kasol-kullu',
+  'manali-kasol', 'kasol-manali',
+  'dharamshala-mcleodganj', 'mcleodganj-dharamshala',
+  'dharamshala-kangra', 'kangra-dharamshala',
+  'dharamshala-palampur', 'palampur-dharamshala',
+  'kangra-palampur', 'palampur-kangra',
+  'kangra-nagrota', 'nagrota-kangra',
+  'dalhousie-khajjiar', 'khajjiar-dalhousie',
   'kolkata-howrah', 'howrah-kolkata',
   'mumbai-thane', 'thane-mumbai',
-  'mumbai-navi mumbai', 'navi mumbai-mumbai',
+  'mumbai-navimumbai', 'navimumbai-mumbai',
+  'pune-lonavala', 'lonavala-pune',
+  'lonavala-khandala', 'khandala-lonavala',
+  'mahabaleshwar-panchgani', 'panchgani-mahabaleshwar',
   'hyderabad-secunderabad', 'secunderabad-hyderabad',
-  'haridwar-rishikesh', 'rishikesh-haridwar',
-  'mathura-vrindavan', 'vrindavan-mathura',
-  'gaya-bodhgaya', 'bodhgaya-gaya',
-  'rajgir-nalanda', 'nalanda-rajgir'
+  'ahmedabad-gandhinagar', 'gandhinagar-ahmedabad',
+  'ajmer-pushkar', 'pushkar-ajmer',
+  'puri-konark', 'konark-puri',
+  'ooty-coonoor', 'coonoor-ooty',
+  'guwahati-shillong', 'shillong-guwahati',
+  'shillong-cherrapunji', 'cherrapunji-shillong',
+  'siliguri-darjeeling', 'darjeeling-siliguri',
+  'siliguri-gangtok', 'gangtok-siliguri'
 ];
 
 function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230, cabId = 'sedan') {
   const nFrom = normalizeServerRouteToken(pickupCity);
   const nTo = normalizeServerRouteToken(dropCity);
+  const vehicleTollMultiplier = cabId === 'tempo' ? 1.45 : 1.0;
 
   if (nFrom && nTo) {
     if (nFrom === nTo) {
       return {
         baseTollOneWay: 0,
-        expresswayName: 'Intra-City Local Route (No Highway Toll)'
+        expresswayName: 'Intra-City Route (0 Toll Plazas · ₹0 Toll)',
+        tollPlazaCount: 0,
+        tollPlazas: []
       };
     }
 
@@ -453,46 +531,89 @@ function lookupServerRouteExpresswayToll(pickupCity, dropCity, distanceKm = 230,
       if (nFrom.includes(c1) && nTo.includes(c2)) {
         return {
           baseTollOneWay: 0,
-          expresswayName: 'Toll-Free Urban / Bridge Corridor (₹0 Toll)'
+          expresswayName: 'Toll-Free Corridor (0 Toll Plazas · ₹0 Toll)',
+          tollPlazaCount: 0,
+          tollPlazas: []
         };
       }
     }
   }
 
-  let matchedToll = null;
-  let matchedName = 'NHAI Highway FASTag';
-
   if (nFrom && nTo) {
     for (const [pairKey, info] of Object.entries(SERVER_EXPRESSWAY_TOLLS)) {
       const [c1, c2] = pairKey.split('-');
       if (nFrom.includes(c1) && nTo.includes(c2)) {
-        matchedToll = info.toll;
-        matchedName = info.name;
-        break;
+        return {
+          baseTollOneWay: Math.round(info.toll * vehicleTollMultiplier),
+          expresswayName: info.name,
+          tollPlazaCount: info.plazaCount || 1,
+          tollPlazas: info.plazas || [info.name]
+        };
       }
     }
   }
 
-  const vehicleTollMultiplier = cabId === 'tempo' ? 1.45 : 1.0;
-  if (matchedToll !== null) {
-    return {
-      baseTollOneWay: Math.round(matchedToll * vehicleTollMultiplier),
-      expresswayName: matchedName
-    };
-  }
-
-  if (distanceKm < 55) {
+  // Zero Toll on Short Inter-City Routes (<= 65 KM) without a dedicated tolled expressway
+  if (distanceKm <= 65) {
     return {
       baseTollOneWay: 0,
-      expresswayName: 'Short Inter-City Corridor (₹0 Highway Toll)'
+      expresswayName: 'Short Inter-City Route (0 Toll Plazas · ₹0 Toll)',
+      tollPlazaCount: 0,
+      tollPlazas: []
     };
   }
 
-  const highwayBillableKm = Math.max(20, Math.round(distanceKm * 0.75));
-  const nhaiRatePerKm = cabId === 'tempo' ? 1.55 : cabId === 'innova' || cabId === 'suv' ? 1.05 : 0.95;
+  // Mountain Hill-to-Hill Routes have 0 NHAI toll plazas
+  const pickupIsHill = isServerLocationInHillArea(pickupCity);
+  const dropIsHill = isServerLocationInHillArea(dropCity);
+  if (pickupIsHill && dropIsHill) {
+    return {
+      baseTollOneWay: 0,
+      expresswayName: 'Mountain Hill Road (0 Toll Plazas · ₹0 Toll)',
+      tollPlazaCount: 0,
+      tollPlazas: []
+    };
+  }
+
+  // Realistic Discrete Toll Plaza Counting (Synchronized 100% with lookupRouteExpresswayToll)
+  if (pickupIsHill || dropIsHill) {
+    const plainsSegmentKm = Math.max(0, Math.round(distanceKm * 0.42));
+    const hillApproachPlazas = plainsSegmentKm < 60 ? 0 : Math.min(3, Math.floor(plainsSegmentKm / 65));
+    if (hillApproachPlazas === 0) {
+      return {
+        baseTollOneWay: 0,
+        expresswayName: 'Foothill-to-Hill Route (0 Toll Plazas · ₹0 Toll)',
+        tollPlazaCount: 0,
+        tollPlazas: []
+      };
+    }
+    const perPlazaRate = Math.round(70 * vehicleTollMultiplier);
+    const plazaLabels = Array.from({ length: hillApproachPlazas }, (_, i) => `NHAI Foothill Plaza #${i + 1}`);
+    return {
+      baseTollOneWay: hillApproachPlazas * perPlazaRate,
+      expresswayName: `NHAI Foothill Approach (${hillApproachPlazas} Toll Plaza${hillApproachPlazas > 1 ? 's' : ''})`,
+      tollPlazaCount: hillApproachPlazas,
+      tollPlazas: plazaLabels
+    };
+  }
+
+  const countedPlazas = distanceKm < 75 ? 0 : Math.max(1, Math.floor((distanceKm - 20) / 80));
+  if (countedPlazas === 0) {
+    return {
+      baseTollOneWay: 0,
+      expresswayName: 'Regional Highway (0 Toll Plazas · ₹0 Toll)',
+      tollPlazaCount: 0,
+      tollPlazas: []
+    };
+  }
+
+  const avgPlazaRate = Math.round(75 * vehicleTollMultiplier);
+  const plazaNames = Array.from({ length: countedPlazas }, (_, i) => `NHAI Highway Plaza #${i + 1}`);
   return {
-    baseTollOneWay: Math.round(highwayBillableKm * nhaiRatePerKm),
-    expresswayName: 'NHAI National Highway FASTag'
+    baseTollOneWay: countedPlazas * avgPlazaRate,
+    expresswayName: `NHAI Highway FASTag (${countedPlazas} Toll Plaza${countedPlazas > 1 ? 's' : ''})`,
+    tollPlazaCount: countedPlazas,
+    tollPlazas: plazaNames
   };
 }
 
@@ -1187,12 +1308,16 @@ export function computeServerTripFare({
   let statePermitTax = 0;
   let stateRoutePath = [originState];
   let statePermitBreakdown = [];
-  let expresswayName = 'Local City Road';
+  let expresswayName = 'Local City Road (0 Toll Plazas)';
+  let tollPlazaCount = 0;
+  let tollPlazas = [];
 
   if (tripType === 'oneway') {
     const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, billedDistanceKm, cabId);
     highwayToll = tollInfo.baseTollOneWay;
     expresswayName = tollInfo.expresswayName;
+    tollPlazaCount = tollInfo.tollPlazaCount || 0;
+    tollPlazas = tollInfo.tollPlazas || [];
     if (isInterState) {
       const permitInfo = computeServerMultiStatePermitBreakdown(
         originState,
@@ -1212,8 +1337,10 @@ export function computeServerTripFare({
       Math.round(billedDistanceKm / 2),
       cabId
     );
-    highwayToll = Math.round(tollInfo.baseTollOneWay * 1.8);
+    highwayToll = tollInfo.baseTollOneWay > 0 ? Math.round(tollInfo.baseTollOneWay * 1.8) : 0;
     expresswayName = tollInfo.expresswayName;
+    tollPlazaCount = tollInfo.tollPlazaCount > 0 ? tollInfo.tollPlazaCount * 2 : 0;
+    tollPlazas = tollInfo.tollPlazas || [];
     if (isInterState) {
       const permitInfo = computeServerMultiStatePermitBreakdown(
         originState,
@@ -1227,9 +1354,13 @@ export function computeServerTripFare({
       statePermitTax = permitInfo.totalStatePermitTax;
     }
   } else if (tripType === 'airport') {
-    highwayToll = 130;
+    const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, billedDistanceKm, cabId);
+    highwayToll = tollInfo.baseTollOneWay;
     statePermitTax = 0;
-    expresswayName = 'Airport Toll & Entry';
+    expresswayName =
+      tollInfo.tollPlazaCount > 0 ? tollInfo.expresswayName : 'Airport Approach Road (0 Toll Plazas)';
+    tollPlazaCount = tollInfo.tollPlazaCount || 0;
+    tollPlazas = tollInfo.tollPlazas || [];
   }
 
   const estimatedTollsAndTaxes = highwayToll + statePermitTax;
@@ -1298,6 +1429,8 @@ export function computeServerTripFare({
     originState,
     destState,
     expresswayName,
+    tollPlazaCount,
+    tollPlazas,
     addonsTotal,
     gstAmount,
     promoDiscount: appliedPromoDiscount,

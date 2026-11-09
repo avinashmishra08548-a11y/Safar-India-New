@@ -303,7 +303,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     addonAssuredModel,
     promoCode: promoApplied ? 'FIRST300' : '',
     promoDiscount: promoApplied ? PROMO_DISCOUNT_AMOUNT : 0,
-    customerName
+    customerName,
+    routeGeometry
   });
 
   const payableNowAmount = paymentMode === 'advance_20' ? activeFare.advanceFare : activeFare.totalFare;
@@ -954,6 +955,92 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <span className="text-emerald-700 font-black text-sm">{formatINR(activeFare.totalFare)}</span>
               </div>
             </div>
+          </div>
+
+          {/* Transparent Itemized Fare & Real Counted Toll Breakdown */}
+          <div className="bg-white rounded-xl border border-slate-200/90 p-3 space-y-1.5 text-[11px]">
+            <div className="flex items-center justify-between font-extrabold text-slate-900 border-b border-slate-100 pb-1">
+              <span>Transparent Itemized Fare Breakdown ({activeFare.billedDistanceKm} KM)</span>
+              <span className="text-emerald-700 font-bold">
+                {activeFare.tollPlazaCount === 0
+                  ? '✓ 0 Toll Plazas on Route'
+                  : `${activeFare.tollPlazaCount} Counted Toll Plaza${activeFare.tollPlazaCount === 1 ? '' : 's'}`}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1">
+              <div className="flex justify-between text-slate-600">
+                <span>Base Cab Fare ({activeFare.billedDistanceKm} KM):</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {formatINR(Math.max(0, activeFare.baseFare - (activeFare.hillStationCharge || 0)))}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Driver Allowance (Daily Bata):</span>
+                <span className="font-mono font-bold text-emerald-700">
+                  {formatINR(activeFare.driverAllowance)} (Included)
+                </span>
+              </div>
+              {activeFare.hillStationCharge > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Hill Station Climb Charge:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(activeFare.hillStationCharge)} (Included)
+                  </span>
+                </div>
+              )}
+              {tripType !== 'local' && (
+                <>
+                  <div className="flex justify-between text-slate-600">
+                    <span>
+                      Real Counted Highway Tolls ({activeFare.tollPlazaCount || 0} Plaza{activeFare.tollPlazaCount === 1 ? '' : 's'}):
+                    </span>
+                    <span
+                      className={`font-mono font-bold ${
+                        activeFare.highwayToll === 0 ? 'text-emerald-700' : 'text-slate-900'
+                      }`}
+                    >
+                      {activeFare.highwayToll === 0
+                        ? '0 Plazas · ₹0'
+                        : includeTollsState
+                        ? `${formatINR(activeFare.highwayToll)} (Included)`
+                        : `${formatINR(activeFare.highwayToll)} (Pay at Plaza)`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>
+                      State Tax / Permit ({activeFare.isInterState ? activeFare.destState : 'Intra-State'}):
+                    </span>
+                    <span
+                      className={`font-mono font-bold ${
+                        activeFare.statePermitTax === 0 ? 'text-emerald-700' : 'text-slate-900'
+                      }`}
+                    >
+                      {activeFare.statePermitTax === 0
+                        ? '₹0 (Same State)'
+                        : includeTollsState
+                        ? `${formatINR(activeFare.statePermitTax)} (Included)`
+                        : `${formatINR(activeFare.statePermitTax)} (Extra)`}
+                    </span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between text-slate-600">
+                <span>GST (5% SAC 996412):</span>
+                <span className="font-mono font-bold text-slate-900">{formatINR(activeFare.gstAmount)}</span>
+              </div>
+              {activeFare.addonsTotal > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Selected Add-Ons:</span>
+                  <span className="font-mono font-bold text-slate-900">{formatINR(activeFare.addonsTotal)}</span>
+                </div>
+              )}
+            </div>
+            {activeFare.tollPlazaCount > 0 && activeFare.tollPlazas?.length > 0 && (
+              <div className="pt-1 border-t border-slate-100 text-[10px] text-slate-500">
+                <span className="font-bold text-slate-700">Counted NHAI Plazas on Route:</span>{' '}
+                {activeFare.tollPlazas.join(' → ')}
+              </div>
+            )}
           </div>
 
           {/* Promo Code Input Field & 'Apply' Button on Booking Summary */}

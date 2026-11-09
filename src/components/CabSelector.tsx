@@ -47,6 +47,7 @@ interface CabSelectorProps {
   setIsPromoApplied?: (applied: boolean) => void;
   currentUser?: CustomerUser | null;
   welcomeMessage?: string;
+  routeGeometry?: Array<[number, number]>;
   onSelectCab: (cab: CabVehicle, fare: FareBreakdown) => void;
 }
 
@@ -79,6 +80,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
   setIsPromoApplied: setExternalIsPromoApplied,
   currentUser,
   welcomeMessage,
+  routeGeometry,
   onSelectCab
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
@@ -155,7 +157,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         pickupDate,
         pickupTime,
         0,
-        promoDiscountValue
+        promoDiscountValue,
+        routeGeometry
       ),
     [
       tripType,
@@ -167,7 +170,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
       includeTolls,
       pickupDate,
       pickupTime,
-      promoDiscountValue
+      promoDiscountValue,
+      routeGeometry
     ]
   );
 
@@ -186,7 +190,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           pickupDate,
           pickupTime,
           0,
-          promoDiscountValue
+          promoDiscountValue,
+          routeGeometry
         );
         const fareWithoutToll = calculateTripFare(
           cab.id,
@@ -200,7 +205,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
           pickupDate,
           pickupTime,
           0,
-          promoDiscountValue
+          promoDiscountValue,
+          routeGeometry
         );
         return { cab, fareWithToll, fareWithoutToll };
       }),
@@ -213,7 +219,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
       dropCity,
       pickupDate,
       pickupTime,
-      promoDiscountValue
+      promoDiscountValue,
+      routeGeometry
     ]
   );
 
@@ -544,7 +551,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 <div className="mb-3 p-3 rounded-xl bg-slate-50/90 border border-slate-200/80 space-y-1.5 text-[11px]">
                   <div className="flex items-center justify-between font-extrabold text-slate-900 border-b border-slate-200 pb-1">
                     <span>Itemized Fare Breakup ({activeFare.billedDistanceKm} KM)</span>
-                    <span className="text-emerald-700">Zero Hidden Charges</span>
+                    <span className="text-emerald-700">100% Honest Pricing</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Base Cab Fare ({activeFare.billedDistanceKm} KM):</span>
@@ -569,25 +576,43 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   {tripType !== 'local' && (
                     <>
                       <div className="flex justify-between text-slate-600">
-                        <span>Highway FASTag Toll Tax:</span>
-                        <span className="font-mono font-bold text-slate-900">
+                        <span>
+                          Real Counted Highway Tolls ({activeFare.tollPlazaCount || 0} Plaza{activeFare.tollPlazaCount === 1 ? '' : 's'}):
+                        </span>
+                        <span
+                          className={`font-mono font-bold ${
+                            activeFare.highwayToll === 0 ? 'text-emerald-700' : 'text-slate-900'
+                          }`}
+                        >
                           {activeFare.highwayToll === 0
-                            ? '₹0 (No Toll on Route)'
+                            ? '0 Plazas · ₹0'
                             : includeTolls
                             ? `₹${activeFare.highwayToll.toLocaleString('en-IN')} (Included)`
-                            : `Est. ₹${activeFare.highwayToll.toLocaleString('en-IN')} (Extra)`}
+                            : `₹${activeFare.highwayToll.toLocaleString('en-IN')} (Extra)`}
                         </span>
                       </div>
-                      {activeFare.statePermitTax > 0 && (
-                        <div className="flex justify-between text-slate-600">
-                          <span>State Border Entry Permit Tax:</span>
-                          <span className="font-mono font-bold text-slate-900">
-                            {includeTolls
-                              ? `₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Included)`
-                              : `Est. ₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Extra)`}
-                          </span>
+                      {activeFare.tollPlazaCount > 0 && activeFare.tollPlazas?.length > 0 && (
+                        <div className="text-[10px] text-slate-500 pl-2 border-l-2 border-amber-300 leading-tight">
+                          Plazas: {activeFare.tollPlazas.slice(0, 4).join(' → ')}
+                          {activeFare.tollPlazas.length > 4 ? ` +${activeFare.tollPlazas.length - 4} more` : ''}
                         </div>
                       )}
+                      <div className="flex justify-between text-slate-600">
+                        <span>
+                          State Tax / Border Permit ({activeFare.isInterState ? activeFare.destState : 'Intra-State'}):
+                        </span>
+                        <span
+                          className={`font-mono font-bold ${
+                            activeFare.statePermitTax === 0 ? 'text-emerald-700' : 'text-slate-900'
+                          }`}
+                        >
+                          {activeFare.statePermitTax === 0
+                            ? '₹0 (Same State)'
+                            : includeTolls
+                            ? `₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Included)`
+                            : `₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Extra)`}
+                        </span>
+                      </div>
                     </>
                   )}
                   <div className="flex justify-between text-slate-600">

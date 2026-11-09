@@ -1307,6 +1307,7 @@ export default function App() {
                 setIsPromoApplied={setIsPromoApplied}
                 currentUser={currentUser}
                 welcomeMessage={authNotice}
+                routeGeometry={routeGeometry}
                 onSelectCab={handleSelectCab}
               />
             </div>
@@ -1473,6 +1474,7 @@ export default function App() {
               setIsPromoApplied={setIsPromoApplied}
               currentUser={currentUser}
               welcomeMessage={authNotice}
+              routeGeometry={routeGeometry}
               onSelectCab={(cab, fare) => {
                 setIsCabsModalOpen(false);
                 handleSelectCab(cab, fare);
