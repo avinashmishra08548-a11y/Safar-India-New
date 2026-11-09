@@ -118,6 +118,38 @@
   ],
   "rewrites": [
     {
+      "source": "/api/create-order",
+      "destination": "/api/payment-gateway?endpoint=create-order"
+    },
+    {
+      "source": "/api/verify-payment",
+      "destination": "/api/payment-gateway?endpoint=verify-payment"
+    },
+    {
+      "source": "/api/razorpay-webhook",
+      "destination": "/api/payment-gateway?endpoint=webhook"
+    },
+    {
+      "source": "/api/booking-notifications",
+      "destination": "/api/send-booking-sms?endpoint=booking-notifications"
+    },
+    {
+      "source": "/api/assign-driver",
+      "destination": "/api/send-booking-sms?endpoint=assign-driver"
+    },
+    {
+      "source": "/api/send-driver-sms",
+      "destination": "/api/send-booking-sms?endpoint=send-driver-sms"
+    },
+    {
+      "source": "/api/send-review-email",
+      "destination": "/api/send-booking-sms?endpoint=send-review-email"
+    },
+    {
+      "source": "/api/verify-otp",
+      "destination": "/api/send-booking-sms?endpoint=verify-otp"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/sitemap.xml"
     },

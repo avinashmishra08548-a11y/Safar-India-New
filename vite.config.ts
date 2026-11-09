@@ -67,24 +67,26 @@ export default defineConfig(() => {
                 let handlerMod: any;
                 if (urlPath === '/api/send-sms') {
                   handlerMod = await import('./api/send-sms.js');
-                } else if (urlPath === '/api/send-booking-sms' || urlPath === '/api/booking-notifications') {
+                } else if (
+                  urlPath === '/api/send-booking-sms' ||
+                  urlPath === '/api/booking-notifications' ||
+                  urlPath === '/api/assign-driver' ||
+                  urlPath === '/api/send-driver-sms' ||
+                  urlPath === '/api/send-review-email' ||
+                  urlPath === '/api/verify-otp'
+                ) {
                   handlerMod = await import('./api/send-booking-sms.js');
-                } else if (urlPath === '/api/assign-driver' || urlPath === '/api/send-driver-sms') {
-                  handlerMod = await import('./api/assign-driver.js');
-                } else if (urlPath === '/api/verify-otp') {
-                  handlerMod = await import('./api/verify-otp.js');
                 } else if (urlPath === '/api/bookings') {
                   handlerMod = await import('./api/bookings.js');
-                } else if (urlPath === '/api/create-order') {
-                  handlerMod = await import('./api/create-order.js');
-                } else if (urlPath === '/api/verify-payment') {
-                  handlerMod = await import('./api/verify-payment.js');
-                } else if (urlPath === '/api/payment-gateway' || urlPath === '/api/razorpay-webhook') {
+                } else if (
+                  urlPath === '/api/payment-gateway' ||
+                  urlPath === '/api/create-order' ||
+                  urlPath === '/api/verify-payment' ||
+                  urlPath === '/api/razorpay-webhook'
+                ) {
                   handlerMod = await import('./api/payment-gateway.js');
                 } else if (urlPath === '/api/send-whatsapp') {
                   handlerMod = await import('./api/send-whatsapp.js');
-                } else if (urlPath === '/api/send-review-email') {
-                  handlerMod = await import('./api/send-review-email.js');
                 } else if (urlPath === '/api/maps') {
                   handlerMod = await import('./api/maps.js');
                 }
