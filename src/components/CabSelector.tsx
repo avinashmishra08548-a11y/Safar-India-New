@@ -405,52 +405,6 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         </div>
       </div>
 
-      {/* Best Price Challenge: Clean Market Average Rate Comparison Strip */}
-      <div className="mb-7 bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="text-[11px] font-extrabold uppercase tracking-wider text-amber-400">
-            Guaranteed Lowest One-Way &amp; Outstation Fare · Best Price Challenge
-          </div>
-          <h3 className="text-sm sm:text-base font-black text-white">
-            Save ₹{sampleFare.savingsAmount} vs Market Average Rate on{' '}
-            {tripType === 'local'
-              ? `${pickupCity || 'City'} Local Rental`
-              : pickupCity && dropCity
-              ? `${pickupCity} → ${dropCity}`
-              : 'Outstation & One-Way Routes'}
-          </h3>
-          <p className="text-xs text-slate-300">
-            100% Transparent Billing: Base Fare, Driver Allowance (DA), {sampleFare.billedDistanceKm} KM &amp; 5% GST shown upfront. Toll Tax, State Tax &amp; Parking Extra as per actuals.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 shrink-0 text-xs sm:min-w-[320px]">
-          <div className="bg-amber-400 text-slate-950 rounded-xl px-4 py-3 font-bold">
-            <div className="text-[10px] uppercase tracking-wider font-extrabold opacity-80">
-              SafarIndiaCabs Rate
-            </div>
-            <div className="text-lg font-black font-mono tabular-nums mt-0.5">
-              ₹{sampleFare.totalFare.toLocaleString('en-IN')}
-            </div>
-            <div className="text-[10px] font-extrabold text-emerald-950 mt-0.5">
-              Lowest Guaranteed ✓
-            </div>
-          </div>
-
-          <div className="bg-slate-950/90 border border-slate-800 rounded-xl px-4 py-3">
-            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-              Market Average Rate
-            </div>
-            <div className="text-base font-bold font-mono tabular-nums text-slate-300 line-through mt-0.5">
-              ₹{sampleFare.competitorRates.marketAverageFare.toLocaleString('en-IN')}
-            </div>
-            <div className="text-[10px] text-emerald-400 font-extrabold mt-0.5">
-              You Save ₹{sampleFare.savingsAmount.toLocaleString('en-IN')}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Spacious Cab Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {computedFleetFares.map(({ cab, fareWithoutToll }) => {

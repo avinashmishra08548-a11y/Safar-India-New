@@ -1186,130 +1186,105 @@ export default function App() {
             />
           </div>
         ) : (
-          /* DEDICATED VIEW 5: BOOK CAB (Focused Booking Form & Live Vehicle Selector Only) */
-          <div id="booking-section-top" className="space-y-8 py-4 sm:py-7 animate-in fade-in outline-hidden">
-            <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-                {/* Left Column: Streamlined Booking Form */}
-                <div className="lg:col-span-7">
-                  <BookingEngine
-                    tripType={tripType}
-                    setTripType={setTripType}
-                    pickupCity={pickupCity}
-                    setPickupCity={setPickupCity}
-                    dropCity={dropCity}
-                    setDropCity={setDropCity}
-                    roundTripStops={roundTripStops}
-                    setRoundTripStops={setRoundTripStops}
-                    pickupCoords={pickupCoords}
-                    setPickupCoords={setPickupCoords}
-                    dropCoords={dropCoords}
-                    setDropCoords={setDropCoords}
-                    pickupDate={pickupDate}
-                    setPickupDate={setPickupDate}
-                    pickupTime={pickupTime}
-                    setPickupTime={setPickupTime}
-                    returnDate={returnDate}
-                    setReturnDate={setReturnDate}
-                    returnTime={returnTime}
-                    setReturnTime={setReturnTime}
-                    localPackageId={localPackageId}
-                    setLocalPackageId={setLocalPackageId}
-                    airportMode={airportMode}
-                    setAirportMode={setAirportMode}
-                    airportTerminal={airportTerminal}
-                    setAirportTerminal={setAirportTerminal}
-                    calculatedDistance={distanceKm}
-                    roundTripLegs={roundTripLegs}
-                    tripDays={roundTripDays}
-                    travelDuration={travelDuration}
-                    isExactOlaDistance={isExactOlaDistance}
-                    customerMobile={customerMobile}
-                    setCustomerMobile={setCustomerMobile}
-                    currentUser={currentUser}
-                    onLoginSuccess={handleLoginSuccess}
-                    onExploreCabs={handleOpenAvailableCabs}
-                    onOpenRouteMap={(mode) =>
-                      setMapModalState({
-                        isOpen: true,
-                        mode,
-                        trackingBooking: null
-                      })
-                    }
-                    routeAlternatives={routeAlternatives}
-                    selectedRouteId={selectedRouteId}
-                    onSelectAlternativeRoute={handleSelectAlternativeRoute}
-                    routeSummary={routeSummary}
-                    routeProvider={routeProvider}
-                  />
-                </div>
+          /* DEDICATED VIEW 5: BOOK CAB (Minimal, Spacious Booking Card + Brand Banner + 3 Trust Badges Only) */
+          <div
+            id="booking-section-top"
+            className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6 animate-in fade-in outline-hidden"
+          >
+            {/* 1. Clean, Spacious Top Booking Form Card */}
+            <BookingEngine
+              tripType={tripType}
+              setTripType={setTripType}
+              pickupCity={pickupCity}
+              setPickupCity={setPickupCity}
+              dropCity={dropCity}
+              setDropCity={setDropCity}
+              roundTripStops={roundTripStops}
+              setRoundTripStops={setRoundTripStops}
+              pickupCoords={pickupCoords}
+              setPickupCoords={setPickupCoords}
+              dropCoords={dropCoords}
+              setDropCoords={setDropCoords}
+              pickupDate={pickupDate}
+              setPickupDate={setPickupDate}
+              pickupTime={pickupTime}
+              setPickupTime={setPickupTime}
+              returnDate={returnDate}
+              setReturnDate={setReturnDate}
+              returnTime={returnTime}
+              setReturnTime={setReturnTime}
+              localPackageId={localPackageId}
+              setLocalPackageId={setLocalPackageId}
+              airportMode={airportMode}
+              setAirportMode={setAirportMode}
+              airportTerminal={airportTerminal}
+              setAirportTerminal={setAirportTerminal}
+              calculatedDistance={distanceKm}
+              roundTripLegs={roundTripLegs}
+              tripDays={roundTripDays}
+              travelDuration={travelDuration}
+              isExactOlaDistance={isExactOlaDistance}
+              customerMobile={customerMobile}
+              setCustomerMobile={setCustomerMobile}
+              currentUser={currentUser}
+              onLoginSuccess={handleLoginSuccess}
+              onExploreCabs={handleOpenAvailableCabs}
+              onOpenRouteMap={(mode) =>
+                setMapModalState({
+                  isOpen: true,
+                  mode,
+                  trackingBooking: null
+                })
+              }
+              routeAlternatives={routeAlternatives}
+              selectedRouteId={selectedRouteId}
+              onSelectAlternativeRoute={handleSelectAlternativeRoute}
+              routeSummary={routeSummary}
+              routeProvider={routeProvider}
+            />
 
-                {/* Right Column: Official Brand Banner & 3-Point Assurance Card */}
-                <div className="lg:col-span-5 space-y-4">
-                  <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 shadow-md bg-[#081C44]">
-                    <img
-                      src="/assets/aistudio/hero-banner-800.webp"
-                      srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
-                      sizes="(max-width: 768px) 92vw, 440px"
-                      width={800}
-                      height={450}
-                      fetchPriority="high"
-                      loading="eager"
-                      decoding="async"
-                      alt="Safar India Cabs — Your Journey, Our Priority"
-                      className="w-full h-auto aspect-[16/9] object-cover block"
-                    />
-                  </div>
-
-                  <div className="bg-white border border-slate-200/90 rounded-3xl p-5 shadow-xs grid grid-cols-3 gap-3 text-center divide-x divide-slate-100">
-                    <div className="px-1.5">
-                      <div className="text-sm sm:text-base font-black text-slate-950">One-Way</div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">Zero Return Fare</div>
-                    </div>
-                    <div className="px-1.5">
-                      <div className="text-sm sm:text-base font-black text-amber-700">20% Advance</div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">Instant Booking</div>
-                    </div>
-                    <div className="px-1.5">
-                      <div className="text-sm sm:text-base font-black text-slate-950">Free Cancel</div>
-                      <div className="text-[11px] text-slate-600 mt-0.5">Up to 6 Hrs Prior</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            {/* 2. Immediately Below Booking Form: SafarIndiaCabs Brand Image Banner */}
+            <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm bg-[#081C44]">
+              <img
+                src="/assets/aistudio/hero-banner-800.webp"
+                srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
+                sizes="(max-width: 768px) 94vw, 860px"
+                width={800}
+                height={450}
+                fetchPriority="high"
+                loading="eager"
+                decoding="async"
+                alt="Safar India Cabs — Your Journey, Our Priority"
+                className="w-full h-auto aspect-[16/9] object-cover block"
+              />
             </div>
 
-            {/* LIVE CAB SELECTOR FOR SELECTED ROUTE */}
-            <div id="live-cabs-selector-section" className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8">
-              <CabSelector
-                tripType={tripType}
-                setTripType={setTripType}
-                pickupCity={pickupCity}
-                dropCity={effectiveDropCity}
-                distanceKm={distanceKm}
-                extraKm={0}
-                setExtraKm={setExtraKm}
-                days={roundTripDays}
-                pickupDate={pickupDate}
-                pickupTime={pickupTime}
-                returnDate={returnDate}
-                setReturnDate={setReturnDate}
-                returnTime={returnTime}
-                setReturnTime={setReturnTime}
-                localPackageId={localPackageId}
-                includeTolls={includeTolls}
-                setIncludeTolls={setIncludeTolls}
-                parkingExtra={parkingExtra}
-                setParkingExtra={setParkingExtra}
-                promoCode={promoCode}
-                setPromoCode={setPromoCode}
-                isPromoApplied={isPromoApplied}
-                setIsPromoApplied={setIsPromoApplied}
-                currentUser={currentUser}
-                welcomeMessage={authNotice}
-                routeGeometry={routeGeometry}
-                onSelectCab={handleSelectCab}
-              />
+            {/* 3. Directly Below Banner: 3-Column Trust Badges Row */}
+            <div className="bg-white border border-slate-200/90 rounded-3xl py-5 px-4 sm:px-6 shadow-xs grid grid-cols-3 gap-2 sm:gap-4 text-center divide-x divide-slate-100">
+              <div className="px-1.5 sm:px-3">
+                <div className="text-sm sm:text-base font-black text-slate-950 tracking-tight">
+                  One-Way
+                </div>
+                <div className="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5">
+                  Zero Return Fare
+                </div>
+              </div>
+              <div className="px-1.5 sm:px-3">
+                <div className="text-sm sm:text-base font-black text-amber-700 tracking-tight">
+                  20% Advance
+                </div>
+                <div className="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5">
+                  Instant Booking
+                </div>
+              </div>
+              <div className="px-1.5 sm:px-3">
+                <div className="text-sm sm:text-base font-black text-slate-950 tracking-tight">
+                  Free Cancel
+                </div>
+                <div className="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5">
+                  Up to 6 Hrs Prior
+                </div>
+              </div>
             </div>
           </div>
         )}

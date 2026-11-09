@@ -748,10 +748,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(15,23,42,0.12)] border border-slate-200/90 p-5 sm:p-8 relative z-20">
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-200/90 px-5 sm:px-8 py-6 sm:py-8 space-y-5 relative z-20">
       
       {/* Primary Category Tabs */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 bg-slate-100 p-1.5 rounded-2xl mb-5">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 bg-slate-100 p-1.5 rounded-2xl">
         <button
           type="button"
           onClick={() => handleSelectCategory('outstation')}
@@ -794,7 +794,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
       {/* Sub-selection for Outstation (One-Way vs Round Trip) */}
       {activeMainCategory === 'outstation' && (
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-2.5 pt-1">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -843,7 +843,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
       {/* Sub-selection for Airport */}
       {activeMainCategory === 'airport' && (
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 pt-1">
           <button
             type="button"
             onClick={() => setAirportMode('pickup')}
@@ -870,17 +870,17 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       )}
 
       {/* Form Fields */}
-      <div className="space-y-4">
+      <div className="py-2 space-y-4 sm:space-y-5">
         
         {/* Row 1: From & To Locations */}
-        <div className="grid grid-cols-1 sm:grid-cols-11 gap-3 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-11 gap-4 items-center">
           
           {/* FROM / PICKUP */}
           <div
             ref={pickupRef}
             className={`${tripType === 'local' ? 'sm:col-span-6' : 'sm:col-span-5'} relative`}
           >
-            <div className="flex items-center justify-between gap-1.5 mb-1.5">
+            <div className="flex items-center justify-between gap-1.5 mb-2">
               <label
                 htmlFor={
                   tripType === 'airport' && airportMode === 'pickup'
@@ -959,7 +959,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     setShowPickupDropdown(true);
                   }}
                   placeholder="Enter pickup city"
-                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                  className="w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3.5 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
                 />
                 {pickupCity && (
                   <button
@@ -1025,7 +1025,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           ) : (
             <div ref={dropRef} className="sm:col-span-5 relative">
-              <div className="flex items-center justify-between gap-1.5 mb-1.5">
+              <div className="flex items-center justify-between gap-1.5 mb-2">
                 <label
                   htmlFor={
                     tripType === 'airport' && airportMode === 'drop'
@@ -1090,7 +1090,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                       setShowDropDropdown(true);
                     }}
                     placeholder="Enter drop city"
-                    className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
+                    className="w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3.5 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
                   />
                   {dropCity && (
                     <button
@@ -1240,13 +1240,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         <div
           className={`grid grid-cols-1 ${
             tripType === 'roundtrip' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
-          } gap-3 pt-1 items-start`}
+          } gap-4 pt-1 items-start`}
         >
           {/* Pickup Date */}
           <div>
             <label
               htmlFor="booking-pickup-date-input"
-              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2"
             >
               Pickup Date
             </label>
@@ -1277,7 +1277,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   if (routeError) setRouteError('');
                 }}
                 placeholder="Select pickup date"
-                className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white cursor-pointer ${
+                className={`w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-3 py-3.5 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white cursor-pointer ${
                   pickupDate ? 'text-slate-900' : 'text-transparent focus:text-slate-900'
                 }`}
               />
@@ -1365,7 +1365,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           <div>
             <label
               htmlFor="booking-pickup-time-select"
-              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2"
             >
               Pickup Time
             </label>
@@ -1379,7 +1379,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   setPickupTime(e.target.value);
                   if (routeError) setRouteError('');
                 }}
-                className={`w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none ${
+                className={`w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3.5 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none ${
                   pickupTime ? 'text-slate-900' : 'text-slate-400'
                 }`}
               >
@@ -1395,12 +1395,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
 
           {/* Customer Full Name & WhatsApp Number */}
-          <div className="space-y-2.5">
+          <div className="space-y-4">
             {!isPhoneVerified && (
               <div>
                 <label
                   htmlFor="booking-customer-name-input"
-                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                  className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2"
                 >
                   Customer Name <span className="text-rose-600">*</span>
                 </label>
@@ -1433,7 +1433,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             <div>
               <label
                 htmlFor="booking-mobile-input"
-                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2"
               >
                 Mobile Number (WhatsApp) <span className="text-rose-600">*</span>
               </label>
@@ -1645,33 +1645,26 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         )}
 
-        {/* Best Road Route & Interactive Map Preview Strip (Single Recommended Route Only) */}
+        {/* Clean Route Preview Strip */}
         {tripType !== 'local' && pickupCity.trim().length >= 2 && dropCity.trim().length >= 2 && (
-          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2.5 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 font-extrabold text-slate-800">
-                <RouteIcon className="w-3.5 h-3.5 text-amber-600" />
-                <span>Road Route:</span>
+          <div className="bg-slate-50 border border-slate-200/90 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-slate-700 font-semibold">
+              <RouteIcon className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>
+                {routeSummary || `${pickupCity.split(',')[0]} → ${dropCity.split(',')[0]}`} ·{' '}
+                <strong className="text-slate-950 font-mono">{calculatedDistance} KM</strong>
+                {travelDuration ? ` · ${travelDuration}` : ''}
               </span>
-              <span className="px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 font-bold text-[11px] sm:text-xs">
-                {routeSummary || `${pickupCity.split(',')[0]} → ${dropCity.split(',')[0]} Highway`} ({calculatedDistance} KM
-                {travelDuration ? ` · ${travelDuration}` : ''})
-              </span>
-              {routeProvider && (
-                <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                  {routeProvider === 'ola_maps' ? 'Ola Maps Road API' : routeProvider === 'mappls' ? 'Mappls Fallback' : 'Verified Road Network'}
-                </span>
-              )}
             </div>
 
             {onOpenRouteMap && (
               <button
                 type="button"
                 onClick={() => onOpenRouteMap('route_preview')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs transition cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs transition cursor-pointer shrink-0"
               >
                 <MapIcon className="w-3.5 h-3.5" />
-                <span>Interactive Route Map &amp; Pin</span>
+                <span>View Route Map</span>
               </button>
             )}
           </div>
