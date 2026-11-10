@@ -277,6 +277,17 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 </span>
               </>
             )}
+            {sampleFare.isRegionalPricingActive && (
+              <>
+                <span className="text-slate-300" aria-hidden="true">·</span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-950 text-xs font-extrabold">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                  <span>
+                    {sampleFare.regionalEngineName || 'Bihar & Jharkhand Fixed Route Special'}
+                  </span>
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -424,7 +435,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-3">
                   <span>{cab.category}</span>
                   <span className="text-emerald-700 font-extrabold">
-                    Save ₹{activeFare.savingsAmount} vs Market Average
+                    Save ₹{activeFare.savingsAmount} vs{' '}
+                    {activeFare.isRegionalPricingActive ? 'PatnaGo / Local Market' : 'Market Average'}
                   </span>
                 </div>
 
@@ -441,7 +453,11 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/15 to-transparent" />
                   <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider bg-slate-950/85 text-amber-400 px-2.5 py-1 rounded-lg">
-                      Guaranteed Lowest One-Way Fare
+                      {activeFare.isRegionalFixedRoute
+                        ? 'Bihar–Jharkhand Fixed Route Fare'
+                        : activeFare.isRegionalPricingActive
+                        ? 'Bihar–Jharkhand Regional Special'
+                        : 'Guaranteed Lowest One-Way Fare'}
                     </span>
                     {activeFare.isHillAreaRoute && (
                       <span className="text-[10px] font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded-lg flex items-center gap-1">
@@ -456,7 +472,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       <p className="text-xs text-amber-300 font-semibold">{cab.models}</p>
                     </div>
                     <span className="text-xs font-mono font-bold bg-white/95 text-slate-900 px-2.5 py-1 rounded-lg">
-                      ₹{activeFare.effectiveRatePerKm}/km
+                      {activeFare.isRegionalFixedRoute && tripType === 'oneway'
+                        ? 'Fixed Route Rate'
+                        : `₹${activeFare.effectiveRatePerKm}/km`}
                     </span>
                   </div>
                 </div>
@@ -534,7 +552,11 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                     </span>
                   </div>
                   <div className="pt-1 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
-                    <span>Market Average Rate:</span>
+                    <span>
+                      {activeFare.isRegionalPricingActive
+                        ? 'PatnaGo / RP Shakti Rate:'
+                        : 'Market Average Rate:'}
+                    </span>
                     <span className="font-mono font-bold text-slate-700">
                       <span className="line-through text-slate-400">
                         ₹{activeFare.competitorRates.marketAverageFare.toLocaleString('en-IN')}
@@ -545,6 +567,14 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       </span>
                     </span>
                   </div>
+                  {activeFare.isRegionalPricingActive && activeFare.regionalTollPolicyNote && (
+                    <div className="pt-1 border-t border-slate-200/70 text-[10px] font-bold text-amber-900 flex items-center justify-between gap-2">
+                      <span>Corridor Rule:</span>
+                      <span className="text-right text-slate-700 font-semibold">
+                        {activeFare.regionalTollPolicyNote}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Clean Fare Selector with Parking Extra If Applicable (Default Selected) */}
@@ -580,7 +610,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                         ₹{activeFare.originalFare.toLocaleString('en-IN')}
                       </span>
                       <span className="text-[11px] font-extrabold text-emerald-700">
-                        Save ₹{activeFare.discountAmount.toLocaleString('en-IN')} vs Market Average
+                        Save ₹{activeFare.discountAmount.toLocaleString('en-IN')} vs{' '}
+                        {activeFare.isRegionalPricingActive ? 'Local Market' : 'Market Average'}
                       </span>
                     </div>
                     <div className="text-2xl font-black text-slate-900 font-mono tabular-nums tracking-tight">

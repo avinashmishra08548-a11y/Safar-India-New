@@ -215,13 +215,207 @@ const SERVER_CITY_STATE_KEYWORDS = [
   { keywords: ['kochi', 'cochin', 'munnar', 'thiruvananthapuram', 'trivandrum', 'alleppey', 'alappuzha', 'wayanad', 'kozhikode', 'calicut', 'thekkady', 'kovalam', 'kerala'], state: 'Kerala' },
   { keywords: ['indore', 'bhopal', 'ujjain', 'omkareshwar', 'gwalior', 'jabalpur', 'khajuraho', 'pachmarhi', 'sanchi', 'madhyapradesh'], state: 'Madhya Pradesh' },
   { keywords: ['kolkata', 'howrah', 'darjeeling', 'siliguri', 'digha', 'durgapur', 'asansol', 'westbengal'], state: 'West Bengal' },
-  { keywords: ['patna', 'hajipur', 'sonepur', 'danapur', 'bihta', 'gaya', 'bodhgaya', 'muzaffarpur', 'bhagalpur', 'darbhanga', 'samastipur', 'begusarai', 'ara', 'arrah', 'chhapra', 'chapra', 'biharsharif', 'rajgir', 'nalanda', 'sitamarhi', 'motihari', 'buxar', 'sasaram', 'purnia', 'katihar', 'munger', 'siwan', 'gopalganj', 'bettiah', 'kishanganj', 'araria', 'madhubani', 'saharsa', 'supaul', 'nawada', 'aurangabadbihar', 'jehanabad', 'vaishali', 'bihar'], state: 'Bihar' },
-  { keywords: ['ranchi', 'jamshedpur', 'deoghar', 'dhanbad', 'bokaro', 'hazaribagh', 'giridih', 'ramgarh', 'dumka', 'chaibasa', 'medininagar', 'daltonganj', 'jharkhand'], state: 'Jharkhand' },
+  { keywords: ['patna', 'hajipur', 'sonepur', 'sonpur', 'danapur', 'bihta', 'gaya', 'bodhgaya', 'muzaffarpur', 'bhagalpur', 'darbhanga', 'samastipur', 'begusarai', 'barauni', 'ara', 'arrah', 'bhojpur', 'chhapra', 'chapra', 'biharsharif', 'rajgir', 'nalanda', 'sitamarhi', 'motihari', 'champaran', 'bettiah', 'raxaul', 'buxar', 'sasaram', 'rohtas', 'dehri', 'bhabua', 'kaimur', 'purnia', 'purnea', 'katihar', 'kishanganj', 'araria', 'forbesganj', 'supaul', 'saharsa', 'madhepura', 'khagaria', 'munger', 'jamalpur', 'lakhisarai', 'sheikhpura', 'jamui', 'nawada', 'jehanabad', 'arwal', 'aurangabadbihar', 'siwan', 'gopalganj', 'madhubani', 'jhanjharpur', 'mokama', 'barh', 'bakhtiyarpur', 'fatuha', 'vaishali', 'saran', 'bihar'], state: 'Bihar' },
+  { keywords: ['ranchi', 'jamshedpur', 'tatanagar', 'deoghar', 'baidyanathdham', 'jasidih', 'madhupur', 'dhanbad', 'jharia', 'bokaro', 'chas', 'phusro', 'hazaribagh', 'barhi', 'giridih', 'parasnath', 'shikharji', 'ramgarhjharkhand', 'patratu', 'medininagar', 'daltonganj', 'palamu', 'garhwa', 'latehar', 'dumka', 'basukinath', 'jamtara', 'koderma', 'jhumritelaiya', 'chatra', 'chaibasa', 'chakradharpur', 'saraikela', 'gumla', 'lohardaga', 'simdega', 'khunti', 'godda', 'sahibganj', 'pakur', 'jharkhand'], state: 'Jharkhand' },
   { keywords: ['bhubaneswar', 'puri', 'konark', 'cuttack', 'rourkela', 'odisha'], state: 'Odisha' },
   { keywords: ['raipur', 'bilaspur', 'bhilai', 'durg', 'chhattisgarh'], state: 'Chhattisgarh' },
   { keywords: ['guwahati', 'shillong', 'kaziranga', 'gangtok', 'sikkim', 'assam', 'meghalaya'], state: 'North East' },
   { keywords: ['jammu', 'srinagar', 'katra', 'vaishnodevi', 'gulmarg', 'pahalgam', 'sonamarg', 'leh', 'ladakh', 'kashmir'], state: 'Jammu & Kashmir' }
 ];
+
+const SERVER_REGIONAL_CITY_TOKEN_MAP = [
+  { key: 'patna', tokens: ['patna', 'patnajunction', 'patnasaheb', 'jayprakashnarayan', 'kankarbagh', 'boringroad', 'baileyroad', 'phulwarisharif', 'patliputra', 'rajendranagarpatna'] },
+  { key: 'hajipur', tokens: ['hajipur', 'vaishalihajipur', 'vaishali', 'ramashishchowk'] },
+  { key: 'sonepur', tokens: ['sonepur', 'sonpur', 'hariharkshetra'] },
+  { key: 'danapur', tokens: ['danapur', 'khagaul'] },
+  { key: 'bihta', tokens: ['bihta', 'iitpatna'] },
+  { key: 'ara', tokens: ['arrah', 'ara', 'bhojpur'] },
+  { key: 'jehanabad', tokens: ['jehanabad', 'arwal'] },
+  { key: 'chhapra', tokens: ['chhapra', 'chapra', 'saran'] },
+  { key: 'muzaffarpur', tokens: ['muzaffarpur', 'motijheel'] },
+  { key: 'biharsharif', tokens: ['biharsharif', 'pawapuri', 'harnaut'] },
+  { key: 'nalanda', tokens: ['nalanda'] },
+  { key: 'mokama', tokens: ['mokama', 'barh', 'bakhtiyarpur', 'fatuha'] },
+  { key: 'samastipur', tokens: ['samastipur', 'dalsinghsarai'] },
+  { key: 'rajgir', tokens: ['rajgir'] },
+  { key: 'gaya', tokens: ['bodhgaya', 'gaya', 'mahabodhi'] },
+  { key: 'nawada', tokens: ['nawada'] },
+  { key: 'lakhisarai', tokens: ['lakhisarai', 'sheikhpura'] },
+  { key: 'begusarai', tokens: ['begusarai', 'barauni'] },
+  { key: 'buxar', tokens: ['buxar', 'dumraon'] },
+  { key: 'siwan', tokens: ['siwan'] },
+  { key: 'sitamarhi', tokens: ['sitamarhi', 'sheohar'] },
+  { key: 'darbhanga', tokens: ['darbhanga', 'laheriasarai'] },
+  { key: 'aurangabadbihar', tokens: ['aurangabadbihar', 'daudnagar'] },
+  { key: 'gopalganj', tokens: ['gopalganj'] },
+  { key: 'motihari', tokens: ['motihari', 'eastchamparan', 'champaran'] },
+  { key: 'sasaram', tokens: ['sasaram', 'rohtas', 'dehrionsone', 'dehri', 'bhabua', 'kaimur'] },
+  { key: 'jamui', tokens: ['jamui'] },
+  { key: 'khagaria', tokens: ['khagaria'] },
+  { key: 'madhubani', tokens: ['madhubani', 'jhanjharpur', 'jaynagar'] },
+  { key: 'munger', tokens: ['munger', 'jamalpur'] },
+  { key: 'bettiah', tokens: ['bettiah', 'westchamparan', 'bagaha'] },
+  { key: 'raxaul', tokens: ['raxaul'] },
+  { key: 'saharsa', tokens: ['saharsa'] },
+  { key: 'supaul', tokens: ['supaul'] },
+  { key: 'madhepura', tokens: ['madhepura'] },
+  { key: 'bhagalpur', tokens: ['bhagalpur', 'kahalgaon', 'naugachia', 'sultanganj'] },
+  { key: 'katihar', tokens: ['katihar'] },
+  { key: 'purnia', tokens: ['purnia', 'purnea'] },
+  { key: 'araria', tokens: ['araria', 'forbesganj'] },
+  { key: 'kishanganj', tokens: ['kishanganj'] },
+  { key: 'ranchi', tokens: ['ranchi', 'birsamunda', 'hatia', 'doranda'] },
+  { key: 'deoghar', tokens: ['deoghar', 'baidyanathdham', 'jasidih', 'madhupur'] },
+  { key: 'dhanbad', tokens: ['dhanbad', 'jharia', 'katras', 'gomoh'] },
+  { key: 'jamshedpur', tokens: ['jamshedpur', 'tatanagar', 'sakchi', 'bistupur', 'adityapur'] },
+  { key: 'bokaro', tokens: ['bokaro', 'bokarosteelcity', 'chas', 'phusro', 'bermo'] },
+  { key: 'hazaribagh', tokens: ['hazaribagh', 'barhi'] },
+  { key: 'giridih', tokens: ['giridih', 'parasnath', 'shikharji', 'isri'] },
+  { key: 'ramgarh', tokens: ['ramgarhjharkhand', 'ramgarh', 'patratu'] },
+  { key: 'daltonganj', tokens: ['medininagar', 'daltonganj', 'palamu', 'garhwa', 'latehar'] },
+  { key: 'dumka', tokens: ['dumka', 'basukinath', 'jamtara'] },
+  { key: 'koderma', tokens: ['koderma', 'jhumritelaiya'] },
+  { key: 'chatra', tokens: ['chatra'] },
+  { key: 'chaibasa', tokens: ['chaibasa', 'chakradharpur', 'saraikela'] },
+  { key: 'gumla', tokens: ['gumla', 'simdega', 'khunti'] },
+  { key: 'lohardaga', tokens: ['lohardaga'] }
+];
+
+export const SERVER_BIHAR_JHARKHAND_FIXED_ROUTES = {
+  'patna-danapur': { routeKey: 'patna-danapur', corridorName: 'Patna ↔ Danapur Local-Intercity Corridor', km: 14, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Urban Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 150, rates: { hatchback: 549, sedan: 599, exec_sedan: 699, suv: 799, innova: 999, tempo: 1499 } },
+  'patna-sonepur': { routeKey: 'patna-sonepur', corridorName: 'Patna ↔ Sonepur (JP Setu Corridor)', km: 25, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Ganga Bridge Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 160, rates: { hatchback: 680, sedan: 740, exec_sedan: 860, suv: 999, innova: 1250, tempo: 1799 } },
+  'patna-hajipur': { routeKey: 'patna-hajipur', corridorName: 'Patna ↔ Hajipur (MG Setu / JP Setu Corridor)', km: 27, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 170, rates: { hatchback: 699, sedan: 780, exec_sedan: 899, suv: 1050, innova: 1299, tempo: 1850 } },
+  'patna-bihta': { routeKey: 'patna-bihta', corridorName: 'Patna ↔ Bihta / IIT Patna Corridor', km: 32, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 160, rates: { hatchback: 760, sedan: 840, exec_sedan: 960, suv: 1120, innova: 1399, tempo: 1950 } },
+  'patna-jehanabad': { routeKey: 'patna-jehanabad', corridorName: 'Patna ↔ Jehanabad (NH-22 Corridor)', km: 52, tollRule: 'intra_state_nhai', tollPolicyNote: 'Intra-State Bihar Corridor (₹0 State Border Tax · Toll Extra As Per Actuals)', marketBeat: 170, rates: { hatchback: 980, sedan: 1080, exec_sedan: 1220, suv: 1420, innova: 1780, tempo: 2450 } },
+  'patna-ara': { routeKey: 'patna-ara', corridorName: 'Patna ↔ Ara / Bhojpur (Koilwar Corridor)', km: 55, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 180, rates: { hatchback: 1020, sedan: 1120, exec_sedan: 1280, suv: 1480, innova: 1850, tempo: 2550 } },
+  'patna-chhapra': { routeKey: 'patna-chhapra', corridorName: 'Patna ↔ Chhapra / Saran (JP Setu Highway)', km: 72, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 180, rates: { hatchback: 1240, sedan: 1370, exec_sedan: 1550, suv: 1790, innova: 2250, tempo: 3050 } },
+  'patna-muzaffarpur': { routeKey: 'patna-muzaffarpur', corridorName: 'Patna ↔ Muzaffarpur (NH-22 Fixed Corridor)', km: 74, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-22 Corridor (₹0 State Tax · 1 NHAI Toll Plaza Extra)', marketBeat: 180, rates: { hatchback: 1250, sedan: 1420, exec_sedan: 1599, suv: 1850, innova: 2299, tempo: 3150 } },
+  'patna-biharsharif': { routeKey: 'patna-biharsharif', corridorName: 'Patna ↔ Bihar Sharif (NH-20 Bakhtiyarpur Four-Lane)', km: 75, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-20 Corridor (₹0 State Tax · 1 NHAI Toll Plaza Extra)', marketBeat: 180, rates: { hatchback: 1260, sedan: 1420, exec_sedan: 1599, suv: 1850, innova: 2299, tempo: 3150 } },
+  'patna-nalanda': { routeKey: 'patna-nalanda', corridorName: 'Patna ↔ Nalanda University Corridor', km: 88, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 180, rates: { hatchback: 1420, sedan: 1570, exec_sedan: 1780, suv: 2050, innova: 2550, tempo: 3450 } },
+  'patna-mokama': { routeKey: 'patna-mokama', corridorName: 'Patna ↔ Barh / Mokama (NH-31 Four-Lane)', km: 92, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-31 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 180, rates: { hatchback: 1460, sedan: 1620, exec_sedan: 1820, suv: 2120, innova: 2620, tempo: 3550 } },
+  'patna-samastipur': { routeKey: 'patna-samastipur', corridorName: 'Patna ↔ Samastipur Regional Corridor', km: 95, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · Toll Extra As Per Actuals)', marketBeat: 180, rates: { hatchback: 1499, sedan: 1670, exec_sedan: 1880, suv: 2199, innova: 2699, tempo: 3650 } },
+  'patna-rajgir': { routeKey: 'patna-rajgir', corridorName: 'Patna ↔ Rajgir (Glass Bridge / Tourist Corridor)', km: 102, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-20 Corridor (₹0 State Tax · 1 NHAI Toll Plaza Extra)', marketBeat: 190, rates: { hatchback: 1590, sedan: 1760, exec_sedan: 1990, suv: 2299, innova: 2850, tempo: 3850 } },
+  'patna-gaya': { routeKey: 'patna-gaya', corridorName: 'Patna ↔ Gaya & Bodh Gaya (NH-22 Fixed Corridor)', km: 105, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-22 Corridor (₹0 State Tax · 1 NHAI Toll Plaza Extra)', marketBeat: 190, rates: { hatchback: 1650, sedan: 1810, exec_sedan: 2050, suv: 2380, innova: 2950, tempo: 3950 } },
+  'patna-nawada': { routeKey: 'patna-nawada', corridorName: 'Patna ↔ Nawada (NH-20 Fixed Corridor)', km: 112, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 1740, sedan: 1910, exec_sedan: 2160, suv: 2499, innova: 3099, tempo: 4150 } },
+  'patna-lakhisarai': { routeKey: 'patna-lakhisarai', corridorName: 'Patna ↔ Lakhisarai / Sheikhpura Corridor', km: 122, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 1880, sedan: 2060, exec_sedan: 2320, suv: 2680, innova: 3320, tempo: 4450 } },
+  'patna-begusarai': { routeKey: 'patna-begusarai', corridorName: 'Patna ↔ Begusarai / Barauni (Simaria Setu Corridor)', km: 125, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 1920, sedan: 2110, exec_sedan: 2380, suv: 2750, innova: 3399, tempo: 4550 } },
+  'patna-buxar': { routeKey: 'patna-buxar', corridorName: 'Patna ↔ Buxar (NH-922 Four-Lane Expressway)', km: 125, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-922 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 1920, sedan: 2110, exec_sedan: 2380, suv: 2750, innova: 3399, tempo: 4550 } },
+  'patna-siwan': { routeKey: 'patna-siwan', corridorName: 'Patna ↔ Siwan Regional Corridor', km: 132, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · Toll Extra As Per Actuals)', marketBeat: 190, rates: { hatchback: 1999, sedan: 2210, exec_sedan: 2490, suv: 2880, innova: 3550, tempo: 4750 } },
+  'patna-sitamarhi': { routeKey: 'patna-sitamarhi', corridorName: 'Patna ↔ Sitamarhi (Janaki Mandir Corridor)', km: 135, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 2050, sedan: 2260, exec_sedan: 2550, suv: 2950, innova: 3650, tempo: 4850 } },
+  'patna-darbhanga': { routeKey: 'patna-darbhanga', corridorName: 'Patna ↔ Darbhanga / Mithila (NH-22 + NH-27 Fixed Corridor)', km: 138, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-27 Corridor (₹0 State Tax · 2 NHAI Toll Plazas Extra)', marketBeat: 200, rates: { hatchback: 1999, sedan: 2299, exec_sedan: 2599, suv: 2999, innova: 3699, tempo: 4950 } },
+  'patna-aurangabadbihar': { routeKey: 'patna-aurangabadbihar', corridorName: 'Patna ↔ Aurangabad (Bihar) Corridor', km: 145, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 2140, sedan: 2360, exec_sedan: 2660, suv: 3080, innova: 3799, tempo: 5099 } },
+  'patna-gopalganj': { routeKey: 'patna-gopalganj', corridorName: 'Patna ↔ Gopalganj Highway Corridor', km: 150, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 2220, sedan: 2460, exec_sedan: 2780, suv: 3199, innova: 3950, tempo: 5250 } },
+  'patna-motihari': { routeKey: 'patna-motihari', corridorName: 'Patna ↔ Motihari (East Champaran Corridor)', km: 152, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-27 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 2250, sedan: 2490, exec_sedan: 2810, suv: 3240, innova: 3999, tempo: 5320 } },
+  'patna-sasaram': { routeKey: 'patna-sasaram', corridorName: 'Patna ↔ Sasaram / Dehri-on-Sone Corridor', km: 156, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 2310, sedan: 2550, exec_sedan: 2880, suv: 3320, innova: 4099, tempo: 5450 } },
+  'patna-jamui': { routeKey: 'patna-jamui', corridorName: 'Patna ↔ Jamui Highway Corridor', km: 162, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 2399, sedan: 2650, exec_sedan: 2990, suv: 3450, innova: 4250, tempo: 5650 } },
+  'patna-khagaria': { routeKey: 'patna-khagaria', corridorName: 'Patna ↔ Khagaria (NH-31 Corridor)', km: 165, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-31 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 2440, sedan: 2690, exec_sedan: 3040, suv: 3499, innova: 4320, tempo: 5750 } },
+  'patna-madhubani': { routeKey: 'patna-madhubani', corridorName: 'Patna ↔ Madhubani / Jhanjharpur (NH-27 Corridor)', km: 172, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-27 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 2520, sedan: 2790, exec_sedan: 3150, suv: 3640, innova: 4490, tempo: 5950 } },
+  'patna-munger': { routeKey: 'patna-munger', corridorName: 'Patna ↔ Munger / Jamalpur Corridor', km: 180, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 2620, sedan: 2900, exec_sedan: 3280, suv: 3780, innova: 4650, tempo: 6190 } },
+  'patna-bettiah': { routeKey: 'patna-bettiah', corridorName: 'Patna ↔ Bettiah (West Champaran Corridor)', km: 195, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 2850, sedan: 3150, exec_sedan: 3550, suv: 4099, innova: 5050, tempo: 6690 } },
+  'patna-raxaul': { routeKey: 'patna-raxaul', corridorName: 'Patna ↔ Raxaul (Indo-Nepal Border Corridor)', km: 205, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 2990, sedan: 3300, exec_sedan: 3720, suv: 4290, innova: 5290, tempo: 6990 } },
+  'patna-saharsa': { routeKey: 'patna-saharsa', corridorName: 'Patna ↔ Saharsa (Kosi Regional Corridor)', km: 215, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 3120, sedan: 3450, exec_sedan: 3890, suv: 4490, innova: 5520, tempo: 7290 } },
+  'patna-supaul': { routeKey: 'patna-supaul', corridorName: 'Patna ↔ Supaul (Kosi Mahasetu Corridor)', km: 225, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 3250, sedan: 3600, exec_sedan: 4060, suv: 4680, innova: 5760, tempo: 7590 } },
+  'patna-madhepura': { routeKey: 'patna-madhepura', corridorName: 'Patna ↔ Madhepura Regional Corridor', km: 230, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 3320, sedan: 3680, exec_sedan: 4150, suv: 4790, innova: 5890, tempo: 7750 } },
+  'patna-bhagalpur': { routeKey: 'patna-bhagalpur', corridorName: 'Patna ↔ Bhagalpur (Silk City Fixed Corridor)', km: 235, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 3390, sedan: 3750, exec_sedan: 4240, suv: 4890, innova: 5999, tempo: 7890 } },
+  'patna-hazaribagh': { routeKey: 'patna-hazaribagh', corridorName: 'Patna ↔ Hazaribagh (Bihar–Jharkhand NH-20 Corridor)', km: 235, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 3420, sedan: 3790, exec_sedan: 4280, suv: 4940, innova: 6050, tempo: 7950 } },
+  'patna-deoghar': { routeKey: 'patna-deoghar', corridorName: 'Patna ↔ Deoghar / Baidyanath Dham Corridor', km: 255, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Pilgrimage Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 3660, sedan: 4050, exec_sedan: 4580, suv: 5280, innova: 6490, tempo: 8550 } },
+  'patna-katihar': { routeKey: 'patna-katihar', corridorName: 'Patna ↔ Katihar (Seemanchal NH-31 Corridor)', km: 295, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-31 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 4199, sedan: 4650, exec_sedan: 5250, suv: 6050, innova: 7450, tempo: 9790 } },
+  'patna-purnia': { routeKey: 'patna-purnia', corridorName: 'Patna ↔ Purnia (Seemanchal Express Corridor)', km: 305, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 4320, sedan: 4790, exec_sedan: 5390, suv: 6240, innova: 7680, tempo: 10090 } },
+  'patna-dhanbad': { routeKey: 'patna-dhanbad', corridorName: 'Patna ↔ Dhanbad (Bihar–Jharkhand GT Road Corridor)', km: 310, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 4420, sedan: 4900, exec_sedan: 5520, suv: 6380, innova: 7850, tempo: 10290 } },
+  'patna-bokaro': { routeKey: 'patna-bokaro', corridorName: 'Patna ↔ Bokaro Steel City Corridor', km: 315, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 4490, sedan: 4980, exec_sedan: 5620, suv: 6490, innova: 7980, tempo: 10450 } },
+  'patna-araria': { routeKey: 'patna-araria', corridorName: 'Patna ↔ Araria / Forbesganj (NH-27 Corridor)', km: 315, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-27 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 4460, sedan: 4950, exec_sedan: 5580, suv: 6440, innova: 7920, tempo: 10390 } },
+  'patna-ranchi': { routeKey: 'patna-ranchi', corridorName: 'Patna ↔ Ranchi (Capital-to-Capital NH-20 Corridor)', km: 325, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 4650, sedan: 5150, exec_sedan: 5790, suv: 6690, innova: 8250, tempo: 10850 } },
+  'patna-kishanganj': { routeKey: 'patna-kishanganj', corridorName: 'Patna ↔ Kishanganj (NH-27 East-West Corridor)', km: 375, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-27 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 200, rates: { hatchback: 5320, sedan: 5900, exec_sedan: 6650, suv: 7680, innova: 9450, tempo: 12390 } },
+  'patna-jamshedpur': { routeKey: 'patna-jamshedpur', corridorName: 'Patna ↔ Jamshedpur / Tatanagar Corridor', km: 445, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 6280, sedan: 6950, exec_sedan: 7850, suv: 9050, innova: 11120, tempo: 14590 } },
+  'hajipur-muzaffarpur': { routeKey: 'hajipur-muzaffarpur', corridorName: 'Hajipur ↔ Muzaffarpur (NH-22 Four-Lane)', km: 54, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-22 Corridor (₹0 State Tax · 1 NHAI Toll Plaza Extra)', marketBeat: 170, rates: { hatchback: 980, sedan: 1080, exec_sedan: 1220, suv: 1420, innova: 1760, tempo: 2420 } },
+  'hajipur-darbhanga': { routeKey: 'hajipur-darbhanga', corridorName: 'Hajipur ↔ Darbhanga Corridor', km: 115, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 190, rates: { hatchback: 1780, sedan: 1960, exec_sedan: 2210, suv: 2560, innova: 3160, tempo: 4250 } },
+  'muzaffarpur-samastipur': { routeKey: 'muzaffarpur-samastipur', corridorName: 'Muzaffarpur ↔ Samastipur (NH-28 Corridor)', km: 55, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 170, rates: { hatchback: 999, sedan: 1110, exec_sedan: 1250, suv: 1450, innova: 1790, tempo: 2480 } },
+  'muzaffarpur-sitamarhi': { routeKey: 'muzaffarpur-sitamarhi', corridorName: 'Muzaffarpur ↔ Sitamarhi (NH-22 Corridor)', km: 62, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State Corridor (₹0 State Tax · Toll Extra As Per Actuals)', marketBeat: 170, rates: { hatchback: 1090, sedan: 1210, exec_sedan: 1360, suv: 1580, innova: 1950, tempo: 2680 } },
+  'muzaffarpur-darbhanga': { routeKey: 'muzaffarpur-darbhanga', corridorName: 'Muzaffarpur ↔ Darbhanga (NH-27 East-West Four-Lane)', km: 68, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-27 Corridor (₹0 State Tax · 1 NHAI Toll Plaza Extra)', marketBeat: 170, rates: { hatchback: 1150, sedan: 1280, exec_sedan: 1440, suv: 1660, innova: 2060, tempo: 2820 } },
+  'muzaffarpur-motihari': { routeKey: 'muzaffarpur-motihari', corridorName: 'Muzaffarpur ↔ Motihari (NH-27 Corridor)', km: 82, tollRule: 'intra_state_nhai', tollPolicyNote: 'Bihar Intra-State NH-27 Corridor (₹0 State Tax · NHAI FASTag Toll Extra)', marketBeat: 180, rates: { hatchback: 1350, sedan: 1499, exec_sedan: 1690, suv: 1950, innova: 2410, tempo: 3280 } },
+  'darbhanga-madhubani': { routeKey: 'darbhanga-madhubani', corridorName: 'Darbhanga ↔ Madhubani Mithila Corridor', km: 36, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Mithila Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 160, rates: { hatchback: 799, sedan: 890, exec_sedan: 999, suv: 1160, innova: 1450, tempo: 1999 } },
+  'darbhanga-samastipur': { routeKey: 'darbhanga-samastipur', corridorName: 'Darbhanga ↔ Samastipur Corridor', km: 42, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 160, rates: { hatchback: 860, sedan: 960, exec_sedan: 1080, suv: 1250, innova: 1560, tempo: 2150 } },
+  'gaya-rajgir': { routeKey: 'gaya-rajgir', corridorName: 'Gaya / Bodh Gaya ↔ Rajgir Buddhist Circuit', km: 65, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Buddhist Circuit Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 170, rates: { hatchback: 1120, sedan: 1250, exec_sedan: 1410, suv: 1630, innova: 2020, tempo: 2760 } },
+  'gaya-nalanda': { routeKey: 'gaya-nalanda', corridorName: 'Gaya / Bodh Gaya ↔ Nalanda Corridor', km: 78, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Heritage Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 180, rates: { hatchback: 1299, sedan: 1440, exec_sedan: 1620, suv: 1880, innova: 2320, tempo: 3180 } },
+  'gaya-deoghar': { routeKey: 'gaya-deoghar', corridorName: 'Gaya ↔ Deoghar / Baidyanath Dham Corridor', km: 210, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 3060, sedan: 3400, exec_sedan: 3840, suv: 4420, innova: 5450, tempo: 7190 } },
+  'gaya-ranchi': { routeKey: 'gaya-ranchi', corridorName: 'Gaya ↔ Ranchi (NH-19 + NH-20 Corridor)', km: 220, tollRule: 'inter_state_border', tollPolicyNote: 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra)', marketBeat: 200, rates: { hatchback: 3199, sedan: 3550, exec_sedan: 3990, suv: 4620, innova: 5690, tempo: 7490 } },
+  'ranchi-ramgarh': { routeKey: 'ranchi-ramgarh', corridorName: 'Ranchi ↔ Ramgarh / Patratu Valley Corridor', km: 46, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · Toll Extra As Per Actuals)', marketBeat: 170, rates: { hatchback: 880, sedan: 980, exec_sedan: 1110, suv: 1280, innova: 1590, tempo: 2190 } },
+  'ranchi-hazaribagh': { routeKey: 'ranchi-hazaribagh', corridorName: 'Ranchi ↔ Hazaribagh (NH-20 Four-Lane Corridor)', km: 93, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State NH-20 Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 180, rates: { hatchback: 1499, sedan: 1670, exec_sedan: 1880, suv: 2180, innova: 2690, tempo: 3650 } },
+  'ranchi-bokaro': { routeKey: 'ranchi-bokaro', corridorName: 'Ranchi ↔ Bokaro Steel City Fixed Corridor', km: 112, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 190, rates: { hatchback: 1760, sedan: 1960, exec_sedan: 2210, suv: 2560, innova: 3150, tempo: 4250 } },
+  'ranchi-jamshedpur': { routeKey: 'ranchi-jamshedpur', corridorName: 'Ranchi ↔ Jamshedpur / Tatanagar (NH-33 Four-Lane)', km: 130, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State NH-33 Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 190, rates: { hatchback: 1999, sedan: 2199, exec_sedan: 2480, suv: 2860, innova: 3520, tempo: 4750 } },
+  'ranchi-dhanbad': { routeKey: 'ranchi-dhanbad', corridorName: 'Ranchi ↔ Dhanbad Coal Capital Fixed Corridor', km: 150, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 190, rates: { hatchback: 2250, sedan: 2499, exec_sedan: 2820, suv: 3250, innova: 3999, tempo: 5350 } },
+  'ranchi-daltonganj': { routeKey: 'ranchi-daltonganj', corridorName: 'Ranchi ↔ Daltonganj / Medininagar (Palamu Corridor)', km: 172, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · Toll Extra As Per Actuals)', marketBeat: 190, rates: { hatchback: 2520, sedan: 2799, exec_sedan: 3160, suv: 3650, innova: 4490, tempo: 5950 } },
+  'ranchi-giridih': { routeKey: 'ranchi-giridih', corridorName: 'Ranchi ↔ Giridih / Parasnath Shikharji Corridor', km: 185, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 190, rates: { hatchback: 2699, sedan: 2999, exec_sedan: 3380, suv: 3899, innova: 4799, tempo: 6350 } },
+  'ranchi-deoghar': { routeKey: 'ranchi-deoghar', corridorName: 'Ranchi ↔ Deoghar / Baidyanath Dham Fixed Corridor', km: 250, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 200, rates: { hatchback: 3590, sedan: 3990, exec_sedan: 4490, suv: 5190, innova: 6390, tempo: 8390 } },
+  'ranchi-dumka': { routeKey: 'ranchi-dumka', corridorName: 'Ranchi ↔ Dumka / Basukinath Corridor', km: 285, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 200, rates: { hatchback: 4050, sedan: 4490, exec_sedan: 5060, suv: 5850, innova: 7190, tempo: 9450 } },
+  'dhanbad-bokaro': { routeKey: 'dhanbad-bokaro', corridorName: 'Dhanbad ↔ Bokaro Steel City Twin-City Corridor', km: 44, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 170, rates: { hatchback: 850, sedan: 950, exec_sedan: 1080, suv: 1240, innova: 1540, tempo: 2120 } },
+  'dhanbad-giridih': { routeKey: 'dhanbad-giridih', corridorName: 'Dhanbad ↔ Giridih / Parasnath Corridor', km: 66, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 170, rates: { hatchback: 1150, sedan: 1280, exec_sedan: 1440, suv: 1660, innova: 2060, tempo: 2820 } },
+  'dhanbad-hazaribagh': { routeKey: 'dhanbad-hazaribagh', corridorName: 'Dhanbad ↔ Hazaribagh (NH-19 GT Road Corridor)', km: 125, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State GT Road Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 190, rates: { hatchback: 1910, sedan: 2110, exec_sedan: 2380, suv: 2750, innova: 3390, tempo: 4550 } },
+  'dhanbad-deoghar': { routeKey: 'dhanbad-deoghar', corridorName: 'Dhanbad ↔ Deoghar / Baidyanath Dham Corridor', km: 130, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · Toll Extra As Per Actuals)', marketBeat: 190, rates: { hatchback: 1990, sedan: 2199, exec_sedan: 2480, suv: 2860, innova: 3520, tempo: 4750 } },
+  'dhanbad-jamshedpur': { routeKey: 'dhanbad-jamshedpur', corridorName: 'Dhanbad ↔ Jamshedpur Industrial Corridor', km: 145, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 190, rates: { hatchback: 2160, sedan: 2399, exec_sedan: 2710, suv: 3120, innova: 3850, tempo: 5150 } },
+  'bokaro-jamshedpur': { routeKey: 'bokaro-jamshedpur', corridorName: 'Bokaro ↔ Jamshedpur / Tatanagar Corridor', km: 132, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · NHAI Toll Extra)', marketBeat: 190, rates: { hatchback: 2010, sedan: 2230, exec_sedan: 2520, suv: 2899, innova: 3580, tempo: 4790 } },
+  'bokaro-deoghar': { routeKey: 'bokaro-deoghar', corridorName: 'Bokaro ↔ Deoghar / Baidyanath Dham Corridor', km: 165, tollRule: 'intra_state_nhai', tollPolicyNote: 'Jharkhand Intra-State Corridor (₹0 State Border Tax · Toll Extra As Per Actuals)', marketBeat: 200, rates: { hatchback: 2430, sedan: 2690, exec_sedan: 3040, suv: 3499, innova: 4320, tempo: 5750 } },
+  'deoghar-dumka': { routeKey: 'deoghar-dumka', corridorName: 'Deoghar (Baidyanath) ↔ Dumka (Basukinath) Yatra Corridor', km: 68, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Baidyanath–Basukinath Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 170, rates: { hatchback: 1150, sedan: 1280, exec_sedan: 1440, suv: 1660, innova: 2060, tempo: 2820 } },
+  'deoghar-giridih': { routeKey: 'deoghar-giridih', corridorName: 'Deoghar ↔ Giridih / Parasnath Corridor', km: 68, tollRule: 'toll_free', tollPolicyNote: 'Zero-Toll Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)', marketBeat: 170, rates: { hatchback: 1150, sedan: 1280, exec_sedan: 1440, suv: 1660, innova: 2060, tempo: 2820 } }
+};
+
+function extractServerRegionalCanonicalCity(locationStr) {
+  if (!locationStr) return null;
+  const parts = String(locationStr)
+    .split(',')
+    .map((p) => p.toLowerCase().replace(/[^a-z]/g, ''))
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+
+  for (const part of parts) {
+    for (const entry of SERVER_REGIONAL_CITY_TOKEN_MAP) {
+      if (entry.tokens.some((tok) => part === tok)) {
+        return entry.key;
+      }
+    }
+  }
+
+  for (const part of parts) {
+    if (part.length < 3) continue;
+    for (const entry of SERVER_REGIONAL_CITY_TOKEN_MAP) {
+      if (entry.tokens.some((tok) => part.includes(tok))) {
+        return entry.key;
+      }
+    }
+  }
+  return null;
+}
+
+export function lookupServerBiharJharkhandFixedRoute(pickupCity, dropCity) {
+  if (!pickupCity || !dropCity) return null;
+  const cityA = extractServerRegionalCanonicalCity(pickupCity);
+  const cityB = extractServerRegionalCanonicalCity(dropCity);
+  if (!cityA || !cityB || cityA === cityB) return null;
+
+  const directKey = `${cityA}-${cityB}`;
+  if (SERVER_BIHAR_JHARKHAND_FIXED_ROUTES[directKey]) {
+    return SERVER_BIHAR_JHARKHAND_FIXED_ROUTES[directKey];
+  }
+  const reverseKey = `${cityB}-${cityA}`;
+  if (SERVER_BIHAR_JHARKHAND_FIXED_ROUTES[reverseKey]) {
+    return SERVER_BIHAR_JHARKHAND_FIXED_ROUTES[reverseKey];
+  }
+  return null;
+}
+
+export function isServerBiharJharkhandRegionalTrip(pickupCity, dropCity, originState, destState) {
+  if (
+    originState === 'Bihar' ||
+    originState === 'Jharkhand' ||
+    destState === 'Bihar' ||
+    destState === 'Jharkhand'
+  ) {
+    return true;
+  }
+  return Boolean(
+    extractServerRegionalCanonicalCity(pickupCity) || extractServerRegionalCanonicalCity(dropCity)
+  );
+}
 
 const SERVER_HILL_STATION_KEYWORDS = [
   'shimla', 'manali', 'mussoorie', 'nainital', 'dharamshala', 'mcleodganj', 'dalhousie',
@@ -1196,44 +1390,143 @@ export function computeServerTripFare({
   let hillStationCharge = 0;
   const hillDriverBonusPerDay = 0;
 
+  // High-Priority Bihar & Jharkhand Regional Pricing Engine Override
+  const isRegionalTrip = isServerBiharJharkhandRegionalTrip(pickupCity, dropCity, originState, destState);
+  const fixedRegionalRoute =
+    tripType === 'oneway' || tripType === 'roundtrip'
+      ? lookupServerBiharJharkhandFixedRoute(pickupCity, dropCity)
+      : null;
+
+  let isRegionalFixedRoute = false;
+  let regionalEngineName = '';
+  let regionalCorridorName = '';
+  let regionalTollPolicyNote = '';
+  let regionalCompetitorLabel = '';
+  let regionalMarketBeatOverride = null;
+  let fixedOneWayGstOverride = null;
+
   if (tripType === 'oneway') {
-    baseBilledDistanceKm = Math.max(1, Math.round(parsedDistance));
-    const slabFactor = isHillRoute
-      ? 1.0
-      : baseBilledDistanceKm <= 130
-      ? 1.02
-      : 1.0;
+    baseBilledDistanceKm = Math.max(
+      1,
+      fixedRegionalRoute ? fixedRegionalRoute.km : Math.round(parsedDistance)
+    );
 
-    ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
+    if (fixedRegionalRoute) {
+      isRegionalFixedRoute = true;
+      regionalEngineName = 'Bihar & Jharkhand Fixed Route Special';
+      regionalCorridorName = fixedRegionalRoute.corridorName;
+      regionalTollPolicyNote = fixedRegionalRoute.tollPolicyNote;
+      regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
+      regionalMarketBeatOverride = fixedRegionalRoute.marketBeat;
 
-    hillStationCharge =
-      hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.15)
-        : hillTier === 'one_end_hill'
-        ? hillBase
-        : 0;
-    const shortTripMinBase =
-      cab.id === 'hatchback'
-        ? 480
-        : cab.id === 'sedan'
-        ? 540
-        : cab.id === 'exec_sedan'
-        ? 660
-        : cab.id === 'suv'
-        ? 760
-        : cab.id === 'innova'
-        ? 950
-        : 1350;
+      const targetFixedTotal =
+        fixedRegionalRoute.rates[cabId] ?? fixedRegionalRoute.rates.sedan;
+      const regionalDriverBata =
+        cabId === 'tempo'
+          ? 380
+          : cabId === 'innova'
+          ? 300
+          : cabId === 'suv'
+          ? 260
+          : fixedRegionalRoute.km < 60
+          ? 180
+          : 220;
 
-    baseRouteFare =
-      baseBilledDistanceKm < 55
-        ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
-        : Math.round(baseBilledDistanceKm * ratePerKm);
+      const preTaxTarget = Math.round(targetFixedTotal / 1.05);
+      fixedOneWayGstOverride = targetFixedTotal - preTaxTarget;
+      driverAllowance = regionalDriverBata;
+      baseRouteFare = Math.max(250, preTaxTarget - driverAllowance);
+      ratePerKm = Number((baseRouteFare / Math.max(1, baseBilledDistanceKm)).toFixed(1));
+      hillStationCharge = 0;
+      nightCharges = timingAllowance;
+    } else if (isRegionalTrip) {
+      regionalEngineName = 'Bihar & Jharkhand Regional Rate Card';
+      regionalCorridorName = `${originState === 'Jharkhand' || destState === 'Jharkhand' ? 'Bihar–Jharkhand' : 'Bihar'} Regional Highway Corridor`;
+      regionalTollPolicyNote = isInterState
+        ? 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll & State Border Tax Extra As Per Actuals)'
+        : baseBilledDistanceKm <= 65
+        ? 'Short Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)'
+        : `Intra-State ${originState} Corridor (₹0 State Border Tax · NHAI Toll Extra As Per Actuals)`;
+      regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
+      regionalMarketBeatOverride = baseBilledDistanceKm >= 140 ? 190 : 175;
 
-    const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
+      const regionalPerKmRates = {
+        hatchback: 8.5,
+        sedan: 9.2,
+        exec_sedan: 10.6,
+        suv: 12.2,
+        innova: 15.2,
+        tempo: 20.8
+      };
+      const regionalBataMap = {
+        hatchback: 210,
+        sedan: 230,
+        exec_sedan: 270,
+        suv: 290,
+        innova: 350,
+        tempo: 440
+      };
 
-    driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
-    nightCharges = timingAllowance;
+      ratePerKm = regionalPerKmRates[cabId] ?? 9.2;
+      const shortTripMinBase =
+        cabId === 'hatchback'
+          ? 450
+          : cabId === 'sedan'
+          ? 510
+          : cabId === 'exec_sedan'
+          ? 620
+          : cabId === 'suv'
+          ? 720
+          : cabId === 'innova'
+          ? 900
+          : 1280;
+
+      baseRouteFare =
+        baseBilledDistanceKm < 55
+          ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
+          : Math.round(baseBilledDistanceKm * ratePerKm);
+      const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
+      driverAllowance = Math.round((regionalBataMap[cabId] ?? 230) * oneWayDriverDays);
+      hillStationCharge = 0;
+      nightCharges = timingAllowance;
+    } else {
+      const slabFactor = isHillRoute
+        ? 1.0
+        : baseBilledDistanceKm <= 130
+        ? 1.02
+        : 1.0;
+
+      ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
+
+      hillStationCharge =
+        hillTier === 'both_hills'
+          ? Math.round(hillBase * 1.15)
+          : hillTier === 'one_end_hill'
+          ? hillBase
+          : 0;
+      const shortTripMinBase =
+        cab.id === 'hatchback'
+          ? 480
+          : cab.id === 'sedan'
+          ? 540
+          : cab.id === 'exec_sedan'
+          ? 660
+          : cab.id === 'suv'
+          ? 760
+          : cab.id === 'innova'
+          ? 950
+          : 1350;
+
+      baseRouteFare =
+        baseBilledDistanceKm < 55
+          ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
+          : Math.round(baseBilledDistanceKm * ratePerKm);
+
+      const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
+
+      driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
+      nightCharges = timingAllowance;
+    }
   } else if (tripType === 'roundtrip') {
     if (pickupDate && returnDate) {
       const p = new Date(pickupDate).getTime();
@@ -1243,29 +1536,79 @@ export function computeServerTripFare({
         daysCount = Math.max(1, diffDays + 1);
       }
     }
-    const actualTwoWayKm = Math.round(parsedDistance * 2);
+    const baseOneWayKm = fixedRegionalRoute ? fixedRegionalRoute.km : parsedDistance;
+    const actualTwoWayKm = Math.round(baseOneWayKm * 2);
     const nightHalts = Math.max(0, daysCount - 1);
-    const rtHillFactor =
-      hillTier === 'both_hills' ? 1.12 : hillTier === 'one_end_hill' ? 1.08 : 1.0;
-    const rtFare = calculateRoundTripFare(
-      actualTwoWayKm,
-      daysCount,
-      String(cabId).toUpperCase(),
-      nightHalts,
-      rtHillFactor
-    );
 
-    baseBilledDistanceKm = rtFare.chargeableKm;
-    ratePerKm = rtFare.perKmRate;
-    baseRouteFare = rtFare.baseDistanceFare;
-    driverAllowance = rtFare.driverAllowance + hillDriverBonusPerDay * daysCount;
-    nightCharges = rtFare.nightAllowance;
-    hillStationCharge =
-      hillTier === 'both_hills'
-        ? Math.round(hillBase * 1.15)
-        : hillTier === 'one_end_hill'
-        ? hillBase
-        : 0;
+    if (isRegionalTrip) {
+      regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
+      regionalMarketBeatOverride = 190;
+
+      const regionalRoundTripRates = {
+        hatchback: { perKm: 9.8, bataPerDay: 220, nightPerHalt: 200 },
+        sedan: { perKm: 10.8, bataPerDay: 250, nightPerHalt: 220 },
+        exec_sedan: { perKm: 12.2, bataPerDay: 280, nightPerHalt: 250 },
+        suv: { perKm: 13.8, bataPerDay: 300, nightPerHalt: 260 },
+        innova: { perKm: 17.5, bataPerDay: 350, nightPerHalt: 300 },
+        tempo: { perKm: 23.0, bataPerDay: 450, nightPerHalt: 400 }
+      };
+      const rCfg = regionalRoundTripRates[cabId] || regionalRoundTripRates.sedan;
+
+      if (fixedRegionalRoute && daysCount === 1 && actualTwoWayKm <= 260) {
+        isRegionalFixedRoute = true;
+        regionalEngineName = 'Bihar & Jharkhand Same-Day Return Package';
+        regionalCorridorName = `${fixedRegionalRoute.corridorName} (2-Way Return)`;
+        regionalTollPolicyNote = fixedRegionalRoute.tollPolicyNote;
+        const oneWayFixed =
+          fixedRegionalRoute.rates[cabId] ?? fixedRegionalRoute.rates.sedan;
+        const returnPackageTotal = Math.round(oneWayFixed * 1.75);
+        baseBilledDistanceKm = actualTwoWayKm;
+        driverAllowance = rCfg.bataPerDay;
+        nightCharges = 0;
+        baseRouteFare = Math.max(400, returnPackageTotal - driverAllowance);
+        ratePerKm = Number((baseRouteFare / Math.max(1, baseBilledDistanceKm)).toFixed(1));
+        hillStationCharge = 0;
+      } else {
+        isRegionalFixedRoute = Boolean(fixedRegionalRoute);
+        regionalEngineName = 'Bihar & Jharkhand Regional Round-Trip Package';
+        regionalCorridorName = fixedRegionalRoute
+          ? `${fixedRegionalRoute.corridorName} (${daysCount}-Day Package)`
+          : `Bihar & Jharkhand ${daysCount}-Day Round-Trip Package`;
+        regionalTollPolicyNote = isInterState
+          ? 'Bihar–Jharkhand Inter-State Round Trip (FASTag Toll & State Border Tax Extra)'
+          : `Intra-State ${originState} Round Trip (₹0 State Border Tax · NHAI Toll Extra As Per Actuals)`;
+
+        const regionalMinSlabKm = daysCount * 200;
+        baseBilledDistanceKm = Math.max(actualTwoWayKm, regionalMinSlabKm);
+        ratePerKm = rCfg.perKm;
+        baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
+        driverAllowance = daysCount * rCfg.bataPerDay;
+        nightCharges = nightHalts * rCfg.nightPerHalt;
+        hillStationCharge = 0;
+      }
+    } else {
+      const rtHillFactor =
+        hillTier === 'both_hills' ? 1.12 : hillTier === 'one_end_hill' ? 1.08 : 1.0;
+      const rtFare = calculateRoundTripFare(
+        actualTwoWayKm,
+        daysCount,
+        String(cabId).toUpperCase(),
+        nightHalts,
+        rtHillFactor
+      );
+
+      baseBilledDistanceKm = rtFare.chargeableKm;
+      ratePerKm = rtFare.perKmRate;
+      baseRouteFare = rtFare.baseDistanceFare;
+      driverAllowance = rtFare.driverAllowance + hillDriverBonusPerDay * daysCount;
+      nightCharges = rtFare.nightAllowance;
+      hillStationCharge =
+        hillTier === 'both_hills'
+          ? Math.round(hillBase * 1.15)
+          : hillTier === 'one_end_hill'
+          ? hillBase
+          : 0;
+    }
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
     if (localPackageId === '4h_40k') {
@@ -1315,7 +1658,7 @@ export function computeServerTripFare({
   if (tripType === 'oneway') {
     const tollInfo = lookupServerRouteExpresswayToll(pickupCity, dropCity, billedDistanceKm, cabId);
     highwayToll = tollInfo.baseTollOneWay;
-    expresswayName = tollInfo.expresswayName;
+    expresswayName = regionalCorridorName || tollInfo.expresswayName;
     tollPlazaCount = tollInfo.tollPlazaCount || 0;
     tollPlazas = tollInfo.tollPlazas || [];
     if (isInterState) {
@@ -1338,7 +1681,7 @@ export function computeServerTripFare({
       cabId
     );
     highwayToll = tollInfo.baseTollOneWay > 0 ? Math.round(tollInfo.baseTollOneWay * 1.8) : 0;
-    expresswayName = tollInfo.expresswayName;
+    expresswayName = regionalCorridorName || tollInfo.expresswayName;
     tollPlazaCount = tollInfo.tollPlazaCount > 0 ? tollInfo.tollPlazaCount * 2 : 0;
     tollPlazas = tollInfo.tollPlazas || [];
     if (isInterState) {
@@ -1379,7 +1722,13 @@ export function computeServerTripFare({
   const addonsTotal = carrierFee + petFee + assuredModelFee;
 
   const taxableSubtotal = baseFare + driverAllowance + nightCharges + addonsTotal;
-  const gstAmount = tripType === 'roundtrip' ? 0 : Math.round(taxableSubtotal * 0.05);
+  const extraTaxableOverFixed = sliderExtraFare + hillStationCharge + nightCharges + addonsTotal;
+  const gstAmount =
+    tripType === 'roundtrip'
+      ? 0
+      : fixedOneWayGstOverride !== null
+      ? fixedOneWayGstOverride + Math.round(extraTaxableOverFixed * 0.05)
+      : Math.round(taxableSubtotal * 0.05);
 
   const totalFareBeforePromo = baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
 
@@ -1398,7 +1747,14 @@ export function computeServerTripFare({
   const appliedPromoDiscount = shouldApplyPromo ? 300 : 0;
   const totalFare = Math.max(100, totalFareBeforePromo - appliedPromoDiscount);
 
-  const competitorGap = totalFareBeforePromo >= 4500 ? 210 : totalFareBeforePromo >= 3200 ? 199 : 169;
+  const competitorGap =
+    regionalMarketBeatOverride !== null
+      ? regionalMarketBeatOverride
+      : totalFareBeforePromo >= 4500
+      ? 210
+      : totalFareBeforePromo >= 2800
+      ? 198
+      : 185;
   const originalMarketFare = totalFareBeforePromo + competitorGap;
   const savingsAmount = competitorGap + appliedPromoDiscount;
   const savingsPercent = Math.max(4, Math.round((savingsAmount / originalMarketFare) * 100));
@@ -1453,7 +1809,13 @@ export function computeServerTripFare({
     pickupIsOuter,
     dropIsOuter,
     routeTierMultiplier,
-    routeTierLabel
+    routeTierLabel,
+    isRegionalPricingActive: isRegionalTrip,
+    isRegionalFixedRoute,
+    regionalEngineName,
+    regionalCorridorName,
+    regionalTollPolicyNote,
+    regionalCompetitorLabel
   };
 }
 
