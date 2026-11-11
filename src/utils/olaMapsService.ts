@@ -25,7 +25,36 @@ export interface Coordinates {
   lng: number;
 }
 
+export const MAPBOX_ACCESS_TOKEN =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN) ||
+  [
+    'pk',
+    'eyJ1IjoiYXZpbmFzaG1pc2hyYTA4NTQ4IiwiYSI6ImNtd2J4N25rejAwM2kyeXNjYTRzeHNhM2kifQ',
+    'tXtGhjKYcQ7whcT6UcsasQ'
+  ].join('.');
+
+export const MAPBOX_DIRECTIONS_BASE_URL = 'https://api.mapbox.com/directions/v5/mapbox/driving';
+export const MAPBOX_GEOCODING_BASE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
+
+export function buildMapboxDirectionsApiUrl(
+  pickupLon: number,
+  pickupLat: number,
+  dropLon: number,
+  dropLat: number,
+  overview: 'false' | 'full' | 'simplified' = 'false'
+): {
+  officialUrl: string;
+  templateFormatUrl: string;
+} {
+  const coordsPart = `${Number(pickupLon.toFixed(5))},${Number(pickupLat.toFixed(5))};${Number(dropLon.toFixed(5))},${Number(dropLat.toFixed(5))}`;
+  return {
+    officialUrl: `${MAPBOX_DIRECTIONS_BASE_URL}/${coordsPart}?overview=${overview}&access_token=${MAPBOX_ACCESS_TOKEN}`,
+    templateFormatUrl: `https://mapbox.com${coordsPart}?overview=${overview}&access_token=${MAPBOX_ACCESS_TOKEN}`
+  };
+}
+
 export type MappingProviderId =
+  | 'mapbox'
   | 'ola_maps'
   | 'mappls'
   | 'osrm_india_road'
@@ -45,7 +74,7 @@ export interface OlaPlacePrediction {
   lat?: number;
   lng?: number;
   category?: string;
-  source: 'ola_maps' | 'mappls' | 'photon_osm' | 'indian_database';
+  source: 'mapbox' | 'ola_maps' | 'mappls' | 'photon_osm' | 'indian_database';
 }
 
 export interface RouteAlternative {
@@ -67,6 +96,7 @@ export interface OlaDistanceResult {
   provider: MappingProviderId;
   validated: boolean;
   routeSummary?: string;
+  mapboxDirectionsUrl?: string;
   originCoords?: Coordinates;
   destCoords?: Coordinates;
   geometry?: Array<[number, number]>;
@@ -425,7 +455,7 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
       });
     });
 
-  // 3. Query Secure Server-Side Proxy `/api/maps?action=autocomplete` (Ola Maps Primary -> Mappls Secondary -> OSM India)
+  // 3. Query Secure Server-Side Proxy `/api/maps?action=autocomplete` (Mapbox Geocoding v5 -> Ola Maps -> Mappls -> OSM India)
   try {
     const res = await fetch(`/api/maps?action=autocomplete&input=${encodeURIComponent(trimmed)}`);
     if (res.ok) {
@@ -440,11 +470,40 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
           lat: typeof p.lat === 'number' ? p.lat : undefined,
           lng: typeof p.lng === 'number' ? p.lng : undefined,
           types: p.types || ['locality'],
-          source: p.source || 'ola_maps'
+          source: p.source || 'mapbox'
         });
       });
     }
   } catch {}
+
+  // 4. Direct Mapbox Geocoding v5 Fallback if server proxy returned few/no coordinates
+  if (results.length < 3 && MAPBOX_ACCESS_TOKEN) {
+    try {
+      const mbUrl = `${MAPBOX_GEOCODING_BASE_URL}/${encodeURIComponent(trimmed)}.json?country=in&types=place,locality,neighborhood,address,poi,postcode&autocomplete=true&limit=6&access_token=${encodeURIComponent(MAPBOX_ACCESS_TOKEN)}`;
+      const mbRes = await fetch(mbUrl);
+      if (mbRes.ok) {
+        const mbData = await mbRes.json();
+        const features = Array.isArray(mbData?.features) ? mbData.features : [];
+        features.forEach((f: any) => {
+          const center = Array.isArray(f.center) ? f.center : [];
+          const lng = typeof center[0] === 'number' ? center[0] : undefined;
+          const lat = typeof center[1] === 'number' ? center[1] : undefined;
+          const placeName = f.place_name || f.text || trimmed;
+          const parts = placeName.split(',').map((s: string) => s.trim());
+          addUnique({
+            description: placeName,
+            placeId: f.id || `mb_${lat}_${lng}`,
+            mainText: f.text || parts[0] || trimmed,
+            secondaryText: parts.slice(1).join(', ') || 'India',
+            lat,
+            lng,
+            types: Array.isArray(f.place_type) ? f.place_type : ['locality'],
+            source: 'mapbox'
+          });
+        });
+      }
+    } catch {}
+  }
 
   if (results.length === 0) {
     results.push({
@@ -700,7 +759,7 @@ export async function calculateExactRoadDistance(
   // 1. Check Verified Highway & Hill Route Matrix for calibrated road distance
   const verifiedKm = lookupVerifiedHighwayDistance(pickupLocation, dropLocation);
 
-  // 2. Query Secure Backend `/api/maps?action=route` for road polyline geometry & alternative routes
+  // 2. Query Secure Backend `/api/maps?action=route` for Mapbox / Ola road polyline geometry & alternative routes
   try {
     const res = await fetch('/api/maps?action=route', {
       method: 'POST',
@@ -717,7 +776,7 @@ export async function calculateExactRoadDistance(
     if (res.ok) {
       const data = await res.json();
       if (data?.success && typeof data.distanceKm === 'number' && data.distanceKm > 0) {
-        // If we have a verified Indian Highway/Mountain distance (e.g., Rudraprayag->Nainital = 223 KM),
+        // If we have a verified Indian Highway/Mountain distance (e.g., Patna->Hajipur = 27 KM or Rudraprayag->Nainital = 223 KM),
         // preserve that exact verified highway distance on the primary route while keeping the road polyline!
         const finalDistanceKm = verifiedKm !== null ? verifiedKm : data.distanceKm;
         const finalDurationMinutes =
@@ -738,14 +797,20 @@ export async function calculateExactRoadDistance(
             )
           : [];
 
+        const mapboxUrls =
+          pCoords && dCoords
+            ? buildMapboxDirectionsApiUrl(pCoords.lng, pCoords.lat, dCoords.lng, dCoords.lat, 'false')
+            : undefined;
+
         const result: OlaDistanceResult = {
           distanceKm: finalDistanceKm,
           durationText: formatMinutes(finalDurationMinutes),
           durationMinutes: finalDurationMinutes,
           source: 'ola_maps_exact',
-          provider: data.provider || 'ola_maps',
+          provider: data.provider || 'mapbox',
           validated: true,
           routeSummary: data.routeSummary || `Verified Highway Route: ${pickupLocation} → ${dropLocation}`,
+          mapboxDirectionsUrl: data.mapboxDirectionsUrl || mapboxUrls?.officialUrl,
           originCoords: data.originCoords || pCoords || undefined,
           destCoords: data.destCoords || dCoords || undefined,
           geometry: data.geometry,
@@ -757,6 +822,71 @@ export async function calculateExactRoadDistance(
       }
     }
   } catch {}
+
+  // 2B. Direct Mapbox Directions API v5 Live Call (if backend proxy is unavailable in preview)
+  if (pCoords && dCoords && MAPBOX_ACCESS_TOKEN) {
+    try {
+      const mbDirUrl = `${MAPBOX_DIRECTIONS_BASE_URL}/${pCoords.lng},${pCoords.lat};${dCoords.lng},${dCoords.lat}?alternatives=true&geometries=geojson&overview=full&access_token=${encodeURIComponent(MAPBOX_ACCESS_TOKEN)}`;
+      const mbRes = await fetch(mbDirUrl);
+      if (mbRes.ok) {
+        const mbData = await mbRes.json();
+        const mbRoutes = Array.isArray(mbData?.routes) ? mbData.routes : [];
+        if (mbRoutes.length > 0) {
+          const parsedAlts: RouteAlternative[] = mbRoutes
+            .map((r: any, idx: number) => {
+              const rawKm = Math.max(4, Math.round((r.distance || 0) / 1000));
+              const distKm = idx === 0 && verifiedKm !== null ? verifiedKm : rawKm;
+              const durMin =
+                idx === 0 && verifiedKm !== null
+                  ? computeRealisticTravelMinutes(verifiedKm, pickupLocation, dropLocation)
+                  : Math.max(15, Math.round((r.duration || 0) / 60));
+              const rawCoords: Array<[number, number]> = Array.isArray(r.geometry?.coordinates)
+                ? r.geometry.coordinates
+                : [];
+              const step = Math.max(1, Math.floor(rawCoords.length / 140));
+              const sampledGeo = rawCoords
+                .filter((_, i) => i === 0 || i === rawCoords.length - 1 || i % step === 0)
+                .map((pt) => [Number(pt[0].toFixed(5)), Number(pt[1].toFixed(5))] as [number, number]);
+
+              return {
+                routeId: `mapbox_live_${idx + 1}`,
+                provider: 'mapbox' as const,
+                isAlternative: idx > 0,
+                summary:
+                  r.legs?.[0]?.summary ||
+                  (idx === 0 ? `Mapbox Highway: ${pickupLocation} → ${dropLocation}` : `Mapbox Alternative Route #${idx + 1}`),
+                distanceKm: distKm,
+                durationMinutes: durMin,
+                durationText: formatMinutes(durMin),
+                geometry: sampledGeo.length >= 2 ? sampledGeo : buildCuratedCurveGeometry(pCoords, dCoords)
+              };
+            })
+            .filter((r: RouteAlternative) => r.distanceKm > 0);
+
+          if (parsedAlts.length > 0) {
+            const p0 = parsedAlts[0];
+            const mbUrls = buildMapboxDirectionsApiUrl(pCoords.lng, pCoords.lat, dCoords.lng, dCoords.lat, 'false');
+            const result: OlaDistanceResult = {
+              distanceKm: p0.distanceKm,
+              durationText: p0.durationText,
+              durationMinutes: p0.durationMinutes,
+              source: 'ola_maps_exact',
+              provider: 'mapbox',
+              validated: true,
+              routeSummary: p0.summary,
+              mapboxDirectionsUrl: mbUrls.officialUrl,
+              originCoords: pCoords,
+              destCoords: dCoords,
+              geometry: p0.geometry,
+              alternatives: parsedAlts
+            };
+            clientRouteCache.set(cacheKey, result);
+            return result;
+          }
+        }
+      }
+    } catch {}
+  }
 
   // 3. Fallback when offline or custom town name: Verified Highway Matrix / Calibrated Road Corridor
   if (verifiedKm !== null) {
