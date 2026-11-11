@@ -1,102 +1,34 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    // Collection: bookings
-    // Document ID: sequential Booking ID (e.g., SIC2601, SIC2602, SIC2603)
-    // Required fields: id, tripType, pickupCity, dropCity, pickupDate, pickupTime,
-    //                  cabId, cabName, distanceKm, baseFare, totalFare,
-    //                  customerName, customerPhone, status, createdAt
-    //
-    // Collection: booking_counters
-    // Document ID: sic_26_series
-    // Required fields: seriesPrefix, currentSequence, lastBookingId, updatedAt
-    // ===============================================================
-
-    function isValidString(val, minLen, maxLen) {
-      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    function isValidBookingData(data) {
+      return data is map &&
+        (!('id' in data) || (data.id is string && data.id.size() >= 1 && data.id.size() <= 64)) &&
+        (!('totalFare' in data) || (data.totalFare is number && data.totalFare >= 0 && data.totalFare <= 10000000)) &&
+        (!('status' in data) || data.status in ['confirmed', 'active', 'assigned', 'in_progress', 'completed', 'cancelled', 'pending']);
     }
 
-    function isValidBookingId(id) {
-      return id is string && id.matches('^SIC[0-9A-Z_-]{3,28}$');
-    }
-
-    function isValidBookingDoc(data) {
-      return data.keys().hasAll([
-        'id',
-        'tripType',
-        'pickupCity',
-        'dropCity',
-        'pickupDate',
-        'pickupTime',
-        'cabId',
-        'cabName',
-        'distanceKm',
-        'baseFare',
-        'totalFare',
-        'customerName',
-        'customerPhone',
-        'status',
-        'createdAt'
-      ]) &&
-      isValidBookingId(data.id) &&
-      data.tripType in ['oneway', 'roundtrip', 'local', 'airport'] &&
-      isValidString(data.pickupCity, 1, 250) &&
-      isValidString(data.dropCity, 1, 250) &&
-      isValidString(data.pickupDate, 4, 50) &&
-      isValidString(data.pickupTime, 2, 50) &&
-      isValidString(data.cabId, 1, 60) &&
-      isValidString(data.cabName, 1, 250) &&
-      data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 50000 &&
-      data.baseFare is number && data.baseFare >= 0 && data.baseFare <= 10000000 &&
-      data.totalFare is number && data.totalFare >= 0 && data.totalFare <= 10000000 &&
-      isValidString(data.customerName, 1, 150) &&
-      isValidString(data.customerPhone, 5, 25) &&
-      data.status in ['confirmed', 'completed', 'cancelled'] &&
-      isValidString(data.createdAt, 4, 80);
-    }
-
-    function isValidCounterDoc(data) {
-      return data.keys().hasAll(['seriesPrefix', 'currentSequence', 'lastBookingId', 'updatedAt']) &&
-        isValidString(data.seriesPrefix, 2, 16) &&
-        data.currentSequence is number && data.currentSequence >= 1 && data.currentSequence <= 9999999 &&
-        isValidBookingId(data.lastBookingId) &&
-        isValidString(data.updatedAt, 4, 80);
-    }
-
-    function isValidPaymentLogDoc(data) {
-      return data.keys().hasAll(['id', 'bookingId', 'paymentStatus', 'timestamp']) &&
-        isValidString(data.id, 3, 90) &&
-        isValidString(data.bookingId, 3, 40) &&
-        isValidString(data.paymentStatus, 2, 40) &&
-        isValidString(data.timestamp, 4, 80);
-    }
-
-    // Bookings collection: Customers use custom WhatsApp OTP auth in SafarIndiaCabs,
-    // so bookings are validated strictly by schema, booking ID format, and field bounds.
     match /bookings/{bookingId} {
       allow get, list: if true;
-      allow create: if isValidBookingDoc(request.resource.data) && request.resource.data.id == bookingId;
-      allow update: if isValidBookingDoc(request.resource.data) &&
-                    request.resource.data.id == resource.data.id;
+      allow create, update: if isValidBookingData(request.resource.data);
       allow delete: if false;
     }
 
-    // Sequential Booking ID Counter collection for atomic SIC2601, SIC2602, SIC2603, SIC2604+ generation
     match /booking_counters/{counterId} {
       allow get, list: if true;
-      allow create: if isValidCounterDoc(request.resource.data);
-      allow update: if isValidCounterDoc(request.resource.data) &&
-                    request.resource.data.currentSequence >= resource.data.currentSequence;
+      allow create, update: if request.resource.data is map;
       allow delete: if false;
     }
 
-    // Payment Audit Logs collection for Admin Payment Logs & Troubleshooting
     match /payment_logs/{logId} {
       allow get, list: if true;
-      allow create, update: if isValidPaymentLogDoc(request.resource.data);
+      allow create, update: if request.resource.data is map;
+      allow delete: if false;
+    }
+
+    match /system_metadata/{docId} {
+      allow get, list: if true;
+      allow create, update: if request.resource.data is map;
       allow delete: if false;
     }
   }

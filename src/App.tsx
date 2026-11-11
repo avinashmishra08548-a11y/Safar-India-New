@@ -257,17 +257,22 @@ export default function App() {
 
         const adminParam = (searchParams.get('admin') || '').trim().toLowerCase();
         const hashLower = (window.location.hash || '').trim().toLowerCase();
-        if (adminParam === '1' || adminParam === 'true' || hashLower === '#admin' || hashLower === '#owner') {
-          setIsAdminMappingConsoleOpen(true);
-        }
-
+        const hostLower = (window.location.hostname || '').trim().toLowerCase();
         const pathname = (window.location.pathname || '').trim().toLowerCase().replace(/\/+$/, '');
-        if (!pathname || pathname === '/') return;
-
-        if (pathname === '/admin' || pathname === '/owner' || pathname === '/admin-login') {
+        if (
+          hostLower.startsWith('admin.') ||
+          adminParam === '1' ||
+          adminParam === 'true' ||
+          hashLower === '#admin' ||
+          hashLower === '#owner' ||
+          pathname === '/admin' ||
+          pathname === '/owner' ||
+          pathname === '/admin-login'
+        ) {
           setIsAdminMappingConsoleOpen(true);
-          return;
         }
+
+        if (!pathname || pathname === '/' || pathname === '/admin' || pathname === '/owner' || pathname === '/admin-login') return;
 
         if (pathname === '/privacy-policy' || pathname === '/privacy') {
           setLegalPolicyModalTab('privacy');
@@ -404,7 +409,27 @@ export default function App() {
     mode: MapModalMode;
     trackingBooking?: BookingRecord | null;
   }>({ isOpen: false, mode: 'route_preview', trackingBooking: null });
-  const [isAdminMappingConsoleOpen, setIsAdminMappingConsoleOpen] = useState(false);
+  const [isAdminMappingConsoleOpen, setIsAdminMappingConsoleOpen] = useState<boolean>(() => {
+    try {
+      const host = (window.location.hostname || '').trim().toLowerCase();
+      const path = (window.location.pathname || '').trim().toLowerCase().replace(/\/+$/, '');
+      const params = new URLSearchParams(window.location.search);
+      const adminQ = (params.get('admin') || '').trim().toLowerCase();
+      const hash = (window.location.hash || '').trim().toLowerCase();
+      return (
+        host.startsWith('admin.') ||
+        path === '/admin' ||
+        path === '/owner' ||
+        path === '/admin-login' ||
+        adminQ === '1' ||
+        adminQ === 'true' ||
+        hash === '#admin' ||
+        hash === '#owner'
+      );
+    } catch {
+      return false;
+    }
+  });
   const [, setPricingRevision] = useState(0);
 
   useEffect(() => {

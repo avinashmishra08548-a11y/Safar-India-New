@@ -1499,6 +1499,291 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
     }
   };
 
+  const handleShareSummaryTextOnWhatsApp = () => {
+    const summaryLines = [
+      `✅ *SAFAR INDIA CABS — BOOKING CONFIRMED SUMMARY*`,
+      `-----------------------------------------`,
+      `🆔 *Booking ID:* ${effectiveBooking.id}`,
+      `📍 *Route:* ${effectiveBooking.pickupCity} → ${effectiveBooking.dropCity} (${effectiveBooking.tripType.toUpperCase()} • ${effectiveBooking.distanceKm} KM)`,
+      `📅 *Pickup Date & Time:* ${effectiveBooking.pickupDate} at ${effectiveBooking.pickupTime}`,
+      `🚕 *Vehicle Type:* ${effectiveBooking.cabName}`,
+      `👤 *Passenger:* ${effectiveBooking.customerName} (+91 ${effectiveBooking.customerPhone})`,
+      `-----------------------------------------`,
+      `💰 *Total Trip Fare:* ₹${Number(itemizedBreakup.totalFare || 0).toLocaleString('en-IN')}`,
+      `✅ *Advance Paid:* ₹${Number(effectiveBooking.advancePaid || 0).toLocaleString('en-IN')}`,
+      `💵 *Remaining Balance (Payable to Driver):* ₹${Number(effectiveBooking.balanceDue || 0).toLocaleString('en-IN')}`,
+      `ℹ️ *Note:* Toll Tax, State Tax & Parking Extra (As Per Actuals).`,
+      effectiveBooking.driverName
+        ? `👨‍✈️ *Assigned Driver:* ${effectiveBooking.driverName} (+91 ${effectiveBooking.driverPhone || ''}) • Cab: ${effectiveBooking.driverVehicleNo || ''}`
+        : `👨‍✈️ *Driver Status:* Chauffeur & vehicle details will be shared prior to pickup.`,
+      `📞 *24x7 Helpline:* +91 7710080992`
+    ];
+    const encoded = encodeURIComponent(summaryLines.join('\n'));
+    const cleanPhone = String(effectiveBooking.customerPhone || '').replace(/\D/g, '').slice(-10);
+    const targetUrl =
+      cleanPhone.length === 10
+        ? `https://api.whatsapp.com/send?phone=91${cleanPhone}&text=${encoded}`
+        : `https://api.whatsapp.com/send?text=${encoded}`;
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  // ============================================================================
+  // CASE 1: ACTIVE / CONFIRMED BOOKING (NOT YET COMPLETED BY ADMIN)
+  // Show clean, spacious MakeMyTrip / CabBazaar Style "Booking Confirmed Summary"
+  // Hide full PDF Tax Invoice preview & Download Final Tax Invoice buttons
+  // ============================================================================
+  if (!isCompleted) {
+    return (
+      <div
+        className="fixed inset-0 bg-slate-950/75 backdrop-blur-xs z-[1000000] flex items-start sm:items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+      >
+        <div className="booking-modal-container bg-white border border-slate-200 rounded-3xl w-full max-w-lg my-3 sm:my-auto overflow-hidden shadow-2xl relative animate-in zoom-in-95">
+          {/* Top Close (✕) Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close booking summary"
+            title="Close Summary"
+            className="absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white border border-white/30 flex items-center justify-center transition active:scale-95 cursor-pointer z-20"
+          >
+            <X className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          {/* Clean MakeMyTrip / CabBazaar Style Green Confirmation Header */}
+          <div className="bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-700 px-6 py-5 text-white relative">
+            <div className="flex items-start gap-3.5 pr-8">
+              <div className="w-12 h-12 rounded-2xl bg-white text-emerald-600 flex items-center justify-center shrink-0 shadow-md">
+                <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
+              </div>
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[10px] font-extrabold uppercase tracking-wider">
+                  <span>SafarIndiaCabs • Instant Confirmation</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                  Booking Confirmed Summary
+                </h2>
+                <p className="text-xs text-emerald-50 font-medium">
+                  Your cab booking is confirmed. Save your Booking ID for tracking.
+                </p>
+              </div>
+            </div>
+
+            {/* Booking ID & Status Pill Strip */}
+            <div className="mt-4 pt-3.5 border-t border-white/20 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wider text-emerald-100 font-bold">
+                  Booking ID:
+                </span>
+                <span className="font-mono font-black text-sm sm:text-base bg-white text-slate-950 px-3 py-1 rounded-xl shadow-xs">
+                  {effectiveBooking.id}
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider bg-amber-400 text-slate-950 px-3 py-1 rounded-full shadow-xs">
+                ● {effectiveBooking.status === 'cancelled' ? 'Cancelled' : 'Confirmed'}
+              </span>
+            </div>
+          </div>
+
+          {/* Summary Body: Route, Vehicle Type, Advance Paid & Remaining Balance */}
+          <div className="p-5 sm:p-6 space-y-4 bg-white text-slate-900">
+            {/* 1. Route & Schedule Card */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                  Trip Route &amp; Schedule
+                </span>
+                <span className="text-[11px] font-extrabold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-lg">
+                  {effectiveBooking.tripType === 'roundtrip'
+                    ? `Round Trip (${itemizedBreakup.tripDays} ${itemizedBreakup.tripDays === 1 ? 'Day' : 'Days'})`
+                    : effectiveBooking.tripType === 'local'
+                    ? 'Local Rental (8Hr / 80KM)'
+                    : 'One-Way Intercity'}
+                  {' • '}
+                  {effectiveBooking.distanceKm} KM
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2.5 text-base sm:text-lg font-black text-slate-950">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="truncate">{effectiveBooking.pickupCity}</span>
+                <span className="text-slate-400 shrink-0">→</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="truncate">{effectiveBooking.dropCity}</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-200/80 text-xs">
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[10px] font-bold uppercase text-slate-400">Pickup</div>
+                    <div className="font-bold text-slate-800">
+                      {effectiveBooking.pickupAddress || effectiveBooking.pickupCity}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[10px] font-bold uppercase text-slate-400">Drop</div>
+                    <div className="font-bold text-slate-800">
+                      {effectiveBooking.dropAddress || effectiveBooking.dropCity}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 text-xs">
+                <span className="text-slate-500 font-bold flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#0F2958]" />
+                  <span>Pickup Date &amp; Time:</span>
+                </span>
+                <span className="font-black text-slate-950 font-mono">
+                  {effectiveBooking.pickupDate} • {effectiveBooking.pickupTime}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Vehicle Type & Passenger Info */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Car className="w-3.5 h-3.5 text-[#0F2958]" />
+                  <span>Vehicle Type</span>
+                </span>
+                <div className="text-sm font-black text-[#0F2958] leading-snug">
+                  {effectiveBooking.cabName}
+                </div>
+                <div className="text-[11px] font-semibold text-emerald-700">
+                  ✓ AC Commercial Sanitized Cab
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-[#0F2958]" />
+                  <span>Traveller Details</span>
+                </span>
+                <div className="text-sm font-black text-slate-950 leading-snug">
+                  {effectiveBooking.customerName}
+                </div>
+                <div className="text-xs font-mono font-bold text-slate-700">
+                  +91 {effectiveBooking.customerPhone}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Payment Summary: Advance Paid & Remaining Balance */}
+            <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+              <div className="bg-slate-900 text-white px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wider flex items-center justify-between">
+                <span>Payment &amp; Balance Summary</span>
+                <span className="text-amber-400">Driver Allowance Included</span>
+              </div>
+              <div className="p-4 space-y-2.5 text-xs">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Total Estimated Trip Fare (Incl. 5% GST):</span>
+                  <span className="font-mono font-black text-sm text-slate-950">
+                    {formatINR(itemizedBreakup.totalFare)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center bg-emerald-50 border border-emerald-200 text-emerald-900 px-3.5 py-2.5 rounded-xl">
+                  <span className="font-extrabold flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Advance Paid:</span>
+                  </span>
+                  <span className="font-mono font-black text-sm text-emerald-700">
+                    {formatINR(effectiveBooking.advancePaid)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center bg-amber-50 border border-amber-300 text-slate-950 px-3.5 py-2.5 rounded-xl">
+                  <span className="font-extrabold text-[#0F2958]">
+                    Remaining Balance (Payable to Driver):
+                  </span>
+                  <span className="font-mono font-black text-sm text-amber-900">
+                    {formatINR(effectiveBooking.balanceDue)}
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-slate-600 font-semibold pt-1 flex items-center justify-between">
+                  <span>✓ Toll Tax, State Tax &amp; Parking:</span>
+                  <span className="font-bold text-slate-800">Extra (As Per Actuals)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Live Chauffeur Status & Final Invoice Unlock Note */}
+            {effectiveBooking.driverName ? (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 text-xs">
+                <div className="space-y-0.5">
+                  <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
+                    Assigned Chauffeur &amp; Vehicle Details ✓
+                  </div>
+                  <div className="font-black text-slate-950">
+                    {effectiveBooking.driverName} • {effectiveBooking.driverVehicleNo || 'Assigned Cab'}
+                  </div>
+                  <div className="text-[11px] text-slate-700 font-semibold">
+                    {effectiveBooking.driverVehicleModel || effectiveBooking.cabName} • +91 {effectiveBooking.driverPhone}
+                  </div>
+                </div>
+                {effectiveBooking.driverPhone && (
+                  <a
+                    href={`tel:+91${effectiveBooking.driverPhone.replace(/\D/g, '').slice(-10)}`}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 shrink-0"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>Call Driver</span>
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                <div className="font-extrabold text-slate-900">
+                  👨‍✈️ Driver &amp; Vehicle Assignment Status
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Verified Chauffeur &amp; Cab Number will be assigned and updated live in <strong>My Rides</strong> prior to your scheduled pickup. Official Final Tax Invoice (PDF) will be unlocked once your ride is marked <strong>COMPLETED</strong>.
+                </p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onViewMyRides();
+                }}
+                className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-[#081C44] hover:bg-slate-800 text-amber-400 font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+              >
+                <span>Go to My Rides</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleShareSummaryTextOnWhatsApp}
+                className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+              >
+                <Share2 className="w-4 h-4 text-white shrink-0" />
+                <span>Share Summary on WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // CASE 2: COMPLETED RIDE (MARKED COMPLETED BY ADMIN)
+  // Unlock & display full Official Final GST Tax Invoice Preview & Download PDF
+  // ============================================================================
   return (
     <div
       className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-[1000000] flex items-start sm:items-center justify-center p-2.5 sm:p-5 overflow-y-auto animate-in fade-in"
@@ -1513,14 +1798,14 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close booking receipt"
-          title="Close Receipt"
+          aria-label="Close tax invoice"
+          title="Close Tax Invoice"
           className="no-print absolute top-3.5 right-3.5 w-9 h-9 rounded-full bg-slate-100 hover:bg-rose-500 hover:text-white text-slate-700 border border-slate-300 flex items-center justify-center transition active:scale-95 cursor-pointer z-20"
         >
           <X className="w-5 h-5 stroke-[2.5]" />
         </button>
 
-        {/* Printable Receipt Card (Clean Light Corporate Theme) */}
+        {/* Printable Final GST Tax Invoice Card */}
         <div id="printable-voucher" className="bg-white text-slate-900">
           {/* Top Corporate Accent Bar */}
           <div className="h-2 w-full bg-gradient-to-r from-[#0F2958] via-[#1E3A8A] to-amber-500" />
@@ -1528,7 +1813,6 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
           {/* Clean White Corporate Header with Official Logo */}
           <div className="bg-white px-5 sm:px-6 pt-5 pb-4 border-b-2 border-slate-200 relative">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pr-8">
-              {/* Official SafarIndiaCabs Logo & Company Details */}
               <div className="flex items-center gap-3.5">
                 <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-center p-1 shrink-0 overflow-hidden">
                   <img
@@ -1541,10 +1825,8 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   <div className="font-black tracking-tight text-xl text-[#0F2958] leading-none">
                     Safar<span className="text-amber-500">India</span>Cabs
                   </div>
-                  <div className="text-[10px] tracking-[0.16em] font-extrabold text-amber-600 uppercase mt-1">
-                    {isCompleted
-                      ? 'A1 Cab Services • Final GST Tax Invoice'
-                      : 'A1 Cab Services • Booking Confirmation Voucher'}
+                  <div className="text-[10px] tracking-[0.16em] font-extrabold text-emerald-700 uppercase mt-1">
+                    A1 Cab Services • Final GST Tax Invoice
                   </div>
                   <div className="text-[11px] font-bold text-slate-700 mt-0.5">
                     GSTIN: <span className="font-mono text-[#0F2958]">07DQHPA3025F1ZD</span> · Prop: Aman Mishra
@@ -1555,10 +1837,9 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
               </div>
 
-              {/* Unique Booking ID Badge (Light Theme) */}
-              <div className="bg-slate-50 border border-slate-200 text-slate-900 px-3.5 py-2 rounded-xl self-start sm:self-auto text-left sm:text-right shrink-0">
-                <span className="text-[9px] font-extrabold uppercase tracking-wider block text-[#0F2958]">
-                  {isCompleted ? 'FINAL TAX INVOICE / ID' : 'BOOKING VOUCHER / ID'}
+              <div className="bg-emerald-50 border border-emerald-200 text-slate-900 px-3.5 py-2 rounded-xl self-start sm:self-auto text-left sm:text-right shrink-0">
+                <span className="text-[9px] font-extrabold uppercase tracking-wider block text-emerald-800">
+                  FINAL TAX INVOICE / ID
                 </span>
                 <span className="text-sm sm:text-base font-black font-mono tracking-tight text-slate-950">
                   {booking.id}
@@ -1570,11 +1851,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
             <div className="mt-3.5 pt-2.5 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 font-extrabold text-emerald-700">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  {isCompleted
-                    ? 'Trip Completed · Official Final GST Tax Invoice Generated'
-                    : 'Booking Confirmed · Advance Confirmation Voucher (Final GST Invoice issued upon trip completion)'}
-                </span>
+                <span>Trip Completed · Official Final GST Tax Invoice Unlocked</span>
               </span>
               <span className="text-[11px] text-slate-600 font-mono font-bold">
                 Date:{' '}
@@ -1586,7 +1863,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               </span>
             </div>
 
-            {/* Quick Top Action Bar for Mobile App & Browser: Toggle A4 PDF Sheet, Customize Bill & Round Trip Same Day, Download PDF, WhatsApp Share */}
+            {/* Quick Top Action Bar for Completed Ride Invoice */}
             <div className="no-print mt-3 pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
               <div className="inline-flex flex-wrap rounded-xl bg-slate-100 p-1 border border-slate-200 gap-1">
                 <button
@@ -1598,7 +1875,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                       : 'text-slate-700 hover:text-slate-950'
                   }`}
                 >
-                  {isCompleted ? '📄 A4 Final GST Invoice' : '📄 A4 Booking Voucher'}
+                  📄 A4 Final GST Invoice
                 </button>
                 <button
                   type="button"
@@ -1610,17 +1887,6 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   }`}
                 >
                   📋 Breakup View
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowBillEditor((v) => !v)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
-                    showBillEditor
-                      ? 'bg-amber-400 text-slate-950 shadow-2xs'
-                      : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300'
-                  }`}
-                >
-                  ⚙️ Edit Bill / Round Trip (Same Day 1D)
                 </button>
               </div>
 
@@ -1634,7 +1900,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-[11px] flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Save PDF</span>
+                  <span>Download Final Tax Invoice</span>
                 </a>
                 <button
                   type="button"
@@ -1643,153 +1909,18 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                 >
                   <Share2 className="w-3.5 h-3.5" />
-                  <span>WhatsApp PDF</span>
+                  <span>WhatsApp Invoice</span>
                 </button>
               </div>
             </div>
-
-            {/* Interactive Bill Customizer & Round-Trip Same Day (1 Day) Selector */}
-            {showBillEditor && (
-              <div className="no-print mt-3 p-3.5 rounded-2xl bg-slate-50 border-2 border-amber-300 space-y-3 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-black text-[#0F2958] uppercase tracking-wider text-[11px]">
-                    Bill Section Generator &amp; Breakup Editor (Instant Live PDF Update)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setCustomBillOverrides({})}
-                    className="text-[10px] font-extrabold text-rose-700 hover:underline cursor-pointer"
-                  >
-                    Reset Original Values
-                  </button>
-                </div>
-
-                {/* Trip Type & Round Trip Duration (Same Day 1D / 2D / 3D+) */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600 block">
-                    Select Trip Mode &amp; Round-Trip Duration (Same Day 1 Day Supported):
-                  </label>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectTripModeAndDays('oneway', 1)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border transition cursor-pointer ${
-                        effectiveBooking.tripType === 'oneway'
-                          ? 'bg-[#0F2958] text-white border-[#0F2958]'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
-                      }`}
-                    >
-                      One-Way Drop (1 Day)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectTripModeAndDays('roundtrip', 1)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border transition cursor-pointer ${
-                        effectiveBooking.tripType === 'roundtrip' && itemizedBreakup.tripDays === 1
-                          ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-2xs'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-amber-400'
-                      }`}
-                    >
-                      ★ Round Trip — Same Day Return (1 Day)
-                    </button>
-                    {[2, 3, 4, 5].map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => handleSelectTripModeAndDays('roundtrip', d)}
-                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border transition cursor-pointer ${
-                          effectiveBooking.tripType === 'roundtrip' && itemizedBreakup.tripDays === d
-                            ? 'bg-[#0F2958] text-white border-[#0F2958]'
-                            : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
-                        }`}
-                      >
-                        Round Trip ({d} Days)
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Editable Itemized Fare Breakup Inputs */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                      1. Base Cab Fare (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={itemizedBreakup.baseCabFare}
-                      onChange={(e) => updateBillBreakupField('baseFare', Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                      2. Driver Allowance / Bata (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={itemizedBreakup.driverAllowance}
-                      onChange={(e) => updateBillBreakupField('driverAllowance', Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                      3. Highway FASTag Toll (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={itemizedBreakup.highwayToll}
-                      onChange={(e) => updateBillBreakupField('highwayToll', Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                      4. State Entry Permit Tax (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={itemizedBreakup.statePermitTax}
-                      onChange={(e) => updateBillBreakupField('statePermitTax', Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                      5. Hill Station Charge (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={itemizedBreakup.hillStationCharge}
-                      onChange={(e) => updateBillBreakupField('hillStationCharge', Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                      Billed Distance (KM)
-                    </label>
-                    <input
-                      type="number"
-                      value={effectiveBooking.distanceKm}
-                      onChange={(e) => updateBillBreakupField('distanceKm', Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 font-mono font-bold text-xs text-slate-900"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Live High-DPI A4 GST Invoice PDF Sheet Preview (Works 100% inside Android WebView & Browsers) */}
+          {/* Live High-DPI A4 GST Invoice PDF Sheet Preview (Only shown when COMPLETED) */}
           {showA4PdfSheet && a4PreviewDataUrl && (
             <div className="no-print px-4 sm:px-6 pt-4 pb-2 bg-slate-100 border-b border-slate-200">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#0F2958]">
-                  {isCompleted
-                    ? `Official A4 Final GST Tax Invoice Sheet (${booking.id}.pdf)`
-                    : `Booking Confirmation Voucher Sheet (${booking.id}.pdf)`}
+                  Official A4 Final GST Tax Invoice Sheet ({booking.id}.pdf)
                 </span>
                 <a
                   href={directServerPdfViewUrl}
@@ -1873,13 +2004,12 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </span>
               </div>
 
-              {/* Live Driver & Cab Assignment Card + Direct Driver Call Connection */}
-              <div className="pt-2.5 border-t border-slate-200">
-                {booking.driverName ? (
+              {booking.driverName && (
+                <div className="pt-2.5 border-t border-slate-200">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-950 bg-emerald-50/90 border border-emerald-200 p-3 rounded-xl">
                     <div className="space-y-0.5">
                       <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
-                        Live Chauffeur &amp; Cab Assigned ✓
+                        Chauffeur &amp; Vehicle Details ✓
                       </div>
                       <div className="text-xs font-black text-slate-950">
                         {booking.driverName}{' '}
@@ -1889,42 +2019,15 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                         Cab No: {booking.driverVehicleNo || 'DL 1Z C 4474'} · Mob: +91 {booking.driverPhone}
                       </div>
                     </div>
-                    {booking.driverPhone && (
-                      <a
-                        href={`tel:+91${booking.driverPhone.replace(/\D/g, '').slice(-10)}`}
-                        className="no-print inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition shrink-0"
-                      >
-                        <Phone className="w-3.5 h-3.5" />
-                        <span>Call Driver</span>
-                      </a>
-                    )}
                   </div>
-                ) : (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-amber-50/80 border border-amber-200 p-3 rounded-xl">
-                    <div className="space-y-0.5">
-                      <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800">
-                        Live Driver &amp; Cab Assignment Tracker
-                      </div>
-                      <div className="text-xs font-bold text-slate-900">
-                        Verified Commercial Chauffeur &amp; Vehicle No. shared via WhatsApp/SMS prior to pickup
-                      </div>
-                    </div>
-                    <a
-                      href="tel:+917710080992"
-                      className="no-print inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-[11px] transition shrink-0"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>Call Dispatch Desk</span>
-                    </a>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
 
-            {/* Clean Light-Theme Itemized Fare & Tax Breakup Box (Separated Rows) */}
+            {/* Clean Light-Theme Itemized Fare & Tax Breakup Box */}
             <div className="rounded-xl overflow-hidden border border-slate-300">
               <div className="bg-slate-100 text-[#0F2958] px-4 py-2 text-[11px] font-black uppercase tracking-wider flex items-center justify-between border-b border-slate-300">
-                <span>Itemized Fare &amp; Tax Breakup ({itemizedBreakup.tripTypeBadge})</span>
+                <span>Final Itemized GST Tax Breakup ({itemizedBreakup.tripTypeBadge})</span>
                 <span>Amount (INR)</span>
               </div>
 
@@ -1950,8 +2053,8 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   <span>3. Highway FASTag Toll Tax:</span>
                   <span className="font-mono font-bold text-amber-800">
                     {itemizedBreakup.highwayToll > 0
-                      ? `${formatINR(itemizedBreakup.highwayToll)} (Included)`
-                      : 'Extra (As Per Actuals)'}
+                      ? formatINR(itemizedBreakup.highwayToll)
+                      : '₹0'}
                   </span>
                 </div>
 
@@ -1959,8 +2062,8 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   <span>4. State Border Entry Permit Tax:</span>
                   <span className="font-mono font-bold text-amber-800">
                     {itemizedBreakup.statePermitTax > 0
-                      ? `${formatINR(itemizedBreakup.statePermitTax)} (Included)`
-                      : 'Extra (As Per Actuals)'}
+                      ? formatINR(itemizedBreakup.statePermitTax)
+                      : '₹0'}
                   </span>
                 </div>
 
@@ -1968,8 +2071,8 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   <span>5. Parking Charges:</span>
                   <span className="font-mono font-bold text-amber-800">
                     {itemizedBreakup.parkingCharge > 0
-                      ? `${formatINR(itemizedBreakup.parkingCharge)} (Included)`
-                      : 'Extra (If Applicable)'}
+                      ? formatINR(itemizedBreakup.parkingCharge)
+                      : '₹0'}
                   </span>
                 </div>
 
@@ -1977,7 +2080,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   <div className="flex justify-between items-center text-slate-700">
                     <span>6. Hill Station / Mountain Drive Allowance:</span>
                     <span className="font-mono font-bold text-slate-900">
-                      {formatINR(itemizedBreakup.hillStationCharge)} (Included)
+                      {formatINR(itemizedBreakup.hillStationCharge)}
                     </span>
                   </div>
                 )}
@@ -2004,7 +2107,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
 
                 {itemizedBreakup.otherSurcharges > 0 && (
                   <div className="flex justify-between items-center text-amber-900 bg-amber-50/70 px-2 py-1 rounded">
-                    <span className="font-semibold">Other Post-Trip Surcharges (Parking / Waiting):</span>
+                    <span className="font-semibold">Other Post-Trip Surcharges:</span>
                     <span className="font-mono font-bold">
                       + {formatINR(itemizedBreakup.otherSurcharges)}
                     </span>
@@ -2020,31 +2123,16 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
 
                 <div className="flex justify-between items-center text-slate-800 pt-1.5 border-t border-slate-200">
-                  <span className="font-bold">
-                    {isCompleted
-                      ? 'Final GST Tax Invoice Total (Incl. 5% GST):'
-                      : 'Estimated Total Trip Fare (Incl. 5% GST):'}
-                  </span>
+                  <span className="font-bold">Final GST Tax Invoice Total (Incl. 5% GST):</span>
                   <span className="text-base font-black text-slate-950 font-mono">
                     INR {Number(itemizedBreakup.totalFare || 0).toLocaleString('en-IN')}.00
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-emerald-800 bg-emerald-50/80 px-3 py-2 rounded-lg border border-emerald-200">
-                  <span className="font-bold">
-                    {isCompleted ? 'Total Amount Paid (100% Settled):' : 'Advance Paid Online:'}
-                  </span>
+                  <span className="font-bold">Total Amount Paid (100% Settled):</span>
                   <span className="font-black font-mono text-sm">
-                    {formatINR(isCompleted ? itemizedBreakup.totalFare : effectiveBooking.advancePaid)} ✓
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center text-slate-950 bg-amber-50/80 px-3 py-2 rounded-lg border border-amber-300">
-                  <span className="font-black text-[#0F2958]">
-                    {isCompleted ? 'Remaining Balance (Settled):' : 'Remaining Balance (Payable to Driver):'}
-                  </span>
-                  <span className="font-black text-amber-900 text-sm font-mono">
-                    {formatINR(effectiveBooking.balanceDue)}
+                    {formatINR(itemizedBreakup.totalFare)} ✓
                   </span>
                 </div>
               </div>
@@ -2052,7 +2140,6 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
 
             {/* Dual Verification Footer: Digital Signature Block + Official Rubber Mohar & Aman Mishra Signature */}
             <div className="border border-slate-200 bg-slate-50/50 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-              {/* Company Info */}
               <div className="sm:col-span-4 space-y-0.5 text-[9.5px] text-slate-600">
                 <div className="font-black uppercase text-[#0F2958] text-[10.5px]">
                   SafarIndiaCabs
@@ -2064,7 +2151,6 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
               </div>
 
-              {/* Digitally Signed Block (matching reference screenshot) */}
               <div className="sm:col-span-4 bg-white border border-slate-200 rounded-lg p-2.5 font-sans text-[9.5px] text-slate-800 leading-snug">
                 <div>
                   Digitally signed by <strong className="font-black text-slate-950">SAFARINDIACABS (AMAN MISHRA)</strong>
@@ -2080,7 +2166,6 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
               </div>
 
-              {/* Official Rubber Mohar & Aman Mishra Pre-filled Signature */}
               <div className="sm:col-span-4 flex flex-col items-center justify-center shrink-0">
                 <div className="text-[9px] font-black uppercase text-[#0F2958] tracking-wider">
                   For SafarIndiaCabs
@@ -2105,38 +2190,8 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
           </div>
         </div>
 
-        {/* Action Buttons Bar (Excluded from print) */}
+        {/* Action Buttons Bar for COMPLETED Ride */}
         <div className="no-print px-5 sm:px-6 pb-6 pt-1 bg-white space-y-2.5">
-          {/* 24x7 Emergency Support & Direct Driver Call Connection Bar */}
-          <div className="p-3 rounded-xl bg-rose-50/90 border border-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="text-xs">
-              <div className="font-extrabold text-rose-900">
-                24x7 Highway Emergency Support &amp; Driver Connect
-              </div>
-              <div className="text-[11px] text-rose-700">
-                Instant SOS helpline &amp; live chauffeur coordination for Booking ID {booking.id}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {booking.driverPhone && (
-                <a
-                  href={`tel:+91${booking.driverPhone.replace(/\D/g, '').slice(-10)}`}
-                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 transition"
-                >
-                  <Phone className="w-3.5 h-3.5" />
-                  <span>Call Driver</span>
-                </a>
-              )}
-              <a
-                href="tel:+917710080992"
-                className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs flex items-center gap-1.5 transition"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>24x7 Emergency (+91 7710080992)</span>
-              </a>
-            </div>
-          </div>
-
           {shareStatusNote && (
             <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -2144,7 +2199,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
             </div>
           )}
 
-          {/* Primary Row: Download PDF Invoice + Share Receipt PDF on WhatsApp */}
+          {/* Primary Row: Download Final Tax Invoice + Share Final GST Invoice on WhatsApp */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <button
               type="button"
@@ -2156,9 +2211,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               <span>
                 {isDownloadingPdf
                   ? 'Generating PDF...'
-                  : isCompleted
-                  ? 'Download Final GST Tax Invoice (PDF)'
-                  : 'Download Booking Voucher (PDF)'}
+                  : 'Download Final Tax Invoice (PDF)'}
               </span>
             </button>
 
@@ -2172,14 +2225,11 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
               <span>
                 {isSharingPdf
                   ? 'Preparing PDF...'
-                  : isCompleted
-                  ? 'Share Final GST Invoice on WhatsApp'
-                  : 'Share Booking Voucher on WhatsApp'}
+                  : 'Share Final Tax Invoice on WhatsApp'}
               </span>
             </button>
           </div>
 
-          {/* Secondary Row: Send Review Request, Share PDF Receipt, Print, or View Rides */}
           <div className="flex flex-wrap items-center gap-2">
             {booking.customerPhone && (
               <a
@@ -2210,16 +2260,6 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 <span>Send Review Request (+91 {booking.customerPhone})</span>
               </a>
             )}
-
-            <button
-              type="button"
-              onClick={handleSharePdfOnWhatsApp}
-              disabled={isSharingPdf}
-              className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{isSharingPdf ? 'Sharing PDF...' : 'WhatsApp PDF Receipt'}</span>
-            </button>
 
             <button
               type="button"

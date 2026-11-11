@@ -12,7 +12,7 @@ import {
   limit,
   onSnapshot
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from './firebase';
+import { db, defaultDb, handleFirestoreError, OperationType } from './firebase';
 import { BookingRecord, PaymentAuditLogRecord } from '../types';
 
 const COUNTER_STORAGE_KEY = 'safar_sic26_confirmed_seq_v2';
@@ -229,7 +229,60 @@ function validateIndianLatLng(
 }
 
 /**
- * Sanitizes a BookingRecord for Firestore (removes undefined fields and ensures required types & rule bounds)
+ * Recursively strips `undefined` values and converts any nested arrays into Firestore-safe objects
+ * so `setDoc()` NEVER throws "Nested arrays are not supported" or "Unsupported field value: undefined".
+ */
+function deepCleanFirestoreValue(val: unknown): unknown {
+  if (val === undefined) return undefined;
+  if (val === null) return null;
+  if (typeof val === 'number') {
+    return Number.isFinite(val) ? val : 0;
+  }
+  if (typeof val === 'string' || typeof val === 'boolean') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    const cleanedArr: unknown[] = [];
+    for (const item of val) {
+      if (item === undefined) continue;
+      if (Array.isArray(item)) {
+        // Convert [lat, lng] pair into Firestore-safe map { lat, lng }
+        if (
+          item.length >= 2 &&
+          Number.isFinite(Number(item[0])) &&
+          Number.isFinite(Number(item[1]))
+        ) {
+          cleanedArr.push({
+            lat: Number(Number(item[0]).toFixed(5)),
+            lng: Number(Number(item[1]).toFixed(5))
+          });
+        }
+      } else {
+        const cleanedItem = deepCleanFirestoreValue(item);
+        if (cleanedItem !== undefined) {
+          cleanedArr.push(cleanedItem);
+        }
+      }
+    }
+    return cleanedArr;
+  }
+  if (typeof val === 'object') {
+    const cleanedObj: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      if (v === undefined) continue;
+      const cleanedVal = deepCleanFirestoreValue(v);
+      if (cleanedVal !== undefined) {
+        cleanedObj[k] = cleanedVal;
+      }
+    }
+    return cleanedObj;
+  }
+  return undefined;
+}
+
+/**
+ * Sanitizes a BookingRecord for Firestore (removes undefined fields, converts nested arrays to object arrays,
+ * and adds standard aliases for cross-panel compatibility).
  */
 export function sanitizeBookingForFirestore(booking: BookingRecord): Record<string, unknown> {
   const cleanId = normalizeBookingIdInput(booking.id) || formatSequentialBookingId(getHighestKnownSequence() + 1);
@@ -248,52 +301,8 @@ export function sanitizeBookingForFirestore(booking: BookingRecord): Record<stri
   const validPickupCoords = validateIndianLatLng(booking.pickupCoords);
   const validDropCoords = validateIndianLatLng(booking.dropCoords);
 
-  const rawObj: Record<string, unknown> = {
-    ...booking,
-    id: cleanId.slice(0, 26),
-    bookingId: cleanId.slice(0, 26),
-    bookingReference: cleanId.slice(0, 26),
-    sequenceNumber,
-    searchKeywords,
-    tripType: validTripType,
-    pickupCity: String(booking.pickupCity || 'Delhi NCR').trim().slice(0, 115),
-    dropCity: String(booking.dropCity || booking.pickupCity || 'Agra').trim().slice(0, 115),
-    pickupAddress: booking.pickupAddress ? String(booking.pickupAddress).trim().slice(0, 240) : '',
-    dropAddress: booking.dropAddress ? String(booking.dropAddress).trim().slice(0, 240) : '',
-    pickupDate: String(booking.pickupDate || nowIso.slice(0, 10)).trim().slice(0, 36),
-    pickupTime: String(booking.pickupTime || '08:00 AM').trim().slice(0, 36),
-    cabId: String(booking.cabId || 'sedan').trim().slice(0, 38),
-    cabName: String(booking.cabName || 'Comfort Sedan AC (Maruti Dzire)').trim().slice(0, 115),
-    distanceKm: Math.max(0, Math.min(50000, Number(booking.distanceKm) || 0)),
-    baseFare: Math.max(0, Math.min(10000000, Math.round(Number(booking.baseFare) || 0))),
-    driverAllowance: Math.max(0, Math.round(Number(booking.driverAllowance) || 0)),
-    tollsAndTaxes: Math.max(0, Math.round(Number(booking.tollsAndTaxes) || 0)),
-    highwayToll: booking.highwayToll !== undefined ? Math.max(0, Math.round(Number(booking.highwayToll) || 0)) : undefined,
-    statePermitTax: booking.statePermitTax !== undefined ? Math.max(0, Math.round(Number(booking.statePermitTax) || 0)) : undefined,
-    parkingCharge: booking.parkingCharge !== undefined ? Math.max(0, Math.round(Number(booking.parkingCharge) || 0)) : undefined,
-    hillStationCharge: booking.hillStationCharge !== undefined ? Math.max(0, Math.round(Number(booking.hillStationCharge) || 0)) : undefined,
-    nightCharge: booking.nightCharge !== undefined ? Math.max(0, Math.round(Number(booking.nightCharge) || 0)) : undefined,
-    actualOdometerKm: booking.actualOdometerKm !== undefined ? Math.max(0, Math.round(Number(booking.actualOdometerKm) || 0)) : undefined,
-    extraKmDriven: booking.extraKmDriven !== undefined ? Math.max(0, Math.round(Number(booking.extraKmDriven) || 0)) : undefined,
-    extraKmCharge: booking.extraKmCharge !== undefined ? Math.max(0, Math.round(Number(booking.extraKmCharge) || 0)) : undefined,
-    extraTollCharges: booking.extraTollCharges !== undefined ? Math.max(0, Math.round(Number(booking.extraTollCharges) || 0)) : undefined,
-    otherSurcharges: booking.otherSurcharges !== undefined ? Math.max(0, Math.round(Number(booking.otherSurcharges) || 0)) : undefined,
-    completedAt: booking.completedAt ? String(booking.completedAt).trim().slice(0, 58) : undefined,
-    gstAmount: Math.max(0, Math.round(Number(booking.gstAmount) || 0)),
-    totalFare: Math.max(0, Math.min(10000000, Math.round(Number(booking.totalFare) || 0))),
-    advancePaid: Math.max(0, Math.round(Number(booking.advancePaid) || 0)),
-    balanceDue: Math.max(0, Math.round(Number(booking.balanceDue) || 0)),
-    customerName: String(booking.customerName || 'Verified Passenger').trim().slice(0, 115),
-    customerPhone: cleanPhone,
-    status: validStatus,
-    pickupCoords: validPickupCoords,
-    dropCoords: validDropCoords,
-    createdAt: String(booking.createdAt || nowIso).trim().slice(0, 58),
-    updatedAt: nowIso
-  };
-
-  // Bound routeGeometry to at most 40 points and validate each point within India lat/lng bounds
-  const boundedGeometry = Array.isArray(booking.routeGeometry)
+  // Convert nested array routeGeometry [[lat, lng]] into Firestore-supported object array [{ lat, lng }]
+  const routeGeometryPoints = Array.isArray(booking.routeGeometry)
     ? booking.routeGeometry
         .filter(
           (pt) =>
@@ -307,15 +316,202 @@ export function sanitizeBookingForFirestore(booking: BookingRecord): Record<stri
             Number(pt[1]) <= 98.5
         )
         .slice(0, 40)
+        .map((pt) => ({
+          lat: Number(Number(pt[0]).toFixed(5)),
+          lng: Number(Number(pt[1]).toFixed(5))
+        }))
     : undefined;
 
-  const clean: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries({ ...rawObj, routeGeometry: boundedGeometry })) {
-    if (v !== undefined) {
-      clean[k] = v;
+  const pickupCityClean = String(booking.pickupCity || 'Delhi NCR').trim().slice(0, 115);
+  const dropCityClean = String(booking.dropCity || booking.pickupCity || 'Local / Destination').trim().slice(0, 115);
+  const cabNameClean = String(booking.cabName || 'Comfort Sedan AC (Maruti Dzire)').trim().slice(0, 115);
+  const totalFareNum = Math.max(0, Math.min(10000000, Math.round(Number(booking.totalFare) || 0)));
+  const advancePaidNum = Math.max(0, Math.round(Number(booking.advancePaid) || 0));
+  const balanceDueNum = Math.max(0, Math.round(Number(booking.balanceDue) || 0));
+  const createdAtIso = String(booking.createdAt || nowIso).trim().slice(0, 58);
+
+  const rawObj: Record<string, unknown> = {
+    ...booking,
+    id: cleanId.slice(0, 26),
+    bookingId: cleanId.slice(0, 26),
+    bookingReference: cleanId.slice(0, 26),
+    sequenceNumber,
+    searchKeywords,
+    tripType: validTripType,
+    pickupCity: pickupCityClean,
+    dropCity: dropCityClean,
+    from: pickupCityClean,
+    to: dropCityClean,
+    pickupAddress: booking.pickupAddress ? String(booking.pickupAddress).trim().slice(0, 240) : pickupCityClean,
+    dropAddress: booking.dropAddress ? String(booking.dropAddress).trim().slice(0, 240) : dropCityClean,
+    pickupDate: String(booking.pickupDate || nowIso.slice(0, 10)).trim().slice(0, 36),
+    pickupTime: String(booking.pickupTime || '08:00 AM').trim().slice(0, 36),
+    cabId: String(booking.cabId || 'sedan').trim().slice(0, 38),
+    cabName: cabNameClean,
+    vehicleType: cabNameClean,
+    distanceKm: Math.max(0, Math.min(50000, Number(booking.distanceKm) || 0)),
+    baseFare: Math.max(0, Math.min(10000000, Math.round(Number(booking.baseFare) || 0))),
+    driverAllowance: Math.max(0, Math.round(Number(booking.driverAllowance) || 0)),
+    tollsAndTaxes: Math.max(0, Math.round(Number(booking.tollsAndTaxes) || 0)),
+    highwayToll: booking.highwayToll !== undefined ? Math.max(0, Math.round(Number(booking.highwayToll) || 0)) : 0,
+    statePermitTax: booking.statePermitTax !== undefined ? Math.max(0, Math.round(Number(booking.statePermitTax) || 0)) : 0,
+    parkingCharge: booking.parkingCharge !== undefined ? Math.max(0, Math.round(Number(booking.parkingCharge) || 0)) : 0,
+    hillStationCharge: booking.hillStationCharge !== undefined ? Math.max(0, Math.round(Number(booking.hillStationCharge) || 0)) : 0,
+    nightCharge: booking.nightCharge !== undefined ? Math.max(0, Math.round(Number(booking.nightCharge) || 0)) : 0,
+    actualOdometerKm: booking.actualOdometerKm !== undefined ? Math.max(0, Math.round(Number(booking.actualOdometerKm) || 0)) : undefined,
+    extraKmDriven: booking.extraKmDriven !== undefined ? Math.max(0, Math.round(Number(booking.extraKmDriven) || 0)) : undefined,
+    extraKmCharge: booking.extraKmCharge !== undefined ? Math.max(0, Math.round(Number(booking.extraKmCharge) || 0)) : undefined,
+    extraTollCharges: booking.extraTollCharges !== undefined ? Math.max(0, Math.round(Number(booking.extraTollCharges) || 0)) : undefined,
+    otherSurcharges: booking.otherSurcharges !== undefined ? Math.max(0, Math.round(Number(booking.otherSurcharges) || 0)) : undefined,
+    completedAt: booking.completedAt ? String(booking.completedAt).trim().slice(0, 58) : undefined,
+    gstAmount: Math.max(0, Math.round(Number(booking.gstAmount) || 0)),
+    totalFare: totalFareNum,
+    advancePaid: advancePaidNum,
+    balanceDue: balanceDueNum,
+    remainingBalance: balanceDueNum,
+    customerName: String(booking.customerName || 'Verified Passenger').trim().slice(0, 115),
+    customerPhone: cleanPhone,
+    customerMobile: cleanPhone,
+    status: validStatus,
+    pickupCoords: validPickupCoords,
+    dropCoords: validDropCoords,
+    routeGeometryPoints,
+    createdAt: createdAtIso,
+    timestamp: Date.parse(createdAtIso) || Date.now(),
+    updatedAt: nowIso
+  };
+
+  // Remove nested array `routeGeometry` so Firestore setDoc never fails
+  delete rawObj.routeGeometry;
+
+  return (deepCleanFirestoreValue(rawObj) as Record<string, unknown>) || {};
+}
+
+/**
+ * Normalizes a raw Firestore document (or API object) back into a clean BookingRecord
+ */
+export function normalizeFirestoreDocToBooking(
+  rawData: Record<string, any> | undefined | null,
+  fallbackDocId?: string
+): BookingRecord | null {
+  if (!rawData || typeof rawData !== 'object') return null;
+  const rawId = String(rawData.id || rawData.bookingId || rawData.bookingReference || fallbackDocId || '').trim();
+  if (!rawId || rawId.includes('DEMO') || rawId.includes('TEST')) return null;
+
+  const cleanId = normalizeBookingIdInput(rawId) || rawId;
+
+  // Convert Firestore Timestamp or numeric timestamp to ISO string if needed
+  const resolveIso = (val: any, fallback: string): string => {
+    if (!val) return fallback;
+    if (typeof val === 'string') return val;
+    if (typeof val?.toDate === 'function') {
+      try {
+        return val.toDate().toISOString();
+      } catch {
+        return fallback;
+      }
     }
+    if (typeof val?.seconds === 'number') {
+      return new Date(val.seconds * 1000).toISOString();
+    }
+    if (typeof val === 'number') {
+      return new Date(val).toISOString();
+    }
+    return fallback;
+  };
+
+  const nowIso = new Date().toISOString();
+  const createdAt = resolveIso(rawData.createdAt || rawData.timestamp, nowIso);
+  const updatedAt = rawData.updatedAt ? resolveIso(rawData.updatedAt, createdAt) : undefined;
+  const completedAt = rawData.completedAt ? resolveIso(rawData.completedAt, createdAt) : undefined;
+
+  const rawStatus = String(rawData.status || 'confirmed').toLowerCase();
+  const status: 'confirmed' | 'completed' | 'cancelled' =
+    rawStatus === 'completed'
+      ? 'completed'
+      : rawStatus === 'cancelled'
+      ? 'cancelled'
+      : 'confirmed';
+
+  // Reconstruct routeGeometry from routeGeometryPoints if present
+  let routeGeometry: Array<[number, number]> | undefined = undefined;
+  if (Array.isArray(rawData.routeGeometry)) {
+    routeGeometry = rawData.routeGeometry.filter(
+      (pt: any) => Array.isArray(pt) && pt.length >= 2
+    );
+  } else if (Array.isArray(rawData.routeGeometryPoints)) {
+    routeGeometry = rawData.routeGeometryPoints
+      .filter((pt: any) => pt && typeof pt.lat === 'number' && typeof pt.lng === 'number')
+      .map((pt: any) => [Number(pt.lat), Number(pt.lng)] as [number, number]);
   }
-  return clean;
+
+  const totalFare = Math.max(0, Math.round(Number(rawData.totalFare ?? rawData.fare ?? rawData.amount ?? 0)));
+  const advancePaid = Math.max(0, Math.round(Number(rawData.advancePaid ?? rawData.advanceAmount ?? 0)));
+  const balanceDue = Math.max(
+    0,
+    Math.round(
+      Number(
+        rawData.balanceDue ??
+          rawData.remainingBalance ??
+          (status === 'completed' ? 0 : Math.max(0, totalFare - advancePaid))
+      )
+    )
+  );
+
+  return {
+    ...(rawData as unknown as BookingRecord),
+    id: cleanId,
+    bookingId: cleanId,
+    bookingReference: cleanId,
+    tripType: ['oneway', 'roundtrip', 'local', 'airport'].includes(rawData.tripType)
+      ? rawData.tripType
+      : 'oneway',
+    pickupCity: String(rawData.pickupCity || rawData.from || rawData.pickup || 'Delhi NCR'),
+    dropCity: String(rawData.dropCity || rawData.to || rawData.drop || rawData.pickupCity || 'Destination'),
+    pickupAddress: rawData.pickupAddress || rawData.pickupCity || '',
+    dropAddress: rawData.dropAddress || rawData.dropCity || '',
+    pickupDate: String(rawData.pickupDate || createdAt.slice(0, 10)),
+    pickupTime: String(rawData.pickupTime || '08:00 AM'),
+    cabId: String(rawData.cabId || 'sedan') as BookingRecord['cabId'],
+    cabName: String(rawData.cabName || rawData.vehicleType || 'Sedan AC'),
+    distanceKm: Math.max(0, Number(rawData.distanceKm) || 0),
+    baseFare: Math.max(0, Math.round(Number(rawData.baseFare) || 0)),
+    driverAllowance: Math.max(0, Math.round(Number(rawData.driverAllowance) || 0)),
+    tollsAndTaxes: Math.max(0, Math.round(Number(rawData.tollsAndTaxes) || 0)),
+    highwayToll: rawData.highwayToll !== undefined ? Number(rawData.highwayToll) : undefined,
+    statePermitTax: rawData.statePermitTax !== undefined ? Number(rawData.statePermitTax) : undefined,
+    parkingCharge: rawData.parkingCharge !== undefined ? Number(rawData.parkingCharge) : undefined,
+    hillStationCharge: rawData.hillStationCharge !== undefined ? Number(rawData.hillStationCharge) : undefined,
+    gstAmount: Math.max(0, Math.round(Number(rawData.gstAmount) || 0)),
+    totalFare,
+    advancePaid,
+    balanceDue,
+    paymentMode: rawData.paymentMode || (balanceDue === 0 ? 'full' : 'advance_20'),
+    paymentMethod: String(rawData.paymentMethod || 'Razorpay Verified'),
+    transactionId: String(rawData.transactionId || ''),
+    customerName: String(rawData.customerName || 'Verified Passenger'),
+    customerPhone: String(rawData.customerPhone || rawData.customerMobile || rawData.phone || '').replace(/\D/g, '').slice(-10) || '7710080992',
+    status,
+    driverName: rawData.driverName || rawData.driver?.name || undefined,
+    driverPhone: rawData.driverPhone || rawData.driver?.phone || undefined,
+    driverVehicleModel: rawData.driverVehicleModel || rawData.driver?.vehicleModel || undefined,
+    driverVehicleNo: rawData.driverVehicleNo || rawData.driver?.vehicleNo || rawData.vehicleNumber || undefined,
+    routeGeometry,
+    createdAt,
+    updatedAt,
+    completedAt
+  };
+}
+
+function sortBookingsNewestFirst(list: BookingRecord[]): BookingRecord[] {
+  return [...list].sort((a, b) => {
+    const seqA = parseSequentialNumberFromBookingId(a.id);
+    const seqB = parseSequentialNumberFromBookingId(b.id);
+    const tA = Date.parse(a.createdAt || '') || 0;
+    const tB = Date.parse(b.createdAt || '') || 0;
+    if (tB !== tA) return tB - tA;
+    return seqB - seqA;
+  });
 }
 
 /**
@@ -388,13 +584,17 @@ export async function saveBookingToCloudDatabase(booking: BookingRecord): Promis
     } catch {}
   }
 
-  // 1. Persist to Firebase Firestore immediately
+  // 1. Persist to Firebase Firestore immediately (both named db and defaultDb if present)
   const docPath = `bookings/${cleanId}`;
+  const cleanData = sanitizeBookingForFirestore(normalizedBooking);
   try {
-    const cleanData = sanitizeBookingForFirestore(normalizedBooking);
     await setDoc(doc(db, 'bookings', cleanId), cleanData, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, docPath);
+  }
+
+  if (defaultDb) {
+    setDoc(doc(defaultDb, 'bookings', cleanId), cleanData, { merge: true }).catch(() => {});
   }
 
   // 2. Sync with backend /api/bookings best-effort
@@ -402,7 +602,7 @@ export async function saveBookingToCloudDatabase(booking: BookingRecord): Promis
     fetch('/api/bookings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(normalizedBooking)
+      body: JSON.stringify({ booking: normalizedBooking })
     }).catch(() => {});
   } catch {}
 
@@ -476,7 +676,10 @@ export async function updateBookingDriverAndStatusInCloud(
     try {
       const snap = await getDoc(doc(db, 'bookings', cleanId));
       if (snap.exists()) {
-        targetBooking = snap.data() as unknown as BookingRecord;
+        targetBooking = normalizeFirestoreDocToBooking(
+          snap.data() as Record<string, any>,
+          snap.id
+        );
       }
     } catch {}
   }
@@ -550,13 +753,12 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
     try {
       const directSnap = await getDoc(doc(db, 'bookings', normalizedId));
       if (directSnap.exists()) {
-        addRecord(directSnap.data() as unknown as BookingRecord);
+        addRecord(normalizeFirestoreDocToBooking(directSnap.data() as Record<string, any>, directSnap.id));
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, `bookings/${normalizedId}`);
     }
 
-    // Also query `where('bookingId', '==', normalizedId)` and `where('id', '==', normalizedId)`
     try {
       const qByBookingId = query(
         collection(db, 'bookings'),
@@ -564,7 +766,9 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
         limit(10)
       );
       const snapByBookingId = await getDocs(qByBookingId);
-      snapByBookingId.forEach((d) => addRecord(d.data() as unknown as BookingRecord));
+      snapByBookingId.forEach((d) =>
+        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
+      );
     } catch {}
 
     try {
@@ -574,7 +778,9 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
         limit(10)
       );
       const snapById = await getDocs(qById);
-      snapById.forEach((d) => addRecord(d.data() as unknown as BookingRecord));
+      snapById.forEach((d) =>
+        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
+      );
     } catch {}
   }
 
@@ -588,7 +794,9 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
         limit(25)
       );
       const snapPhone = await getDocs(qPhone);
-      snapPhone.forEach((d) => addRecord(d.data() as unknown as BookingRecord));
+      snapPhone.forEach((d) =>
+        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
+      );
     } catch {}
   }
 
@@ -601,11 +809,13 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
         limit(25)
       );
       const snapKeyword = await getDocs(qKeyword);
-      snapKeyword.forEach((d) => addRecord(d.data() as unknown as BookingRecord));
+      snapKeyword.forEach((d) =>
+        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
+      );
     } catch {}
   }
 
-  // 4. Fallback scan across recent Firestore documents + Backend `/api/bookings` + localStorage
+  // 4. Fallback scan across all Firestore documents + Backend `/api/bookings` + localStorage
   if (matchedMap.size === 0) {
     try {
       const allCloud = await fetchBookingsFromCloudDatabase();
@@ -626,25 +836,198 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
     } catch {}
   }
 
-  // 5. Also check `/api/bookings` and auto-sync any server record to Firestore
+  return sortBookingsNewestFirst(Array.from(matchedMap.values()));
+}
+
+/**
+ * Real-time Firestore listener (`onSnapshot`) on the entire `bookings` collection
+ * (without restrictive orderBy filters that could omit documents) + periodic `/api/bookings` sync
+ * so the Admin Panel and Customer App receive all incoming bookings in real time.
+ */
+export function subscribeToBookingsFromCloudDatabase(
+  onUpdate: (bookings: BookingRecord[]) => void
+): () => void {
+  const combinedMap = new Map<string, BookingRecord>();
+
+  const emitCombined = () => {
+    const sorted = sortBookingsNewestFirst(Array.from(combinedMap.values()));
+    onUpdate(sorted);
+  };
+
+  const upsertIntoMap = (b: BookingRecord | null | undefined) => {
+    if (!b || !b.id) return;
+    const cleanId = normalizeBookingIdInput(b.id) || b.id;
+    const existing = combinedMap.get(cleanId);
+    if (!existing) {
+      combinedMap.set(cleanId, b);
+      return;
+    }
+    const existingMs = Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
+    const nextMs = Date.parse(b.updatedAt || b.completedAt || b.createdAt || '') || 0;
+    const primary = nextMs >= existingMs ? b : existing;
+    const secondary = nextMs >= existingMs ? existing : b;
+    combinedMap.set(cleanId, {
+      ...secondary,
+      ...primary,
+      status:
+        existing.status === 'completed' || b.status === 'completed'
+          ? 'completed'
+          : existing.status === 'cancelled' || b.status === 'cancelled'
+          ? 'cancelled'
+          : primary.status
+    });
+  };
+
+  // Listen to primary Firestore database (`bookings` collection)
+  const bookingsRef = collection(db, 'bookings');
+  const unsubscribePrimary = onSnapshot(
+    bookingsRef,
+    (snapshot) => {
+      snapshot.forEach((docSnap) => {
+        const parsed = normalizeFirestoreDocToBooking(
+          docSnap.data() as Record<string, any>,
+          docSnap.id
+        );
+        if (parsed) {
+          upsertIntoMap(parsed);
+          upsertBookingInLocalStorage(parsed);
+        }
+      });
+      emitCombined();
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'bookings');
+    }
+  );
+
+  // Also listen to defaultDb if distinct
+  let unsubscribeDefault: (() => void) | null = null;
+  if (defaultDb) {
+    try {
+      unsubscribeDefault = onSnapshot(
+        collection(defaultDb, 'bookings'),
+        (snapshot) => {
+          snapshot.forEach((docSnap) => {
+            const parsed = normalizeFirestoreDocToBooking(
+              docSnap.data() as Record<string, any>,
+              docSnap.id
+            );
+            if (parsed) {
+              upsertIntoMap(parsed);
+              upsertBookingInLocalStorage(parsed);
+            }
+          });
+          emitCombined();
+        },
+        () => {}
+      );
+    } catch {}
+  }
+
+  // Also sync with backend `/api/bookings` on subscribe and every 8 seconds
+  const syncFromServer = async () => {
+    try {
+      const res = await fetch('/api/bookings');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data?.bookings)) {
+          let changed = false;
+          for (const raw of data.bookings) {
+            const parsed = normalizeFirestoreDocToBooking(raw, raw?.id);
+            if (parsed) {
+              const prev = combinedMap.get(parsed.id);
+              upsertIntoMap(parsed);
+              if (!prev) {
+                changed = true;
+                // Backfill server booking into Firestore so all listeners see it
+                const cleanData = sanitizeBookingForFirestore(parsed);
+                setDoc(doc(db, 'bookings', parsed.id), cleanData, { merge: true }).catch(() => {});
+              }
+            }
+          }
+          if (changed) emitCombined();
+        }
+      }
+    } catch {}
+  };
+
+  syncFromServer();
+  const pollInterval = setInterval(syncFromServer, 8000);
+
+  return () => {
+    unsubscribePrimary();
+    if (unsubscribeDefault) unsubscribeDefault();
+    clearInterval(pollInterval);
+  };
+}
+
+/**
+ * Fetches all bookings from Firebase Firestore (`bookings` collection), `/api/bookings`, and Supabase.
+ */
+export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]> {
+  const resultsMap = new Map<string, BookingRecord>();
+
+  const addRecord = (rec: BookingRecord | null | undefined) => {
+    if (!rec || !rec.id) return;
+    const cleanId = normalizeBookingIdInput(rec.id) || rec.id;
+    const existing = resultsMap.get(cleanId);
+    if (!existing) {
+      resultsMap.set(cleanId, rec);
+      return;
+    }
+    const existingMs = Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
+    const nextMs = Date.parse(rec.updatedAt || rec.completedAt || rec.createdAt || '') || 0;
+    resultsMap.set(cleanId, nextMs >= existingMs ? { ...existing, ...rec } : { ...rec, ...existing });
+  };
+
+  // 1. Read all documents from Firebase Firestore `bookings` collection (no orderBy filter so no docs are skipped)
+  try {
+    const snap = await getDocs(collection(db, 'bookings'));
+    snap.forEach((docSnap) => {
+      const parsed = normalizeFirestoreDocToBooking(
+        docSnap.data() as Record<string, any>,
+        docSnap.id
+      );
+      if (parsed) {
+        addRecord(parsed);
+        upsertBookingInLocalStorage(parsed);
+      }
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'bookings');
+  }
+
+  // 1b. Also check defaultDb if available
+  if (defaultDb) {
+    try {
+      const snapDefault = await getDocs(collection(defaultDb, 'bookings'));
+      snapDefault.forEach((docSnap) => {
+        const parsed = normalizeFirestoreDocToBooking(
+          docSnap.data() as Record<string, any>,
+          docSnap.id
+        );
+        if (parsed) {
+          addRecord(parsed);
+          upsertBookingInLocalStorage(parsed);
+        }
+      });
+    } catch {}
+  }
+
+  // 2. Also read from `/api/bookings` and backfill to Firestore
   try {
     const res = await fetch('/api/bookings');
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data.bookings)) {
-        const qLower = rawQuery.toLowerCase();
-        for (const b of data.bookings as BookingRecord[]) {
-          const bId = normalizeBookingIdInput(b.id);
-          if (
-            bId === normalizedId ||
-            bId.toLowerCase().includes(qLower) ||
-            (cleanDigits.length >= 4 && String(b.customerPhone || '').includes(cleanDigits)) ||
-            String(b.customerName || '').toLowerCase().includes(qLower)
-          ) {
-            if (!matchedMap.has(bId)) {
-              addRecord(b);
-              // Backfill into Firestore so future direct queries hit Firestore immediately
-              saveBookingToCloudDatabase(b).catch(() => {});
+      if (Array.isArray(data?.bookings)) {
+        for (const raw of data.bookings) {
+          const parsed = normalizeFirestoreDocToBooking(raw, raw?.id);
+          if (parsed) {
+            const wasInFirestore = resultsMap.has(parsed.id);
+            addRecord(parsed);
+            if (!wasInFirestore) {
+              const cleanData = sanitizeBookingForFirestore(parsed);
+              setDoc(doc(db, 'bookings', parsed.id), cleanData, { merge: true }).catch(() => {});
             }
           }
         }
@@ -652,72 +1035,7 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
     }
   } catch {}
 
-  return Array.from(matchedMap.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
-}
-
-/**
- * Real-time Firestore listener (`onSnapshot`) so the Admin Panel and Customer App
- * receive new bookings and status/driver updates immediately without refreshing.
- */
-export function subscribeToBookingsFromCloudDatabase(
-  onUpdate: (bookings: BookingRecord[]) => void
-): () => void {
-  const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(150));
-  const unsubscribe = onSnapshot(
-    q,
-    (snapshot) => {
-      const liveBookings: BookingRecord[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as unknown as BookingRecord;
-        if (data && data.id) {
-          const cleanId = normalizeBookingIdInput(data.id) || data.id;
-          liveBookings.push({
-            ...data,
-            id: cleanId,
-            bookingId: cleanId,
-            bookingReference: cleanId
-          });
-        }
-      });
-      onUpdate(liveBookings);
-    },
-    (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'bookings');
-    }
-  );
-
-  return unsubscribe;
-}
-
-/**
- * Fetches all bookings from Firebase Firestore (`bookings` collection) and Supabase (if configured).
- */
-export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]> {
-  const resultsMap = new Map<string, BookingRecord>();
-
-  // 1. Read from Firebase Firestore
-  try {
-    const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(150));
-    const snap = await getDocs(q);
-    snap.forEach((docSnap) => {
-      const data = docSnap.data() as unknown as BookingRecord;
-      if (data && data.id) {
-        const cleanId = normalizeBookingIdInput(data.id) || data.id;
-        resultsMap.set(cleanId, {
-          ...data,
-          id: cleanId,
-          bookingId: cleanId,
-          bookingReference: cleanId
-        });
-      }
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'bookings');
-  }
-
-  // 2. Read from Supabase if configured
+  // 3. Read from Supabase if configured
   if (supabaseClient) {
     try {
       const { data } = await supabaseClient
@@ -729,7 +1047,7 @@ export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]>
         for (const row of data) {
           const cleanId = normalizeBookingIdInput(row.id) || row.id;
           if (!resultsMap.has(cleanId)) {
-            resultsMap.set(cleanId, {
+            addRecord({
               id: cleanId,
               bookingId: cleanId,
               bookingReference: cleanId,
@@ -770,9 +1088,23 @@ export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]>
     } catch {}
   }
 
-  return Array.from(resultsMap.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  // 4. Also merge localStorage bookings so local state is never lost
+  try {
+    const raw = localStorage.getItem(BOOKINGS_STORAGE_KEY);
+    if (raw) {
+      const localList: BookingRecord[] = JSON.parse(raw);
+      if (Array.isArray(localList)) {
+        for (const item of localList) {
+          const parsed = normalizeFirestoreDocToBooking(item as Record<string, any>, item?.id);
+          if (parsed && !resultsMap.has(parsed.id)) {
+            addRecord(parsed);
+          }
+        }
+      }
+    }
+  } catch {}
+
+  return sortBookingsNewestFirst(Array.from(resultsMap.values()));
 }
 
 /**
@@ -886,4 +1218,3 @@ export async function fetchPaymentAuditLogsFromCloud(
 
   return allLogs;
 }
-

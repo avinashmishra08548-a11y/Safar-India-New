@@ -937,14 +937,12 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   )}
                 </div>
 
-                {/* Inline A4 Voucher / Final GST Invoice PDF Sheet Preview when toggled */}
-                {expandedPdfBookingId === b.id && (
+                {/* Inline A4 Final GST Invoice PDF Sheet Preview (ONLY when COMPLETED) */}
+                {isCompleted && expandedPdfBookingId === b.id && (
                   <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-100 border-2 border-slate-300 space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs font-black text-[#0F2958] uppercase tracking-wider">
-                        {isCompleted
-                          ? `📄 Official A4 Final GST Tax Invoice Preview (${b.id}.pdf)`
-                          : `📄 Booking Confirmation Voucher Preview (${b.id}.pdf)`}
+                        {`📄 Official A4 Final GST Tax Invoice Preview (${b.id}.pdf)`}
                       </span>
                       <div className="flex items-center gap-2">
                         <a
@@ -979,13 +977,15 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   </div>
                 )}
 
-                {/* Bottom Action Buttons: Booking Voucher vs Final GST Invoice CTA */}
+                {/* Bottom Action Buttons: Booking Confirmed Summary vs Final Tax Invoice (Unlocked only when COMPLETED) */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
-                        setExpandedPdfBookingId((prev) => (prev === b.id ? null : b.id));
+                        if (isCompleted) {
+                          setExpandedPdfBookingId((prev) => (prev === b.id ? null : b.id));
+                        }
                         onSelectBookingForInvoice(b);
                       }}
                       className="min-h-[46px] flex items-center gap-2 text-white bg-slate-900 hover:bg-slate-800 px-4 py-2.5 rounded-xl font-black text-xs transition shadow-sm cursor-pointer"
@@ -993,53 +993,50 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       <FileText className="w-4 h-4 text-amber-400 shrink-0" />
                       <span>
                         {isCompleted
-                          ? 'View Final GST Tax Invoice'
-                          : 'View Booking Confirmation Voucher'}
+                          ? 'View Final Tax Invoice'
+                          : 'View Booking Confirmed Summary'}
                       </span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleDirectDownloadGstBill(b)}
-                      disabled={isDownloading}
-                      className={`min-h-[46px] px-4 py-2.5 rounded-xl font-black text-xs transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-98 ${
-                        isCompleted
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          : 'bg-amber-400 hover:bg-amber-500 text-slate-950'
-                      }`}
-                    >
-                      {isDownloading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                          <span>Generating PDF...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-4 h-4 shrink-0" />
-                          <span>
-                            {isCompleted ? 'Download Final GST Invoice (PDF)' : 'Download Voucher (PDF)'}
-                          </span>
-                        </>
-                      )}
-                    </button>
+                    {isCompleted && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleDirectDownloadGstBill(b)}
+                          disabled={isDownloading}
+                          className="min-h-[46px] px-4 py-2.5 rounded-xl font-black text-xs transition flex items-center gap-2 shadow-sm cursor-pointer active:scale-98 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          {isDownloading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                              <span>Generating PDF...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-4 h-4 shrink-0" />
+                              <span>Download Final Tax Invoice (PDF)</span>
+                            </>
+                          )}
+                        </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleShareWhatsApp(b)}
-                      disabled={isDownloading}
-                      className="min-h-[46px] flex items-center gap-2 text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer"
-                    >
-                      <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>
-                        {isCompleted ? 'Share Final Invoice on WhatsApp' : 'Share Voucher on WhatsApp'}
-                      </span>
-                    </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShareWhatsApp(b)}
+                          disabled={isDownloading}
+                          className="min-h-[46px] flex items-center gap-2 text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer"
+                        >
+                          <Share2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>Share Final Tax Invoice on WhatsApp</span>
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
                     {!isCompleted && b.status === 'confirmed' && (
-                      <span className="text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-xl">
-                        Final GST Bill generates after Admin marks Ride Completed
+                      <span className="text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>Final Tax Invoice unlocks after Ride is marked COMPLETED</span>
                       </span>
                     )}
                     {b.status === 'confirmed' && (

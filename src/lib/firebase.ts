@@ -1,11 +1,31 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import {
-  getFirestore,
-  doc,
-  getDocFromServer
-} from 'firebase/firestore';
+import { getFirestore, Firestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+
+// Initialize Firebase SDK singleton
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// Initialize Firestore with the named database ID from firebase-applet-config.json
+const configuredDbId = (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId;
+export const db: Firestore =
+  configuredDbId && configuredDbId !== '(default)'
+    ? getFirestore(app, configuredDbId)
+    : getFirestore(app);
+
+// Secondary reference to (default) database for cross-panel compatibility if needed
+export const defaultDb: Firestore | null = (() => {
+  try {
+    if (configuredDbId && configuredDbId !== '(default)') {
+      return getFirestore(app);
+    }
+  } catch {
+    // ignore if default db is not initialized
+  }
+  return null;
+})();
+
+export const auth = getAuth(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -21,11 +41,11 @@ export interface FirestoreErrorInfo {
   operationType: OperationType;
   path: string | null;
   authInfo: {
-    userId?: string;
-    email?: string | null;
-    emailVerified?: boolean;
-    isAnonymous?: boolean;
-    tenantId?: string | null;
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
     providerInfo: {
       providerId: string;
       displayName: string | null;
@@ -34,11 +54,6 @@ export interface FirestoreErrorInfo {
     }[];
   };
 }
-
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
 
 export function handleFirestoreError(
   error: unknown,
@@ -64,25 +79,5 @@ export function handleFirestoreError(
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-}
-
-let connectionTested = false;
-export async function testFirestoreConnection(): Promise<void> {
-  if (connectionTested) return;
-  connectionTested = true;
-  try {
-    await getDocFromServer(doc(db, 'booking_counters', 'sic_26_series'));
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('the client is offline')
-    ) {
-      console.error('Please check your Firebase configuration.');
-    }
-  }
-}
-
-if (typeof window !== 'undefined') {
-  testFirestoreConnection().catch(() => {});
+  console.warn('Firestore Operation Notice:', JSON.stringify(errInfo));
 }

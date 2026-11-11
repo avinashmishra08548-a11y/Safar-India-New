@@ -38,6 +38,7 @@ import {
   searchBookingInFirestore,
   saveBookingToCloudDatabase,
   subscribeToBookingsFromCloudDatabase,
+  fetchBookingsFromCloudDatabase,
   updateBookingDriverAndStatusInCloud,
   fetchPaymentAuditLogsFromCloud
 } from '../lib/bookingDatabase';
@@ -119,11 +120,13 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
   const [benchmarkRoutes, setBenchmarkRoutes] = useState<IntercityRouteBenchmarkRow[]>([]);
   const [isLoadingBenchmark, setIsLoadingBenchmark] = useState(false);
 
-  // Admin Firestore Booking Search & Comprehensive Detail State
+  // Admin Firestore Booking Search, Live Sync & Comprehensive Detail State
+  const [liveCloudBookings, setLiveCloudBookings] = useState<BookingRecord[]>([]);
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<'all' | 'confirmed' | 'completed'>('all');
   const [adminSearchInput, setAdminSearchInput] = useState('');
   const [isSearchingFirestore, setIsSearchingFirestore] = useState(false);
   const [firestoreSearchResults, setFirestoreSearchResults] = useState<BookingRecord[] | null>(null);
-  const [selectedDetailBookingId, setSelectedDetailBookingId] = useState<string>('SIC2604');
+  const [selectedDetailBookingId, setSelectedDetailBookingId] = useState<string>('');
   const [driverEditForm, setDriverEditForm] = useState({
     driverName: '',
     driverPhone: '',
@@ -140,16 +143,55 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
   });
   const [isSavingDriverAssignment, setIsSavingDriverAssignment] = useState(false);
 
+  const allMergedBookings = useMemo(() => {
+    const mapById = new Map<string, BookingRecord>();
+    const upsert = (b: BookingRecord | undefined | null) => {
+      if (!b || !b.id) return;
+      const cleanId = normalizeBookingIdInput(b.id) || b.id;
+      const existing = mapById.get(cleanId);
+      if (!existing) {
+        mapById.set(cleanId, { ...b, id: cleanId });
+        return;
+      }
+      const existingMs = Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
+      const nextMs = Date.parse(b.updatedAt || b.completedAt || b.createdAt || '') || 0;
+      const primary = nextMs >= existingMs ? b : existing;
+      const secondary = nextMs >= existingMs ? existing : b;
+      mapById.set(cleanId, {
+        ...secondary,
+        ...primary,
+        id: cleanId,
+        status:
+          existing.status === 'completed' || b.status === 'completed'
+            ? 'completed'
+            : existing.status === 'cancelled' || b.status === 'cancelled'
+            ? 'cancelled'
+            : primary.status
+      });
+    };
+    for (const b of bookings) upsert(b);
+    for (const b of liveCloudBookings) upsert(b);
+    return Array.from(mapById.values()).sort((a, b) => {
+      const tA = Date.parse(a.createdAt || '') || 0;
+      const tB = Date.parse(b.createdAt || '') || 0;
+      return tB - tA;
+    });
+  }, [bookings, liveCloudBookings]);
+
   const displayedBookings = useMemo(() => {
-    if (firestoreSearchResults !== null) {
-      return firestoreSearchResults;
-    }
-    if (!adminSearchInput.trim()) {
-      return bookings;
+    const baseList =
+      firestoreSearchResults !== null
+        ? firestoreSearchResults
+        : bookingStatusFilter === 'all'
+        ? allMergedBookings
+        : allMergedBookings.filter((b) => b.status === bookingStatusFilter);
+
+    if (!adminSearchInput.trim() || firestoreSearchResults !== null) {
+      return baseList;
     }
     const q = adminSearchInput.trim().toLowerCase();
     const normId = normalizeBookingIdInput(adminSearchInput);
-    return bookings.filter(
+    return baseList.filter(
       (b) =>
         normalizeBookingIdInput(b.id) === normId ||
         b.id.toLowerCase().includes(q) ||
@@ -158,18 +200,20 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
         (b.pickupCity && b.pickupCity.toLowerCase().includes(q)) ||
         (b.dropCity && b.dropCity.toLowerCase().includes(q))
     );
-  }, [bookings, firestoreSearchResults, adminSearchInput]);
+  }, [allMergedBookings, firestoreSearchResults, bookingStatusFilter, adminSearchInput]);
 
   const selectedDetailBooking = useMemo(() => {
     const cleanSelected = normalizeBookingIdInput(selectedDetailBookingId);
-    const fromDisplayed = displayedBookings.find(
-      (b) => normalizeBookingIdInput(b.id) === cleanSelected
-    );
-    if (fromDisplayed) return fromDisplayed;
-    const fromAll = bookings.find((b) => normalizeBookingIdInput(b.id) === cleanSelected);
-    if (fromAll) return fromAll;
-    return displayedBookings[0] || bookings[0] || null;
-  }, [selectedDetailBookingId, displayedBookings, bookings]);
+    if (cleanSelected) {
+      const fromDisplayed = displayedBookings.find(
+        (b) => normalizeBookingIdInput(b.id) === cleanSelected
+      );
+      if (fromDisplayed) return fromDisplayed;
+      const fromAll = allMergedBookings.find((b) => normalizeBookingIdInput(b.id) === cleanSelected);
+      if (fromAll) return fromAll;
+    }
+    return displayedBookings[0] || allMergedBookings[0] || null;
+  }, [selectedDetailBookingId, displayedBookings, allMergedBookings]);
 
   useEffect(() => {
     if (selectedDetailBooking) {
@@ -219,8 +263,21 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
     loadBenchmark();
     loadPaymentLogsAndDiagnostics(false);
 
+    // Immediate fetch of all cloud & server bookings on open
+    fetchBookingsFromCloudDatabase()
+      .then((fetched) => {
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          setLiveCloudBookings(fetched);
+          for (const b of fetched) {
+            onUpsertBooking?.(b);
+          }
+        }
+      })
+      .catch(() => {});
+
     // Real-time Firestore listener while Admin Panel is open
     const unsubscribe = subscribeToBookingsFromCloudDatabase((liveCloud) => {
+      setLiveCloudBookings(liveCloud);
       for (const b of liveCloud) {
         onUpsertBooking?.(b);
       }
@@ -669,7 +726,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Live Bookings ({bookings.length}) &amp; GST Bill Generator</span>
+            <span>Live Bookings ({allMergedBookings.length}) &amp; GST Bill Generator</span>
           </button>
 
           <button
@@ -827,7 +884,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                 {/* Quick-Select Booking Reference Chips */}
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px]">
                   <span className="text-slate-400 font-bold mr-1">Quick Inspect Booking ID:</span>
-                  {bookings.slice(0, 6).map((b) => {
+                  {allMergedBookings.slice(0, 8).map((b) => {
                     const isSelected =
                       normalizeBookingIdInput(selectedDetailBooking?.id || '') ===
                       normalizeBookingIdInput(b.id);
@@ -1348,14 +1405,49 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
 
               {/* 3. Synced Live Bookings Table (Including SIC2604 Ashish Dhawan) */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h4 className="text-sm font-black text-slate-950">
-                      All Synced Customer Bookings ({displayedBookings.length})
+                      All Synced Customer Bookings ({displayedBookings.length} of {allMergedBookings.length})
                     </h4>
                     <p className="text-xs text-slate-600">
-                      Click any booking row to inspect its full breakdown above or generate its official GST invoice.
+                      Real-time Firestore sync active. Click any booking row to assign driver/vehicle, add toll/state tax, or mark COMPLETED.
                     </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setBookingStatusFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                        bookingStatusFilter === 'all'
+                          ? 'bg-slate-900 text-amber-400'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      All ({allMergedBookings.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookingStatusFilter('confirmed')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                        bookingStatusFilter === 'confirmed'
+                          ? 'bg-amber-400 text-slate-950'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      Active / Confirmed ({allMergedBookings.filter((x) => x.status !== 'completed' && x.status !== 'cancelled').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookingStatusFilter('completed')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                        bookingStatusFilter === 'completed'
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      Completed ({allMergedBookings.filter((x) => x.status === 'completed').length})
+                    </button>
                   </div>
                 </div>
 
@@ -1365,6 +1457,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                     const isSelectedRow =
                       normalizeBookingIdInput(selectedDetailBooking?.id || '') ===
                       normalizeBookingIdInput(b.id);
+                    const isRowCompleted = b.status === 'completed';
                     return (
                       <div
                         key={b.id}
@@ -1379,6 +1472,15 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono font-black text-slate-950 bg-amber-300/60 border border-amber-400 px-2.5 py-0.5 rounded-lg">
                               {b.id}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-black uppercase text-[10px] border ${
+                                isRowCompleted
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                  : 'bg-amber-50 text-amber-900 border-amber-300'
+                              }`}
+                            >
+                              {isRowCompleted ? '✓ COMPLETED' : '● ACTIVE / CONFIRMED'}
                             </span>
                             <span className="font-black text-slate-900">{b.customerName}</span>
                             <span className="font-mono font-bold text-emerald-700">+91 {b.customerPhone}</span>
@@ -1415,6 +1517,32 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                               Adv: {formatINR(b.advancePaid)} | Bal: {formatINR(b.balanceDue)}
                             </div>
                           </div>
+                          {!isRowCompleted && (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setSelectedDetailBookingId(b.id);
+                                const completedBooking: BookingRecord = {
+                                  ...b,
+                                  status: 'completed',
+                                  completedAt: new Date().toISOString(),
+                                };
+                                await saveBookingToCloudDatabase(completedBooking);
+                                onUpsertBooking?.(completedBooking);
+                                const fresh = await fetchBookingsFromCloudDatabase();
+                                if (fresh.length > 0) {
+                                  setLiveCloudBookings(fresh);
+                                }
+                                setSaveBanner(
+                                  `Booking ${b.id} marked COMPLETED! Customer Final GST Tax Invoice is now unlocked.`
+                                );
+                              }}
+                              className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition cursor-pointer shadow-2xs"
+                            >
+                              ✓ Mark Completed
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1434,7 +1562,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                             }}
                             className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs transition cursor-pointer"
                           >
-                            📄 View / Download GST Bill
+                            {isRowCompleted ? '📄 Final GST Invoice' : '📋 View Booking Summary'}
                           </button>
                         </div>
                       </div>
