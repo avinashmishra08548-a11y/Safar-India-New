@@ -588,37 +588,19 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
 
-                {/* Dedicated Admin Portal & Mapping Console */}
-              <div className="pt-3 border-t border-slate-800 space-y-2">
-                <div className="px-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                  Administration &amp; Booking Search
-                </div>
-                {onOpenAdminMappingConsole && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenAdminMappingConsole();
-                    }}
-                    className="w-full min-h-[46px] py-2.5 px-4 text-xs text-amber-400 font-extrabold bg-slate-900 hover:bg-slate-800 rounded-xl border border-amber-400/50 flex items-center justify-center gap-2 cursor-pointer transition"
-                  >
-                    <Shield className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>Owner Control Panel / Admin Booking Search</span>
-                  </button>
-                )}
-                {onOpenAdminMappingConsole && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenAdminMappingConsole();
-                    }}
-                    className="w-full min-h-[44px] py-2 px-4 text-xs text-emerald-300 font-extrabold bg-slate-900 hover:bg-slate-800 rounded-xl border border-emerald-500/40 flex items-center justify-center gap-2 cursor-pointer transition"
-                  >
-                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Mapping API, Pricing &amp; 30-Route Benchmark</span>
-                  </button>
-                )}
+                {/* Bottom Centered Logout Action Row */}
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full min-h-[46px] py-2.5 px-4 text-xs text-rose-200 hover:text-white font-black bg-rose-500/20 hover:bg-rose-600 rounded-xl border border-rose-500/40 flex items-center justify-center gap-2 cursor-pointer transition shadow-xs"
+                >
+                  <LogOut className="w-4 h-4 text-rose-300 shrink-0" />
+                  <span>{currentUser ? `Logout (+91 ${currentUser.phone})` : 'Logout / Clear Session'}</span>
+                </button>
               </div>
             </div>
 

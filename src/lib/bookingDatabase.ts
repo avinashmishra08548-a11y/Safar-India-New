@@ -270,6 +270,7 @@ export function sanitizeBookingForFirestore(booking: BookingRecord): Record<stri
     tollsAndTaxes: Math.max(0, Math.round(Number(booking.tollsAndTaxes) || 0)),
     highwayToll: booking.highwayToll !== undefined ? Math.max(0, Math.round(Number(booking.highwayToll) || 0)) : undefined,
     statePermitTax: booking.statePermitTax !== undefined ? Math.max(0, Math.round(Number(booking.statePermitTax) || 0)) : undefined,
+    parkingCharge: booking.parkingCharge !== undefined ? Math.max(0, Math.round(Number(booking.parkingCharge) || 0)) : undefined,
     hillStationCharge: booking.hillStationCharge !== undefined ? Math.max(0, Math.round(Number(booking.hillStationCharge) || 0)) : undefined,
     nightCharge: booking.nightCharge !== undefined ? Math.max(0, Math.round(Number(booking.nightCharge) || 0)) : undefined,
     actualOdometerKm: booking.actualOdometerKm !== undefined ? Math.max(0, Math.round(Number(booking.actualOdometerKm) || 0)) : undefined,

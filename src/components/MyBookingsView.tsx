@@ -613,6 +613,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                 ? b.statePermitTax
                 : Math.max(0, rawTolls - highwayToll);
             const hillStationCharge = b.hillStationCharge || 0;
+            const parkingCharge = b.parkingCharge || 0;
             const extraKmDriven = b.extraKmDriven || 0;
             const extraKmCharge = b.extraKmCharge || 0;
             const extraTollCharges = b.extraTollCharges || 0;
@@ -626,6 +627,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                 b.totalFare -
                   gstAmount -
                   rawTolls -
+                  parkingCharge -
                   driverAllowance -
                   hillStationCharge -
                   extraKmCharge -
@@ -790,7 +792,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     <div className="flex justify-between items-center text-slate-600">
                       <span>Parking Charges:</span>
                       <span className="font-mono font-bold text-amber-800">
-                        Extra (If Applicable)
+                        {parkingCharge > 0 ? formatINR(parkingCharge) : 'Extra (If Applicable)'}
                       </span>
                     </div>
                     {hillStationCharge > 0 && (
@@ -844,15 +846,33 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   {b.driverName ? (
                     <>
-                      <div className="space-y-0.5">
+                      <div className="space-y-1">
                         <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">
                           Live Chauffeur &amp; Cab Assignment Confirmed ✓
                         </div>
-                        <div className="font-black text-slate-950">
-                          Chauffeur: {b.driverName} · {b.driverVehicleModel || b.cabName}
-                        </div>
-                        <div className="font-mono text-[11px] text-slate-600">
-                          Vehicle No: <strong className="text-slate-900">{b.driverVehicleNo || 'DL 1Z C 4829'}</strong> · Driver Mobile: +91 {b.driverPhone}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                          <div>
+                            <span className="text-slate-500 font-semibold">Driver Name:</span>{' '}
+                            <strong className="text-slate-950 font-black">{b.driverName}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 font-semibold">Driver Contact:</span>{' '}
+                            <strong className="text-emerald-800 font-mono font-black">
+                              +91 {b.driverPhone || '7710080992'}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 font-semibold">Vehicle Model:</span>{' '}
+                            <strong className="text-slate-900 font-bold">
+                              {b.driverVehicleModel || b.cabName}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 font-semibold">Vehicle Number Plate:</span>{' '}
+                            <strong className="text-slate-950 font-mono font-black bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded">
+                              {b.driverVehicleNo || 'DL 1Z C 4829'}
+                            </strong>
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -1016,15 +1036,22 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                     </button>
                   </div>
 
-                  {b.status === 'confirmed' && (
-                    <button
-                      type="button"
-                      onClick={() => setCancelModalId(b.id)}
-                      className="min-h-[42px] px-3 py-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl font-bold transition cursor-pointer"
-                    >
-                      Cancel Booking
-                    </button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isCompleted && b.status === 'confirmed' && (
+                      <span className="text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-xl">
+                        Final GST Bill generates after Admin marks Ride Completed
+                      </span>
+                    )}
+                    {b.status === 'confirmed' && (
+                      <button
+                        type="button"
+                        onClick={() => setCancelModalId(b.id)}
+                        className="min-h-[42px] px-3 py-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl font-bold transition cursor-pointer"
+                      >
+                        Cancel Booking
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

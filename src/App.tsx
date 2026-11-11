@@ -36,6 +36,7 @@ import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsap
 import {
   fetchBookingsFromCloudDatabase,
   saveBookingToCloudDatabase,
+  searchBookingInFirestore,
   subscribeToBookingsFromCloudDatabase
 } from './lib/bookingDatabase';
 import { Header, NavTabId } from './components/Header';
@@ -640,7 +641,7 @@ export default function App() {
     return SEEDED_VERIFIED_BOOKINGS;
   });
 
-  // Helper to merge local and backend bookings without losing new bookings or driver assignments
+  // Helper to merge local and backend bookings without losing new bookings, driver assignments, or Admin billing updates
   const mergeBookingsList = (
     localList: BookingRecord[],
     remoteList: BookingRecord[]
@@ -654,15 +655,32 @@ export default function App() {
         mapById.set(item.id, item);
         return;
       }
+
+      const existingUpdatedMs = Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
+      const itemUpdatedMs = Date.parse(item.updatedAt || item.completedAt || item.createdAt || '') || 0;
+      const itemIsNewer = itemUpdatedMs >= existingUpdatedMs;
+      const primary = itemIsNewer ? item : existing;
+      const secondary = itemIsNewer ? existing : item;
+
       const merged: BookingRecord = {
-        ...existing,
-        ...item,
-        driverName: item.driverName || existing.driverName,
-        driverPhone: item.driverPhone || existing.driverPhone,
-        driverVehicleModel: item.driverVehicleModel || existing.driverVehicleModel,
-        driverVehicleNo: item.driverVehicleNo || existing.driverVehicleNo,
-        driverAssignedAt: item.driverAssignedAt || existing.driverAssignedAt,
-        notes: item.notes || existing.notes
+        ...secondary,
+        ...primary,
+        driverName: primary.driverName || secondary.driverName,
+        driverPhone: primary.driverPhone || secondary.driverPhone,
+        driverVehicleModel: primary.driverVehicleModel || secondary.driverVehicleModel,
+        driverVehicleNo: primary.driverVehicleNo || secondary.driverVehicleNo,
+        driverAssignedAt: primary.driverAssignedAt || secondary.driverAssignedAt,
+        highwayToll: primary.highwayToll ?? secondary.highwayToll,
+        statePermitTax: primary.statePermitTax ?? secondary.statePermitTax,
+        parkingCharge: primary.parkingCharge ?? secondary.parkingCharge,
+        tollsAndTaxes: primary.tollsAndTaxes ?? secondary.tollsAndTaxes,
+        actualOdometerKm: primary.actualOdometerKm ?? secondary.actualOdometerKm,
+        extraKmDriven: primary.extraKmDriven ?? secondary.extraKmDriven,
+        extraKmCharge: primary.extraKmCharge ?? secondary.extraKmCharge,
+        extraTollCharges: primary.extraTollCharges ?? secondary.extraTollCharges,
+        otherSurcharges: primary.otherSurcharges ?? secondary.otherSurcharges,
+        completedAt: primary.completedAt || secondary.completedAt,
+        notes: primary.notes || secondary.notes
       };
       if (existing.status === 'completed' || item.status === 'completed') {
         merged.status = 'completed';
@@ -672,8 +690,8 @@ export default function App() {
       mapById.set(item.id, merged);
     };
 
-    for (const b of remoteList) upsert(b);
     for (const b of localList) upsert(b);
+    for (const b of remoteList) upsert(b);
 
     return Array.from(mapById.values()).sort((a, b) => {
       const tA = Date.parse(a.createdAt || '') || 0;
@@ -874,101 +892,23 @@ export default function App() {
     setIsCabsModalOpen(true);
   };
 
-  // Ensure logged-in user session and past completed GST ride history are persisted
+  // Sync logged-in customer's real bookings from Firebase Firestore by mobile number
   const ensureCustomerPastRides = (user: CustomerUser) => {
     const cleanPhone = sanitize10DigitPhone(user.phone);
     if (!cleanPhone || cleanPhone.length !== 10) return;
 
-    setAllBookings((prev) => {
-      const userExisting = prev.filter((b) => sanitize10DigitPhone(b.customerPhone) === cleanPhone);
-      const hasCompleted = userExisting.some((b) => b.status === 'completed');
-      if (hasCompleted) return prev;
-
-      const suffix = cleanPhone.slice(-4);
-      const completedPastRides: BookingRecord[] = [
-        {
-          id: 'SIC2602',
-          tripType: 'oneway',
-          pickupCity: 'Delhi NCR',
-          dropCity: 'Agra',
-          pickupAddress: 'Connaught Place / IGI Airport T3, New Delhi',
-          dropAddress: 'Tajganj, Agra, Uttar Pradesh',
-          landmark: 'Near Metro Gate 2',
-          pickupDate: '2026-09-14',
-          pickupTime: '07:00 AM',
-          cabId: 'sedan',
-          cabName: 'Sedan AC (Maruti Dzire)',
-          distanceKm: 230,
-          baseFare: 1950,
-          driverAllowance: 0,
-          tollsAndTaxes: 390,
-          gstAmount: 117,
-          totalFare: 2457,
-          advancePaid: 2457,
-          balanceDue: 0,
-          paymentMode: 'full',
-          paymentMethod: 'upi_razorpay',
-          transactionId: `pay_gst_settled_${suffix}_2602`,
-          customerName: user.name || 'Verified Passenger',
-          customerPhone: cleanPhone,
-          customerEmail: user.email || 'customer@safarindiacabs.com',
-          status: 'completed',
-          createdAt: '2026-09-13T10:15:00.000Z',
-          driverName: 'Dharmendar',
-          driverPhone: '7053441079',
-          driverVehicleModel: 'Maruti Suzuki Dzire AC',
-          driverVehicleNo: 'DL 1Z C 4829',
-          driverAssignedAt: '2026-09-13T18:00:00.000Z',
-          notes: 'Completed Outstation Ride • 100% Payment Settled • Official GST Tax Invoice Generated'
-        },
-        {
-          id: 'SIC2601',
-          tripType: 'roundtrip',
-          pickupCity: 'Delhi NCR',
-          dropCity: 'Jaipur',
-          pickupAddress: 'Rohini Sector 18, New Delhi',
-          dropAddress: 'MI Road, Pink City, Jaipur, Rajasthan',
-          pickupDate: '2026-08-22',
-          pickupTime: '06:30 AM',
-          returnDate: '2026-08-23',
-          returnTime: '09:00 PM',
-          cabId: 'suv',
-          cabName: 'SUV Ertiga AC (6+1 Seater)',
-          distanceKm: 550,
-          baseFare: 6600,
-          driverAllowance: 300,
-          tollsAndTaxes: 580,
-          gstAmount: 374,
-          totalFare: 7854,
-          advancePaid: 7854,
-          balanceDue: 0,
-          paymentMode: 'full',
-          paymentMethod: 'upi_razorpay',
-          transactionId: `pay_gst_settled_${suffix}_2601`,
-          customerName: user.name || 'Verified Passenger',
-          customerPhone: cleanPhone,
-          customerEmail: user.email || 'customer@safarindiacabs.com',
-          status: 'completed',
-          createdAt: '2026-08-20T14:20:00.000Z',
-          driverName: 'Rajesh Yadav',
-          driverPhone: '9811457820',
-          driverVehicleModel: 'Maruti Ertiga Smart Hybrid AC',
-          driverVehicleNo: 'HR 38 AB 9021',
-          driverAssignedAt: '2026-08-21T19:30:00.000Z',
-          notes: 'Completed 2-Day Round Trip • Full GST Invoice Ready'
-        }
-      ];
-
-      for (const pastRide of completedPastRides) {
-        saveBookingToCloudDatabase(pastRide).catch(() => {});
-      }
-
-      const merged = mergeBookingsList([...completedPastRides, ...prev], completedPastRides);
-      try {
-        localStorage.setItem('safar_bookings', JSON.stringify(merged));
-      } catch {}
-      return merged;
-    });
+    searchBookingInFirestore(cleanPhone)
+      .then((cloudMatches) => {
+        if (!Array.isArray(cloudMatches) || cloudMatches.length === 0) return;
+        setAllBookings((prev) => {
+          const merged = mergeBookingsList(prev, cloudMatches);
+          try {
+            localStorage.setItem('safar_bookings', JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {

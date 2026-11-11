@@ -34,6 +34,7 @@ export interface ItemizedInvoiceBreakup {
   driverAllowance: number;
   highwayToll: number;
   statePermitTax: number;
+  parkingCharge: number;
   hillStationCharge: number;
   nightCharge: number;
   extraKmDriven: number;
@@ -50,7 +51,7 @@ export interface ItemizedInvoiceBreakup {
 /**
  * Resolves a transparent, itemized fare breakup for any booking so Base Fare,
  * Driver Allowance (Bata), Highway FASTag Toll Tax, State Border Entry Permit Tax,
- * Hill Station Surcharge, Post-Trip Admin Adjustments, and GST are always displayed as separate line items.
+ * Parking Charges, Hill Station Surcharge, Post-Trip Admin Adjustments, and GST are always displayed as separate line items.
  */
 export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedInvoiceBreakup {
   const tripDays = Math.max(1, Number(booking.tripDays || 1));
@@ -78,6 +79,7 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
       ? Math.max(0, Number(booking.statePermitTax))
       : Math.max(0, rawTolls - highwayToll);
 
+  const parkingCharge = Math.max(0, Number(booking.parkingCharge || 0));
   const hillStationCharge = Math.max(0, Number(booking.hillStationCharge || 0));
   const nightCharge = Math.max(0, Number(booking.nightCharge || 0));
   const extraKmDriven = Math.max(0, Number(booking.extraKmDriven || 0));
@@ -94,6 +96,7 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
       totalFare -
         gstAmount -
         combinedTolls -
+        parkingCharge -
         driverAllowance -
         hillStationCharge -
         nightCharge -
@@ -118,6 +121,7 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
     driverAllowance +
     highwayToll +
     statePermitTax +
+    parkingCharge +
     hillStationCharge +
     nightCharge +
     extraKmCharge +
@@ -132,6 +136,7 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
     driverAllowance +
     highwayToll +
     statePermitTax +
+    parkingCharge +
     hillStationCharge +
     nightCharge +
     extraKmCharge +
@@ -145,6 +150,7 @@ export function resolveItemizedInvoiceBreakup(booking: BookingRecord): ItemizedI
     driverAllowance,
     highwayToll,
     statePermitTax,
+    parkingCharge,
     hillStationCharge,
     nightCharge,
     extraKmDriven,
@@ -456,10 +462,17 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
           ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00`
           : 'Extra (As Per Actuals)'
     },
+    {
+      label: '5. Parking & Airport/Station Entry Charges',
+      value:
+        breakup.parkingCharge > 0
+          ? `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
+          : 'Extra (If Applicable)'
+    },
     ...(breakup.hillStationCharge > 0
       ? [
           {
-            label: '5. Hill Station / Mountain Drive Allowance',
+            label: '6. Hill Station / Mountain Drive Allowance',
             value: `INR ${breakup.hillStationCharge.toLocaleString('en-IN')}.00`
           }
         ]
@@ -690,6 +703,7 @@ export function buildServerInvoicePdfUrl(
   params.set('tollsAndTaxes', String(breakup.highwayToll + breakup.statePermitTax));
   params.set('highwayToll', String(breakup.highwayToll));
   params.set('statePermitTax', String(breakup.statePermitTax));
+  params.set('parkingCharge', String(breakup.parkingCharge));
   params.set('hillStationCharge', String(breakup.hillStationCharge));
   if (breakup.extraKmDriven > 0) params.set('extraKmDriven', String(breakup.extraKmDriven));
   if (breakup.extraKmCharge > 0) params.set('extraKmCharge', String(breakup.extraKmCharge));
@@ -991,10 +1005,18 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
           : 'Extra (As Per Actuals)',
       bold: false
     },
+    {
+      label: '5. Parking & Airport/Station Entry Charges',
+      value:
+        breakup.parkingCharge > 0
+          ? `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
+          : 'Extra (If Applicable)',
+      bold: false
+    },
     ...(breakup.hillStationCharge > 0
       ? [
           {
-            label: '5. Hill Station / Mountain Drive Allowance',
+            label: '6. Hill Station / Mountain Drive Allowance',
             value: `INR ${breakup.hillStationCharge.toLocaleString('en-IN')}.00`,
             bold: false
           }
@@ -1945,13 +1967,15 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 <div className="flex justify-between items-center text-slate-700">
                   <span>5. Parking Charges:</span>
                   <span className="font-mono font-bold text-amber-800">
-                    Extra (If Applicable)
+                    {itemizedBreakup.parkingCharge > 0
+                      ? `${formatINR(itemizedBreakup.parkingCharge)} (Included)`
+                      : 'Extra (If Applicable)'}
                   </span>
                 </div>
 
                 {itemizedBreakup.hillStationCharge > 0 && (
                   <div className="flex justify-between items-center text-slate-700">
-                    <span>5. Hill Station / Mountain Drive Allowance:</span>
+                    <span>6. Hill Station / Mountain Drive Allowance:</span>
                     <span className="font-mono font-bold text-slate-900">
                       {formatINR(itemizedBreakup.hillStationCharge)} (Included)
                     </span>

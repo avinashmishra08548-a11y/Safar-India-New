@@ -2698,7 +2698,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
 
   y += 28;
 
-  // 5. Itemized Fare & GST Tax Table (Separated rows for Base Fare, Driver Allowance, Highway Toll, State Tax, Hill Charge, GST)
+  // 5. Itemized Fare & GST Tax Table (Separated rows for Base Fare, Driver Allowance, Highway Toll, State Tax, Parking, Hill Charge, GST)
   const totalFare = Number(booking.totalFare || 0);
   const gstAmount = Number(booking.gstAmount ?? Math.round((booking.baseFare || totalFare) * 0.05));
   const halfGst = Math.round(gstAmount / 2);
@@ -2713,13 +2713,14 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     booking.statePermitTax !== undefined
       ? Number(booking.statePermitTax)
       : Math.max(0, rawTolls - highwayToll);
+  const parkingCharge = Math.max(0, Number(booking.parkingCharge || 0));
   const hillStationCharge = Number(booking.hillStationCharge || 0);
   const tripDays = Math.max(1, Number(booking.tripDays || 1));
 
   let driverAllowance = Number(booking.driverAllowance || 0);
   let baseFare =
     Number(booking.baseFare || 0) ||
-    Math.max(0, totalFare - gstAmount - rawTolls - driverAllowance - hillStationCharge);
+    Math.max(0, totalFare - gstAmount - rawTolls - parkingCharge - driverAllowance - hillStationCharge);
 
   // If driverAllowance was lumped into baseFare (0), separate out ₹260/day so it never inflates Base Fare
   if (driverAllowance === 0 && baseFare > 600 && booking.tripType !== 'local') {
@@ -2740,6 +2741,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     driverAllowance +
     highwayToll +
     statePermitTax +
+    parkingCharge +
     hillStationCharge +
     extraKmCharge +
     extraTollCharges +
@@ -2778,10 +2780,14 @@ function buildServerBookingInvoicePdfBuffer(booking) {
       label: '4. State Border Entry Permit Tax',
       value: statePermitTax > 0 ? `INR ${statePermitTax.toLocaleString('en-IN')}.00` : 'Extra (As Per Actuals)'
     },
+    {
+      label: '5. Parking & Airport/Station Entry Charges',
+      value: parkingCharge > 0 ? `INR ${parkingCharge.toLocaleString('en-IN')}.00` : 'Extra (If Applicable)'
+    },
     ...(hillStationCharge > 0
       ? [
           {
-            label: '5. Hill Station / Mountain Drive Allowance',
+            label: '6. Hill Station / Mountain Drive Allowance',
             value: `INR ${hillStationCharge.toLocaleString('en-IN')}.00`
           }
         ]
@@ -2805,7 +2811,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
     ...(otherSurcharges > 0
       ? [
           {
-            label: 'Other Post-Trip Surcharges (Parking / Waiting / Detour)',
+            label: 'Other Post-Trip Surcharges (Waiting / Detour)',
             value: `INR ${otherSurcharges.toLocaleString('en-IN')}.00`
           }
         ]
@@ -3043,9 +3049,19 @@ export default async function handler(req, res) {
             : existing?.statePermitTax !== undefined
             ? Number(existing.statePermitTax)
             : undefined;
+        const parkingCharge =
+          query.parkingCharge !== undefined
+            ? Number(query.parkingCharge)
+            : existing?.parkingCharge !== undefined
+            ? Number(existing.parkingCharge)
+            : 0;
         const hillStationCharge = Number(
           query.hillStationCharge ?? existing?.hillStationCharge ?? 0
         );
+        const extraKmDriven = Number(query.extraKmDriven ?? existing?.extraKmDriven ?? 0);
+        const extraKmCharge = Number(query.extraKmCharge ?? existing?.extraKmCharge ?? 0);
+        const extraTollCharges = Number(query.extraTollCharges ?? existing?.extraTollCharges ?? 0);
+        const otherSurcharges = Number(query.otherSurcharges ?? existing?.otherSurcharges ?? 0);
         const tripDays = Math.max(1, Number(query.tripDays ?? existing?.tripDays ?? 1));
 
         const invoiceBooking = {
@@ -3073,7 +3089,12 @@ export default async function handler(req, res) {
           tollsAndTaxes,
           highwayToll,
           statePermitTax,
+          parkingCharge,
           hillStationCharge,
+          extraKmDriven,
+          extraKmCharge,
+          extraTollCharges,
+          otherSurcharges,
           gstAmount,
           totalFare,
           advancePaid,
@@ -3083,6 +3104,7 @@ export default async function handler(req, res) {
           transactionId: query.transactionId || existing?.transactionId || rawId,
           driverName: query.driverName || existing?.driverName || '',
           driverPhone: query.driverPhone || existing?.driverPhone || '',
+          driverVehicleModel: query.driverVehicleModel || existing?.driverVehicleModel || '',
           driverVehicleNo: query.driverVehicleNo || existing?.driverVehicleNo || '',
           createdAt: query.createdAt || existing?.createdAt || new Date().toISOString()
         };
@@ -3113,6 +3135,39 @@ export default async function handler(req, res) {
       count: cleanList.length,
       bookings: cleanList
     });
+  }
+
+  if (req.method === 'PATCH') {
+    try {
+      const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+      const targetId = String(body.id || body.bookingId || '').trim().toUpperCase();
+      if (!targetId) {
+        return res.status(400).json({ error: 'Missing booking id' });
+      }
+      let updatedBooking = null;
+      storedBookings = storedBookings.map((b) => {
+        if (b && String(b.id).toUpperCase() === targetId) {
+          updatedBooking = {
+            ...b,
+            ...body,
+            id: b.id,
+            updatedAt: new Date().toISOString()
+          };
+          return updatedBooking;
+        }
+        return b;
+      });
+      if (!updatedBooking && body.customerPhone) {
+        updatedBooking = upsertStoredBooking({ ...body, id: targetId });
+      }
+      return res.status(200).json({
+        success: true,
+        booking: updatedBooking,
+        bookings: storedBookings
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err?.message || 'Failed to patch booking' });
+    }
   }
 
   if (req.method === 'POST') {
@@ -3183,6 +3238,11 @@ export default async function handler(req, res) {
 
       if (booking && booking.id) {
         const saved = upsertStoredBooking(booking);
+        return res.status(200).json({ success: true, booking: saved, bookings: storedBookings });
+      }
+
+      if (body && body.id && body.customerPhone) {
+        const saved = upsertStoredBooking(body);
         return res.status(200).json({ success: true, booking: saved, bookings: storedBookings });
       }
 

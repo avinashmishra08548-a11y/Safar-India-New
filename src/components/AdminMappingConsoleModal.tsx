@@ -130,6 +130,9 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
     driverVehicleModel: '',
     driverVehicleNo: '',
     status: 'confirmed' as 'confirmed' | 'completed' | 'cancelled',
+    highwayToll: 0,
+    statePermitTax: 0,
+    parkingCharge: 0,
     actualOdometerKm: 0,
     extraKmDriven: 0,
     extraTollCharges: 0,
@@ -170,6 +173,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
 
   useEffect(() => {
     if (selectedDetailBooking) {
+      const brk = resolveItemizedInvoiceBreakup(selectedDetailBooking);
       setDriverEditForm({
         driverName: selectedDetailBooking.driverName || '',
         driverPhone: selectedDetailBooking.driverPhone || '',
@@ -177,6 +181,9 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
           selectedDetailBooking.driverVehicleModel || selectedDetailBooking.cabName || '',
         driverVehicleNo: selectedDetailBooking.driverVehicleNo || '',
         status: selectedDetailBooking.status || 'confirmed',
+        highwayToll: selectedDetailBooking.highwayToll ?? brk.highwayToll ?? 0,
+        statePermitTax: selectedDetailBooking.statePermitTax ?? brk.statePermitTax ?? 0,
+        parkingCharge: selectedDetailBooking.parkingCharge ?? 0,
         actualOdometerKm:
           selectedDetailBooking.actualOdometerKm ?? selectedDetailBooking.distanceKm ?? 0,
         extraKmDriven: selectedDetailBooking.extraKmDriven ?? 0,
@@ -283,20 +290,28 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
           : 0;
       const computedActualOdoKm = rawOdoKm >= baseDist ? rawOdoKm : baseDist + computedExtraKm;
       const extraKmCharge = Math.round(computedExtraKm * perKmExtraRate);
+      const highwayToll = Math.max(0, Math.round(Number(driverEditForm.highwayToll || 0)));
+      const statePermitTax = Math.max(0, Math.round(Number(driverEditForm.statePermitTax || 0)));
+      const parkingCharge = Math.max(0, Math.round(Number(driverEditForm.parkingCharge || 0)));
       const extraTollCharges = Math.max(0, Math.round(Number(driverEditForm.extraTollCharges || 0)));
       const otherSurcharges = Math.max(0, Math.round(Number(driverEditForm.otherSurcharges || 0)));
 
       const currentBrk = resolveItemizedInvoiceBreakup(selectedDetailBooking);
-      const originalPreAdjustmentTaxable =
+      const baseAndDriverTaxable =
         currentBrk.baseCabFare +
         currentBrk.driverAllowance +
-        currentBrk.highwayToll +
-        currentBrk.statePermitTax +
         currentBrk.hillStationCharge +
         currentBrk.nightCharge;
 
+      const tollsAndTaxes = highwayToll + statePermitTax;
       const newTaxableValue =
-        originalPreAdjustmentTaxable + extraKmCharge + extraTollCharges + otherSurcharges;
+        baseAndDriverTaxable +
+        highwayToll +
+        statePermitTax +
+        parkingCharge +
+        extraKmCharge +
+        extraTollCharges +
+        otherSurcharges;
       const newGstAmount = Math.round(newTaxableValue * 0.05);
       const recalculatedTotalFare = newTaxableValue + newGstAmount;
 
@@ -319,6 +334,10 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
             ? new Date().toISOString()
             : selectedDetailBooking.driverAssignedAt,
           status: targetStatus,
+          highwayToll,
+          statePermitTax,
+          parkingCharge,
+          tollsAndTaxes,
           actualOdometerKm: computedActualOdoKm,
           extraKmDriven: computedExtraKm,
           extraKmCharge,
@@ -1004,9 +1023,17 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                               {formatINR(detailBrk.statePermitTax)}
                             </span>
                           </div>
+                          {detailBrk.parkingCharge > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-600 font-semibold">5. Parking Charges:</span>
+                              <span className="font-mono font-bold text-slate-900">
+                                {formatINR(detailBrk.parkingCharge)}
+                              </span>
+                            </div>
+                          )}
                           {detailBrk.hillStationCharge > 0 && (
                             <div className="flex justify-between">
-                              <span className="text-slate-600 font-semibold">5. Hill Station &amp; Ghats Charge:</span>
+                              <span className="text-slate-600 font-semibold">6. Hill Station &amp; Ghats Charge:</span>
                               <span className="font-mono font-bold text-slate-900">
                                 {formatINR(detailBrk.hillStationCharge)}
                               </span>
@@ -1088,7 +1115,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
-                          <div className="col-span-2">
+                          <div>
                             <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
                               Driver Full Name
                             </label>
@@ -1114,6 +1141,23 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                               }
                               placeholder="98150XXXXX"
                               className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono font-bold text-slate-900 text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
+                              Vehicle Model / Cab Name
+                            </label>
+                            <input
+                              type="text"
+                              value={driverEditForm.driverVehicleModel}
+                              onChange={(e) =>
+                                setDriverEditForm((p) => ({
+                                  ...p,
+                                  driverVehicleModel: e.target.value
+                                }))
+                              }
+                              placeholder="e.g. Maruti Suzuki Dzire AC"
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-900 text-xs"
                             />
                           </div>
                           <div>
@@ -1154,12 +1198,83 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                           </div>
                         </div>
 
-                        {/* Post-Trip Completion & Final GST Invoice Adjustments */}
+                        {/* Post-Trip Completion & Final GST Invoice Raw Breakup (Toll, State Tax, Parking, Extra KM) */}
                         <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-300 space-y-2">
                           <div className="text-[10px] font-black uppercase tracking-wider text-amber-950">
-                            Post-Trip Odometer &amp; Surcharge Adjustments
+                            Post-Trip Toll, State Tax &amp; Odometer Raw Breakup
                           </div>
                           <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-800 block mb-0.5">
+                                Highway FASTag Toll Tax (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.highwayToll}
+                                onChange={(e) =>
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    highwayToll: Math.max(0, Number(e.target.value) || 0)
+                                  }))
+                                }
+                                placeholder="e.g. 465"
+                                className="w-full px-2 py-1 rounded-lg border border-amber-400 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-800 block mb-0.5">
+                                State Border Permit Tax (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.statePermitTax}
+                                onChange={(e) =>
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    statePermitTax: Math.max(0, Number(e.target.value) || 0)
+                                  }))
+                                }
+                                placeholder="e.g. 250"
+                                className="w-full px-2 py-1 rounded-lg border border-amber-400 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-800 block mb-0.5">
+                                Parking Charges (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.parkingCharge}
+                                onChange={(e) =>
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    parkingCharge: Math.max(0, Number(e.target.value) || 0)
+                                  }))
+                                }
+                                placeholder="e.g. 100"
+                                className="w-full px-2 py-1 rounded-lg border border-amber-400 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
+                                Other Surcharges (₹)
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={driverEditForm.otherSurcharges}
+                                onChange={(e) =>
+                                  setDriverEditForm((p) => ({
+                                    ...p,
+                                    otherSurcharges: Math.max(0, Number(e.target.value) || 0)
+                                  }))
+                                }
+                                className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
+                              />
+                            </div>
                             <div>
                               <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
                                 Actual End Odometer KM
@@ -1197,40 +1312,6 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                                     actualOdometerKm: baseKm + ext
                                   }));
                                 }}
-                                className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
-                                Extra Toll Charges (₹)
-                              </label>
-                              <input
-                                type="number"
-                                min={0}
-                                value={driverEditForm.extraTollCharges}
-                                onChange={(e) =>
-                                  setDriverEditForm((p) => ({
-                                    ...p,
-                                    extraTollCharges: Math.max(0, Number(e.target.value) || 0)
-                                  }))
-                                }
-                                className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
-                                Other Surcharges (₹)
-                              </label>
-                              <input
-                                type="number"
-                                min={0}
-                                value={driverEditForm.otherSurcharges}
-                                onChange={(e) =>
-                                  setDriverEditForm((p) => ({
-                                    ...p,
-                                    otherSurcharges: Math.max(0, Number(e.target.value) || 0)
-                                  }))
-                                }
                                 className="w-full px-2 py-1 rounded-lg border border-amber-300 bg-white font-mono font-bold text-slate-900 text-xs"
                               />
                             </div>
