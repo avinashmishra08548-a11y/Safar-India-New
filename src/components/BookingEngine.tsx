@@ -52,6 +52,27 @@ const TIME_SLOTS = [
   '11:00 PM', '11:30 PM'
 ];
 
+function parseTimeSlotToMinutes(slot: string): number {
+  const match = String(slot || '')
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return -1;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = match[3].toUpperCase();
+  if (period === 'PM' && hours < 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function getLocalTodayDateString(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 const LOCAL_RENTAL_PACKAGES = [
   { id: '4h_40k', label: '4 Hours / 40 KM', sub: 'Half-Day City Package' },
   { id: '8h_80k', label: '8 Hours / 80 KM', sub: 'Full-Day City Sightseeing' },
@@ -282,21 +303,26 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   }, []);
 
   useEffect(() => {
+    const trimmed = (pickupCity || '').trim();
+    if (!showPickupDropdown || trimmed.length < 1) {
+      setPickupPredictions([]);
+      setIsLoadingPickup(false);
+      return;
+    }
+
     let active = true;
-    const delay = (pickupCity || '').trim().length < 2 ? 0 : 50;
+    const delay = trimmed.length < 2 ? 30 : 50;
     const timer = setTimeout(async () => {
-      if (showPickupDropdown) {
-        setIsLoadingPickup(true);
-        try {
-          const results = await searchOlaPlaces(pickupCity);
-          if (active) {
-            setPickupPredictions(Array.isArray(results) ? results : []);
-          }
-        } catch {
-          if (active) setPickupPredictions([]);
-        } finally {
-          if (active) setIsLoadingPickup(false);
+      setIsLoadingPickup(true);
+      try {
+        const results = await searchOlaPlaces(trimmed);
+        if (active) {
+          setPickupPredictions(Array.isArray(results) ? results : []);
         }
+      } catch {
+        if (active) setPickupPredictions([]);
+      } finally {
+        if (active) setIsLoadingPickup(false);
       }
     }, delay);
 
@@ -307,21 +333,26 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   }, [pickupCity, showPickupDropdown]);
 
   useEffect(() => {
+    const trimmed = (dropCity || '').trim();
+    if (!showDropDropdown || trimmed.length < 1) {
+      setDropPredictions([]);
+      setIsLoadingDrop(false);
+      return;
+    }
+
     let active = true;
-    const delay = (dropCity || '').trim().length < 2 ? 0 : 50;
+    const delay = trimmed.length < 2 ? 30 : 50;
     const timer = setTimeout(async () => {
-      if (showDropDropdown) {
-        setIsLoadingDrop(true);
-        try {
-          const results = await searchOlaPlaces(dropCity);
-          if (active) {
-            setDropPredictions(Array.isArray(results) ? results : []);
-          }
-        } catch {
-          if (active) setDropPredictions([]);
-        } finally {
-          if (active) setIsLoadingDrop(false);
+      setIsLoadingDrop(true);
+      try {
+        const results = await searchOlaPlaces(trimmed);
+        if (active) {
+          setDropPredictions(Array.isArray(results) ? results : []);
         }
+      } catch {
+        if (active) setDropPredictions([]);
+      } finally {
+        if (active) setIsLoadingDrop(false);
       }
     }, delay);
 
@@ -338,21 +369,26 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       : '';
 
   useEffect(() => {
+    const trimmed = (currentActiveStopQuery || '').trim();
+    if (activeStopDropdownIndex === null || trimmed.length < 1) {
+      setStopPredictions([]);
+      setIsLoadingStop(false);
+      return;
+    }
+
     let active = true;
-    const delay = (currentActiveStopQuery || '').trim().length < 2 ? 0 : 50;
+    const delay = trimmed.length < 2 ? 30 : 50;
     const timer = setTimeout(async () => {
-      if (activeStopDropdownIndex !== null) {
-        setIsLoadingStop(true);
-        try {
-          const results = await searchOlaPlaces(currentActiveStopQuery);
-          if (active) {
-            setStopPredictions(Array.isArray(results) ? results : []);
-          }
-        } catch {
-          if (active) setStopPredictions([]);
-        } finally {
-          if (active) setIsLoadingStop(false);
+      setIsLoadingStop(true);
+      try {
+        const results = await searchOlaPlaces(trimmed);
+        if (active) {
+          setStopPredictions(Array.isArray(results) ? results : []);
         }
+      } catch {
+        if (active) setStopPredictions([]);
+      } finally {
+        if (active) setIsLoadingStop(false);
       }
     }, delay);
 
@@ -657,7 +693,34 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     onExploreCabs();
   };
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalTodayDateString();
+  const isPickupToday = Boolean(pickupDate && pickupDate === today);
+
+  // Dynamically filter out past time slots when the selected pickup date is today
+  const availableTimeSlots = (() => {
+    if (!isPickupToday) {
+      return TIME_SLOTS;
+    }
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    // Only allow future time slots (at least 10 minutes ahead of current time)
+    const futureSlots = TIME_SLOTS.filter((slot) => {
+      const slotMins = parseTimeSlotToMinutes(slot);
+      return slotMins > currentMinutes + 10;
+    });
+    if (futureSlots.length > 0) {
+      return futureSlots;
+    }
+    // Late-night fallback if user is booking after 11:20 PM for today
+    return ['11:45 PM'];
+  })();
+
+  // Automatically clear pickupTime if user selects Today and previously chosen time has already passed
+  useEffect(() => {
+    if (isPickupToday && pickupTime && !availableTimeSlots.includes(pickupTime)) {
+      setPickupTime('');
+    }
+  }, [isPickupToday, pickupTime, availableTimeSlots, setPickupTime]);
 
   // Combine dropCity + any roundTripStops so Hill Area detection and Extra KM rate reflect all stops
   const validStops = roundTripStops.map((s) => (s || '').trim()).filter(Boolean);
@@ -690,12 +753,15 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     const safePredictions = Array.isArray(predictions) ? predictions : [];
     const safeQuery = (currentQuery || '').trim();
 
+    // Only show dropdown when user has actively typed at least 1 character
+    if (safeQuery.length < 1) {
+      return null;
+    }
+
     return (
       <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 max-h-72 overflow-y-auto overscroll-contain divide-y divide-slate-100">
         <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-medium text-slate-500">
-          <span>
-            {safeQuery.length >= 2 ? 'Matching Indian Cities & Locations' : 'Popular Indian Cities & Tourist Spots'}
-          </span>
+          <span>Matching Indian Cities &amp; Locations</span>
           {isLoading && <Loader2 className="w-3.5 h-3.5 text-amber-500 animate-spin" />}
         </div>
 
@@ -952,11 +1018,11 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   aria-label="Pickup city or location"
                   type="text"
                   value={pickupCity}
-                  onFocus={() => setShowPickupDropdown(true)}
                   onChange={(e) => {
-                    setPickupCity(e.target.value);
+                    const val = e.target.value;
+                    setPickupCity(val);
                     if (setPickupCoords) setPickupCoords(null);
-                    setShowPickupDropdown(true);
+                    setShowPickupDropdown(val.trim().length >= 1);
                   }}
                   placeholder="Enter pickup city"
                   className="w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3.5 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
@@ -968,7 +1034,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     onClick={() => {
                       setPickupCity('');
                       if (setPickupCoords) setPickupCoords(null);
-                      setShowPickupDropdown(true);
+                      setShowPickupDropdown(false);
+                      setPickupPredictions([]);
                     }}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1 cursor-pointer"
                   >
@@ -978,7 +1045,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               </div>
             )}
 
-            {showPickupDropdown && !(tripType === 'airport' && airportMode === 'pickup') &&
+            {showPickupDropdown &&
+              pickupCity.trim().length >= 1 &&
+              !(tripType === 'airport' && airportMode === 'pickup') &&
               renderAutocompleteDropdown(pickupPredictions, isLoadingPickup, handleSelectPickup, pickupCity)}
           </div>
 
@@ -1083,11 +1152,11 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     aria-label="Destination city or location"
                     type="text"
                     value={dropCity}
-                    onFocus={() => setShowDropDropdown(true)}
                     onChange={(e) => {
-                      setDropCity(e.target.value);
+                      const val = e.target.value;
+                      setDropCity(val);
                       if (setDropCoords) setDropCoords(null);
-                      setShowDropDropdown(true);
+                      setShowDropDropdown(val.trim().length >= 1);
                     }}
                     placeholder="Enter drop city"
                     className="w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3.5 text-slate-900 font-semibold text-sm placeholder:text-slate-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
@@ -1099,7 +1168,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                       onClick={() => {
                         setDropCity('');
                         if (setDropCoords) setDropCoords(null);
-                        setShowDropDropdown(true);
+                        setShowDropDropdown(false);
+                        setDropPredictions([]);
                       }}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 p-1 cursor-pointer"
                     >
@@ -1109,7 +1179,9 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 </div>
               )}
 
-              {showDropDropdown && !(tripType === 'airport' && airportMode === 'drop') &&
+              {showDropDropdown &&
+                dropCity.trim().length >= 1 &&
+                !(tripType === 'airport' && airportMode === 'drop') &&
                 renderAutocompleteDropdown(dropPredictions, isLoadingDrop, handleSelectDrop, dropCity)}
             </div>
           )}
@@ -1129,10 +1201,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                     <input
                       type="text"
                       value={stopValue || ''}
-                      onFocus={() => setActiveStopDropdownIndex(idx)}
                       onChange={(e) => {
-                        handleUpdateRoundTripStop(idx, e.target.value);
-                        setActiveStopDropdownIndex(idx);
+                        const val = e.target.value;
+                        handleUpdateRoundTripStop(idx, val);
+                        setActiveStopDropdownIndex(val.trim().length >= 1 ? idx : null);
                       }}
                       placeholder={`Type city or tourist spot #${idx + 2} (e.g. Mathura, Jaipur, Manali)`}
                       className="w-full bg-amber-50/40 border border-amber-300 hover:border-amber-400 rounded-xl pl-10 pr-8 py-2.5 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition"
@@ -1142,7 +1214,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                         type="button"
                         onClick={() => {
                           handleUpdateRoundTripStop(idx, '');
-                          setActiveStopDropdownIndex(idx);
+                          setActiveStopDropdownIndex(null);
+                          setStopPredictions([]);
                         }}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                       >
@@ -1152,6 +1225,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   </div>
 
                   {activeStopDropdownIndex === idx &&
+                    (stopValue || '').trim().length >= 1 &&
                     renderAutocompleteDropdown(
                       stopPredictions,
                       isLoadingStop,
@@ -1383,8 +1457,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   pickupTime ? 'text-slate-900' : 'text-slate-400'
                 }`}
               >
-                <option value="">Select pickup time</option>
-                {TIME_SLOTS.map((slot) => (
+                <option value="">
+                  {isPickupToday ? 'Select upcoming pickup time (Today)' : 'Select pickup time'}
+                </option>
+                {availableTimeSlots.map((slot) => (
                   <option key={slot} value={slot} className="text-slate-900">
                     {slot}
                   </option>
