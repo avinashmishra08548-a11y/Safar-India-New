@@ -1766,8 +1766,13 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               </>
             )}
             {routePreviewFare.isHillRoute && (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-                <Mountain className="w-3.5 h-3.5" /> Hill Route
+              <span className="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
+                <Mountain className="w-3.5 h-3.5" />
+                <span>
+                  {routePreviewFare.pickupIsHill
+                    ? 'Hill Area Pickup (₹16/km)'
+                    : 'Hill Area Drop (₹13/km)'}
+                </span>
               </span>
             )}
             {travelDuration && (

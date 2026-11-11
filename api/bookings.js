@@ -418,26 +418,39 @@ export function isServerBiharJharkhandRegionalTrip(pickupCity, dropCity, originS
 }
 
 const SERVER_HILL_STATION_KEYWORDS = [
-  'shimla', 'manali', 'mussoorie', 'nainital', 'dharamshala', 'mcleodganj', 'dalhousie',
-  'kasauli', 'kullu', 'kasol', 'spiti', 'ooty', 'kodaikanal', 'munnar', 'wayanad',
-  'coorg', 'madikeri', 'chikmagalur', 'mahabaleshwar', 'lonavala', 'khandala',
-  'mountabu', 'pachmarhi', 'darjeeling', 'gangtok', 'shillong', 'gulmarg', 'pahalgam',
-  'sonamarg', 'leh', 'ladakh', 'almora', 'ranikhet', 'badrinath', 'kedarnath', 'rishikesh',
-  'lansdowne', 'auli', 'gangotri', 'yamunotri', 'khajjiar',
-  'rudraprayag', 'karnaprayag', 'devprayag', 'nandaprayag', 'vishnuprayag', 'sonprayag',
-  'guptkashi', 'ukhimath', 'chamoli', 'joshimath', 'pipalkoti', 'gopeshwar', 'chopta',
-  'uttarkashi', 'barkot', 'harsil', 'tehri', 'newtehri', 'pauri', 'srinagargarhwal',
-  'kotdwar', 'chakrata', 'dhanaulti', 'kanatal', 'chamba', 'bhimtal', 'sattal', 'naukuchiatal',
-  'mukteshwar', 'ramgarh', 'kausani', 'binsar', 'bageshwar', 'pithoragarh', 'champawat',
-  'munsiyari', 'chaukori', 'dharchula', 'tanakpur', 'haldwani', 'kathgodam', 'ramnagar',
-  'jimcorbett', 'corbett', 'solan', 'chail', 'kufri', 'narkanda', 'rampur', 'kinnaur',
-  'kalpa', 'sangla', 'chitkul', 'keylong', 'kaza', 'manikaran', 'tosh', 'malana', 'mandi',
-  'bir', 'billing', 'palampur', 'kangra', 'nagrotabagwan', 'nagrota', 'chamunda', 'baijnath', 'jwalamukhi', 'chintpurni', 'bharmour', 'parwanoo', 'baddi', 'bilaspurhp',
-  'katra', 'vaishnodevi', 'patnitop', 'kishtwar', 'bhaderwah', 'kargil', 'nubra', 'pangong',
-  'kalimpong', 'kurseong', 'mirik', 'pelling', 'lachung', 'lachen', 'tawang', 'ziro',
-  'bomdila', 'cherrapunji', 'sohra', 'dawki', 'kohima', 'aizawl', 'imphal', 'saputara',
-  'panchgani', 'matheran', 'igatpuri', 'bhandardara', 'lavasa', 'coonoor', 'kotagiri',
-  'yercaud', 'yelagiri', 'valparai', 'vagamon', 'thekkady', 'ponmudi', 'araku', 'horsley'
+  // Uttarakhand (Garhwal & Kumaon Hills)
+  'rudraprayag', 'nainital', 'mussoorie', 'rishikesh', 'almora', 'ranikhet', 'badrinath',
+  'kedarnath', 'sonprayag', 'gaurikund', 'guptkashi', 'joshimath', 'auli', 'chamoli',
+  'gopeshwar', 'karnaprayag', 'nandaprayag', 'vishnuprayag', 'devprayag', 'srinagargarhwal',
+  'tehri', 'newtehri', 'uttarkashi', 'pauri', 'lansdowne', 'kotdwar', 'chopta', 'ukhimath',
+  'barkot', 'harsil', 'gangotri', 'yamunotri', 'chakrata', 'dhanaulti', 'kanatal', 'chamba',
+  'bhimtal', 'sattal', 'naukuchiatal', 'mukteshwar', 'ramgarh', 'bhowali', 'kausani', 'binsar',
+  'bageshwar', 'pithoragarh', 'champawat', 'lohaghat', 'munsiyari', 'chaukori', 'dharchula',
+  'jageshwar', 'pangot', 'jeolikote', 'garhwal', 'kumaon',
+  // Himachal Pradesh
+  'shimla', 'manali', 'kullu', 'kasol', 'manikaran', 'tosh', 'malana', 'dharamshala',
+  'dharmshala', 'dharmshaala', 'dharamsala', 'mcleodganj', 'dalhousie', 'khajjiar', 'kasauli',
+  'solan', 'chail', 'kufri', 'narkanda', 'mashobra', 'mandi', 'palampur', 'bir', 'barot',
+  'jibhi', 'tirthan', 'shoja', 'spiti', 'kaza', 'kinnaur', 'kalpa', 'sangla', 'chitkul',
+  'reckongpeo', 'keylong', 'jispa', 'sissu', 'rohtang', 'kangra', 'nagrotabagwan', 'nagrota',
+  'chamunda', 'baijnath', 'jawalamukhi', 'chintpurni', 'bilaspurhp', 'himachal',
+  // Jammu & Kashmir / Ladakh
+  'srinagar', 'gulmarg', 'pahalgam', 'sonamarg', 'patnitop', 'katra', 'vaishnodevi',
+  'bhaderwah', 'kishtwar', 'banihal', 'leh', 'ladakh', 'kargil', 'nubra', 'pangong', 'drass',
+  // North East & Eastern Himalayas
+  'darjeeling', 'kalimpong', 'kurseong', 'mirik', 'gangtok', 'sikkim', 'pelling', 'lachung',
+  'lachen', 'nathula', 'shillong', 'cherrapunji', 'sohra', 'dawki', 'tawang', 'bomdila',
+  'ziro', 'dirang', 'kohima', 'aizawl',
+  // South, West & Central India Hills / Ghats
+  'ooty', 'udhagamandalam', 'coonoor', 'kotagiri', 'kodaikanal', 'yercaud', 'valparai',
+  'yelagiri', 'meghamalai', 'kollimalai', 'kollihills', 'sirumalai', 'munnar', 'thekkady',
+  'vagamon', 'wayanad', 'kalpetta', 'vythiri', 'sultanbathery', 'ponmudi', 'idukki',
+  'lakkidi', 'coorg', 'madikeri', 'kushalnagar', 'chikmagalur', 'sakleshpur', 'kemmanagundi',
+  'kudremukh', 'agumbe', 'nandihills', 'brhills', 'kodagu', 'mahabaleshwar', 'panchgani',
+  'lonavala', 'khandala', 'matheran', 'igatpuri', 'bhandardara', 'amboli', 'lavasa', 'malshej',
+  'chikhaldara', 'toranmal', 'panhala', 'saputara', 'mountabu', 'pachmarhi', 'amarkantak',
+  'mainpat', 'chirmiri', 'araku', 'arakuvalley', 'lambasingi', 'horsleyhills', 'srisailam',
+  'netarhat', 'parasnath', 'mccluskieganj', 'kiriburu', 'kakolat', 'daringbadi', 'deomali'
 ];
 
 const SERVER_PUNJAB_TRANSIT_HIMACHAL_CITIES = [
@@ -1120,11 +1133,35 @@ function computeServerLeadTimePricing(pickupDate, pickupTime, distanceKm = 230, 
   }
 }
 
+function getServerHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill) {
+  if (pickupIsHill) {
+    const hillPickupRates = {
+      hatchback: 16,
+      sedan: 16,
+      exec_sedan: 17.5,
+      suv: 19.5,
+      innova: 23,
+      tempo: 29
+    };
+    return hillPickupRates[cabId] ?? 16;
+  }
+  if (dropIsHill) {
+    const hillDropRates = {
+      hatchback: 13,
+      sedan: 13,
+      exec_sedan: 14.5,
+      suv: 16.5,
+      innova: 20,
+      tempo: 26
+    };
+    return hillDropRates[cabId] ?? 13;
+  }
+  return 13;
+}
+
 function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
   const pickupIsHill = isServerLocationInHillArea(pickupCity);
   const dropIsHill = tripType === 'local' ? pickupIsHill : isServerLocationInHillArea(dropCity);
-  const pickupIsDeep = isServerLocationInDeepMountain(pickupCity);
-  const dropIsDeep = tripType === 'local' ? pickupIsDeep : isServerLocationInDeepMountain(dropCity);
   const pickupIsGateway = isServerLocationFoothillGateway(pickupCity);
   const dropIsGateway = tripType === 'local' ? pickupIsGateway : isServerLocationFoothillGateway(dropCity);
 
@@ -1152,29 +1189,13 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
   }
 
   if (pickupIsHill && dropIsHill && tripType !== 'local') {
-    const isDeepHillToHill = pickupIsDeep || dropIsDeep;
     return {
       isHillRoute: true,
       pickupIsHill: true,
       dropIsHill: true,
       hillTier: 'both_hills',
-      hillRateMultiplier: isDeepHillToHill ? 1.30 : 1.26,
-      hillTierLabel: isDeepHillToHill
-        ? 'Deep Himalayan Hill-to-Hill Terrain'
-        : 'Mountain Hill-to-Hill Terrain'
-    };
-  }
-
-  if (pickupIsDeep || dropIsDeep) {
-    return {
-      isHillRoute: true,
-      pickupIsHill,
-      dropIsHill,
-      hillTier: 'one_end_hill',
-      hillRateMultiplier: 1.26,
-      hillTierLabel: pickupIsDeep
-        ? 'Hill Station Pickup Terrain'
-        : 'Mountain Hill Climb'
+      hillRateMultiplier: 1.0,
+      hillTierLabel: 'Hill Area Pickup (₹16/km)'
     };
   }
 
@@ -1183,8 +1204,8 @@ function computeServerHillAreaPricing(tripType, pickupCity, dropCity) {
     pickupIsHill,
     dropIsHill,
     hillTier: 'one_end_hill',
-    hillRateMultiplier: 1.24,
-    hillTierLabel: pickupIsHill ? 'Hill Station Pickup Terrain' : 'Hill Station Ghat Climb'
+    hillRateMultiplier: 1.0,
+    hillTierLabel: pickupIsHill ? 'Hill Area Pickup (₹16/km)' : 'Hill Area Drop (₹13/km)'
   };
 }
 
@@ -1408,10 +1429,34 @@ export function computeServerTripFare({
   if (tripType === 'oneway') {
     baseBilledDistanceKm = Math.max(
       1,
-      fixedRegionalRoute ? fixedRegionalRoute.km : Math.round(parsedDistance)
+      !isHillRoute && fixedRegionalRoute ? fixedRegionalRoute.km : Math.round(parsedDistance)
     );
 
-    if (fixedRegionalRoute) {
+    if (isHillRoute) {
+      ratePerKm = getServerHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill);
+      hillStationCharge = 0;
+      const shortTripMinBase =
+        cab.id === 'hatchback'
+          ? 520
+          : cab.id === 'sedan'
+          ? 580
+          : cab.id === 'exec_sedan'
+          ? 680
+          : cab.id === 'suv'
+          ? 780
+          : cab.id === 'innova'
+          ? 980
+          : 1380;
+
+      baseRouteFare =
+        baseBilledDistanceKm < 45
+          ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
+          : Math.round(baseBilledDistanceKm * ratePerKm);
+
+      const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
+      driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
+      nightCharges = timingAllowance;
+    } else if (fixedRegionalRoute) {
       isRegionalFixedRoute = true;
       regionalEngineName = 'Bihar & Jharkhand Fixed Route Special';
       regionalCorridorName = fixedRegionalRoute.corridorName;
@@ -1490,20 +1535,10 @@ export function computeServerTripFare({
       hillStationCharge = 0;
       nightCharges = timingAllowance;
     } else {
-      const slabFactor = isHillRoute
-        ? 1.0
-        : baseBilledDistanceKm <= 130
-        ? 1.02
-        : 1.0;
+      const slabFactor = baseBilledDistanceKm <= 130 ? 1.02 : 1.0;
 
       ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
-
-      hillStationCharge =
-        hillTier === 'both_hills'
-          ? Math.round(hillBase * 1.15)
-          : hillTier === 'one_end_hill'
-          ? hillBase
-          : 0;
+      hillStationCharge = 0;
       const shortTripMinBase =
         cab.id === 'hatchback'
           ? 480
@@ -1536,11 +1571,19 @@ export function computeServerTripFare({
         daysCount = Math.max(1, diffDays + 1);
       }
     }
-    const baseOneWayKm = fixedRegionalRoute ? fixedRegionalRoute.km : parsedDistance;
+    const baseOneWayKm = !isHillRoute && fixedRegionalRoute ? fixedRegionalRoute.km : parsedDistance;
     const actualTwoWayKm = Math.round(baseOneWayKm * 2);
     const nightHalts = Math.max(0, daysCount - 1);
 
-    if (isRegionalTrip) {
+    if (isHillRoute) {
+      const hillMinSlabKm = daysCount * 250;
+      baseBilledDistanceKm = Math.max(actualTwoWayKm, hillMinSlabKm);
+      ratePerKm = getServerHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill);
+      baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
+      driverAllowance = daysCount * dailyBata;
+      nightCharges = nightHalts * 250;
+      hillStationCharge = 0;
+    } else if (isRegionalTrip) {
       regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
       regionalMarketBeatOverride = 190;
 
@@ -1587,14 +1630,12 @@ export function computeServerTripFare({
         hillStationCharge = 0;
       }
     } else {
-      const rtHillFactor =
-        hillTier === 'both_hills' ? 1.12 : hillTier === 'one_end_hill' ? 1.08 : 1.0;
       const rtFare = calculateRoundTripFare(
         actualTwoWayKm,
         daysCount,
         String(cabId).toUpperCase(),
         nightHalts,
-        rtHillFactor
+        1.0
       );
 
       baseBilledDistanceKm = rtFare.chargeableKm;
@@ -1602,12 +1643,7 @@ export function computeServerTripFare({
       baseRouteFare = rtFare.baseDistanceFare;
       driverAllowance = rtFare.driverAllowance + hillDriverBonusPerDay * daysCount;
       nightCharges = rtFare.nightAllowance;
-      hillStationCharge =
-        hillTier === 'both_hills'
-          ? Math.round(hillBase * 1.15)
-          : hillTier === 'one_end_hill'
-          ? hillBase
-          : 0;
+      hillStationCharge = 0;
     }
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
@@ -1624,22 +1660,26 @@ export function computeServerTripFare({
       baseRouteFare = adjustedLocal8HrBase - 240;
       driverAllowance = 240 + hillDriverBonusPerDay;
     }
-    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
-    hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
+    ratePerKm = isHillRoute
+      ? getServerHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill)
+      : Number((oneWayRate * dynamicRateFactor).toFixed(1));
+    hillStationCharge = 0;
     nightCharges = 0;
   } else if (tripType === 'airport') {
     baseBilledDistanceKm = Math.max(40, Math.round(parsedDistance));
-    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
+    ratePerKm = isHillRoute
+      ? getServerHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill)
+      : Number((oneWayRate * dynamicRateFactor).toFixed(1));
     const airportFixedPickupFee =
       cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 240;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
     driverAllowance = 200 + hillDriverBonusPerDay;
-    hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
+    hillStationCharge = 0;
     nightCharges = 0;
   }
 
   const extraKmRate =
-    tripType === 'roundtrip'
+    isHillRoute || tripType === 'roundtrip'
       ? ratePerKm
       : Number(baseExtraKmRate.toFixed(1));
 

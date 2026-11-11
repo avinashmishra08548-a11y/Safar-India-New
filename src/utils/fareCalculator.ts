@@ -186,11 +186,14 @@ export const HILL_STATION_KEYWORDS: string[] = [
   'ziro', 'dirang', 'kohima', 'aizawl',
   // South, West & Central India Hills / Ghats
   'ooty', 'udhagamandalam', 'coonoor', 'kotagiri', 'kodaikanal', 'yercaud', 'valparai',
-  'yelagiri', 'munnar', 'thekkady', 'vagamon', 'wayanad', 'kalpetta', 'vythiri', 'ponmudi',
-  'idukki', 'coorg', 'madikeri', 'kushalnagar', 'chikmagalur', 'sakleshpur', 'kemmanagundi',
-  'kudremukh', 'agumbe', 'mahabaleshwar', 'panchgani', 'lonavala', 'khandala', 'matheran',
-  'igatpuri', 'bhandardara', 'amboli', 'lavasa', 'malshej', 'saputara', 'mountabu',
-  'pachmarhi', 'amarkantak', 'araku', 'lambasingi', 'horsleyhills', 'netarhat'
+  'yelagiri', 'meghamalai', 'kollimalai', 'kollihills', 'sirumalai', 'munnar', 'thekkady',
+  'vagamon', 'wayanad', 'kalpetta', 'vythiri', 'sultanbathery', 'ponmudi', 'idukki',
+  'lakkidi', 'coorg', 'madikeri', 'kushalnagar', 'chikmagalur', 'sakleshpur', 'kemmanagundi',
+  'kudremukh', 'agumbe', 'nandihills', 'brhills', 'kodagu', 'mahabaleshwar', 'panchgani',
+  'lonavala', 'khandala', 'matheran', 'igatpuri', 'bhandardara', 'amboli', 'lavasa', 'malshej',
+  'chikhaldara', 'toranmal', 'panhala', 'saputara', 'mountabu', 'pachmarhi', 'amarkantak',
+  'mainpat', 'chirmiri', 'araku', 'arakuvalley', 'lambasingi', 'horsleyhills', 'srisailam',
+  'netarhat', 'parasnath', 'mccluskieganj', 'kiriburu', 'kakolat', 'daringbadi', 'deomali'
 ];
 
 // Verified NHAI Expressway & Highway Toll Table (One-Way Car/Sedan FASTag base in INR with exact counted Toll Plazas)
@@ -1954,6 +1957,39 @@ export function computeLeadTimePricing(
  * - One End in Standard Hill Station: 1.24x (Hill Pickup) / 1.20x (Hill Drop)
  * - Foothill Gateway Corridor (Dehradun, Haridwar, Haldwani, Kathgodam, Corbett, Pathankot): 1.06x
  */
+export function getHillAreaPerKmRate(
+  cabId: CabCategoryId,
+  pickupIsHill: boolean,
+  dropIsHill: boolean
+): number {
+  // All-India Hill Area Per-KM Rule:
+  // - If Pickup is from any Hill Area in India -> Base ₹16/km
+  // - If Drop is in any Hill Area in India (and Pickup is Plains/Foothill) -> Base ₹13/km
+  if (pickupIsHill) {
+    const hillPickupRates: Record<CabCategoryId, number> = {
+      hatchback: 16,
+      sedan: 16,
+      exec_sedan: 17.5,
+      suv: 19.5,
+      innova: 23,
+      tempo: 29
+    };
+    return hillPickupRates[cabId] ?? 16;
+  }
+  if (dropIsHill) {
+    const hillDropRates: Record<CabCategoryId, number> = {
+      hatchback: 13,
+      sedan: 13,
+      exec_sedan: 14.5,
+      suv: 16.5,
+      innova: 20,
+      tempo: 26
+    };
+    return hillDropRates[cabId] ?? 13;
+  }
+  return 13;
+}
+
 export function computeHillTerrainPricing(
   tripType: TripType,
   pickupCity?: string,
@@ -1968,8 +2004,6 @@ export function computeHillTerrainPricing(
 } {
   const pickupIsHill = isLocationInHillArea(pickupCity);
   const dropIsHill = tripType === 'local' ? pickupIsHill : isLocationInHillArea(dropCity);
-  const pickupIsDeep = isLocationInDeepMountain(pickupCity);
-  const dropIsDeep = tripType === 'local' ? pickupIsDeep : isLocationInDeepMountain(dropCity);
   const pickupIsGateway = isLocationFoothillGateway(pickupCity);
   const dropIsGateway = tripType === 'local' ? pickupIsGateway : isLocationFoothillGateway(dropCity);
 
@@ -1997,29 +2031,13 @@ export function computeHillTerrainPricing(
   }
 
   if (pickupIsHill && dropIsHill && tripType !== 'local') {
-    const isDeepHillToHill = pickupIsDeep || dropIsDeep;
     return {
       isHillRoute: true,
       pickupIsHill: true,
       dropIsHill: true,
       hillTier: 'both_hills',
-      hillRateMultiplier: isDeepHillToHill ? 1.30 : 1.26,
-      hillTierLabel: isDeepHillToHill
-        ? 'Deep Himalayan Hill-to-Hill Terrain'
-        : 'Mountain Hill-to-Hill Terrain'
-    };
-  }
-
-  if (pickupIsDeep || dropIsDeep) {
-    return {
-      isHillRoute: true,
-      pickupIsHill,
-      dropIsHill,
-      hillTier: 'one_end_hill',
-      hillRateMultiplier: 1.26,
-      hillTierLabel: pickupIsDeep
-        ? 'Hill Station Pickup Terrain'
-        : 'Mountain Hill Climb'
+      hillRateMultiplier: 1.0,
+      hillTierLabel: 'Hill Area Pickup (₹16/km)'
     };
   }
 
@@ -2028,8 +2046,8 @@ export function computeHillTerrainPricing(
     pickupIsHill,
     dropIsHill,
     hillTier: 'one_end_hill',
-    hillRateMultiplier: 1.24,
-    hillTierLabel: pickupIsHill ? 'Hill Station Pickup Terrain' : 'Hill Station Ghat Climb'
+    hillRateMultiplier: 1.0,
+    hillTierLabel: pickupIsHill ? 'Hill Area Pickup (₹16/km)' : 'Hill Area Drop (₹13/km)'
   };
 }
 
@@ -2927,11 +2945,37 @@ export function computeTripFare(params: {
   if (tripType === 'oneway') {
     const actualRoundedKm = Math.max(
       1,
-      fixedRegionalRoute ? fixedRegionalRoute.km : Math.round(distanceKm)
+      !isHillRoute && fixedRegionalRoute ? fixedRegionalRoute.km : Math.round(distanceKm)
     );
     baseBilledDistanceKm = actualRoundedKm;
 
-    if (fixedRegionalRoute) {
+    if (isHillRoute) {
+      // ALL-INDIA HILL AREA PRICING RULE (₹13/km for Hill Drop, ₹16/km for Hill Pickup)
+      ratePerKm = getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill);
+      hillStationCharge = 0;
+
+      const shortTripMinBase =
+        cab.id === 'hatchback'
+          ? 520
+          : cab.id === 'sedan'
+          ? 580
+          : cab.id === 'exec_sedan'
+          ? 680
+          : cab.id === 'suv'
+          ? 780
+          : cab.id === 'innova'
+          ? 980
+          : 1380;
+
+      baseRouteFare =
+        baseBilledDistanceKm < 45
+          ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
+          : Math.round(baseBilledDistanceKm * ratePerKm);
+
+      const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
+      driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
+      nightCharges = timingAllowance;
+    } else if (fixedRegionalRoute) {
       // 1A. BIHAR & JHARKHAND FIXED ROUTE-RATE TABLE OVERRIDE (PatnaGo & RP Shakti Benchmark Beat)
       isRegionalFixedRoute = true;
       regionalEngineName = 'Bihar & Jharkhand Fixed Route Special';
@@ -3013,20 +3057,10 @@ export function computeTripFare(params: {
       nightCharges = timingAllowance;
     } else {
       // Standard National One-Way Pricing
-      const slabFactor = isHillRoute
-        ? 1.0
-        : baseBilledDistanceKm <= 130
-        ? 1.02
-        : 1.0;
+      const slabFactor = baseBilledDistanceKm <= 130 ? 1.02 : 1.0;
 
       ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
-
-      hillStationCharge =
-        hillTier === 'both_hills'
-          ? Math.round(hillBase * 1.15)
-          : hillTier === 'one_end_hill'
-          ? hillBase
-          : 0;
+      hillStationCharge = 0;
 
       const shortTripMinBase =
         cab.id === 'hatchback'
@@ -3060,11 +3094,20 @@ export function computeTripFare(params: {
         daysCount = Math.max(1, diffDays + 1);
       }
     }
-    const baseOneWayKm = fixedRegionalRoute ? fixedRegionalRoute.km : distanceKm;
+    const baseOneWayKm = !isHillRoute && fixedRegionalRoute ? fixedRegionalRoute.km : distanceKm;
     const actualTwoWayKm = Math.round(baseOneWayKm * 2);
     const nightHalts = Math.max(0, daysCount - 1);
 
-    if (isRegionalTrip) {
+    if (isHillRoute) {
+      // ALL-INDIA HILL AREA ROUND-TRIP PRICING RULE (₹13/km for Hill Drop, ₹16/km for Hill Pickup)
+      const hillMinSlabKm = daysCount * 250;
+      baseBilledDistanceKm = Math.max(actualTwoWayKm, hillMinSlabKm);
+      ratePerKm = getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill);
+      baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
+      driverAllowance = daysCount * dailyBata;
+      nightCharges = nightHalts * 250;
+      hillStationCharge = 0;
+    } else if (isRegionalTrip) {
       // 3. BIHAR & JHARKHAND REGIONAL ROUND-TRIP PACKAGE LOGIC
       regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
       regionalMarketBeatOverride = 190;
@@ -3117,14 +3160,12 @@ export function computeTripFare(params: {
         hillStationCharge = 0;
       }
     } else {
-      const rtHillFactor =
-        hillTier === 'both_hills' ? 1.12 : hillTier === 'one_end_hill' ? 1.08 : 1.0;
       const rtFare = calculateRoundTripFare(
         actualTwoWayKm,
         daysCount,
         cabId.toUpperCase(),
         nightHalts,
-        rtHillFactor
+        1.0
       );
 
       baseBilledDistanceKm = rtFare.chargeableKm;
@@ -3132,12 +3173,7 @@ export function computeTripFare(params: {
       baseRouteFare = rtFare.baseDistanceFare;
       driverAllowance = rtFare.driverAllowance + hillDriverBonusPerDay * daysCount;
       nightCharges = rtFare.nightAllowance;
-      hillStationCharge =
-        hillTier === 'both_hills'
-          ? Math.round(hillBase * 1.15)
-          : hillTier === 'one_end_hill'
-          ? hillBase
-          : 0;
+      hillStationCharge = 0;
     }
   } else if (tripType === 'local') {
     const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
@@ -3154,23 +3190,30 @@ export function computeTripFare(params: {
       baseRouteFare = adjustedLocal8HrBase - 240;
       driverAllowance = 240 + hillDriverBonusPerDay;
     }
-    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
-    hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
+    ratePerKm = isHillRoute
+      ? getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill)
+      : Number((oneWayRate * dynamicRateFactor).toFixed(1));
+    hillStationCharge = 0;
     nightCharges = 0;
   } else if (tripType === 'airport') {
     baseBilledDistanceKm = Math.max(40, Math.round(distanceKm));
-    ratePerKm = Number((oneWayRate * dynamicRateFactor).toFixed(1));
+    ratePerKm = isHillRoute
+      ? getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill)
+      : Number((oneWayRate * dynamicRateFactor).toFixed(1));
     const airportFixedPickupFee =
       cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 240;
     baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
     driverAllowance = 200 + hillDriverBonusPerDay;
-    hillStationCharge = isHillRoute ? Math.round(hillBase * 0.8) : 0;
+    hillStationCharge = 0;
     nightCharges = 0;
   }
 
-  // 4. Extra KM Rate (Matches CabBazar standard vehicle extra KM rate: e.g., ₹10.2/km for Sedan)
+  // 4. Extra KM Rate:
+  // - On Hill Area routes: ₹16/km for Hill Pickup, ₹13/km for Hill Drop (matches ratePerKm)
+  // - On Round Trips: matches ratePerKm
+  // - On Standard Plains routes: matches standard vehicle extra KM rate (e.g., ₹10.2/km for Sedan)
   const extraKmRate =
-    tripType === 'roundtrip'
+    isHillRoute || tripType === 'roundtrip'
       ? ratePerKm
       : Number(baseExtraKmRate.toFixed(1));
 
