@@ -102,6 +102,30 @@ import type { LegalPolicyTab } from './components/LegalPoliciesModal';
 import type { MapModalMode } from './components/InteractiveRouteMapModal';
 
 export default function App() {
+  // Initial App Launch Splash Screen state (shown first when customer opens the app)
+  const [isSplashVisible, setIsSplashVisible] = useState<boolean>(true);
+  const [isSplashFadingOut, setIsSplashFadingOut] = useState<boolean>(false);
+
+  useEffect(() => {
+    const fadeTimer = window.setTimeout(() => {
+      setIsSplashFadingOut(true);
+    }, 2300);
+    const hideTimer = window.setTimeout(() => {
+      setIsSplashVisible(false);
+    }, 2800);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, []);
+
+  const handleDismissSplashEarly = () => {
+    setIsSplashFadingOut(true);
+    window.setTimeout(() => {
+      setIsSplashVisible(false);
+    }, 350);
+  };
+
   // Navigation tabs: 'booking' | 'routes' | 'rides' | 'about' | 'help'
   const [activeTab, setActiveTab] = useState<NavTabId>('booking');
   const [activeSectionId, setActiveSectionId] = useState<string>('booking-section-top');
@@ -1014,6 +1038,30 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
+      {/* Full-Screen Customer App Launch Splash Screen */}
+      {isSplashVisible && (
+        <div
+          onClick={handleDismissSplashEarly}
+          role="dialog"
+          aria-label="SafarIndiaCabs Welcome Splash Screen"
+          className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-b from-[#4BA3F8] via-[#D8EEFF] to-[#021C52] select-none overflow-hidden transition-all duration-500 ease-out ${
+            isSplashFadingOut ? 'opacity-0 scale-[1.02] pointer-events-none' : 'opacity-100 scale-100'
+          }`}
+        >
+          <img
+            src="/assets/aistudio/file_00000000e04082118142ec250f73b070_4857d00b.png"
+            alt="SafarIndiaCabs - A1 Cab Services N. India - Your Journey, Our Priority"
+            fetchPriority="high"
+            decoding="sync"
+            className="w-full h-full object-cover sm:object-contain max-w-md mx-auto shadow-2xl"
+          />
+          {/* Subtle animated loading progress bar at the very bottom */}
+          <div className="absolute bottom-0 inset-x-0 h-1.5 bg-slate-950/40 overflow-hidden">
+            <div className="h-full bg-amber-400 animate-pulse w-full origin-left" />
+          </div>
+        </div>
+      )}
+
       {/* Sticky Top Header + Active Tab Title Strip */}
       <Header
         currentUser={currentUser}
