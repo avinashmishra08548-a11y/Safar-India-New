@@ -1513,7 +1513,10 @@ export default function App() {
       {activeVoucherBooking && (
         <Suspense fallback={null}>
           <BookingConfirmationModal
-            booking={activeVoucherBooking}
+            booking={
+              allBookings.find((b) => b.id === activeVoucherBooking.id) ||
+              activeVoucherBooking
+            }
             onClose={() => setActiveVoucherBooking(null)}
             onViewMyRides={() => setActiveTab('rides')}
           />

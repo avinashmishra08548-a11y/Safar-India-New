@@ -69,6 +69,7 @@ export interface BookingRecord {
   customerGst?: string;
   gstCompanyName?: string;
   status: 'confirmed' | 'completed' | 'cancelled';
+  supabaseStatus?: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled' | string;
   createdAt: string;
   updatedAt?: string;
   notes?: string;

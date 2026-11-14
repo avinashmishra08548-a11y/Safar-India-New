@@ -1,18 +1,5 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  runTransaction,
-  query,
-  where,
-  orderBy,
-  limit,
-  onSnapshot
-} from 'firebase/firestore';
-import { db, defaultDb, handleFirestoreError, OperationType } from './firebase';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from './supabase';
 import { BookingRecord, PaymentAuditLogRecord } from '../types';
 
 const COUNTER_STORAGE_KEY = 'safar_sic26_confirmed_seq_v2';
@@ -21,12 +8,30 @@ const PAYMENT_LOGS_STORAGE_KEY = 'safar_payment_audit_logs_v1';
 const SERIES_YEAR_CODE = '26';
 const SERIES_PREFIX = `SIC${SERIES_YEAR_CODE}`; // 'SIC26'
 
-// Optional Supabase client when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are configured
-const supabaseUrl = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_SUPABASE_ANON_KEY || '';
+export const supabaseClient: SupabaseClient = supabase;
 
-export const supabaseClient: SupabaseClient | null =
-  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+export interface SupabaseBookingRow {
+  id?: string;
+  booking_id: string;
+  customer_name: string;
+  customer_phone: string;
+  pickup_location: string;
+  drop_location: string;
+  trip_type: string;
+  vehicle_type: string;
+  trip_date: string;
+  trip_time: string;
+  total_fare: number;
+  advance_paid: number;
+  remaining_balance: number;
+  toll_charges: number;
+  state_tax: number;
+  driver_name: string | null;
+  driver_phone: string | null;
+  vehicle_number: string | null;
+  status: string;
+  created_at: string;
+}
 
 /**
  * Normalizes any user-entered Booking ID query into canonical uppercase format (e.g. "sic-2604" or "2604" -> "SIC2604")
@@ -40,7 +45,6 @@ export function normalizeBookingIdInput(rawInput: string): string {
   if (cleaned.startsWith('SIC')) {
     return cleaned;
   }
-  // If user typed just digits like "2604" or "04"
   if (/^\d{4,6}$/.test(cleaned) && cleaned.startsWith('26')) {
     return `SIC${cleaned}`;
   }
@@ -124,7 +128,7 @@ export function peekNextSequentialBookingId(bookingsList?: BookingRecord[]): str
 
 /**
  * Reserves the next unique sequential Booking ID (e.g., SIC2605, SIC2606)
- * by atomically checking/incrementing Firestore `booking_counters/sic_26_series`
+ * by checking the highest `booking_id` in Supabase `bookings` table
  * with a fast 2.5s timeout fallback so checkout never hangs if offline.
  */
 export async function generateNextSequentialBookingId(
@@ -133,23 +137,29 @@ export async function generateNextSequentialBookingId(
   const localBaseline = getHighestKnownSequence(bookingsList);
 
   try {
-    const counterRef = doc(db, 'booking_counters', 'sic_26_series');
-    const firestorePromise = runTransaction(db, async (transaction) => {
-      const snap = await transaction.get(counterRef);
-      const currentRemote = snap.exists() ? Number(snap.data()?.currentSequence || 4) : 4;
-      const nextSeq = Math.max(localBaseline, currentRemote) + 1;
-      const nextId = formatSequentialBookingId(nextSeq);
-      transaction.set(counterRef, {
-        seriesPrefix: SERIES_PREFIX,
-        currentSequence: nextSeq,
-        lastBookingId: nextId,
-        updatedAt: new Date().toISOString()
-      });
-      return { nextSeq, nextId };
-    });
+    const supabasePromise = (async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('booking_id')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error || !Array.isArray(data)) return null;
+      let highestRemote = localBaseline;
+      for (const row of data) {
+        const seq = parseSequentialNumberFromBookingId(String(row?.booking_id || ''));
+        if (seq > highestRemote) {
+          highestRemote = seq;
+        }
+      }
+      const nextSeq = highestRemote + 1;
+      return {
+        nextSeq,
+        nextId: formatSequentialBookingId(nextSeq)
+      };
+    })();
 
     const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
-    const result = await Promise.race([firestorePromise, timeoutPromise]);
+    const result = await Promise.race([supabasePromise, timeoutPromise]);
 
     if (result && result.nextId) {
       try {
@@ -167,340 +177,389 @@ export async function generateNextSequentialBookingId(
 }
 
 /**
- * Builds uppercase search tokens for fast Firestore search by Booking ID, phone, customer name, or route cities
+ * Infers cabId from vehicle_type string when hydrating a Supabase row
  */
-function buildSearchKeywords(booking: BookingRecord, cleanId: string, cleanPhone: string): string[] {
-  const tokenSet = new Set<string>();
-  tokenSet.add(cleanId);
-  const numericSuffix = cleanId.replace(/^SIC/i, '');
-  if (numericSuffix) tokenSet.add(numericSuffix);
-  const seq = parseSequentialNumberFromBookingId(cleanId);
-  if (seq > 0) {
-    tokenSet.add(String(seq));
-    tokenSet.add(`26${String(seq).padStart(2, '0')}`);
+function inferCabIdFromVehicleType(vehicleType: string): BookingRecord['cabId'] {
+  const lower = String(vehicleType || '').toLowerCase();
+  if (lower.includes('hatchback') || lower.includes('wagonr') || lower.includes('tiago')) {
+    return 'hatchback';
   }
-  if (cleanPhone) {
-    tokenSet.add(cleanPhone);
+  if (lower.includes('prime') || lower.includes('executive') || lower.includes('city') || lower.includes('ciaz')) {
+    return 'exec_sedan';
   }
-  const addWords = (text?: string) => {
-    if (!text) return;
-    const upper = String(text).toUpperCase().trim();
-    if (upper.length >= 2 && upper.length <= 40) {
-      tokenSet.add(upper);
-    }
-    upper
-      .split(/[\s,/-]+/)
-      .map((w) => w.replace(/[^A-Z0-9]/g, ''))
-      .filter((w) => w.length >= 2)
-      .slice(0, 8)
-      .forEach((w) => tokenSet.add(w));
-  };
-
-  addWords(booking.customerName);
-  addWords(booking.pickupCity);
-  addWords(booking.dropCity);
-  if (booking.driverPhone) {
-    tokenSet.add(String(booking.driverPhone).replace(/\D/g, '').slice(-10));
+  if (lower.includes('crysta') || lower.includes('innova')) {
+    return 'innova';
   }
-
-  return Array.from(tokenSet).filter(Boolean).slice(0, 35);
+  if (lower.includes('ertiga') || lower.includes('suv') || lower.includes('carens')) {
+    return 'suv';
+  }
+  if (lower.includes('tempo') || lower.includes('traveller')) {
+    return 'tempo';
+  }
+  return 'sedan';
 }
 
-function validateIndianLatLng(
-  coords?: { lat: number; lng: number } | null
-): { lat: number; lng: number } | undefined {
-  if (!coords || typeof coords !== 'object') return undefined;
-  const lat = Number(coords.lat);
-  const lng = Number(coords.lng);
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng) ||
-    lat < 6.0 ||
-    lat > 38.5 ||
-    lng < 67.0 ||
-    lng > 98.5
+/**
+ * Converts a BookingRecord into the exact Supabase `bookings` table payload requested:
+ * `booking_id`, `customer_name`, `customer_phone`, `pickup_location`, `drop_location`,
+ * `trip_type`, `vehicle_type`, `trip_date`, `trip_time`, `total_fare`, `advance_paid`,
+ * `remaining_balance`, `toll_charges`, `state_tax`, `driver_name`, `driver_phone`,
+ * `vehicle_number`, `status`, and `created_at`.
+ */
+export function mapBookingToSupabaseRow(booking: BookingRecord): SupabaseBookingRow {
+  const cleanId =
+    normalizeBookingIdInput(booking.id) ||
+    formatSequentialBookingId(getHighestKnownSequence() + 1);
+  const cleanPhone =
+    String(booking.customerPhone || '')
+      .replace(/\D/g, '')
+      .slice(-10) || '7710080992';
+
+  const pickupLocation = String(booking.pickupAddress || booking.pickupCity || 'Delhi NCR').trim();
+  const dropLocation = String(
+    booking.dropAddress || booking.dropCity || booking.pickupCity || 'Destination'
+  ).trim();
+  const vehicleType = String(booking.cabName || 'Sedan AC (Dzire / Etios)').trim();
+
+  const totalFare = Math.max(0, Math.round(Number(booking.totalFare) || 0));
+  const advancePaid = Math.max(0, Math.round(Number(booking.advancePaid) || 0));
+  const remainingBalance =
+    booking.status === 'completed'
+      ? 0
+      : Math.max(
+          0,
+          Math.round(
+            Number(booking.balanceDue ?? Math.max(0, totalFare - advancePaid))
+          )
+        );
+
+  const tollCharges = Math.max(
+    0,
+    Math.round(Number(booking.highwayToll || 0) + Number(booking.extraTollCharges || 0))
+  );
+  const stateTax = Math.max(0, Math.round(Number(booking.statePermitTax || 0)));
+
+  // Determine canonical Supabase status ('Pending' by default on new booking, 'Confirmed' if driver allotted, 'Completed' when completed, 'Cancelled' when cancelled)
+  let supabaseStatus = 'Pending';
+  if (booking.status === 'completed' || String(booking.supabaseStatus).toLowerCase() === 'completed') {
+    supabaseStatus = 'Completed';
+  } else if (booking.status === 'cancelled' || String(booking.supabaseStatus).toLowerCase() === 'cancelled') {
+    supabaseStatus = 'Cancelled';
+  } else if (
+    booking.driverName ||
+    String(booking.supabaseStatus).toLowerCase() === 'confirmed'
   ) {
-    return undefined;
+    supabaseStatus = 'Confirmed';
   }
+
   return {
-    lat: Number(lat.toFixed(6)),
-    lng: Number(lng.toFixed(6))
+    booking_id: cleanId,
+    customer_name: String(booking.customerName || 'Verified Passenger').trim(),
+    customer_phone: cleanPhone,
+    pickup_location: pickupLocation,
+    drop_location: dropLocation,
+    trip_type: String(booking.tripType || 'oneway'),
+    vehicle_type: vehicleType,
+    trip_date: String(booking.pickupDate || new Date().toISOString().slice(0, 10)),
+    trip_time: String(booking.pickupTime || '08:00 AM'),
+    total_fare: totalFare,
+    advance_paid: advancePaid,
+    remaining_balance: remainingBalance,
+    toll_charges: tollCharges,
+    state_tax: stateTax,
+    driver_name: booking.driverName ? String(booking.driverName).trim() : null,
+    driver_phone: booking.driverPhone
+      ? String(booking.driverPhone).replace(/\D/g, '').slice(-10)
+      : null,
+    vehicle_number: booking.driverVehicleNo
+      ? String(booking.driverVehicleNo).trim().toUpperCase()
+      : null,
+    status: supabaseStatus,
+    created_at: booking.createdAt || new Date().toISOString()
   };
 }
 
 /**
- * Recursively strips `undefined` values and converts any nested arrays into Firestore-safe objects
- * so `setDoc()` NEVER throws "Nested arrays are not supported" or "Unsupported field value: undefined".
- */
-function deepCleanFirestoreValue(val: unknown): unknown {
-  if (val === undefined) return undefined;
-  if (val === null) return null;
-  if (typeof val === 'number') {
-    return Number.isFinite(val) ? val : 0;
-  }
-  if (typeof val === 'string' || typeof val === 'boolean') {
-    return val;
-  }
-  if (Array.isArray(val)) {
-    const cleanedArr: unknown[] = [];
-    for (const item of val) {
-      if (item === undefined) continue;
-      if (Array.isArray(item)) {
-        // Convert [lat, lng] pair into Firestore-safe map { lat, lng }
-        if (
-          item.length >= 2 &&
-          Number.isFinite(Number(item[0])) &&
-          Number.isFinite(Number(item[1]))
-        ) {
-          cleanedArr.push({
-            lat: Number(Number(item[0]).toFixed(5)),
-            lng: Number(Number(item[1]).toFixed(5))
-          });
-        }
-      } else {
-        const cleanedItem = deepCleanFirestoreValue(item);
-        if (cleanedItem !== undefined) {
-          cleanedArr.push(cleanedItem);
-        }
-      }
-    }
-    return cleanedArr;
-  }
-  if (typeof val === 'object') {
-    const cleanedObj: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      if (v === undefined) continue;
-      const cleanedVal = deepCleanFirestoreValue(v);
-      if (cleanedVal !== undefined) {
-        cleanedObj[k] = cleanedVal;
-      }
-    }
-    return cleanedObj;
-  }
-  return undefined;
-}
-
-/**
- * Sanitizes a BookingRecord for Firestore (removes undefined fields, converts nested arrays to object arrays,
- * and adds standard aliases for cross-panel compatibility).
- */
-export function sanitizeBookingForFirestore(booking: BookingRecord): Record<string, unknown> {
-  const cleanId = normalizeBookingIdInput(booking.id) || formatSequentialBookingId(getHighestKnownSequence() + 1);
-  const sequenceNumber = parseSequentialNumberFromBookingId(cleanId) || booking.sequenceNumber || 1;
-  const cleanPhone = String(booking.customerPhone || '').replace(/\D/g, '').slice(-10) || '7710080992';
-  const validTripType = ['oneway', 'roundtrip', 'local', 'airport'].includes(booking.tripType)
-    ? booking.tripType
-    : 'oneway';
-  const validStatus = ['confirmed', 'completed', 'cancelled'].includes(booking.status)
-    ? booking.status
-    : 'confirmed';
-
-  const searchKeywords = buildSearchKeywords(booking, cleanId, cleanPhone);
-  const nowIso = new Date().toISOString();
-
-  const validPickupCoords = validateIndianLatLng(booking.pickupCoords);
-  const validDropCoords = validateIndianLatLng(booking.dropCoords);
-
-  // Convert nested array routeGeometry [[lat, lng]] into Firestore-supported object array [{ lat, lng }]
-  const routeGeometryPoints = Array.isArray(booking.routeGeometry)
-    ? booking.routeGeometry
-        .filter(
-          (pt) =>
-            Array.isArray(pt) &&
-            pt.length >= 2 &&
-            Number.isFinite(Number(pt[0])) &&
-            Number.isFinite(Number(pt[1])) &&
-            Number(pt[0]) >= 6.0 &&
-            Number(pt[0]) <= 38.5 &&
-            Number(pt[1]) >= 67.0 &&
-            Number(pt[1]) <= 98.5
-        )
-        .slice(0, 40)
-        .map((pt) => ({
-          lat: Number(Number(pt[0]).toFixed(5)),
-          lng: Number(Number(pt[1]).toFixed(5))
-        }))
-    : undefined;
-
-  const pickupCityClean = String(booking.pickupCity || 'Delhi NCR').trim().slice(0, 115);
-  const dropCityClean = String(booking.dropCity || booking.pickupCity || 'Local / Destination').trim().slice(0, 115);
-  const cabNameClean = String(booking.cabName || 'Comfort Sedan AC (Maruti Dzire)').trim().slice(0, 115);
-  const totalFareNum = Math.max(0, Math.min(10000000, Math.round(Number(booking.totalFare) || 0)));
-  const advancePaidNum = Math.max(0, Math.round(Number(booking.advancePaid) || 0));
-  const balanceDueNum = Math.max(0, Math.round(Number(booking.balanceDue) || 0));
-  const createdAtIso = String(booking.createdAt || nowIso).trim().slice(0, 58);
-
-  const rawObj: Record<string, unknown> = {
-    ...booking,
-    id: cleanId.slice(0, 26),
-    bookingId: cleanId.slice(0, 26),
-    bookingReference: cleanId.slice(0, 26),
-    sequenceNumber,
-    searchKeywords,
-    tripType: validTripType,
-    pickupCity: pickupCityClean,
-    dropCity: dropCityClean,
-    from: pickupCityClean,
-    to: dropCityClean,
-    pickupAddress: booking.pickupAddress ? String(booking.pickupAddress).trim().slice(0, 240) : pickupCityClean,
-    dropAddress: booking.dropAddress ? String(booking.dropAddress).trim().slice(0, 240) : dropCityClean,
-    pickupDate: String(booking.pickupDate || nowIso.slice(0, 10)).trim().slice(0, 36),
-    pickupTime: String(booking.pickupTime || '08:00 AM').trim().slice(0, 36),
-    cabId: String(booking.cabId || 'sedan').trim().slice(0, 38),
-    cabName: cabNameClean,
-    vehicleType: cabNameClean,
-    distanceKm: Math.max(0, Math.min(50000, Number(booking.distanceKm) || 0)),
-    baseFare: Math.max(0, Math.min(10000000, Math.round(Number(booking.baseFare) || 0))),
-    driverAllowance: Math.max(0, Math.round(Number(booking.driverAllowance) || 0)),
-    tollsAndTaxes: Math.max(0, Math.round(Number(booking.tollsAndTaxes) || 0)),
-    highwayToll: booking.highwayToll !== undefined ? Math.max(0, Math.round(Number(booking.highwayToll) || 0)) : 0,
-    statePermitTax: booking.statePermitTax !== undefined ? Math.max(0, Math.round(Number(booking.statePermitTax) || 0)) : 0,
-    parkingCharge: booking.parkingCharge !== undefined ? Math.max(0, Math.round(Number(booking.parkingCharge) || 0)) : 0,
-    hillStationCharge: booking.hillStationCharge !== undefined ? Math.max(0, Math.round(Number(booking.hillStationCharge) || 0)) : 0,
-    nightCharge: booking.nightCharge !== undefined ? Math.max(0, Math.round(Number(booking.nightCharge) || 0)) : 0,
-    actualOdometerKm: booking.actualOdometerKm !== undefined ? Math.max(0, Math.round(Number(booking.actualOdometerKm) || 0)) : undefined,
-    extraKmDriven: booking.extraKmDriven !== undefined ? Math.max(0, Math.round(Number(booking.extraKmDriven) || 0)) : undefined,
-    extraKmCharge: booking.extraKmCharge !== undefined ? Math.max(0, Math.round(Number(booking.extraKmCharge) || 0)) : undefined,
-    extraTollCharges: booking.extraTollCharges !== undefined ? Math.max(0, Math.round(Number(booking.extraTollCharges) || 0)) : undefined,
-    otherSurcharges: booking.otherSurcharges !== undefined ? Math.max(0, Math.round(Number(booking.otherSurcharges) || 0)) : undefined,
-    completedAt: booking.completedAt ? String(booking.completedAt).trim().slice(0, 58) : undefined,
-    gstAmount: Math.max(0, Math.round(Number(booking.gstAmount) || 0)),
-    totalFare: totalFareNum,
-    advancePaid: advancePaidNum,
-    balanceDue: balanceDueNum,
-    remainingBalance: balanceDueNum,
-    customerName: String(booking.customerName || 'Verified Passenger').trim().slice(0, 115),
-    customerPhone: cleanPhone,
-    customerMobile: cleanPhone,
-    status: validStatus,
-    pickupCoords: validPickupCoords,
-    dropCoords: validDropCoords,
-    routeGeometryPoints,
-    createdAt: createdAtIso,
-    timestamp: Date.parse(createdAtIso) || Date.now(),
-    updatedAt: nowIso
-  };
-
-  // Remove nested array `routeGeometry` so Firestore setDoc never fails
-  delete rawObj.routeGeometry;
-
-  return (deepCleanFirestoreValue(rawObj) as Record<string, unknown>) || {};
-}
-
-/**
- * Normalizes a raw Firestore document (or API object) back into a clean BookingRecord
+ * Normalizes a Supabase `bookings` row (or legacy API/localStorage object) into a complete BookingRecord
  */
 export function normalizeFirestoreDocToBooking(
   rawData: Record<string, any> | undefined | null,
-  fallbackDocId?: string
+  fallbackDocId?: string,
+  existingLocal?: BookingRecord | null
 ): BookingRecord | null {
   if (!rawData || typeof rawData !== 'object') return null;
-  const rawId = String(rawData.id || rawData.bookingId || rawData.bookingReference || fallbackDocId || '').trim();
+
+  // Support both Supabase snake_case (`booking_id`) and camelCase (`id`, `bookingId`)
+  const rawId = String(
+    rawData.booking_id ||
+      rawData.bookingId ||
+      rawData.bookingReference ||
+      // Only use rawData.id if it's not a UUID (or if booking_id is absent and rawData.id starts with SIC)
+      (typeof rawData.id === 'string' && !rawData.id.includes('-') ? rawData.id : '') ||
+      (typeof rawData.id === 'string' && rawData.id.toUpperCase().startsWith('SIC') ? rawData.id : '') ||
+      fallbackDocId ||
+      ''
+  ).trim();
+
   if (!rawId || rawId.includes('DEMO') || rawId.includes('TEST')) return null;
 
   const cleanId = normalizeBookingIdInput(rawId) || rawId;
-
-  // Convert Firestore Timestamp or numeric timestamp to ISO string if needed
-  const resolveIso = (val: any, fallback: string): string => {
-    if (!val) return fallback;
-    if (typeof val === 'string') return val;
-    if (typeof val?.toDate === 'function') {
-      try {
-        return val.toDate().toISOString();
-      } catch {
-        return fallback;
-      }
-    }
-    if (typeof val?.seconds === 'number') {
-      return new Date(val.seconds * 1000).toISOString();
-    }
-    if (typeof val === 'number') {
-      return new Date(val).toISOString();
-    }
-    return fallback;
-  };
-
   const nowIso = new Date().toISOString();
-  const createdAt = resolveIso(rawData.createdAt || rawData.timestamp, nowIso);
-  const updatedAt = rawData.updatedAt ? resolveIso(rawData.updatedAt, createdAt) : undefined;
-  const completedAt = rawData.completedAt ? resolveIso(rawData.completedAt, createdAt) : undefined;
+  const createdAt = String(rawData.created_at || rawData.createdAt || existingLocal?.createdAt || nowIso);
 
-  const rawStatus = String(rawData.status || 'confirmed').toLowerCase();
+  const rawStatusStr = String(rawData.status || existingLocal?.supabaseStatus || existingLocal?.status || 'Pending').trim();
+  const rawStatusLower = rawStatusStr.toLowerCase();
+
   const status: 'confirmed' | 'completed' | 'cancelled' =
-    rawStatus === 'completed'
+    rawStatusLower === 'completed'
       ? 'completed'
-      : rawStatus === 'cancelled'
+      : rawStatusLower === 'cancelled'
       ? 'cancelled'
       : 'confirmed';
 
-  // Reconstruct routeGeometry from routeGeometryPoints if present
-  let routeGeometry: Array<[number, number]> | undefined = undefined;
-  if (Array.isArray(rawData.routeGeometry)) {
-    routeGeometry = rawData.routeGeometry.filter(
-      (pt: any) => Array.isArray(pt) && pt.length >= 2
-    );
-  } else if (Array.isArray(rawData.routeGeometryPoints)) {
-    routeGeometry = rawData.routeGeometryPoints
-      .filter((pt: any) => pt && typeof pt.lat === 'number' && typeof pt.lng === 'number')
-      .map((pt: any) => [Number(pt.lat), Number(pt.lng)] as [number, number]);
-  }
+  const supabaseStatus: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled' =
+    rawStatusLower === 'completed'
+      ? 'Completed'
+      : rawStatusLower === 'cancelled'
+      ? 'Cancelled'
+      : rawStatusLower === 'confirmed'
+      ? 'Confirmed'
+      : 'Pending';
 
-  const totalFare = Math.max(0, Math.round(Number(rawData.totalFare ?? rawData.fare ?? rawData.amount ?? 0)));
-  const advancePaid = Math.max(0, Math.round(Number(rawData.advancePaid ?? rawData.advanceAmount ?? 0)));
-  const balanceDue = Math.max(
+  const totalFare = Math.max(
+    0,
+    Math.round(Number(rawData.total_fare ?? rawData.totalFare ?? existingLocal?.totalFare ?? 0))
+  );
+  const advancePaid = Math.max(
+    0,
+    Math.round(Number(rawData.advance_paid ?? rawData.advancePaid ?? existingLocal?.advancePaid ?? 0))
+  );
+  const balanceDue =
+    status === 'completed'
+      ? 0
+      : Math.max(
+          0,
+          Math.round(
+            Number(
+              rawData.remaining_balance ??
+                rawData.balance_due ??
+                rawData.balanceDue ??
+                existingLocal?.balanceDue ??
+                Math.max(0, totalFare - advancePaid)
+            )
+          )
+        );
+
+  const highwayToll = Math.max(
     0,
     Math.round(
       Number(
-        rawData.balanceDue ??
-          rawData.remainingBalance ??
-          (status === 'completed' ? 0 : Math.max(0, totalFare - advancePaid))
+        rawData.toll_charges ??
+          rawData.highwayToll ??
+          existingLocal?.highwayToll ??
+          0
+      )
+    )
+  );
+  const statePermitTax = Math.max(
+    0,
+    Math.round(
+      Number(
+        rawData.state_tax ??
+          rawData.statePermitTax ??
+          existingLocal?.statePermitTax ??
+          0
+      )
+    )
+  );
+  const tollsAndTaxes =
+    highwayToll + statePermitTax > 0
+      ? highwayToll + statePermitTax
+      : Math.max(0, Math.round(Number(rawData.tolls_and_taxes ?? rawData.tollsAndTaxes ?? existingLocal?.tollsAndTaxes ?? 0)));
+
+  const pickupLocation = String(
+    rawData.pickup_location ||
+      rawData.pickupCity ||
+      rawData.pickup_city ||
+      existingLocal?.pickupCity ||
+      'Delhi NCR'
+  );
+  const dropLocation = String(
+    rawData.drop_location ||
+      rawData.dropCity ||
+      rawData.drop_city ||
+      existingLocal?.dropCity ||
+      'Destination'
+  );
+  const vehicleType = String(
+    rawData.vehicle_type ||
+      rawData.cabName ||
+      rawData.cab_name ||
+      existingLocal?.cabName ||
+      'Sedan AC (Maruti Dzire)'
+  );
+  const cabId = (rawData.cabId ||
+    rawData.cab_id ||
+    existingLocal?.cabId ||
+    inferCabIdFromVehicleType(vehicleType)) as BookingRecord['cabId'];
+
+  const tripDays = Math.max(1, Number(rawData.tripDays ?? existingLocal?.tripDays ?? 1));
+  const driverAllowance = Math.max(
+    0,
+    Math.round(
+      Number(
+        rawData.driver_allowance ??
+          rawData.driverAllowance ??
+          existingLocal?.driverAllowance ??
+          260 * tripDays
+      )
+    )
+  );
+  const gstAmount = Math.max(
+    0,
+    Math.round(
+      Number(
+        rawData.gst_amount ??
+          rawData.gstAmount ??
+          existingLocal?.gstAmount ??
+          Math.round((totalFare - tollsAndTaxes) * (5 / 105))
+      )
+    )
+  );
+  const baseFare = Math.max(
+    0,
+    Math.round(
+      Number(
+        rawData.base_fare ??
+          rawData.baseFare ??
+          existingLocal?.baseFare ??
+          Math.max(0, totalFare - gstAmount - driverAllowance - tollsAndTaxes)
       )
     )
   );
 
+  const driverName =
+    rawData.driver_name !== undefined
+      ? rawData.driver_name || undefined
+      : rawData.driverName || existingLocal?.driverName || undefined;
+  const driverPhone =
+    rawData.driver_phone !== undefined
+      ? rawData.driver_phone || undefined
+      : rawData.driverPhone || existingLocal?.driverPhone || undefined;
+  const driverVehicleNo =
+    rawData.vehicle_number !== undefined
+      ? rawData.vehicle_number || undefined
+      : rawData.driver_vehicle_no ||
+        rawData.driverVehicleNo ||
+        existingLocal?.driverVehicleNo ||
+        undefined;
+  const driverVehicleModel =
+    rawData.driver_vehicle_model ||
+    rawData.driverVehicleModel ||
+    existingLocal?.driverVehicleModel ||
+    (driverName ? vehicleType : undefined);
+
+  const rawTripType = String(
+    rawData.trip_type || rawData.tripType || existingLocal?.tripType || 'oneway'
+  ).toLowerCase();
+  const tripType: BookingRecord['tripType'] = ['oneway', 'roundtrip', 'local', 'airport'].includes(rawTripType)
+    ? (rawTripType as BookingRecord['tripType'])
+    : 'oneway';
+
   return {
-    ...(rawData as unknown as BookingRecord),
+    ...(existingLocal || {}),
+    ...(rawData as unknown as Partial<BookingRecord>),
     id: cleanId,
     bookingId: cleanId,
     bookingReference: cleanId,
-    tripType: ['oneway', 'roundtrip', 'local', 'airport'].includes(rawData.tripType)
-      ? rawData.tripType
-      : 'oneway',
-    pickupCity: String(rawData.pickupCity || rawData.from || rawData.pickup || 'Delhi NCR'),
-    dropCity: String(rawData.dropCity || rawData.to || rawData.drop || rawData.pickupCity || 'Destination'),
-    pickupAddress: rawData.pickupAddress || rawData.pickupCity || '',
-    dropAddress: rawData.dropAddress || rawData.dropCity || '',
-    pickupDate: String(rawData.pickupDate || createdAt.slice(0, 10)),
-    pickupTime: String(rawData.pickupTime || '08:00 AM'),
-    cabId: String(rawData.cabId || 'sedan') as BookingRecord['cabId'],
-    cabName: String(rawData.cabName || rawData.vehicleType || 'Sedan AC'),
-    distanceKm: Math.max(0, Number(rawData.distanceKm) || 0),
-    baseFare: Math.max(0, Math.round(Number(rawData.baseFare) || 0)),
-    driverAllowance: Math.max(0, Math.round(Number(rawData.driverAllowance) || 0)),
-    tollsAndTaxes: Math.max(0, Math.round(Number(rawData.tollsAndTaxes) || 0)),
-    highwayToll: rawData.highwayToll !== undefined ? Number(rawData.highwayToll) : undefined,
-    statePermitTax: rawData.statePermitTax !== undefined ? Number(rawData.statePermitTax) : undefined,
-    parkingCharge: rawData.parkingCharge !== undefined ? Number(rawData.parkingCharge) : undefined,
-    hillStationCharge: rawData.hillStationCharge !== undefined ? Number(rawData.hillStationCharge) : undefined,
-    gstAmount: Math.max(0, Math.round(Number(rawData.gstAmount) || 0)),
+    tripType,
+    tripDays,
+    pickupCity: existingLocal?.pickupCity || pickupLocation,
+    dropCity: existingLocal?.dropCity || dropLocation,
+    pickupAddress: rawData.pickupAddress || rawData.pickup_location || existingLocal?.pickupAddress || pickupLocation,
+    dropAddress: rawData.dropAddress || rawData.drop_location || existingLocal?.dropAddress || dropLocation,
+    pickupDate: String(
+      rawData.trip_date || rawData.pickup_date || rawData.pickupDate || existingLocal?.pickupDate || createdAt.slice(0, 10)
+    ),
+    pickupTime: String(
+      rawData.trip_time || rawData.pickup_time || rawData.pickupTime || existingLocal?.pickupTime || '08:00 AM'
+    ),
+    cabId,
+    cabName: vehicleType,
+    distanceKm: Math.max(
+      1,
+      Number(rawData.distance_km ?? rawData.distanceKm ?? existingLocal?.distanceKm ?? 230)
+    ),
+    baseFare,
+    driverAllowance,
+    tollsAndTaxes,
+    highwayToll,
+    statePermitTax,
+    parkingCharge: Number(rawData.parkingCharge ?? existingLocal?.parkingCharge ?? 0),
+    hillStationCharge: Number(rawData.hillStationCharge ?? existingLocal?.hillStationCharge ?? 0),
+    gstAmount,
     totalFare,
-    advancePaid,
+    advancePaid: status === 'completed' ? totalFare : advancePaid,
     balanceDue,
-    paymentMode: rawData.paymentMode || (balanceDue === 0 ? 'full' : 'advance_20'),
-    paymentMethod: String(rawData.paymentMethod || 'Razorpay Verified'),
-    transactionId: String(rawData.transactionId || ''),
-    customerName: String(rawData.customerName || 'Verified Passenger'),
-    customerPhone: String(rawData.customerPhone || rawData.customerMobile || rawData.phone || '').replace(/\D/g, '').slice(-10) || '7710080992',
+    paymentMode:
+      rawData.paymentMode ||
+      rawData.payment_mode ||
+      existingLocal?.paymentMode ||
+      (balanceDue === 0 ? 'full' : 'advance_20'),
+    paymentMethod: String(
+      rawData.paymentMethod ||
+        rawData.payment_method ||
+        existingLocal?.paymentMethod ||
+        'Razorpay Verified'
+    ),
+    transactionId: String(
+      rawData.transactionId || rawData.transaction_id || existingLocal?.transactionId || ''
+    ),
+    customerName: String(
+      rawData.customer_name || rawData.customerName || existingLocal?.customerName || 'Verified Passenger'
+    ),
+    customerPhone:
+      String(
+        rawData.customer_phone ||
+          rawData.customerPhone ||
+          rawData.customerMobile ||
+          existingLocal?.customerPhone ||
+          ''
+      )
+        .replace(/\D/g, '')
+        .slice(-10) || '7710080992',
     status,
-    driverName: rawData.driverName || rawData.driver?.name || undefined,
-    driverPhone: rawData.driverPhone || rawData.driver?.phone || undefined,
-    driverVehicleModel: rawData.driverVehicleModel || rawData.driver?.vehicleModel || undefined,
-    driverVehicleNo: rawData.driverVehicleNo || rawData.driver?.vehicleNo || rawData.vehicleNumber || undefined,
-    routeGeometry,
+    supabaseStatus,
+    driverName,
+    driverPhone,
+    driverVehicleModel,
+    driverVehicleNo,
     createdAt,
-    updatedAt,
-    completedAt
+    updatedAt: rawData.updatedAt || existingLocal?.updatedAt || new Date().toISOString(),
+    completedAt:
+      status === 'completed'
+        ? rawData.completedAt || existingLocal?.completedAt || new Date().toISOString()
+        : undefined
   };
+}
+
+function getLocalBookingsMap(): Map<string, BookingRecord> {
+  const map = new Map<string, BookingRecord>();
+  try {
+    const raw = localStorage.getItem(BOOKINGS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item && item.id) {
+            const cleanId = normalizeBookingIdInput(item.id) || item.id;
+            map.set(cleanId, item);
+          }
+        }
+      }
+    }
+  } catch {}
+  return map;
 }
 
 function sortBookingsNewestFirst(list: BookingRecord[]): BookingRecord[] {
@@ -541,8 +600,8 @@ export function upsertBookingInLocalStorage(booking: BookingRecord): void {
 }
 
 /**
- * Saves or updates a BookingRecord in Firebase Firestore (`bookings/{id}`),
- * local storage, backend API (`/api/bookings`), and Supabase (`bookings` table, if configured).
+ * Saves or updates a BookingRecord in Supabase (`bookings` table),
+ * local storage, and backend API (`/api/bookings`).
  */
 export async function saveBookingToCloudDatabase(booking: BookingRecord): Promise<void> {
   if (!booking || !booking.id) return;
@@ -566,35 +625,34 @@ export async function saveBookingToCloudDatabase(booking: BookingRecord): Promis
         localStorage.setItem(COUNTER_STORAGE_KEY, String(seq));
       }
     } catch {}
-
-    // Update Firestore counter best-effort
-    try {
-      const counterRef = doc(db, 'booking_counters', 'sic_26_series');
-      await runTransaction(db, async (transaction) => {
-        const snap = await transaction.get(counterRef);
-        const currentRemote = snap.exists() ? Number(snap.data()?.currentSequence || 4) : 4;
-        const resolvedSeq = Math.max(seq, currentRemote);
-        transaction.set(counterRef, {
-          seriesPrefix: SERIES_PREFIX,
-          currentSequence: resolvedSeq,
-          lastBookingId: formatSequentialBookingId(resolvedSeq),
-          updatedAt: new Date().toISOString()
-        });
-      });
-    } catch {}
   }
 
-  // 1. Persist to Firebase Firestore immediately (both named db and defaultDb if present)
-  const docPath = `bookings/${cleanId}`;
-  const cleanData = sanitizeBookingForFirestore(normalizedBooking);
+  // 1. Persist to Supabase `bookings` table
+  const supabasePayload = mapBookingToSupabaseRow(normalizedBooking);
   try {
-    await setDoc(doc(db, 'bookings', cleanId), cleanData, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, docPath);
-  }
+    const { error: upsertErr } = await supabase
+      .from('bookings')
+      .upsert(supabasePayload, { onConflict: 'booking_id' });
 
-  if (defaultDb) {
-    setDoc(doc(defaultDb, 'bookings', cleanId), cleanData, { merge: true }).catch(() => {});
+    if (upsertErr) {
+      // Fallback: check if record exists by booking_id, then update or insert
+      const { data: existingRows } = await supabase
+        .from('bookings')
+        .select('booking_id')
+        .eq('booking_id', cleanId)
+        .limit(1);
+
+      if (Array.isArray(existingRows) && existingRows.length > 0) {
+        await supabase
+          .from('bookings')
+          .update(supabasePayload)
+          .eq('booking_id', cleanId);
+      } else {
+        await supabase.from('bookings').insert([supabasePayload]);
+      }
+    }
+  } catch (err) {
+    console.warn('Supabase booking persistence notice:', err);
   }
 
   // 2. Sync with backend /api/bookings best-effort
@@ -605,64 +663,11 @@ export async function saveBookingToCloudDatabase(booking: BookingRecord): Promis
       body: JSON.stringify({ booking: normalizedBooking })
     }).catch(() => {});
   } catch {}
-
-  // 3. Persist to Supabase `bookings` table if configured
-  if (supabaseClient) {
-    try {
-      await supabaseClient.from('bookings').upsert(
-        {
-          id: cleanId,
-          sequence_number: seq || null,
-          trip_type: normalizedBooking.tripType,
-          pickup_city: normalizedBooking.pickupCity,
-          drop_city: normalizedBooking.dropCity,
-          pickup_address: normalizedBooking.pickupAddress || null,
-          drop_address: normalizedBooking.dropAddress || null,
-          pickup_coords: normalizedBooking.pickupCoords || null,
-          drop_coords: normalizedBooking.dropCoords || null,
-          route_provider: normalizedBooking.routeProvider || null,
-          route_summary: normalizedBooking.routeSummary || null,
-          route_duration_text: normalizedBooking.routeDurationText || null,
-          route_geometry: Array.isArray(normalizedBooking.routeGeometry)
-            ? normalizedBooking.routeGeometry.slice(0, 40)
-            : null,
-          fare_snapshot: normalizedBooking.fareSnapshot || null,
-          pickup_date: normalizedBooking.pickupDate,
-          pickup_time: normalizedBooking.pickupTime,
-          cab_id: normalizedBooking.cabId,
-          cab_name: normalizedBooking.cabName,
-          distance_km: normalizedBooking.distanceKm,
-          base_fare: normalizedBooking.baseFare,
-          driver_allowance: normalizedBooking.driverAllowance,
-          tolls_and_taxes: normalizedBooking.tollsAndTaxes,
-          gst_amount: normalizedBooking.gstAmount,
-          total_fare: normalizedBooking.totalFare,
-          advance_paid: normalizedBooking.advancePaid,
-          balance_due: normalizedBooking.balanceDue,
-          payment_mode: normalizedBooking.paymentMode,
-          payment_method: normalizedBooking.paymentMethod,
-          transaction_id: normalizedBooking.transactionId || null,
-          customer_name: normalizedBooking.customerName,
-          customer_phone: normalizedBooking.customerPhone,
-          customer_email: normalizedBooking.customerEmail || null,
-          status: normalizedBooking.status,
-          driver_name: normalizedBooking.driverName || null,
-          driver_phone: normalizedBooking.driverPhone || null,
-          driver_vehicle_model: normalizedBooking.driverVehicleModel || null,
-          driver_vehicle_no: normalizedBooking.driverVehicleNo || null,
-          notes: normalizedBooking.notes || null,
-          created_at: normalizedBooking.createdAt
-        },
-        { onConflict: 'id' }
-      );
-    } catch (err) {
-      console.warn('Supabase upsert notice:', err);
-    }
-  }
 }
 
 /**
- * Updates driver assignment details and/or booking status in Firestore, backend API, and localStorage
+ * Updates driver assignment details, tolls/taxes, and/or booking status in Supabase `bookings`,
+ * backend API, and localStorage.
  */
 export async function updateBookingDriverAndStatusInCloud(
   bookingId: string,
@@ -670,32 +675,39 @@ export async function updateBookingDriverAndStatusInCloud(
   existingBooking?: BookingRecord
 ): Promise<BookingRecord | null> {
   const cleanId = normalizeBookingIdInput(bookingId) || bookingId;
-  let targetBooking: BookingRecord | null = existingBooking ? { ...existingBooking } : null;
+  const localMap = getLocalBookingsMap();
+  let targetBooking: BookingRecord | null = existingBooking
+    ? { ...existingBooking }
+    : localMap.get(cleanId) || null;
 
   if (!targetBooking) {
     try {
-      const snap = await getDoc(doc(db, 'bookings', cleanId));
-      if (snap.exists()) {
+      const { data } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('booking_id', cleanId)
+        .maybeSingle();
+      if (data) {
         targetBooking = normalizeFirestoreDocToBooking(
-          snap.data() as Record<string, any>,
-          snap.id
+          data as Record<string, any>,
+          cleanId,
+          localMap.get(cleanId)
         );
       }
     } catch {}
   }
 
-  if (!targetBooking) {
-    try {
-      const raw = localStorage.getItem(BOOKINGS_STORAGE_KEY);
-      if (raw) {
-        const list: BookingRecord[] = JSON.parse(raw);
-        const found = list.find((b) => normalizeBookingIdInput(b.id) === cleanId);
-        if (found) targetBooking = found;
-      }
-    } catch {}
-  }
-
   if (!targetBooking) return null;
+
+  const nextStatus = updates.status || targetBooking.status;
+  const nextSupabaseStatus =
+    nextStatus === 'completed'
+      ? 'Completed'
+      : nextStatus === 'cancelled'
+      ? 'Cancelled'
+      : updates.driverName || targetBooking.driverName
+      ? 'Confirmed'
+      : targetBooking.supabaseStatus || 'Pending';
 
   const merged: BookingRecord = {
     ...targetBooking,
@@ -703,6 +715,8 @@ export async function updateBookingDriverAndStatusInCloud(
     id: cleanId,
     bookingId: cleanId,
     bookingReference: cleanId,
+    status: nextStatus,
+    supabaseStatus: nextSupabaseStatus,
     updatedAt: new Date().toISOString()
   };
 
@@ -723,8 +737,8 @@ export async function updateBookingDriverAndStatusInCloud(
 }
 
 /**
- * Dedicated Admin & Customer Firestore Search:
- * Instantly searches Firestore by Booking ID (e.g. SIC2604), phone number, or customer name.
+ * Dedicated Admin & Customer Supabase Search:
+ * Instantly searches Supabase `bookings` table by Booking ID (e.g. SIC2604), phone number, or customer name.
  */
 export async function searchBookingInFirestore(searchQuery: string): Promise<BookingRecord[]> {
   const rawQuery = String(searchQuery || '').trim();
@@ -734,7 +748,7 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
 
   const normalizedId = normalizeBookingIdInput(rawQuery);
   const cleanDigits = rawQuery.replace(/\D/g, '');
-  const upperToken = rawQuery.toUpperCase().trim();
+  const localMap = getLocalBookingsMap();
   const matchedMap = new Map<string, BookingRecord>();
 
   const addRecord = (rec: BookingRecord | undefined | null) => {
@@ -748,74 +762,47 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
     });
   };
 
-  // 1. Direct O(1) Document lookup in Firestore `bookings/{normalizedId}`
+  // 1. Direct lookup in Supabase `bookings` by `booking_id`
   if (normalizedId.startsWith('SIC')) {
     try {
-      const directSnap = await getDoc(doc(db, 'bookings', normalizedId));
-      if (directSnap.exists()) {
-        addRecord(normalizeFirestoreDocToBooking(directSnap.data() as Record<string, any>, directSnap.id));
+      const { data } = await supabase
+        .from('bookings')
+        .select('*')
+        .ilike('booking_id', normalizedId)
+        .limit(10);
+      if (Array.isArray(data)) {
+        for (const row of data) {
+          const cleanRowId = normalizeBookingIdInput(row.booking_id);
+          addRecord(
+            normalizeFirestoreDocToBooking(row, cleanRowId, localMap.get(cleanRowId))
+          );
+        }
       }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `bookings/${normalizedId}`);
-    }
-
-    try {
-      const qByBookingId = query(
-        collection(db, 'bookings'),
-        where('bookingId', '==', normalizedId),
-        limit(10)
-      );
-      const snapByBookingId = await getDocs(qByBookingId);
-      snapByBookingId.forEach((d) =>
-        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
-      );
-    } catch {}
-
-    try {
-      const qById = query(
-        collection(db, 'bookings'),
-        where('id', '==', normalizedId),
-        limit(10)
-      );
-      const snapById = await getDocs(qById);
-      snapById.forEach((d) =>
-        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
-      );
     } catch {}
   }
 
-  // 2. Phone number lookup if 10-digit mobile entered
+  // 2. Phone number lookup in Supabase `bookings` if 10-digit mobile entered
   if (cleanDigits.length >= 10) {
     const phone10 = cleanDigits.slice(-10);
     try {
-      const qPhone = query(
-        collection(db, 'bookings'),
-        where('customerPhone', '==', phone10),
-        limit(25)
-      );
-      const snapPhone = await getDocs(qPhone);
-      snapPhone.forEach((d) =>
-        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
-      );
+      const { data } = await supabase
+        .from('bookings')
+        .select('*')
+        .ilike('customer_phone', `%${phone10}%`)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (Array.isArray(data)) {
+        for (const row of data) {
+          const cleanRowId = normalizeBookingIdInput(row.booking_id);
+          addRecord(
+            normalizeFirestoreDocToBooking(row, cleanRowId, localMap.get(cleanRowId))
+          );
+        }
+      }
     } catch {}
   }
 
-  // 3. Keyword array lookup (`searchKeywords` array-contains)
-  if (upperToken.length >= 2) {
-    try {
-      const qKeyword = query(
-        collection(db, 'bookings'),
-        where('searchKeywords', 'array-contains', normalizedId.startsWith('SIC') ? normalizedId : upperToken),
-        limit(25)
-      );
-      const snapKeyword = await getDocs(qKeyword);
-      snapKeyword.forEach((d) =>
-        addRecord(normalizeFirestoreDocToBooking(d.data() as Record<string, any>, d.id))
-      );
-    } catch {}
-  }
-
-  // 4. Fallback scan across all Firestore documents + Backend `/api/bookings` + localStorage
+  // 3. Fallback scan across all Supabase + Server + Local bookings
   if (matchedMap.size === 0) {
     try {
       const allCloud = await fetchBookingsFromCloudDatabase();
@@ -825,7 +812,10 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
         if (
           bId === normalizedId ||
           bId.toLowerCase().includes(qLower) ||
-          (b.customerPhone && b.customerPhone.includes(cleanDigits && cleanDigits.length >= 4 ? cleanDigits : rawQuery)) ||
+          (b.customerPhone &&
+            b.customerPhone.includes(
+              cleanDigits && cleanDigits.length >= 4 ? cleanDigits : rawQuery
+            )) ||
           (b.customerName && b.customerName.toLowerCase().includes(qLower)) ||
           (b.pickupCity && b.pickupCity.toLowerCase().includes(qLower)) ||
           (b.dropCity && b.dropCity.toLowerCase().includes(qLower))
@@ -839,10 +829,12 @@ export async function searchBookingInFirestore(searchQuery: string): Promise<Boo
   return sortBookingsNewestFirst(Array.from(matchedMap.values()));
 }
 
+export const searchBookingInSupabase = searchBookingInFirestore;
+
 /**
- * Real-time Firestore listener (`onSnapshot`) on the entire `bookings` collection
- * (without restrictive orderBy filters that could omit documents) + periodic `/api/bookings` sync
- * so the Admin Panel and Customer App receive all incoming bookings in real time.
+ * Real-time Supabase listener (`postgres_changes` on `public.bookings`) + periodic Supabase/API sync
+ * so the Customer "My Rides" view, "Booking Confirmed Summary" modal, and Admin Console
+ * immediately reflect driver assignments and `status = 'Completed'` invoice unlocks in real time.
  */
 export function subscribeToBookingsFromCloudDatabase(
   onUpdate: (bookings: BookingRecord[]) => void
@@ -862,110 +854,132 @@ export function subscribeToBookingsFromCloudDatabase(
       combinedMap.set(cleanId, b);
       return;
     }
-    const existingMs = Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
+    const existingMs =
+      Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
     const nextMs = Date.parse(b.updatedAt || b.completedAt || b.createdAt || '') || 0;
     const primary = nextMs >= existingMs ? b : existing;
     const secondary = nextMs >= existingMs ? existing : b;
     combinedMap.set(cleanId, {
       ...secondary,
       ...primary,
+      driverName: primary.driverName || secondary.driverName,
+      driverPhone: primary.driverPhone || secondary.driverPhone,
+      driverVehicleModel: primary.driverVehicleModel || secondary.driverVehicleModel,
+      driverVehicleNo: primary.driverVehicleNo || secondary.driverVehicleNo,
       status:
-        existing.status === 'completed' || b.status === 'completed'
+        b.status === 'completed' || existing.status === 'completed'
           ? 'completed'
-          : existing.status === 'cancelled' || b.status === 'cancelled'
+          : b.status === 'cancelled' || existing.status === 'cancelled'
           ? 'cancelled'
           : primary.status
     });
   };
 
-  // Listen to primary Firestore database (`bookings` collection)
-  const bookingsRef = collection(db, 'bookings');
-  const unsubscribePrimary = onSnapshot(
-    bookingsRef,
-    (snapshot) => {
-      snapshot.forEach((docSnap) => {
-        const parsed = normalizeFirestoreDocToBooking(
-          docSnap.data() as Record<string, any>,
-          docSnap.id
-        );
-        if (parsed) {
-          upsertIntoMap(parsed);
-          upsertBookingInLocalStorage(parsed);
-        }
-      });
-      emitCombined();
-    },
-    (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'bookings');
-    }
-  );
+  // Seed map from localStorage first
+  const initialLocalMap = getLocalBookingsMap();
+  initialLocalMap.forEach((b) => upsertIntoMap(b));
 
-  // Also listen to defaultDb if distinct
-  let unsubscribeDefault: (() => void) | null = null;
-  if (defaultDb) {
+  // Fetch latest rows from Supabase `bookings` table
+  const syncFromSupabaseAndServer = async () => {
+    const localMap = getLocalBookingsMap();
+    let changed = false;
+
     try {
-      unsubscribeDefault = onSnapshot(
-        collection(defaultDb, 'bookings'),
-        (snapshot) => {
-          snapshot.forEach((docSnap) => {
-            const parsed = normalizeFirestoreDocToBooking(
-              docSnap.data() as Record<string, any>,
-              docSnap.id
-            );
-            if (parsed) {
-              upsertIntoMap(parsed);
-              upsertBookingInLocalStorage(parsed);
-            }
-          });
-          emitCombined();
-        },
-        () => {}
-      );
-    } catch {}
-  }
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(150);
 
-  // Also sync with backend `/api/bookings` on subscribe and every 8 seconds
-  const syncFromServer = async () => {
+      if (!error && Array.isArray(data)) {
+        for (const row of data) {
+          const cleanId = normalizeBookingIdInput(row.booking_id);
+          const parsed = normalizeFirestoreDocToBooking(
+            row,
+            cleanId,
+            localMap.get(cleanId) || combinedMap.get(cleanId)
+          );
+          if (parsed) {
+            upsertIntoMap(parsed);
+            upsertBookingInLocalStorage(parsed);
+            changed = true;
+          }
+        }
+      }
+    } catch {}
+
     try {
       const res = await fetch('/api/bookings');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data?.bookings)) {
-          let changed = false;
           for (const raw of data.bookings) {
-            const parsed = normalizeFirestoreDocToBooking(raw, raw?.id);
+            const cleanId = normalizeBookingIdInput(raw?.id || raw?.booking_id);
+            const parsed = normalizeFirestoreDocToBooking(
+              raw,
+              cleanId,
+              localMap.get(cleanId) || combinedMap.get(cleanId)
+            );
             if (parsed) {
               const prev = combinedMap.get(parsed.id);
               upsertIntoMap(parsed);
               if (!prev) {
                 changed = true;
-                // Backfill server booking into Firestore so all listeners see it
-                const cleanData = sanitizeBookingForFirestore(parsed);
-                setDoc(doc(db, 'bookings', parsed.id), cleanData, { merge: true }).catch(() => {});
               }
             }
           }
-          if (changed) emitCombined();
         }
       }
     } catch {}
+
+    if (changed) {
+      emitCombined();
+    }
   };
 
-  syncFromServer();
-  const pollInterval = setInterval(syncFromServer, 8000);
+  // 1. Subscribe to Supabase Realtime changes on `public.bookings`
+  const channel = supabase
+    .channel(`safar-bookings-live-${Math.random().toString(36).slice(2, 8)}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'bookings' },
+      (payload) => {
+        const row = (payload.new || payload.old) as Record<string, any> | undefined;
+        if (!row) return;
+        const cleanId = normalizeBookingIdInput(row.booking_id || row.id);
+        const localMap = getLocalBookingsMap();
+        const parsed = normalizeFirestoreDocToBooking(
+          row,
+          cleanId,
+          localMap.get(cleanId) || combinedMap.get(cleanId)
+        );
+        if (parsed) {
+          upsertIntoMap(parsed);
+          upsertBookingInLocalStorage(parsed);
+          emitCombined();
+        }
+      }
+    )
+    .subscribe();
+
+  // 2. Run initial fetch and poll every 6 seconds as a resilient fallback
+  syncFromSupabaseAndServer();
+  const pollInterval = setInterval(syncFromSupabaseAndServer, 6000);
 
   return () => {
-    unsubscribePrimary();
-    if (unsubscribeDefault) unsubscribeDefault();
+    try {
+      supabase.removeChannel(channel);
+    } catch {}
     clearInterval(pollInterval);
   };
 }
 
 /**
- * Fetches all bookings from Firebase Firestore (`bookings` collection), `/api/bookings`, and Supabase.
+ * Fetches all bookings from Supabase (`bookings` table), `/api/bookings`, and localStorage.
  */
 export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]> {
   const resultsMap = new Map<string, BookingRecord>();
+  const localMap = getLocalBookingsMap();
 
   const addRecord = (rec: BookingRecord | null | undefined) => {
     if (!rec || !rec.id) return;
@@ -975,127 +989,52 @@ export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]>
       resultsMap.set(cleanId, rec);
       return;
     }
-    const existingMs = Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
+    const existingMs =
+      Date.parse(existing.updatedAt || existing.completedAt || existing.createdAt || '') || 0;
     const nextMs = Date.parse(rec.updatedAt || rec.completedAt || rec.createdAt || '') || 0;
-    resultsMap.set(cleanId, nextMs >= existingMs ? { ...existing, ...rec } : { ...rec, ...existing });
+    resultsMap.set(
+      cleanId,
+      nextMs >= existingMs ? { ...existing, ...rec } : { ...rec, ...existing }
+    );
   };
 
-  // 1. Read all documents from Firebase Firestore `bookings` collection (no orderBy filter so no docs are skipped)
+  // 1. Read from Supabase `bookings` table (authoritative cloud source)
   try {
-    const snap = await getDocs(collection(db, 'bookings'));
-    snap.forEach((docSnap) => {
-      const parsed = normalizeFirestoreDocToBooking(
-        docSnap.data() as Record<string, any>,
-        docSnap.id
-      );
-      if (parsed) {
-        addRecord(parsed);
-        upsertBookingInLocalStorage(parsed);
-      }
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'bookings');
-  }
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(150);
 
-  // 1b. Also check defaultDb if available
-  if (defaultDb) {
-    try {
-      const snapDefault = await getDocs(collection(defaultDb, 'bookings'));
-      snapDefault.forEach((docSnap) => {
+    if (!error && Array.isArray(data)) {
+      for (const row of data) {
+        const cleanId = normalizeBookingIdInput(row.booking_id || row.id);
         const parsed = normalizeFirestoreDocToBooking(
-          docSnap.data() as Record<string, any>,
-          docSnap.id
+          row,
+          cleanId,
+          localMap.get(cleanId)
         );
         if (parsed) {
           addRecord(parsed);
           upsertBookingInLocalStorage(parsed);
         }
-      });
-    } catch {}
-  }
+      }
+    }
+  } catch {}
 
-  // 2. Also read from `/api/bookings` and backfill to Firestore
+  // 2. Also read from `/api/bookings`
   try {
     const res = await fetch('/api/bookings');
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data?.bookings)) {
         for (const raw of data.bookings) {
-          const parsed = normalizeFirestoreDocToBooking(raw, raw?.id);
-          if (parsed) {
-            const wasInFirestore = resultsMap.has(parsed.id);
-            addRecord(parsed);
-            if (!wasInFirestore) {
-              const cleanData = sanitizeBookingForFirestore(parsed);
-              setDoc(doc(db, 'bookings', parsed.id), cleanData, { merge: true }).catch(() => {});
-            }
-          }
-        }
-      }
-    }
-  } catch {}
-
-  // 3. Read from Supabase if configured
-  if (supabaseClient) {
-    try {
-      const { data } = await supabaseClient
-        .from('bookings')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (Array.isArray(data)) {
-        for (const row of data) {
-          const cleanId = normalizeBookingIdInput(row.id) || row.id;
-          if (!resultsMap.has(cleanId)) {
-            addRecord({
-              id: cleanId,
-              bookingId: cleanId,
-              bookingReference: cleanId,
-              tripType: row.trip_type || 'oneway',
-              pickupCity: row.pickup_city,
-              dropCity: row.drop_city,
-              pickupAddress: row.pickup_address || undefined,
-              dropAddress: row.drop_address || undefined,
-              pickupDate: row.pickup_date,
-              pickupTime: row.pickup_time,
-              cabId: row.cab_id || 'sedan',
-              cabName: row.cab_name || 'Sedan AC',
-              distanceKm: Number(row.distance_km) || 0,
-              baseFare: Number(row.base_fare) || 0,
-              driverAllowance: Number(row.driver_allowance) || 0,
-              tollsAndTaxes: Number(row.tolls_and_taxes) || 0,
-              gstAmount: Number(row.gst_amount) || 0,
-              totalFare: Number(row.total_fare) || 0,
-              advancePaid: Number(row.advance_paid) || 0,
-              balanceDue: Number(row.balance_due) || 0,
-              paymentMode: row.payment_mode || 'advance_20',
-              paymentMethod: row.payment_method || 'upi_razorpay',
-              transactionId: row.transaction_id || '',
-              customerName: row.customer_name,
-              customerPhone: row.customer_phone,
-              customerEmail: row.customer_email || undefined,
-              status: row.status || 'confirmed',
-              driverName: row.driver_name || undefined,
-              driverPhone: row.driver_phone || undefined,
-              driverVehicleModel: row.driver_vehicle_model || undefined,
-              driverVehicleNo: row.driver_vehicle_no || undefined,
-              notes: row.notes || undefined,
-              createdAt: row.created_at || new Date().toISOString()
-            });
-          }
-        }
-      }
-    } catch {}
-  }
-
-  // 4. Also merge localStorage bookings so local state is never lost
-  try {
-    const raw = localStorage.getItem(BOOKINGS_STORAGE_KEY);
-    if (raw) {
-      const localList: BookingRecord[] = JSON.parse(raw);
-      if (Array.isArray(localList)) {
-        for (const item of localList) {
-          const parsed = normalizeFirestoreDocToBooking(item as Record<string, any>, item?.id);
+          const cleanId = normalizeBookingIdInput(raw?.id || raw?.booking_id);
+          const parsed = normalizeFirestoreDocToBooking(
+            raw,
+            cleanId,
+            localMap.get(cleanId)
+          );
           if (parsed && !resultsMap.has(parsed.id)) {
             addRecord(parsed);
           }
@@ -1104,18 +1043,31 @@ export async function fetchBookingsFromCloudDatabase(): Promise<BookingRecord[]>
     }
   } catch {}
 
+  // 3. Also merge localStorage bookings so local state is never lost
+  localMap.forEach((item) => {
+    const parsed = normalizeFirestoreDocToBooking(
+      item as Record<string, any>,
+      item?.id,
+      item
+    );
+    if (parsed && !resultsMap.has(parsed.id)) {
+      addRecord(parsed);
+    }
+  });
+
   return sortBookingsNewestFirst(Array.from(resultsMap.values()));
 }
 
 /**
- * Persists a PaymentAuditLogRecord to Firestore (`payment_logs/{id}`) and localStorage
+ * Persists a PaymentAuditLogRecord to localStorage
  */
 export async function savePaymentAuditLogToCloud(log: PaymentAuditLogRecord): Promise<void> {
   if (!log || !log.id) return;
 
   const cleanLog: PaymentAuditLogRecord = {
     id: String(log.id).slice(0, 80),
-    bookingId: normalizeBookingIdInput(log.bookingId) || String(log.bookingId || 'PENDING').slice(0, 36),
+    bookingId:
+      normalizeBookingIdInput(log.bookingId) || String(log.bookingId || 'PENDING').slice(0, 36),
     customerName: String(log.customerName || 'Guest Passenger').slice(0, 110),
     customerPhone: String(log.customerPhone || '').replace(/\D/g, '').slice(-10),
     bookingAmount: Math.max(0, Math.round(Number(log.bookingAmount) || 0)),
@@ -1141,16 +1093,10 @@ export async function savePaymentAuditLogToCloud(log: PaymentAuditLogRecord): Pr
     filtered.unshift(cleanLog);
     localStorage.setItem(PAYMENT_LOGS_STORAGE_KEY, JSON.stringify(filtered.slice(0, 200)));
   } catch {}
-
-  try {
-    await setDoc(doc(db, 'payment_logs', cleanLog.id), cleanLog as unknown as Record<string, unknown>, {
-      merge: true
-    });
-  } catch {}
 }
 
 /**
- * Fetches Payment Audit Logs from `/api/payment-gateway`, Firestore (`payment_logs`), and localStorage
+ * Fetches Payment Audit Logs from `/api/payment-gateway` and localStorage
  */
 export async function fetchPaymentAuditLogsFromCloud(
   searchFilter?: string
@@ -1162,7 +1108,6 @@ export async function fetchPaymentAuditLogsFromCloud(
     logsMap.set(item.id, item);
   };
 
-  // 1. Fetch from server `/api/payment-gateway`
   try {
     const res = await fetch('/api/payment-gateway');
     if (res.ok) {
@@ -1175,14 +1120,6 @@ export async function fetchPaymentAuditLogsFromCloud(
     }
   } catch {}
 
-  // 2. Fetch from Firestore `payment_logs`
-  try {
-    const q = query(collection(db, 'payment_logs'), orderBy('timestamp', 'desc'), limit(120));
-    const snap = await getDocs(q);
-    snap.forEach((d) => addLog(d.data() as unknown as PaymentAuditLogRecord));
-  } catch {}
-
-  // 3. Merge local storage payment logs
   try {
     const raw = localStorage.getItem(PAYMENT_LOGS_STORAGE_KEY);
     if (raw) {
@@ -1206,7 +1143,8 @@ export async function fetchPaymentAuditLogsFromCloud(
     const normId = normalizeBookingIdInput(searchFilter);
     allLogs = allLogs.filter(
       (l) =>
-        (l.bookingId && (l.bookingId.toLowerCase().includes(qLower) || l.bookingId === normId)) ||
+        (l.bookingId &&
+          (l.bookingId.toLowerCase().includes(qLower) || l.bookingId === normId)) ||
         (l.razorpayOrderId && l.razorpayOrderId.toLowerCase().includes(qLower)) ||
         (l.paymentId && l.paymentId.toLowerCase().includes(qLower)) ||
         (l.qrId && l.qrId.toLowerCase().includes(qLower)) ||
