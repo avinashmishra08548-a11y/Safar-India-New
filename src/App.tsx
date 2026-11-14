@@ -32,6 +32,7 @@ import {
   syncAdminPricingFromServer
 } from './utils/olaMapsService';
 import { sanitize10DigitPhone } from './utils/smsService';
+import { OFFICIAL_SAFAR_LOGO_DATA_URL } from './utils/officialSignatureData';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from './utils/whatsapp';
 import {
   fetchBookingsFromCloudDatabase,
@@ -1038,26 +1039,88 @@ export default function App() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
-      {/* Full-Screen Customer App Launch Splash Screen */}
+      {/* Full-Screen Customer App Launch Poster / Splash Screen */}
       {isSplashVisible && (
         <div
           onClick={handleDismissSplashEarly}
           role="dialog"
           aria-label="SafarIndiaCabs Welcome Splash Screen"
-          className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-b from-[#4BA3F8] via-[#D8EEFF] to-[#021C52] select-none overflow-hidden transition-all duration-500 ease-out ${
+          className={`fixed inset-0 z-[9999] flex flex-col items-center justify-between bg-gradient-to-b from-[#06152E] via-[#0B254E] to-[#040D1F] text-white select-none overflow-hidden px-5 py-8 sm:py-10 transition-all duration-500 ease-out cursor-pointer ${
             isSplashFadingOut ? 'opacity-0 scale-[1.02] pointer-events-none' : 'opacity-100 scale-100'
           }`}
         >
-          <img
-            src="/assets/aistudio/file_00000000e04082118142ec250f73b070_4857d00b.png"
-            alt="SafarIndiaCabs - A1 Cab Services N. India - Your Journey, Our Priority"
-            fetchPriority="high"
-            decoding="sync"
-            className="w-full h-full object-cover sm:object-contain max-w-md mx-auto shadow-2xl"
-          />
-          {/* Subtle animated loading progress bar at the very bottom */}
-          <div className="absolute bottom-0 inset-x-0 h-1.5 bg-slate-950/40 overflow-hidden">
-            <div className="h-full bg-amber-400 animate-pulse w-full origin-left" />
+          {/* Ambient radial glow */}
+          <div className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[420px] h-[420px] rounded-full bg-amber-400/15 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-10 left-1/2 -translate-x-1/2 w-[380px] h-[260px] rounded-full bg-sky-400/15 blur-3xl" />
+
+          {/* Top Official Crest & Ribbon */}
+          <div className="relative z-10 flex flex-col items-center text-center mt-2 sm:mt-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-400/15 border border-amber-400/40 text-amber-300 text-[11px] font-extrabold uppercase tracking-widest mb-3 shadow-sm">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              A1 Cab Services • All India Permit
+            </div>
+            <div className="flex items-center gap-3">
+              <img
+                src={OFFICIAL_SAFAR_LOGO_DATA_URL}
+                alt="SafarIndiaCabs Official Crest"
+                className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-contain bg-white p-1.5 shadow-xl border-2 border-amber-400"
+              />
+              <div className="text-left">
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white leading-none">
+                  SAFAR INDIA <span className="text-amber-400">CABS</span>
+                </h1>
+                <p className="text-xs sm:text-sm font-bold text-sky-200 mt-1">
+                  Your Journey, Our Priority
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Center Poster Artwork Card */}
+          <div className="relative z-10 w-full max-w-md my-auto py-3">
+            <div className="relative rounded-3xl overflow-hidden border-2 border-amber-400/60 shadow-[0_20px_60px_rgba(0,0,0,0.65)] bg-[#0A1E3F]">
+              <img
+                src="/assets/aistudio/hero-banner-800.webp"
+                srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
+                sizes="(max-width: 768px) 92vw, 440px"
+                alt="SafarIndiaCabs Outstation & Intercity Taxi Poster"
+                fetchPriority="high"
+                decoding="sync"
+                className="w-full h-56 sm:h-64 object-cover object-center"
+              />
+              <div className="bg-gradient-to-r from-slate-950 via-[#0B2144] to-slate-950 px-4 py-3.5 border-t border-white/10">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-white/5 rounded-xl py-2 px-1.5 border border-white/10">
+                    <p className="text-amber-400 font-black text-xs sm:text-sm">0% Return</p>
+                    <p className="text-[10px] text-slate-300 font-semibold">One-Way Fare</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl py-2 px-1.5 border border-white/10">
+                    <p className="text-emerald-400 font-black text-xs sm:text-sm">20% Advance</p>
+                    <p className="text-[10px] text-slate-300 font-semibold">Instant Lock</p>
+                  </div>
+                  <div className="bg-white/5 rounded-xl py-2 px-1.5 border border-white/10">
+                    <p className="text-sky-300 font-black text-xs sm:text-sm">24×7 Support</p>
+                    <p className="text-[10px] text-slate-300 font-semibold">Verified Drivers</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Callout & Progress Bar */}
+          <div className="relative z-10 w-full max-w-md flex flex-col items-center gap-2.5 mb-1">
+            <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-300 bg-white/10 px-4 py-2 rounded-full border border-white/15 backdrop-blur-sm">
+              <span>One-Way • Round Trip • Airport • Local Rental</span>
+              <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+            </div>
+            <p className="text-[11px] text-slate-300 font-medium">
+              24/7 Booking Helpline: <span className="text-white font-bold">+91 7710080992</span>
+            </p>
+          </div>
+
+          {/* Animated loading progress bar at the very bottom */}
+          <div className="absolute bottom-0 inset-x-0 h-1.5 bg-slate-900 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 animate-pulse w-full origin-left" />
           </div>
         </div>
       )}
