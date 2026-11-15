@@ -24,10 +24,10 @@ import { CustomerReviews } from './CustomerReviews';
 import { FaqSection } from './FaqSection';
 
 export const SAFAR_CONTACT_INFO = {
-  phoneDisplay: '+91 77100 80992',
-  phoneRaw: '7710080992',
-  telHref: 'tel:+917710080992',
-  whatsappRaw: '7710080992',
+  phoneDisplay: '+91 95705 71516',
+  phoneRaw: '9570571516',
+  telHref: 'tel:+919570571516',
+  whatsappRaw: '9570571516',
   email: 'safarindiacabs01@gmail.com',
   mailtoHref: 'mailto:safarindiacabs01@gmail.com',
   address: 'H NO 143 STREET NO 4 JHARODA MAJRA NORTH DELHI BURARI 110084',
@@ -587,7 +587,7 @@ export const HelpSupportView: React.FC<HelpSupportViewProps> = ({
                 {SAFAR_CONTACT_INFO.address}
               </address>
               <span className="text-xs text-slate-500 font-medium mt-0.5 block">
-                Email: {SAFAR_CONTACT_INFO.email} · Customer Care: +91-7710080992
+                Email: {SAFAR_CONTACT_INFO.email} · Customer Care: +91-9570571516
               </span>
             </div>
           </div>

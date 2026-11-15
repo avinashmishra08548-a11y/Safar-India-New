@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const WHATSAPP_NUMBER = '917710080992';
+export const WHATSAPP_NUMBER = '919570571516';
 export const DEFAULT_WHATSAPP_TEXT = 'Hello Safar India Cabs, I need cab booking assistance';
 export const OFFICIAL_REVIEW_URL = 'https://safarindiacabs.com/?action=review';
 
@@ -39,7 +39,7 @@ export function buildCustomerReviewRequestMessage(params: {
     `👉 ${OFFICIAL_REVIEW_URL}`,
     ``,
     `Thank you for choosing *Safar India Cabs*!`,
-    `*24x7 Helpline:* +91 77100 80992`
+    `*24x7 Helpline:* +91 95705 71516`
   ].join('\n');
 }
 

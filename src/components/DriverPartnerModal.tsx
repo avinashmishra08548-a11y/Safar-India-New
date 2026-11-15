@@ -133,7 +133,7 @@ export const DriverPartnerModal: React.FC<DriverPartnerModalProps> = ({ isOpen, 
                 className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Instant Onboard via WhatsApp (+91 77100 80992)</span>
+                <span>Instant Onboard via WhatsApp (+91 95705 71516)</span>
               </button>
 
               <button

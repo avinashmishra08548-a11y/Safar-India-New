@@ -659,7 +659,7 @@ export default function App() {
       paymentMethod: 'upi_razorpay',
       transactionId: 'pay_live_captured_2603',
       customerName: 'Verified Passenger',
-      customerPhone: '7710080992',
+      customerPhone: '9570571516',
       customerEmail: 'passenger@safarindiacabs.in',
       status: 'confirmed',
       createdAt: '2026-10-17T08:30:00.000Z',
@@ -1114,7 +1114,7 @@ export default function App() {
               <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
             </div>
             <p className="text-[11px] text-slate-300 font-medium">
-              24/7 Booking Helpline: <span className="text-white font-bold">+91 7710080992</span>
+              24/7 Booking Helpline: <span className="text-white font-bold">+91 9570571516</span>
             </p>
           </div>
 
@@ -1372,7 +1372,7 @@ export default function App() {
           href={buildWhatsAppSchemeUrl()}
           onClick={(e) => triggerWhatsAppDeepLink(e)}
           className="bg-[#10B981] hover:bg-emerald-500 text-white font-black min-w-[48px] min-h-[48px] w-12 h-12 sm:w-auto sm:h-auto sm:px-4 sm:py-3 rounded-full shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all group cursor-pointer"
-          title="Chat on WhatsApp (+91 7710080992)"
+          title="Chat on WhatsApp (+91 9570571516)"
           aria-label="Chat on WhatsApp"
         >
           <MessageSquare className="w-5 h-5 text-white stroke-[2.2]" />

@@ -84,7 +84,7 @@ export const DriverPartnerSection: React.FC<DriverPartnerSectionProps> = ({ onOp
                 className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl border border-slate-300 transition flex items-center gap-2 cursor-pointer"
               >
                 <Phone className="w-4 h-4 text-emerald-600" />
-                <span>WhatsApp Helpdesk (+91 77100 80992)</span>
+                <span>WhatsApp Helpdesk (+91 95705 71516)</span>
               </a>
             </div>
 

@@ -1,22 +1,17 @@
 /**
- * WhatsAppService (TypeScript / Web & Serverless Equivalent of WhatsAppService.java)
+ * WhatsAppService (TypeScript / Web & Serverless Client for Interakt WhatsApp API)
  * Package: com.safarindiacabs.app
  *
- * Uses Safar India Cabs Verified Meta WhatsApp Cloud API Credentials:
- * - PHONE_NUMBER_ID: 902764639583293
- * - WABA_ID: 837811205522579
- * - API_URL: https://graph.facebook.com/v20.0/902764639583293/messages
- *
- * Dispatches BOTH:
- * 1. Official Meta WhatsApp Template Messages ("type": "template") — delivers to ANY
- *    WhatsApp number even without a prior "Hi/Hello" chat session.
- * 2. Rich Formatted Text Messages ("type": "text") — delivers full formatted card.
+ * Uses Safar India Cabs Verified Interakt WhatsApp API via Backend Proxy (/api/send-booking-sms?endpoint=send-whatsapp):
+ * - Official WhatsApp API Number: 9570571516
+ * - API_URL: https://api.interakt.ai/v1/public/message/
+ * - Secret Authorization Header is stored securely in server-side .env (INTERAKT_AUTH_HEADER / INTERAKT_API_KEY)
  */
 
-export const DEFAULT_WHATSAPP_PHONE_ID = '902764639583293';
-export const DEFAULT_WHATSAPP_WABA_ID = '837811205522579';
-export const DEFAULT_WHATSAPP_ACCESS_TOKEN =
-  'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
+export const DEFAULT_WHATSAPP_PHONE_ID = '9570571516';
+export const DEFAULT_WHATSAPP_WABA_ID = '9570571516';
+export const DEFAULT_WHATSAPP_ACCESS_TOKEN = '';
+export const INTERAKT_PUBLIC_API_URL = 'https://api.interakt.ai/v1/public/message/';
 
 export interface WhatsAppCallback {
   onSuccess: (response: string) => void;
@@ -196,7 +191,7 @@ export function formatWhatsAppBookingConfirmationMessage(params: {
     `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll, State Tax & Parking Extra)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
-    `• Helpline: +91-7710080992`,
+    `• Helpline: +91-9570571516`,
     `• Website: https://safarindiacabs.com`,
     ``,
     `We wish you a pleasant, safe, and comfortable journey! 🚖`
@@ -301,7 +296,7 @@ export function formatWhatsAppDriverDutyAllotmentMessage(params: {
     `Call the customer immediately and reach the pickup location before time. Keep the vehicle clean and strictly follow the non-smoking/non-drinking policy.`,
     ``,
     `📞 HELP & SUPPORT`,
-    `• Helpline: +91-7710080992`,
+    `• Helpline: +91-9570571516`,
     `• Website: https://safarindiacabs.com`
   ].join('\n');
 }
@@ -309,7 +304,7 @@ export function formatWhatsAppDriverDutyAllotmentMessage(params: {
 export class WhatsAppService {
   public static readonly PHONE_NUMBER_ID = DEFAULT_WHATSAPP_PHONE_ID;
   public static readonly ACCESS_TOKEN = DEFAULT_WHATSAPP_ACCESS_TOKEN;
-  public static readonly API_URL = `https://graph.facebook.com/v20.0/${WhatsAppService.PHONE_NUMBER_ID}/messages`;
+  public static readonly API_URL = INTERAKT_PUBLIC_API_URL;
 
   // Common method to format and clean phone numbers (always 91 + 10-digit Indian mobile number)
   public formatPhoneNumber(phone: string): string {
@@ -636,7 +631,7 @@ export class WhatsAppService {
   }
 
   /**
-   * Core HTTP Sender Method (Serverless Proxy with single clean fallback)
+   * Core HTTP Sender Method (Dispatches via Backend Interakt API Proxy `/api/send-booking-sms?endpoint=send-whatsapp`)
    */
   public async sendTextMessage(
     recipientPhone: string,
@@ -648,7 +643,6 @@ export class WhatsAppService {
     const activeToken = getWhatsAppAccessToken();
     const formattedPhone = this.formatPhoneNumber(recipientPhone);
 
-    // 1. Primary: Unified Serverless backend proxy (/api/send-booking-sms?endpoint=send-whatsapp)
     try {
       const serverRes = await fetch('/api/send-booking-sms?endpoint=send-whatsapp', {
         method: 'POST',
@@ -658,109 +652,16 @@ export class WhatsAppService {
           recipientPhone: formattedPhone,
           messageText,
           phoneNumberId: activePhoneId,
-          accessToken: activeToken,
+          accessToken: activeToken || undefined,
           templateConfig
         })
       });
       const data = await serverRes.json().catch(() => null);
-      if (data !== null) {
-        if (data.success) {
-          callback?.onSuccess('Message Sent Successfully');
-          return true;
-        }
-        const err = new Error(data.error || `HTTP Error Code: ${serverRes.status}`);
-        callback?.onError(err);
-        return false;
-      }
-    } catch {
-      // Only fall through to direct Meta Graph API call if /api/send-whatsapp is unreachable
-    }
-
-    // 2. Static-mode fallback: Direct Meta WhatsApp Cloud API request
-    // Always try approved Official Template first so delivery succeeds even without a 24h chat window
-    const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
-
-    if (templateConfig && templateConfig.name) {
-      const candidateTemplates = [
-        {
-          name: templateConfig.name,
-          language: templateConfig.language || 'en_US',
-          params: templateConfig.params || []
-        },
-        ...(templateConfig.backups || [])
-      ];
-
-      for (const tpl of candidateTemplates) {
-        const tplPayload = {
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: formattedPhone,
-          type: 'template',
-          template: {
-            name: tpl.name,
-            language: { code: tpl.language || 'en_US' },
-            ...(tpl.params && tpl.params.length > 0
-              ? {
-                  components: [
-                    {
-                      type: 'body',
-                      parameters: tpl.params.map((p) => ({
-                        type: 'text',
-                        text: sanitizeTemplateParamClient(p)
-                      }))
-                    }
-                  ]
-                }
-              : {})
-          }
-        };
-
-        try {
-          const tplRes = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${activeToken}`,
-              'Content-Type': 'application/json',
-              Accept: 'application/json'
-            },
-            body: JSON.stringify(tplPayload)
-          });
-          if (tplRes.status === 200 || tplRes.status === 201) {
-            callback?.onSuccess('Message Sent Successfully');
-            return true;
-          }
-        } catch {}
-      }
-    }
-
-    const payload = {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to: formattedPhone,
-      type: 'text',
-      text: {
-        preview_url: false,
-        body: messageText
-      }
-    };
-
-    try {
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${activeToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.status === 200 || res.status === 201) {
-        callback?.onSuccess('Message Sent Successfully');
+      if (data && data.success) {
+        callback?.onSuccess('Message Sent Successfully via Interakt API');
         return true;
       }
-      const errData = await res.json().catch(() => null);
-      const err = new Error(errData?.error?.message || `HTTP Error Code: ${res.status}`);
+      const err = new Error(data?.error || `HTTP Error Code: ${serverRes.status}`);
       callback?.onError(err);
       return false;
     } catch (e) {

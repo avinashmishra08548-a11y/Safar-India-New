@@ -322,7 +322,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const buildCurrentBookingDraft = useCallback(
     (resolvedBookingId: string, activeMethod: PreferredPaymentMethod): BookingRecord => {
-      const cleanPhone = sanitize10DigitPhone(customerPhone) || '7710080992';
+      const cleanPhone = sanitize10DigitPhone(customerPhone) || '9570571516';
       const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
       const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
       const boundedGeometry = Array.isArray(routeGeometry) ? routeGeometry.slice(0, 40) : undefined;

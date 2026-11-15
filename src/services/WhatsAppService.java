@@ -18,10 +18,9 @@ public class WhatsAppService {
 
     private static final String TAG = "WhatsAppService";
 
-    // 🔑 Safar India Cabs - Verified Credentials
-    private static final String PHONE_NUMBER_ID = "902764639583293";
-    private static final String ACCESS_TOKEN = "EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD";
-    private static final String API_URL = "https://graph.facebook.com/v20.0/" + PHONE_NUMBER_ID + "/messages";
+    // Safar India Cabs - Verified Interakt WhatsApp API via Backend Proxy
+    private static final String WHATSAPP_API_NUMBER = "9570571516";
+    private static final String API_URL = "https://safarindiacabs.com/api/send-whatsapp";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -117,22 +116,16 @@ public class WhatsAppService {
                 URL url = new URL(API_URL);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
-                conn.setRequestProperty("Authorization", "Bearer " + ACCESS_TOKEN);
                 conn.setRequestProperty("Content-Type", "application/json; utf-8");
                 conn.setRequestProperty("Accept", "application/json");
                 conn.setDoOutput(true);
 
-                // Build WhatsApp Cloud API Payload
+                // Build Backend Interakt Proxy Payload
                 JSONObject payload = new JSONObject();
-                payload.put("messaging_product", "whatsapp");
-                payload.put("recipient_type", "individual");
-                payload.put("to", recipientPhone);
-                payload.put("type", "text");
-
-                JSONObject textObj = new JSONObject();
-                textObj.put("preview_url", false);
-                textObj.put("body", messageText);
-                payload.put("text", textObj);
+                payload.put("endpoint", "send-whatsapp");
+                payload.put("recipientPhone", recipientPhone);
+                payload.put("messageText", messageText);
+                payload.put("phoneNumberId", WHATSAPP_API_NUMBER);
 
                 try (OutputStream os = conn.getOutputStream()) {
                     byte[] input = payload.toString().getBytes(StandardCharsets.UTF_8);

@@ -213,7 +213,7 @@ export function mapBookingToSupabaseRow(booking: BookingRecord): SupabaseBooking
   const cleanPhone =
     String(booking.customerPhone || '')
       .replace(/\D/g, '')
-      .slice(-10) || '7710080992';
+      .slice(-10) || '9570571516';
 
   const pickupLocation = String(booking.pickupAddress || booking.pickupCity || 'Delhi NCR').trim();
   const dropLocation = String(
@@ -527,7 +527,7 @@ export function normalizeFirestoreDocToBooking(
           ''
       )
         .replace(/\D/g, '')
-        .slice(-10) || '7710080992',
+        .slice(-10) || '9570571516',
     status,
     supabaseStatus,
     driverName,

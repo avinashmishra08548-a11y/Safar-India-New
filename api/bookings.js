@@ -1971,7 +1971,7 @@ let storedBookings = [
     paymentMethod: 'upi_razorpay',
     transactionId: 'pay_live_captured_2603',
     customerName: 'Verified Passenger',
-    customerPhone: '7710080992',
+    customerPhone: '9570571516',
     customerEmail: 'passenger@safarindiacabs.in',
     status: 'confirmed',
     createdAt: '2026-10-17T08:30:00.000Z',
@@ -2013,7 +2013,7 @@ const paymentAuditLogs = [
     id: 'LOG-SIC2603-1',
     bookingId: 'SIC2603',
     customerName: 'Verified Passenger',
-    customerPhone: '7710080992',
+    customerPhone: '9570571516',
     customerEmail: 'passenger@safarindiacabs.in',
     totalBookingAmount: 1817,
     advanceAmount: 363,
@@ -2369,7 +2369,7 @@ async function syncBookingsFromRazorpayGateway(force = false) {
             paymentMethod: `Razorpay ${String(p.method || 'UPI').toUpperCase()} (${p.id})`,
             transactionId: p.id,
             customerName,
-            customerPhone: customerPhone || '7710080992',
+            customerPhone: customerPhone || '9570571516',
             customerEmail,
             status: savedStatus,
             driverName,
@@ -2560,7 +2560,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.setTextColor(71, 85, 105);
   doc.setFontSize(7.6);
   doc.text('Regd. Add: H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084', companyX, y + 19.5);
-  doc.text('Email: Safarindiacabs01@gmail.com   |   Mob: +91 7710080992', companyX, y + 23.8);
+  doc.text('Email: Safarindiacabs01@gmail.com   |   Mob: +91 9570571516', companyX, y + 23.8);
 
   const isCompletedInvoice = booking.status === 'completed';
   const cleanIdSuffix = String(booking.id || 'SIC2601').replace(/^SIC-?/i, '');
@@ -2660,7 +2660,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.2);
   doc.setTextColor(51, 65, 85);
-  doc.text(`Mobile: +91 ${booking.customerPhone || '7710080992'}`, margin + 3.5, y + 18);
+  doc.text(`Mobile: +91 ${booking.customerPhone || '9570571516'}`, margin + 3.5, y + 18);
   if (booking.customerGst) {
     doc.text(
       `Company: ${booking.gstCompanyName || '-'} | GSTIN: ${booking.customerGst}`,
@@ -2961,7 +2961,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.text('1. Certified that particulars given above are true & correct.', margin + 3.5, y + 11);
   doc.text('2. Toll Tax, State Tax & Parking are extra as per actuals.', margin + 3.5, y + 15.2);
   doc.text('3. Subject to North Delhi Jurisdiction only.', margin + 3.5, y + 19.4);
-  doc.text('4. 24x7 Helpline: +91 7710080992 | Safarindiacabs01@gmail.com', margin + 3.5, y + 23.6);
+  doc.text('4. 24x7 Helpline: +91 9570571516 | Safarindiacabs01@gmail.com', margin + 3.5, y + 23.6);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
   doc.text('Regd. Office: H NO 143 Street 4 Jharoda Majra Burari Delhi 110084', margin + 3.5, y + 29);
@@ -3108,7 +3108,7 @@ export default async function handler(req, res) {
           ...(existing || {}),
           id: rawId,
           customerName: query.customerName || existing?.customerName || 'Verified Passenger',
-          customerPhone: query.customerPhone || existing?.customerPhone || '7710080992',
+          customerPhone: query.customerPhone || existing?.customerPhone || '9570571516',
           customerEmail: query.customerEmail || existing?.customerEmail || '',
           customerGst: query.customerGst || existing?.customerGst || '',
           gstCompanyName: query.gstCompanyName || existing?.gstCompanyName || '',

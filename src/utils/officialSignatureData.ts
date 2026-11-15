@@ -7,7 +7,7 @@ export const OFFICIAL_COMPANY_DEFAULTS = {
   companyGstin: '07DQHPA3025F1ZD',
   proprietorName: 'Aman Mishra',
   companyEmail: 'Safarindiacabs01@gmail.com',
-  companyPhone: '7710080992',
+  companyPhone: '9570571516',
   companyAddress: 'H NO 143 STREET 4 JHARODA MAJRA NORTH DELHI BURARI 110084',
   sacCode: '996412'
 };
@@ -78,7 +78,7 @@ export function renderOfficialRubberStampDataUrl(
     ctx.fillText(`GSTIN: ${gstin}  •  NORTH DELHI - 110084`, 0, -10);
 
     ctx.font = 'bold 14px Arial, sans-serif';
-    ctx.fillText('JHARODA MAJRA, BURARI • MOB: 7710080992', 0, 14);
+    ctx.fillText('JHARODA MAJRA, BURARI • MOB: 9570571516', 0, 14);
 
     ctx.font = '900 17px Arial, sans-serif';
     ctx.fillText(`PROP. ${proprietor.toUpperCase()} (AUTHORISED SIGNATORY)`, 0, 66);
@@ -187,7 +187,7 @@ export function renderOfficialRubberStampDataUrl(
 
   ctx.font = 'bold 13px Arial, sans-serif';
   ctx.fillText('A1 CAB SERVICES', 0, -68);
-  ctx.fillText('MOB: 7710080992', 0, 76);
+  ctx.fillText('MOB: 9570571516', 0, 76);
 
   ctx.restore();
   const dataUrl = canvas.toDataURL('image/png');

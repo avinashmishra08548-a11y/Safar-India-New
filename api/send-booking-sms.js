@@ -11,11 +11,17 @@
  */
 
 import crypto from 'crypto';
+import dotenv from 'dotenv';
 
-export const ADMIN_PHONE_NUMBER = '7710080992';
+dotenv.config({ path: '.env.local' });
+dotenv.config();
+
+export const ADMIN_PHONE_NUMBER =
+  process.env.ADMIN_PHONE_NUMBER || process.env.WHATSAPP_API_NUMBER || '9570571516';
 export const TARGET_REVIEW_EMAIL =
   process.env.REVIEW_ALERT_EMAIL || 'safarindiacabs01@gmail.com';
-export const ADMIN_WHATSAPP_NUMBER = '7710080992';
+export const ADMIN_WHATSAPP_NUMBER =
+  process.env.WHATSAPP_API_NUMBER || process.env.ADMIN_PHONE_NUMBER || '9570571516';
 
 // ============================================================================
 // TRACCAR LOCAL + CLOUD SMS GATEWAY (/api/send-sms)
@@ -215,17 +221,32 @@ export async function dispatchTraccarSms(phone, message, options = {}) {
 }
 
 // ============================================================================
-// META WHATSAPP CLOUD API DISPATCHER (/api/send-whatsapp)
+// INTERAKT WHATSAPP API DISPATCHER (/api/send-whatsapp)
+// Official Endpoint: https://api.interakt.ai/v1/public/message/
 // ============================================================================
-export const DEFAULT_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '902764639583293';
-export const DEFAULT_WABA_ID = process.env.WHATSAPP_WABA_ID || '837811205522579';
-export const DEFAULT_ACCESS_TOKEN =
-  process.env.WHATSAPP_ACCESS_TOKEN ||
-  'EAAQJwftBnh4BSwB6NchrSSk726GnyhBhQ7KsRCdJjYD5ZBM9SzymkFEypXNws84BpNdbNVe3VpY48pDjjXZBZAdKbPboZBXlf8nzHhemNmvWNlwStfkcGSFfMTpPTExnhZAalcnx36ZBqXRhJeZBJo1NoJtjXhdZBo1zTJJywIOp6XKyW8poIxwlc5syie5J2qvubAZDZD';
+export const INTERAKT_API_URL =
+  process.env.INTERAKT_API_URL || 'https://api.interakt.ai/v1/public/message/';
+export const DEFAULT_PHONE_NUMBER_ID =
+  process.env.WHATSAPP_API_NUMBER || process.env.WHATSAPP_PHONE_NUMBER_ID || '9570571516';
+export const DEFAULT_WABA_ID = process.env.WHATSAPP_WABA_ID || '9570571516';
+
+export function getInteraktAuthHeader(customToken) {
+  if (customToken && typeof customToken === 'string' && customToken.trim()) {
+    const trimmed = customToken.trim();
+    return trimmed.startsWith('Basic ') ? trimmed : `Basic ${trimmed}`;
+  }
+  const envHeader = (process.env.INTERAKT_AUTH_HEADER || '').trim();
+  if (envHeader) {
+    return envHeader.startsWith('Basic ') ? envHeader : `Basic ${envHeader}`;
+  }
+  const envKey = (process.env.INTERAKT_API_KEY || '').trim();
+  if (envKey) {
+    return envKey.startsWith('Basic ') ? envKey : `Basic ${envKey}`;
+  }
+  return '';
+}
 
 const pendingWhatsAppQueue = new Map();
-let cachedApprovedTemplates = null;
-let cachedApprovedTemplatesAt = 0;
 
 export function formatWhatsAppPhone(phone) {
   const digits = String(phone || '').replace(/[^0-9]/g, '');
@@ -245,81 +266,70 @@ export function sanitizeTemplateParam(val) {
   return str.slice(0, 900) || '-';
 }
 
-async function getApprovedWabaTemplates(accessToken) {
-  const now = Date.now();
-  if (cachedApprovedTemplates && now - cachedApprovedTemplatesAt < 30000) {
-    return cachedApprovedTemplates;
-  }
-  try {
-    const url = `https://graph.facebook.com/v20.0/${DEFAULT_WABA_ID}/message_templates?fields=name,status,language,components&limit=50`;
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json'
-      }
-    });
-    if (res.ok) {
-      const data = await res.json().catch(() => null);
-      const list = Array.isArray(data?.data)
-        ? data.data.filter((t) => t && t.status === 'APPROVED')
-        : [];
-      cachedApprovedTemplates = list;
-      cachedApprovedTemplatesAt = now;
-      return list;
-    }
-  } catch {}
-  return cachedApprovedTemplates || [];
-}
-
+/**
+ * Sends a single Interakt Template message (`type: "Template"`) to https://api.interakt.ai/v1/public/message/
+ */
 export async function sendSingleTemplatePayload(
   apiUrl,
-  activeToken,
+  authHeader,
   formattedTo,
   templateName,
-  languageCode = 'en_US',
-  bodyParams = []
+  languageCode = 'en',
+  bodyParams = [],
+  buttonValues = undefined,
+  callbackData = 'safar_india_cabs'
 ) {
-  const components = [];
-  if (Array.isArray(bodyParams) && bodyParams.length > 0) {
-    components.push({
-      type: 'body',
-      parameters: bodyParams.map((p) => ({
-        type: 'text',
-        text: sanitizeTemplateParam(p)
-      }))
-    });
+  const clean10 = sanitize10Digit(formattedTo);
+  if (!clean10 || clean10.length !== 10) {
+    return { success: false, templateName, error: 'Invalid 10-digit Indian phone number' };
   }
 
+  const targetUrl =
+    apiUrl && apiUrl.includes('interakt.ai') ? apiUrl : INTERAKT_API_URL;
+  const activeAuth = getInteraktAuthHeader(authHeader);
+
+  if (!activeAuth) {
+    return {
+      success: false,
+      templateName,
+      error: 'Missing INTERAKT_API_KEY / INTERAKT_AUTH_HEADER in backend environment variables (.env)'
+    };
+  }
+
+  const cleanBodyValues = Array.isArray(bodyParams)
+    ? bodyParams.map((p) => sanitizeTemplateParam(p))
+    : [];
+
   const payload = {
-    messaging_product: 'whatsapp',
-    recipient_type: 'individual',
-    to: formattedTo,
-    type: 'template',
+    countryCode: '+91',
+    phoneNumber: clean10,
+    callbackData: String(callbackData || templateName || 'safar_india_cabs').slice(0, 500),
+    type: 'Template',
     template: {
       name: templateName,
-      language: { code: languageCode },
-      ...(components.length > 0 ? { components } : {})
+      languageCode: languageCode || 'en',
+      bodyValues: cleanBodyValues,
+      ...(buttonValues ? { buttonValues } : {})
     }
   };
 
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${activeToken}`,
+        Authorization: activeAuth,
         'Content-Type': 'application/json',
         Accept: 'application/json'
       },
       body: JSON.stringify(payload)
     });
     const data = await response.json().catch(() => null);
-    if (response.status === 200 || response.status === 201) {
+    if ((response.status === 200 || response.status === 201 || response.status === 202) && data?.result !== false) {
       return {
         success: true,
         status: response.status,
         templateName,
-        messageId: data?.messages?.[0]?.id || null,
+        messageId: data?.id || data?.messageId || null,
         data
       };
     }
@@ -327,14 +337,14 @@ export async function sendSingleTemplatePayload(
       success: false,
       status: response.status,
       templateName,
-      errorCode: data?.error?.code,
-      error: data?.error?.message || `HTTP ${response.status}`
+      error: data?.message || `Interakt HTTP ${response.status}`,
+      data
     };
   } catch (err) {
     return {
       success: false,
       templateName,
-      error: err?.message || 'Template network error'
+      error: err?.message || 'Interakt template network error'
     };
   }
 }
@@ -349,132 +359,104 @@ export async function dispatchWhatsAppTemplateWithFallback(
   const candidateTemplates = [];
 
   if (templateConfig && templateConfig.name) {
+    const baseParams = Array.isArray(templateConfig.params) ? templateConfig.params : [];
+    const baseLang = templateConfig.language || 'en';
     candidateTemplates.push({
       name: templateConfig.name,
-      language: templateConfig.language || 'en_US',
-      params: Array.isArray(templateConfig.params) ? templateConfig.params : []
+      language: baseLang,
+      params: baseParams,
+      buttonValues: templateConfig.buttonValues
+    });
+    // Also try alternate language code ('en' <-> 'en_US') in case template was created under either locale on Interakt
+    const altLang = baseLang === 'en' ? 'en_US' : 'en';
+    candidateTemplates.push({
+      name: templateConfig.name,
+      language: altLang,
+      params: baseParams,
+      buttonValues: templateConfig.buttonValues
     });
   }
 
   if (templateConfig && Array.isArray(templateConfig.backups)) {
     for (const b of templateConfig.backups) {
       if (b && b.name) {
+        const bLang = b.language || 'en';
+        const bParams = Array.isArray(b.params) ? b.params : [];
         candidateTemplates.push({
           name: b.name,
-          language: b.language || 'en_US',
-          params: Array.isArray(b.params) ? b.params : []
+          language: bLang,
+          params: bParams,
+          buttonValues: b.buttonValues
+        });
+        candidateTemplates.push({
+          name: b.name,
+          language: bLang === 'en' ? 'en_US' : 'en',
+          params: bParams,
+          buttonValues: b.buttonValues
         });
       }
     }
   }
 
-  const cleanSummary = sanitizeTemplateParam(messageText);
-  candidateTemplates.push(
-    {
-      name: 'safar_ride_update',
-      language: 'en_US',
-      params: [
-        templateConfig?.recipientName || 'Traveler',
-        templateConfig?.referenceId || 'SAFAR-CAB',
-        cleanSummary
-      ]
-    },
-    {
-      name: 'safar_trip_alert',
-      language: 'en_US',
-      params: [templateConfig?.recipientName || 'Traveler', cleanSummary]
-    },
-    {
-      name: 'safar_booking_pin_update',
-      language: 'en_US',
-      params: [
-        templateConfig?.recipientName || 'Traveler',
-        templateConfig?.referenceId || cleanSummary.slice(0, 60)
-      ]
-    }
-  );
+  const callbackRef = templateConfig?.referenceId || 'safar_india_cabs';
 
-  const approvedList = await getApprovedWabaTemplates(activeToken);
-  if (approvedList.length > 0) {
-    const approvedMap = new Map(approvedList.map((t) => [t.name, t]));
-    for (const cand of candidateTemplates) {
-      if (approvedMap.has(cand.name)) {
-        const res = await sendSingleTemplatePayload(
-          apiUrl,
-          activeToken,
-          formattedTo,
-          cand.name,
-          cand.language,
-          cand.params
-        );
-        if (res.success) return res;
-      }
-    }
-    for (const approved of approvedList) {
-      const bodyComp = (approved.components || []).find((c) => c.type === 'BODY');
-      const bodyText = bodyComp?.text || '';
-      const matches = bodyText.match(/\{\{\d+\}\}/g) || [];
-      const paramCount = matches.length;
-      let autoParams = [];
-      if (paramCount === 1) {
-        autoParams = [cleanSummary];
-      } else if (paramCount === 2) {
-        autoParams = [templateConfig?.recipientName || 'Traveler', cleanSummary];
-      } else if (paramCount >= 3) {
-        autoParams = [
-          templateConfig?.recipientName || 'Traveler',
-          templateConfig?.referenceId || 'SAFAR-CAB',
-          cleanSummary,
-          ...Array(Math.max(0, paramCount - 3)).fill('-')
-        ];
-      }
-      const res = await sendSingleTemplatePayload(
-        apiUrl,
-        activeToken,
-        formattedTo,
-        approved.name,
-        approved.language || 'en_US',
-        autoParams
-      );
-      if (res.success) return res;
-    }
-  } else {
-    const primary = candidateTemplates[0];
-    if (primary) {
-      const res = await sendSingleTemplatePayload(
-        apiUrl,
-        activeToken,
-        formattedTo,
-        primary.name,
-        primary.language,
-        primary.params
-      );
-      if (res.success) return res;
+  for (const cand of candidateTemplates) {
+    const res = await sendSingleTemplatePayload(
+      apiUrl,
+      activeToken,
+      formattedTo,
+      cand.name,
+      cand.language,
+      cand.params,
+      cand.buttonValues,
+      callbackRef
+    );
+    if (res.success) {
+      return res;
     }
   }
 
-  return { success: false, reason: 'No approved template matched yet' };
+  return { success: false, reason: 'No Interakt template matched yet' };
 }
 
 const recentWhatsAppDispatches = new Map();
 
-async function sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText) {
+/**
+ * Sends a direct Interakt Text message (`type: "Text"`) to https://api.interakt.ai/v1/public/message/
+ */
+async function sendRawTextPayload(apiUrl, authHeader, formattedTo, messageText, callbackData = 'safar_text_msg') {
+  const clean10 = sanitize10Digit(formattedTo);
+  if (!clean10 || clean10.length !== 10) {
+    return { success: false, to: formattedTo, error: 'Invalid 10-digit Indian phone number' };
+  }
+
+  const targetUrl =
+    apiUrl && apiUrl.includes('interakt.ai') ? apiUrl : INTERAKT_API_URL;
+  const activeAuth = getInteraktAuthHeader(authHeader);
+
+  if (!activeAuth) {
+    return {
+      success: false,
+      to: formattedTo,
+      error: 'Missing INTERAKT_API_KEY / INTERAKT_AUTH_HEADER in backend environment variables (.env)'
+    };
+  }
+
   const payload = {
-    messaging_product: 'whatsapp',
-    recipient_type: 'individual',
-    to: formattedTo,
-    type: 'text',
-    text: {
-      preview_url: false,
-      body: messageText
+    countryCode: '+91',
+    phoneNumber: clean10,
+    callbackData: String(callbackData || 'safar_text_msg').slice(0, 500),
+    type: 'Text',
+    data: {
+      message: messageText
     }
   };
 
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch(targetUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${activeToken}`,
+        Authorization: activeAuth,
         'Content-Type': 'application/json',
         Accept: 'application/json'
       },
@@ -482,12 +464,12 @@ async function sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText)
     });
 
     const data = await response.json().catch(() => null);
-    if (response.status === 200 || response.status === 201) {
+    if ((response.status === 200 || response.status === 201 || response.status === 202) && data?.result !== false) {
       return {
         success: true,
         status: response.status,
         to: formattedTo,
-        messageId: data?.messages?.[0]?.id || null,
+        messageId: data?.id || data?.messageId || null,
         data
       };
     }
@@ -495,15 +477,14 @@ async function sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText)
       success: false,
       status: response.status,
       to: formattedTo,
-      errorCode: data?.error?.code,
-      error: data?.error?.message || `HTTP Error Code: ${response.status}`,
+      error: data?.message || `HTTP Error Code: ${response.status}`,
       data
     };
   } catch (err) {
     return {
       success: false,
       to: formattedTo,
-      error: err?.message || 'Network or Exception Error'
+      error: err?.message || 'Interakt Network or Exception Error'
     };
   }
 }
@@ -536,9 +517,8 @@ export async function sendWhatsAppCloudMessage(
   }
 
   const activePhoneId = (customPhoneId && String(customPhoneId).trim()) || DEFAULT_PHONE_NUMBER_ID;
-  const activeToken =
-    (customAccessToken && String(customAccessToken).trim()) || DEFAULT_ACCESS_TOKEN;
-  const apiUrl = `https://graph.facebook.com/v20.0/${activePhoneId}/messages`;
+  const activeAuth = getInteraktAuthHeader(customAccessToken);
+  const apiUrl = INTERAKT_API_URL;
 
   recentWhatsAppDispatches.set(dedupeKey, {
     sentAt: now,
@@ -547,6 +527,7 @@ export async function sendWhatsAppCloudMessage(
       status: 200,
       to: formattedTo,
       phoneNumberId: activePhoneId,
+      gateway: 'interakt',
       deduplicated: true
     }
   });
@@ -554,22 +535,35 @@ export async function sendWhatsAppCloudMessage(
   let templateResult = { success: false, status: null, templateName: null, messageId: null, data: null, error: null };
   let textResult = { success: false, status: null, messageId: null, data: null, error: null };
 
-  templateResult = await dispatchWhatsAppTemplateWithFallback(
-    apiUrl,
-    activeToken,
-    formattedTo,
-    messageText,
-    templateConfig
-  );
+  // 1. Dispatch via Interakt Template API first
+  if (templateConfig) {
+    templateResult = await dispatchWhatsAppTemplateWithFallback(
+      apiUrl,
+      activeAuth,
+      formattedTo,
+      messageText,
+      templateConfig
+    );
+  }
 
-  if (!templateResult.success) {
-    textResult = await sendRawTextPayload(apiUrl, activeToken, formattedTo, messageText);
+  // 2. Also dispatch / fallback via Interakt Text API
+  if (!templateResult.success && messageText) {
+    textResult = await sendRawTextPayload(
+      apiUrl,
+      activeAuth,
+      formattedTo,
+      messageText,
+      refId || tplName
+    );
   }
 
   const overallSuccess = Boolean(templateResult.success || textResult.success);
 
   const finalResult = {
     success: overallSuccess,
+    gateway: 'interakt',
+    apiUrl: INTERAKT_API_URL,
+    whatsappNumber: ADMIN_WHATSAPP_NUMBER,
     status: textResult.status || templateResult.status || (overallSuccess ? 200 : 502),
     to: formattedTo,
     phoneNumberId: activePhoneId,
@@ -594,7 +588,7 @@ export async function sendWhatsAppCloudMessage(
       messageText,
       templateConfig,
       apiUrl,
-      activeToken,
+      activeToken: activeAuth,
       updatedAt: now,
       lastFlushedAt: now
     });
@@ -712,7 +706,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
   const pickupCity = booking.pickupCity || booking.pickup || 'Pickup';
   const dropCity = booking.dropCity || booking.drop || 'Drop';
 
-  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${cleanId}\nRoute: ${pickupCity} to ${dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFareStr}/-\nAdvance Paid: ₹${advanceStr}/-\nBalance Payable: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
+  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${cleanId}\nRoute: ${pickupCity} to ${dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFareStr}/-\nAdvance Paid: ₹${advanceStr}/-\nBalance Payable: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +919570571516\nThank you for choosing Safar India Cabs!`;
 
   const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${pickupCity} -> ${dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advanceStr}/-\nBalance Due: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)`;
 
@@ -736,7 +730,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
     `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll, State Tax & Parking Extra)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
-    `• Helpline: +91-7710080992`,
+    `• Helpline: +91-9570571516`,
     `• Website: https://safarindiacabs.com`,
     ``,
     `We wish you a pleasant, safe, and comfortable journey! 🚖`
@@ -764,8 +758,8 @@ export async function dispatchBookingConfirmationNotifications(booking) {
   ].join('\n');
 
   const customerTemplateConfig = {
-    name: 'safar_booking_confirmed_v1',
-    language: 'en_US',
+    name: process.env.INTERAKT_BOOKING_TEMPLATE || 'booking_confirmation',
+    language: 'en',
     recipientName: customerName,
     referenceId: cleanId,
     params: [
@@ -780,6 +774,21 @@ export async function dispatchBookingConfirmationNotifications(booking) {
       `${balanceStr}/- (Toll, State Tax & Parking Extra)`
     ],
     backups: [
+      {
+        name: 'safar_booking_confirmed_v1',
+        language: 'en_US',
+        params: [
+          customerName,
+          cleanId,
+          pickupCity,
+          dropCity,
+          travelDateTime,
+          cabClass,
+          `${totalFareStr}/-`,
+          `${advanceStr}/-`,
+          `${balanceStr}/- (Toll, State Tax & Parking Extra)`
+        ]
+      },
       {
         name: 'safar_lib_order_confirmed',
         language: 'en_US',
@@ -983,7 +992,7 @@ async function handleAssignDriverNotification(req, res, body) {
 
     const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${pickup}\nDrop: ${drop}\nDate/Time: ${dateFormatted}\nCab: ${shortVehicle} (${regNo})\n\nCollect Balance at Drop: ₹${balanceFormatted}/-\nPlease contact customer promptly.`;
 
-    const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${cleanId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${dateFormatted}\n\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : driverPhone}\nVehicle: ${shortVehicle} (${regNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
+    const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${cleanId}\nRoute: ${pickup} to ${drop}\nDate/Time: ${dateFormatted}\n\nDriver Name: ${driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : driverPhone}\nVehicle: ${shortVehicle} (${regNo})\n\nDriver will contact you prior to pickup.\nHelpline: +919570571516`;
 
     const waCustomerMessage = [
       `👨‍✈️ SAFARINDIACABS | DRIVER ALLOTMENT`,
@@ -1036,13 +1045,13 @@ async function handleAssignDriverNotification(req, res, body) {
       `Call the customer immediately and reach the pickup location before time. Keep the vehicle clean and strictly follow the non-smoking/non-drinking policy.`,
       ``,
       `📞 HELP & SUPPORT`,
-      `• Helpline: +91-7710080992`,
+      `• Helpline: +91-9570571516`,
       `• Website: https://safarindiacabs.com`
     ].join('\n');
 
     const customerTemplateConfig = {
-      name: 'safar_customer_driver_details',
-      language: 'en_US',
+      name: process.env.INTERAKT_DRIVER_CUSTOMER_TEMPLATE || 'driver_allotment_customer',
+      language: 'en',
       recipientName: customerName,
       referenceId: cleanId,
       params: [
@@ -1059,6 +1068,22 @@ async function handleAssignDriverNotification(req, res, body) {
       ],
       backups: [
         {
+          name: 'safar_customer_driver_details',
+          language: 'en_US',
+          params: [
+            customerName,
+            cleanId,
+            driverName || 'Assigned Driver',
+            `+91 ${cleanDriverPhone || driverPhone}`,
+            vehicleCategoryFull,
+            regNo,
+            pickup,
+            drop,
+            dateFormatted,
+            `₹${balanceFormatted}/-`
+          ]
+        },
+        {
           name: 'safar_ride_update',
           language: 'en_US',
           params: [
@@ -1071,8 +1096,8 @@ async function handleAssignDriverNotification(req, res, body) {
     };
 
     const driverTemplateConfig = {
-      name: 'safar_driver_pickup_details',
-      language: 'en_US',
+      name: process.env.INTERAKT_DRIVER_DUTY_TEMPLATE || 'driver_allotment_driver',
+      language: 'en',
       recipientName: driverName || 'Driver Partner',
       referenceId: cleanId,
       params: [
@@ -1087,6 +1112,21 @@ async function handleAssignDriverNotification(req, res, body) {
         `₹${balanceFormatted}/-`
       ],
       backups: [
+        {
+          name: 'safar_driver_pickup_details',
+          language: 'en_US',
+          params: [
+            driverName || 'Driver Partner',
+            cleanId,
+            customerName,
+            `+91 ${cleanCustomerPhone}`,
+            pickup,
+            drop,
+            dateFormatted,
+            `${shortVehicle} (${regNo})`,
+            `₹${balanceFormatted}/-`
+          ]
+        },
         {
           name: 'safar_ride_update',
           language: 'en_US',
@@ -1475,7 +1515,7 @@ async function handleSendReviewEmail(req, res, body) {
       }
     }
 
-    // 4. Instant Admin WhatsApp Cloud API Notification to +91 7710080992
+    // 4. Instant Admin WhatsApp Interakt API Notification to +91 9570571516
     let whatsappAlertSent = false;
     try {
       const waMessage = [
@@ -1535,7 +1575,8 @@ async function dispatchOtpViaWhatsApp(clean10DigitPhone, otp, customerName = 'Tr
   const waMessage =
     `🔐 *Safar India Cabs Verification*\n\n` +
     `Your login OTP is: *${otp}*\n` +
-    `Valid for 10 minutes. Do not share this with anyone.`;
+    `Valid for 10 minutes. Do not share this with anyone.\n` +
+    `Helpline: +91 9570571516`;
 
   return sendWhatsAppCloudMessage(
     clean10DigitPhone,
@@ -1543,25 +1584,27 @@ async function dispatchOtpViaWhatsApp(clean10DigitPhone, otp, customerName = 'Tr
     null,
     null,
     {
-      name: 'safar_booking_pin_update',
-      language: 'en_US',
+      name: process.env.INTERAKT_OTP_TEMPLATE || 'otp_verification',
+      language: 'en',
       recipientName: customerName || 'Traveler',
       referenceId: otp,
-      params: [customerName || 'Traveler', otp],
+      params: [otp],
+      buttonValues: { '0': [otp] },
       backups: [
+        {
+          name: 'otp_verification',
+          language: 'en',
+          params: [customerName || 'Traveler', otp]
+        },
+        {
+          name: 'safar_booking_pin_update',
+          language: 'en_US',
+          params: [customerName || 'Traveler', otp]
+        },
         {
           name: 'safar_account_notice',
           language: 'en_US',
           params: [customerName || 'Traveler', otp, 'instant account login']
-        },
-        {
-          name: 'safar_ride_update',
-          language: 'en_US',
-          params: [
-            customerName || 'Traveler',
-            `OTP-${otp}`,
-            `Your Safar India Cabs verification code is ${otp}. Valid for 10 minutes.`
-          ]
         }
       ]
     },

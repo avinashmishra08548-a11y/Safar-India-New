@@ -63,7 +63,7 @@ const TAB_HEADER_META: Record<
   help: {
     badge: '24×7 Customer Care & Dispatch Desk',
     title: 'Help, Support Center & Legal Policies',
-    subtitle: 'Instant assistance via Call (+91 7710080992), WhatsApp & Email'
+    subtitle: 'Instant assistance via Call (+91 9570571516), WhatsApp & Email'
   }
 };
 
@@ -236,7 +236,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Call 24/7 Helpline"
               >
                 <Phone className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-mono">77100 80992</span>
+                <span className="font-mono">95705 71516</span>
               </a>
 
               {currentUser ? (
@@ -607,7 +607,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* 3. Anchored Drawer Bottom Footer (Prevents Infinite Scroll Past Last Option) */}
             <div className="shrink-0 px-4 py-3 border-t border-slate-800 bg-[#070A12] flex items-center justify-between text-[11px] text-slate-400">
               <span className="font-bold text-slate-300">Safarindiacabs v1.0.6 (7)</span>
-              <span className="font-mono text-amber-400">+91-7710080992</span>
+              <span className="font-mono text-amber-400">+91-9570571516</span>
             </div>
           </aside>
         </div>

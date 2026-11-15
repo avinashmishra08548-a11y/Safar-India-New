@@ -263,7 +263,7 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
                     <a href="mailto:safarindiacabs01@gmail.com" className="text-amber-700 font-bold underline">
                       safarindiacabs01@gmail.com
                     </a>{' '}
-                    or WhatsApp/Call <strong>+91-7710080992</strong> with the subject <em>&ldquo;Account &amp; Data Deletion Request&rdquo;</em>. All personal records are permanently deleted within <strong>7 business days</strong> (except statutory tax invoices required to be retained under Indian GST laws).
+                    or WhatsApp/Call <strong>+91-9570571516</strong> with the subject <em>&ldquo;Account &amp; Data Deletion Request&rdquo;</em>. All personal records are permanently deleted within <strong>7 business days</strong> (except statutory tax invoices required to be retained under Indian GST laws).
                   </li>
                 </ul>
               </section>
@@ -421,7 +421,7 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
               <section className="space-y-2">
                 <h2 className="text-base font-black text-slate-950">2. Free Trip Rescheduling / Date Modification</h2>
                 <p>
-                  Passengers may modify their pickup time or travel date <strong>free of charge</strong> up to <strong>4 hours before</strong> the scheduled pickup time by contacting our 24×7 WhatsApp/Call Desk at <strong>+91-7710080992</strong>. Your entire advance deposit is automatically transferred to the rescheduled booking.
+                  Passengers may modify their pickup time or travel date <strong>free of charge</strong> up to <strong>4 hours before</strong> the scheduled pickup time by contacting our 24×7 WhatsApp/Call Desk at <strong>+91-9570571516</strong>. Your entire advance deposit is automatically transferred to the rescheduled booking.
                 </p>
               </section>
 
@@ -449,7 +449,7 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
                     <strong>Credit to Original Payment Method:</strong> All refunds are credited strictly back to the <strong>original source of payment</strong> (the same UPI ID, Bank Account, Debit Card, or Credit Card used via Razorpay) within <strong>5 to 7 business days</strong> as per standard RBI and banking settlement timelines.
                   </li>
                   <li>
-                    <strong>How to Request a Refund:</strong> You can cancel directly under the <strong>&ldquo;My Rides&rdquo;</strong> section in the app, or send your Booking ID (e.g., <code>SIC-89751</code>) on WhatsApp to <strong>+91-7710080992</strong> or email{' '}
+                    <strong>How to Request a Refund:</strong> You can cancel directly under the <strong>&ldquo;My Rides&rdquo;</strong> section in the app, or send your Booking ID (e.g., <code>SIC-89751</code>) on WhatsApp to <strong>+91-9570571516</strong> or email{' '}
                     <a href="mailto:safarindiacabs01@gmail.com" className="text-amber-700 font-bold underline">
                       safarindiacabs01@gmail.com
                     </a>
@@ -482,10 +482,10 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
                     Customer Support Phone (24×7)
                   </div>
                   <a
-                    href="tel:+917710080992"
+                    href="tel:+919570571516"
                     className="block text-base sm:text-lg font-black text-slate-950 font-mono hover:text-amber-700"
                   >
-                    +91-7710080992
+                    +91-9570571516
                   </a>
                   <p className="text-xs text-slate-500">
                     Available 24 Hours, 7 Days a Week for bookings, live driver tracking &amp; emergency support.
@@ -546,7 +546,7 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
                   </div>
                   <div>
                     <span className="text-slate-400 block">24×7 Helpline &amp; WhatsApp:</span>
-                    <strong className="text-white font-mono">+91-7710080992</strong>
+                    <strong className="text-white font-mono">+91-9570571516</strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block">Registered Office Address:</span>
@@ -571,7 +571,7 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
                     className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs inline-flex items-center gap-1.5 transition cursor-pointer"
                   >
                     <MessageSquare className="w-4 h-4 fill-current" />
-                    <span>Chat on WhatsApp (+91-7710080992)</span>
+                    <span>Chat on WhatsApp (+91-9570571516)</span>
                   </a>
                   <a
                     href="mailto:safarindiacabs01@gmail.com"

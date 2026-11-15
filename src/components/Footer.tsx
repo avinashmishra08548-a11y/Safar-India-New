@@ -171,7 +171,7 @@ export const Footer: React.FC<FooterProps> = ({
                   href={buildWhatsAppSchemeUrl(SAFAR_CONTACT_INFO.whatsappRaw)}
                   onClick={(e) => triggerWhatsAppDeepLink(e, SAFAR_CONTACT_INFO.whatsappRaw)}
                   className="px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 flex items-center gap-1.5 font-bold transition-all shadow-2xs cursor-pointer"
-                  title="WhatsApp: +91 77100 80992"
+                  title="WhatsApp: +91 95705 71516"
                 >
                   <MessageSquare className="w-4 h-4 fill-current shrink-0" />
                   <span>WhatsApp</span>

@@ -17,10 +17,9 @@ public class WhatsAppService {
 
     private static final String TAG = "WhatsAppService";
 
-    // Safar India Cabs - Verified Cloud API Endpoint
-    private static final String PHONE_NUMBER_ID = "902764639583293";
-    private static final String ACCESS_TOKEN = "";
-    private static final String API_URL = "https://graph.facebook.com/v20.0/" + PHONE_NUMBER_ID + "/messages";
+    // Safar India Cabs - Verified Interakt WhatsApp API via Backend Proxy
+    private static final String WHATSAPP_API_NUMBER = "9570571516";
+    private static final String API_URL = "https://safarindiacabs.com/api/send-whatsapp";
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -90,7 +89,7 @@ public class WhatsAppService {
                 "• Advance Paid: ₹" + advancePaid + "/-\n" +
                 "• Balance Payable: ₹" + balanceDue + "/- (Payable to driver)\n\n" +
                 "📞 CUSTOMER SUPPORT\n" +
-                "• Helpline: +91-7710080992\n" +
+                "• Helpline: +91-9570571516\n" +
                 "• Website: https://safarindiacabs.com\n\n" +
                 "We wish you a pleasant, safe, and comfortable journey! 🚖";
         sendTextMessage(phone, messageText, callback);
@@ -173,7 +172,7 @@ public class WhatsAppService {
                 "📌 Important Instructions:\n" +
                 "Call the customer immediately and reach the pickup location before time. Keep the vehicle clean and strictly follow the non-smoking/non-drinking policy.\n\n" +
                 "📞 HELP & SUPPORT\n" +
-                "• Helpline: +91-7710080992\n" +
+                "• Helpline: +91-9570571516\n" +
                 "• Website: https://safarindiacabs.com";
         sendTextMessage(phone, messageText, callback);
     }
@@ -223,21 +222,15 @@ public class WhatsAppService {
                 URL url = new URL(API_URL);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
-                conn.setRequestProperty("Authorization", "Bearer " + ACCESS_TOKEN);
                 conn.setRequestProperty("Content-Type", "application/json; utf-8");
                 conn.setRequestProperty("Accept", "application/json");
                 conn.setDoOutput(true);
 
                 JSONObject payload = new JSONObject();
-                payload.put("messaging_product", "whatsapp");
-                payload.put("recipient_type", "individual");
-                payload.put("to", recipientPhone);
-                payload.put("type", "text");
-
-                JSONObject textObj = new JSONObject();
-                textObj.put("preview_url", false);
-                textObj.put("body", messageText);
-                payload.put("text", textObj);
+                payload.put("endpoint", "send-whatsapp");
+                payload.put("recipientPhone", recipientPhone);
+                payload.put("messageText", messageText);
+                payload.put("phoneNumberId", WHATSAPP_API_NUMBER);
 
                 try (OutputStream os = conn.getOutputStream()) {
                     byte[] input = payload.toString().getBytes(StandardCharsets.UTF_8);

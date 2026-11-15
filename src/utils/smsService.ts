@@ -227,7 +227,7 @@ export async function sendOtpSms(phoneNumber: string, otp: string): Promise<SmsR
 /**
  * Verify Fast2SMS Key for the Owner Dashboard
  */
-export async function verifyFast2SmsKey(testKey: string, testPhone: string = '7710080992'): Promise<{ 
+export async function verifyFast2SmsKey(testKey: string, testPhone: string = '9570571516'): Promise<{ 
   ok: boolean; 
   info: string; 
   statusCode?: number;
@@ -296,7 +296,7 @@ export async function verifyFast2SmsKey(testKey: string, testPhone: string = '77
   }
 }
 
-export const ADMIN_PHONE_NUMBER = '7710080992';
+export const ADMIN_PHONE_NUMBER = '9570571516';
 
 export interface DualSmsResult {
   success: boolean;
@@ -413,7 +413,7 @@ export async function sendBookingConfirmationSms(
   const balance = booking.balanceAmount ?? booking.balanceDue ?? 0;
   
   // STAGE 1 - Customer Booking Confirmation Template:
-  const confirmationMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance} (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
+  const confirmationMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance} (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +919570571516\nThank you for choosing Safar India Cabs!`;
   return sendRawFast2Sms(cleanPhone, confirmationMessage);
 }
 
@@ -422,7 +422,7 @@ export async function sendBookingConfirmationSms(
  * 
  * Triggers TWO separate alerts immediately and automatically after Razorpay payment verification:
  * 1. Customer Confirmation SMS (Clean & structured template, NO OTP)
- * 2. Instant Admin New Booking Alert SMS to +91 7710080992 (Clear New Booking Alert template)
+ * 2. Instant Admin New Booking Alert SMS to +91 9570571516 (Clear New Booking Alert template)
  * 
  * First attempts the backend API route (/api/send-booking-sms or /api/booking-notifications).
  * If the backend API is unreachable or running in static mode, seamlessly falls back to direct client-side Fast2SMS gateway.
@@ -564,7 +564,7 @@ export async function sendDualBookingNotifications(booking: {
   }
 
   // STEP 2: Direct Failover Gateway (dispatches both SMS messages in parallel using exact clean templates)
-  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance} (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +917710080992\nThank you for choosing Safar India Cabs!`;
+  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${booking.id}\nRoute: ${booking.pickupCity} to ${booking.dropCity}\nDate/Time: ${travelDate}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFare}\nAdvance Paid: ₹${advance}\nBalance Payable: ₹${balance} (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +919570571516\nThank you for choosing Safar India Cabs!`;
 
   const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${booking.id}\nCustomer: ${booking.customerName}\nPhone: +91${cleanCustomerPhone}\n\nRoute: ${booking.pickupCity} -> ${booking.dropCity}\nDate/Time: ${travelDate}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advance}\nBalance Due: ₹${balance} (Toll, State Tax & Parking Extra)`;
 
@@ -698,7 +698,7 @@ export async function sendDriverAssignmentSms(params: {
   // Driver Pickup Alert
   const driverMessage = `🚖 SAFAR INDIA CABS — NEW PICKUP DUTY\n\nBooking ID: ${params.bookingId}\nCustomer: ${customerName}\nPhone: +91${cleanCustomerPhone}\n\nPickup: ${params.pickup}\nDrop: ${params.drop}\nDate/Time: ${params.travelDate}\nCab: ${cabClass}\n\nCollect Balance at Drop: ₹${balance}\nPlease contact customer promptly.`;
   // Customer Driver Details
-  const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${params.bookingId}\nRoute: ${params.pickup} to ${params.drop}\nDate/Time: ${params.travelDate}\n\nDriver Name: ${params.driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : params.driverPhone}\nVehicle: ${params.vehicleModel} (${params.vehicleNo})\n\nDriver will contact you prior to pickup.\nHelpline: +917710080992`;
+  const customerMessage = `🚗 SAFAR INDIA CABS — DRIVER ASSIGNED\n\nBooking ID: ${params.bookingId}\nRoute: ${params.pickup} to ${params.drop}\nDate/Time: ${params.travelDate}\n\nDriver Name: ${params.driverName}\nDriver Phone: ${cleanDriverPhone ? `+91${cleanDriverPhone}` : params.driverPhone}\nVehicle: ${params.vehicleModel} (${params.vehicleNo})\n\nDriver will contact you prior to pickup.\nHelpline: +919570571516`;
 
   const dispatches: Promise<any>[] = [
     sendRawFast2Sms(cleanCustomerPhone, customerMessage),
@@ -1030,7 +1030,7 @@ export async function verifyTraccarGateway(
         cloudToken?: string;
       }
     | string,
-  testPhone: string = '7710080992'
+  testPhone: string = '9570571516'
 ): Promise<{
   ok: boolean;
   info: string;

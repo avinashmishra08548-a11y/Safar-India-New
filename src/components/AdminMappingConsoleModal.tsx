@@ -470,7 +470,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
     setBillForm({
       id: b.id,
       customerName: b.customerName || 'Verified Passenger',
-      customerPhone: b.customerPhone || '7710080992',
+      customerPhone: b.customerPhone || '9570571516',
       customerGst: b.customerGst || '',
       gstCompanyName: b.gstCompanyName || '',
       tripType:
@@ -565,7 +565,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
       paymentMethod: 'upi_razorpay',
       transactionId: `pay_verified_${String(billForm.id || 'SIC2604').toLowerCase()}`,
       customerName: billForm.customerName || 'Verified Passenger',
-      customerPhone: String(billForm.customerPhone || '7710080992').replace(/\D/g, '').slice(-10),
+      customerPhone: String(billForm.customerPhone || '9570571516').replace(/\D/g, '').slice(-10),
       customerGst: billForm.customerGst || undefined,
       gstCompanyName: billForm.gstCompanyName || undefined,
       status: billForm.status,

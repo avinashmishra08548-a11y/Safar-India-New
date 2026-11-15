@@ -24,7 +24,7 @@ export const viewport = {
 export const metadata = {
   title: 'Safar India Cabs - Outstation & Intercity Taxi Service | Instant Booking',
   description:
-    'Book affordable outstation cabs, one-way taxi with zero return fare, round trips, local hourly rentals, and airport transfers across India. 24/7 Helpline: +91 7710080992.',
+    'Book affordable outstation cabs, one-way taxi with zero return fare, round trips, local hourly rentals, and airport transfers across India. 24/7 Helpline: +91 9570571516.',
   manifest: '/manifest.json',
   icons: {
     icon: [
