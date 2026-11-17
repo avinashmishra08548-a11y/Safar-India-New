@@ -28,8 +28,8 @@ const FAQS: FaqItem[] = [
     answer: 'Yes! Simply check the "Add GST Details" box during booking and enter your company name and 15-digit GSTIN. An official GST tax invoice with SAC Code 9964 (Passenger Transport) will be generated and downloadable immediately.'
   },
   {
-    question: 'How are Highway Toll Tax, State Tax, and Parking charges billed?',
-    answer: 'To keep your upfront cab fare 100% transparent and lowest in the market, Base Cab Fare, Fuel, Driver Allowance (Daily Bata), and 5% GST are included in your booking quote. Highway FASTag Toll Tax, State Border Entry Permit Tax, and Parking charges (if applicable) are extra and payable as per actuals during the trip.'
+    question: 'How are Highway Toll and State Tax charges billed?',
+    answer: 'Base Cab Fare, Fuel, Driver Allowance (Daily Bata), applicable State Entry Tax (per calendar day after pickup state, including ₹100 Delhi MCD entry toll where applicable), and 5% GST are displayed upfront. Highway FASTag Toll is extra as per actuals.'
   }
 ];
 

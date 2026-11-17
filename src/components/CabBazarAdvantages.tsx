@@ -17,7 +17,7 @@ export const CabBazarAdvantages: React.FC = () => {
     {
       icon: ShieldCheck,
       title: 'Zero Hidden Charges',
-      desc: 'Base Fare, Driver Allowance (DA), Included KMs & 5% GST displayed upfront before booking. Toll, State Tax & Parking Extra as per actuals.'
+      desc: 'Base Fare, Driver Allowance (DA), applicable State Tax & 5% GST displayed upfront before booking. Highway Toll Extra as per actuals.'
     },
     {
       icon: Clock,

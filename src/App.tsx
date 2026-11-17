@@ -629,7 +629,7 @@ export default function App() {
       customerEmail: '',
       status: 'confirmed',
       createdAt: '2026-11-07T05:08:00.000Z',
-      notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip (Toll, State Tax & Parking Extra as per actuals).'
+      notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip (Toll Extra as per actuals).'
     },
     {
       id: 'SIC2603',
@@ -663,7 +663,7 @@ export default function App() {
       customerEmail: 'passenger@safarindiacabs.in',
       status: 'confirmed',
       createdAt: '2026-10-17T08:30:00.000Z',
-      notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination (Toll, State Tax & Parking Extra as per actuals).'
+      notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination (Toll Extra as per actuals).'
     }
   ];
 

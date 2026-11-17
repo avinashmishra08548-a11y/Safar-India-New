@@ -784,17 +784,19 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-slate-600">
-                      <span>State Border Permit Tax:</span>
-                      <span className="font-mono font-bold text-amber-800">
-                        {statePermitTax > 0 ? formatINR(statePermitTax) : 'Extra (As Per Actuals)'}
+                      <span>State Tax &amp; Entry Charges:</span>
+                      <span className={`font-mono font-bold ${statePermitTax > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>
+                        {statePermitTax > 0 ? `${formatINR(statePermitTax)} (Included)` : '₹0'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-slate-600">
-                      <span>Parking Charges:</span>
-                      <span className="font-mono font-bold text-amber-800">
-                        {parkingCharge > 0 ? formatINR(parkingCharge) : 'Extra (If Applicable)'}
-                      </span>
-                    </div>
+                    {parkingCharge > 0 && (
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Parking Charges:</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          {formatINR(parkingCharge)}
+                        </span>
+                      </div>
+                    )}
                     {hillStationCharge > 0 && (
                       <div className="flex justify-between items-center text-slate-600">
                         <span>Hill Station Charge:</span>

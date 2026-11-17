@@ -1075,7 +1075,7 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-slate-600 font-semibold">4. State Border Entry Permit:</span>
+                            <span className="text-slate-600 font-semibold">4. State Tax &amp; Entry Charges:</span>
                             <span className="font-mono font-bold text-slate-900">
                               {formatINR(detailBrk.statePermitTax)}
                             </span>

@@ -128,13 +128,13 @@ export const LOCAL_PACKAGES = [
 export const INCLUSIONS_EXCLUSIONS = {
   inclusions: [
     'Fuel charges (CNG / Diesel / Petrol) for the entire included distance',
-    'Driver Allowance (Chauffeur Bata) & food/stay charges included upfront',
+    'Driver Allowance (Chauffeur Bata) & applicable State Entry Taxes included upfront',
     'Pickup Timing, Drop Arrival Timing & Route Terrain factored transparently',
     'One-Way Zero Return Fare (you pay only for one-side distance)',
     'Doorstep pickup from your home/hotel and drop at destination'
   ],
   exclusions: [
-    'Highway FASTag Toll Tax, State Border Entry Permit Tax & Parking Charges (extra as per actuals during the trip)',
+    'Highway FASTag Toll (extra as per actuals during the trip)',
     'Extra KM beyond included package distance (billed transparently at vehicle Extra Fare/Km rate)',
     'Airport / Hotel / Mall parking fees if applicable (paid at actuals against slip)',
     'Waiting charges beyond 45 minutes of free pickup grace period (₹100/hr)'

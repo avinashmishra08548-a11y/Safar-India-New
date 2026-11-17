@@ -188,7 +188,7 @@ export function formatWhatsAppBookingConfirmationMessage(params: {
     `💵 FARE & PAYMENT BREAKUP`,
     `• Total Fare: ₹${totalStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll, State Tax & Parking Extra)`,
+    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll Extra)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
     `• Helpline: +91-9570571516`,
@@ -404,7 +404,7 @@ export class WhatsAppService {
         formattedCab,
         `${formatWhatsAppAmount(fare)}/-`,
         `${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
-        `${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll, State Tax & Parking Extra)`
+        `${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll Extra)`
       ],
       backups: [
         {
@@ -421,7 +421,7 @@ export class WhatsAppService {
           params: [
             customerName,
             cleanId,
-            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll, State Tax & Parking Extra)`
+            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll Extra)`
           ]
         }
       ]
@@ -464,7 +464,7 @@ export class WhatsAppService {
       `💵 FARE & PAYMENT BREAKUP`,
       `• Total Fare: ₹${formatWhatsAppAmount(details?.totalFare ?? 0)}/-`,
       `• Advance Paid: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
-      `• Balance Payable: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll, State Tax & Parking Extra)`,
+      `• Balance Payable: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll Extra)`,
       ``,
       `⚡ Please assign a driver from the Owner Panel.`
     ].join('\n');

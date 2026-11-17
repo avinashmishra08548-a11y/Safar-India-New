@@ -706,9 +706,9 @@ export async function dispatchBookingConfirmationNotifications(booking) {
   const pickupCity = booking.pickupCity || booking.pickup || 'Pickup';
   const dropCity = booking.dropCity || booking.drop || 'Drop';
 
-  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${cleanId}\nRoute: ${pickupCity} to ${dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFareStr}/-\nAdvance Paid: ₹${advanceStr}/-\nBalance Payable: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +919570571516\nThank you for choosing Safar India Cabs!`;
+  const customerMessage = `🎉 SAFAR INDIA CABS — BOOKING CONFIRMED\n\nBooking ID: ${cleanId}\nRoute: ${pickupCity} to ${dropCity}\nDate/Time: ${travelDateTime}\nCab Class: ${cabClass}\n\nTotal Fare: ₹${totalFareStr}/-\nAdvance Paid: ₹${advanceStr}/-\nBalance Payable: ₹${balanceStr}/- (Toll Extra)\n\nDriver and vehicle details will be shared shortly before pickup.\nHelpline: +919570571516\nThank you for choosing Safar India Cabs!`;
 
-  const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${pickupCity} -> ${dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advanceStr}/-\nBalance Due: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)`;
+  const adminMessage = `🚨 NEW BOOKING ALERT — SAFAR INDIA CABS 🚨\n\nBooking ID: ${cleanId}\nCustomer: ${customerName}\nPhone: +91${customerPhone}\n\nRoute: ${pickupCity} -> ${dropCity}\nDate/Time: ${travelDateTime}\nCab: ${cabClass}\n\nAdvance Paid: ₹${advanceStr}/-\nBalance Due: ₹${balanceStr}/- (Toll Extra)`;
 
   const waCustomerMessage = [
     `🚗 SAFARINDIACABS | BOOKING CONFIRMATION`,
@@ -727,7 +727,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
     `💵 FARE & PAYMENT BREAKUP`,
     `• Total Fare: ₹${totalFareStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll, State Tax & Parking Extra)`,
+    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll Extra)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
     `• Helpline: +91-9570571516`,
@@ -752,7 +752,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
     `💵 FARE & PAYMENT BREAKUP`,
     `• Total Fare: ₹${totalFareStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Toll, State Tax & Parking Extra)`,
+    `• Balance Payable: ₹${balanceStr}/- (Toll Extra)`,
     ``,
     `⚡ Please assign a driver from the Owner Panel.`
   ].join('\n');
@@ -771,7 +771,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
       cabClass,
       `${totalFareStr}/-`,
       `${advanceStr}/-`,
-      `${balanceStr}/- (Toll, State Tax & Parking Extra)`
+      `${balanceStr}/- (Toll Extra)`
     ],
     backups: [
       {
@@ -786,7 +786,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
           cabClass,
           `${totalFareStr}/-`,
           `${advanceStr}/-`,
-          `${balanceStr}/- (Toll, State Tax & Parking Extra)`
+          `${balanceStr}/- (Toll Extra)`
         ]
       },
       {
@@ -803,7 +803,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
         params: [
           customerName,
           cleanId,
-          `BOOKING CONFIRMED - Route: ${pickupCity} to ${dropCity} (${travelDateTime}) | Cab: ${cabClass} | Total: Rs.${totalFareStr}/- | Advance Paid: Rs.${advanceStr}/- | Balance: Rs.${balanceStr}/- (Toll, State Tax & Parking Extra)`
+          `BOOKING CONFIRMED - Route: ${pickupCity} to ${dropCity} (${travelDateTime}) | Cab: ${cabClass} | Total: Rs.${totalFareStr}/- | Advance Paid: Rs.${advanceStr}/- | Balance: Rs.${balanceStr}/- (Toll Extra)`
         ]
       },
       {
@@ -833,7 +833,7 @@ export async function dispatchBookingConfirmationNotifications(booking) {
       cabClass,
       totalFareStr,
       advanceStr,
-      `${balanceStr} (Toll, State Tax & Parking Extra)`
+      `${balanceStr} (Toll Extra)`
     ],
     backups: [
       {

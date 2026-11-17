@@ -323,6 +323,8 @@ export interface CreateOrderRequestPayload {
   pickupDate: string;
   pickupTime: string;
   returnDate?: string;
+  returnTime?: string;
+  routeGeometry?: Array<[number, number]>;
   localPackageId?: string;
   includeTolls: boolean;
   addonCarrier?: boolean;
@@ -420,6 +422,8 @@ export interface RazorpayCheckoutOptions {
   pickupDateRaw?: string;
   pickupTimeRaw?: string;
   returnDateRaw?: string;
+  returnTimeRaw?: string;
+  routeGeometry?: Array<[number, number]>;
   localPackageId?: string;
   includeTolls?: boolean;
   addonCarrier?: boolean;
@@ -891,6 +895,8 @@ export async function launchRazorpayStandardCheckout(
         pickupDate: pickupDateRaw,
         pickupTime: pickupTimeRaw,
         returnDate: checkoutParams.returnDateRaw,
+        returnTime: checkoutParams.returnTimeRaw,
+        routeGeometry: checkoutParams.routeGeometry,
         localPackageId: checkoutParams.localPackageId || '8h_80k',
         includeTolls,
         addonCarrier: Boolean(checkoutParams.addonCarrier),

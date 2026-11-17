@@ -294,6 +294,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     pickupDate,
     pickupTime,
     returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
+    returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
     localPackageId,
     includeTolls: includeTollsState,
     addonCarrier,
@@ -357,8 +358,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         baseFare: activeFare.baseFare + activeFare.addonsTotal,
         driverAllowance: activeFare.driverAllowance,
         tollsAndTaxes: activeFare.tollsAndTaxes,
-        highwayToll: includeTollsState ? activeFare.highwayToll : 0,
-        statePermitTax: includeTollsState ? activeFare.statePermitTax : 0,
+        highwayToll: 0,
+        statePermitTax: activeFare.statePermitTax,
         hillStationCharge: activeFare.hillStationCharge || 0,
         nightCharge: activeFare.nightCharges || 0,
         gstAmount: activeFare.gstAmount,
@@ -383,7 +384,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         notes:
           [
             specialNotes.trim(),
-            'TOLL TAX, STATE TAX & PARKING EXTRA AS PER ACTUALS',
+            'TOLL EXTRA AS PER ACTUALS',
             activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
             extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
             addonCarrier ? 'Add-on: Roof Carrier' : '',
@@ -639,6 +640,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         pickupDate,
         pickupTime,
         returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
+        returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
+        routeGeometry,
         localPackageId,
         includeTolls: includeTollsState,
         addonCarrier,
@@ -769,6 +772,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       pickupDateRaw: pickupDate,
       pickupTimeRaw: pickupTime,
       returnDateRaw: tripType === 'roundtrip' ? returnDateState : undefined,
+      returnTimeRaw: tripType === 'roundtrip' ? returnTimeState : undefined,
+      routeGeometry,
       localPackageId,
       includeTolls: includeTollsState,
       addonCarrier,
@@ -987,21 +992,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               {tripType !== 'local' && (
                 <>
                   <div className="flex justify-between text-slate-600">
-                    <span>Highway Toll Tax:</span>
+                    <span>Highway Toll:</span>
                     <span className="font-mono font-bold text-amber-800">
                       Extra (As per actuals)
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>State Tax / Border Permit:</span>
-                    <span className="font-mono font-bold text-amber-800">
-                      Extra (If applicable)
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Parking Charges:</span>
-                    <span className="font-mono font-bold text-amber-800">
-                      Extra (If applicable)
+                    <span>State Tax:</span>
+                    <span className={`font-mono font-bold ${activeFare.statePermitTax > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>
+                      {activeFare.statePermitTax > 0
+                        ? `${formatINR(activeFare.statePermitTax)} (Included)`
+                        : '₹0'}
                     </span>
                   </div>
                 </>
@@ -1092,7 +1093,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <div className="w-full px-3.5 py-2 rounded-xl text-[11px] font-extrabold bg-emerald-50 text-emerald-950 border border-emerald-200 flex items-center justify-between gap-2 select-none">
                 <span className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>TOLL TAX, STATE TAX &amp; PARKING EXTRA (IF APPLICABLE)</span>
+                  <span>TOLL EXTRA</span>
                 </span>
                 <span className="text-emerald-800 font-bold whitespace-nowrap">As Per Actuals</span>
               </div>
@@ -1281,7 +1282,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <span className="flex items-center gap-2">
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span className="font-extrabold text-emerald-950">
-                      TOLL TAX, STATE TAX &amp; PARKING EXTRA (IF APPLICABLE)
+                      TOLL EXTRA
                     </span>
                   </span>
                   <span className="font-bold text-[11px] text-emerald-700 whitespace-nowrap">As Per Actuals</span>

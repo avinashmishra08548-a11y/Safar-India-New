@@ -456,19 +456,20 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
           : 'Extra (As Per Actuals)'
     },
     {
-      label: '4. State Border Entry Permit Tax',
+      label: '4. State Tax & Entry Charges',
       value:
         breakup.statePermitTax > 0
-          ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00`
-          : 'Extra (As Per Actuals)'
+          ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00 (Included)`
+          : 'INR 0.00'
     },
-    {
-      label: '5. Parking & Airport/Station Entry Charges',
-      value:
-        breakup.parkingCharge > 0
-          ? `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
-          : 'Extra (If Applicable)'
-    },
+    ...(breakup.parkingCharge > 0
+      ? [
+          {
+            label: '5. Parking & Airport/Station Entry Charges',
+            value: `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
+          }
+        ]
+      : []),
     ...(breakup.hillStationCharge > 0
       ? [
           {
@@ -998,21 +999,22 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
       bold: false
     },
     {
-      label: '4. State Border Entry Permit Tax',
+      label: '4. State Tax & Entry Charges',
       value:
         breakup.statePermitTax > 0
-          ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00`
-          : 'Extra (As Per Actuals)',
+          ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00 (Included)`
+          : 'INR 0.00',
       bold: false
     },
-    {
-      label: '5. Parking & Airport/Station Entry Charges',
-      value:
-        breakup.parkingCharge > 0
-          ? `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
-          : 'Extra (If Applicable)',
-      bold: false
-    },
+    ...(breakup.parkingCharge > 0
+      ? [
+          {
+            label: '5. Parking & Airport/Station Entry Charges',
+            value: `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`,
+            bold: false
+          }
+        ]
+      : []),
     ...(breakup.hillStationCharge > 0
       ? [
           {
@@ -1153,7 +1155,7 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
   ctx.fillStyle = '#475569';
   ctx.font = '13px Arial, sans-serif';
   ctx.fillText('1. Certified that particulars given above are true & correct.', margin + 16, y + 55);
-  ctx.fillText('2. Toll Tax, State Tax & Parking are extra as per actuals.', margin + 16, y + 78);
+  ctx.fillText('2. Highway Toll is extra as per actuals.', margin + 16, y + 78);
   ctx.fillText('3. Subject to North Delhi Jurisdiction only.', margin + 16, y + 101);
   ctx.fillText('4. 24x7 Helpline: +91 9570571516 | Safarindiacabs01@gmail.com', margin + 16, y + 124);
   ctx.fillStyle = '#0F172A';
@@ -1512,7 +1514,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
       `💰 *Total Trip Fare:* ₹${Number(itemizedBreakup.totalFare || 0).toLocaleString('en-IN')}`,
       `✅ *Advance Paid:* ₹${Number(effectiveBooking.advancePaid || 0).toLocaleString('en-IN')}`,
       `💵 *Remaining Balance (Payable to Driver):* ₹${Number(effectiveBooking.balanceDue || 0).toLocaleString('en-IN')}`,
-      `ℹ️ *Note:* Toll Tax, State Tax & Parking Extra (As Per Actuals).`,
+      `ℹ️ *Note:* Toll Extra (As Per Actuals).`,
       effectiveBooking.driverName
         ? `👨‍✈️ *Assigned Driver:* ${effectiveBooking.driverName} (+91 ${effectiveBooking.driverPhone || ''}) • Cab: ${effectiveBooking.driverVehicleNo || ''}`
         : `👨‍✈️ *Driver Status:* Chauffeur & vehicle details will be shared prior to pickup.`,
@@ -1711,7 +1713,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
 
                 <div className="text-[11px] text-slate-600 font-semibold pt-1 flex items-center justify-between">
-                  <span>✓ Toll Tax, State Tax &amp; Parking:</span>
+                  <span>✓ Toll:</span>
                   <span className="font-bold text-slate-800">Extra (As Per Actuals)</span>
                 </div>
               </div>
@@ -2054,27 +2056,27 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   <span className="font-mono font-bold text-amber-800">
                     {itemizedBreakup.highwayToll > 0
                       ? formatINR(itemizedBreakup.highwayToll)
-                      : '₹0'}
+                      : 'Extra (As Per Actuals)'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-slate-700">
-                  <span>4. State Border Entry Permit Tax:</span>
-                  <span className="font-mono font-bold text-amber-800">
+                  <span>4. State Tax &amp; Entry Charges:</span>
+                  <span className={`font-mono font-bold ${itemizedBreakup.statePermitTax > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>
                     {itemizedBreakup.statePermitTax > 0
-                      ? formatINR(itemizedBreakup.statePermitTax)
+                      ? `${formatINR(itemizedBreakup.statePermitTax)} (Included)`
                       : '₹0'}
                   </span>
                 </div>
 
-                <div className="flex justify-between items-center text-slate-700">
-                  <span>5. Parking Charges:</span>
-                  <span className="font-mono font-bold text-amber-800">
-                    {itemizedBreakup.parkingCharge > 0
-                      ? formatINR(itemizedBreakup.parkingCharge)
-                      : '₹0'}
-                  </span>
-                </div>
+                {itemizedBreakup.parkingCharge > 0 && (
+                  <div className="flex justify-between items-center text-slate-700">
+                    <span>5. Parking Charges:</span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {formatINR(itemizedBreakup.parkingCharge)}
+                    </span>
+                  </div>
+                )}
 
                 {itemizedBreakup.hillStationCharge > 0 && (
                   <div className="flex justify-between items-center text-slate-700">
