@@ -31,7 +31,8 @@ import {
   OlaPlacePrediction,
   Coordinates,
   detectCurrentGpsLocation,
-  RouteAlternative
+  RouteAlternative,
+  submitManualQuoteRequest
 } from '../utils/olaMapsService';
 import {
   requestServerOtp,
@@ -39,7 +40,7 @@ import {
   retriggerWhatsAppOtpFromToken,
   sanitize10DigitPhone
 } from '../utils/smsService';
-import { triggerWhatsAppDeepLink } from '../utils/whatsapp';
+import { triggerWhatsAppDeepLink, buildWhatsAppSchemeUrl } from '../utils/whatsapp';
 import { computeTripFare } from '../utils/fareCalculator';
 
 const TIME_SLOTS = [
@@ -142,6 +143,10 @@ interface BookingEngineProps {
   calculatedDistance: number;
   roundTripLegs?: Array<{ from: string; to: string; distanceKm: number }>;
   tripDays: number;
+  waitingMinutes?: number;
+  setWaitingMinutes?: (m: number) => void;
+  routeRequiresManualQuote?: boolean;
+  routeErrorMessage?: string;
   isExactOlaDistance?: boolean;
   travelDuration?: string;
   customerMobile?: string;
@@ -197,6 +202,10 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   calculatedDistance,
   roundTripLegs = [],
   tripDays,
+  waitingMinutes = 0,
+  setWaitingMinutes,
+  routeRequiresManualQuote = false,
+  routeErrorMessage = '',
   travelDuration,
   customerMobile = '',
   setCustomerMobile,
@@ -222,10 +231,15 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const [isLoadingDrop, setIsLoadingDrop] = useState(false);
   const [isDetectingGps, setIsDetectingGps] = useState(false);
 
-  // Autocomplete states for multi-city round trip stops
+  // Autocomplete states for multi-city stops
   const [activeStopDropdownIndex, setActiveStopDropdownIndex] = useState<number | null>(null);
   const [stopPredictions, setStopPredictions] = useState<OlaPlacePrediction[]>([]);
   const [isLoadingStop, setIsLoadingStop] = useState(false);
+  const [manualQuoteState, setManualQuoteState] = useState<{
+    submitting: boolean;
+    ticketId?: string;
+    message?: string;
+  }>({ submitting: false });
 
   // Secure WhatsApp OTP verification & form validation states
   const [inlineCustomerName, setInlineCustomerName] = useState<string>(() => currentUser?.name || '');
@@ -276,7 +290,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
   const handleSelectCategory = (cat: 'outstation' | 'local' | 'airport') => {
     setActiveMainCategory(cat);
     if (cat === 'outstation') {
-      if (tripType !== 'oneway' && tripType !== 'roundtrip') {
+      if (tripType !== 'oneway' && tripType !== 'roundtrip' && tripType !== 'multiday' && tripType !== 'custom') {
         setTripType('oneway');
       }
     } else if (cat === 'local') {
@@ -669,8 +683,12 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
       document.getElementById('booking-pickup-date-input')?.focus();
       return;
     }
-    if (tripType === 'roundtrip' && (!returnDate || !returnDate.trim())) {
-      setRouteError('Please select a Return Date for your Round Trip.');
+    if ((tripType === 'roundtrip' || tripType === 'multiday') && (!returnDate || !returnDate.trim())) {
+      setRouteError(
+        tripType === 'multiday'
+          ? 'Please select a Return Date for your Multi-Day Tour.'
+          : 'Please select a Return Date for your Round Trip.'
+      );
       document.getElementById('booking-return-date-input')?.focus();
       return;
     }
@@ -691,6 +709,37 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
 
     setIsSearchingCabs(false);
     onExploreCabs();
+  };
+
+  const handleRequestManualQuote = async () => {
+    const cleanPhone = sanitize10DigitPhone(customerMobile);
+    if (cleanPhone.length !== 10) {
+      setPhoneTouched(true);
+      setOtpError('Please enter your 10-digit WhatsApp mobile number so our dispatch desk can send your custom quote.');
+      document.getElementById('booking-mobile-input')?.focus();
+      return;
+    }
+    setManualQuoteState({ submitting: true });
+    const res = await submitManualQuoteRequest({
+      pickupCity,
+      dropCity,
+      tripType,
+      pickupDate,
+      pickupTime,
+      customerName: (inlineCustomerName || currentUser?.name || '').trim() || undefined,
+      customerPhone: cleanPhone,
+      stops: roundTripStops.map((s) => s.trim()).filter(Boolean),
+      reason: routeErrorMessage || 'Unverified driving distance / Custom tour quote'
+    });
+    setManualQuoteState({
+      submitting: false,
+      ticketId: res.ticketId,
+      message:
+        res.message ||
+        (res.success
+          ? 'Manual quotation request sent to SafarIndiaCabs Dispatch Desk (+91 9570571516).'
+          : 'Could not submit request online. Please tap WhatsApp Desk below.')
+    });
   };
 
   const today = getLocalTodayDateString();
@@ -722,12 +771,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     }
   }, [isPickupToday, pickupTime, availableTimeSlots, setPickupTime]);
 
-  // Combine dropCity + any roundTripStops so Hill Area detection and Extra KM rate reflect all stops
+  // Combine valid stops cleanly for pricing preview
   const validStops = roundTripStops.map((s) => (s || '').trim()).filter(Boolean);
-  const combinedDropRoute =
-    tripType === 'roundtrip' && validStops.length > 0
-      ? [dropCity, ...validStops].join(' → ')
-      : dropCity;
 
   // Dynamic route preview fare to show Extra KM rate right next to Total KM
   const routePreviewFare = computeTripFare({
@@ -736,12 +781,16 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
     distanceKm: calculatedDistance,
     extraKm: 0,
     pickupCity,
-    dropCity: combinedDropRoute,
+    dropCity,
+    stops: validStops,
+    waitingMinutes,
+    days: tripDays,
     pickupDate,
     pickupTime,
-    returnDate: tripType === 'roundtrip' ? returnDate : undefined,
+    returnDate: tripType === 'roundtrip' || tripType === 'multiday' ? returnDate : undefined,
     localPackageId,
-    includeTolls: false
+    includeTolls: false,
+    routeVerified: !routeRequiresManualQuote
   });
 
   const renderAutocompleteDropdown = (
@@ -858,20 +907,20 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         </button>
       </div>
 
-      {/* Sub-selection for Outstation (One-Way vs Round Trip) */}
+      {/* Sub-selection for Outstation (One-Way, Round Trip, Multi-Day, Custom) */}
       {activeMainCategory === 'outstation' && (
         <div className="flex items-center justify-between flex-wrap gap-2.5 pt-1">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setTripType('oneway')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition cursor-pointer border ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer border ${
                 tripType === 'oneway'
                   ? 'bg-amber-50 text-amber-900 border-amber-400'
                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${tripType === 'oneway' ? 'bg-amber-500' : 'bg-slate-300'}`} />
+              <span className={`w-2 h-2 rounded-full ${tripType === 'oneway' ? 'bg-amber-500' : 'bg-slate-300'}`} />
               One Way
             </button>
 
@@ -883,27 +932,62 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                   setReturnDate(pickupDate);
                 }
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition cursor-pointer border ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer border ${
                 tripType === 'roundtrip'
                   ? 'bg-amber-50 text-amber-900 border-amber-400'
                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${tripType === 'roundtrip' ? 'bg-amber-500' : 'bg-slate-300'}`} />
-              Round Trip (Same Day / Multi-Day)
+              <span className={`w-2 h-2 rounded-full ${tripType === 'roundtrip' ? 'bg-amber-500' : 'bg-slate-300'}`} />
+              Round Trip
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTripType('multiday');
+                if (pickupDate) {
+                  const next = new Date(pickupDate);
+                  if (!isNaN(next.getTime())) {
+                    next.setDate(next.getDate() + 1);
+                    if (!returnDate || returnDate <= pickupDate) {
+                      setReturnDate(next.toISOString().split('T')[0]);
+                    }
+                  }
+                }
+              }}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer border ${
+                tripType === 'multiday'
+                  ? 'bg-amber-50 text-amber-900 border-amber-400'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${tripType === 'multiday' ? 'bg-amber-500' : 'bg-slate-300'}`} />
+              Multi-Day Tour
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTripType('custom')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition cursor-pointer border ${
+                tripType === 'custom'
+                  ? 'bg-amber-50 text-amber-900 border-amber-400'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${tripType === 'custom' ? 'bg-amber-500' : 'bg-slate-300'}`} />
+              Custom / Multi-Stop
             </button>
           </div>
 
-          {tripType === 'roundtrip' && (
-            <button
-              type="button"
-              onClick={handleAddRoundTripStop}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-extrabold transition cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-amber-700" />
-              Add City / Stop
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleAddRoundTripStop}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-extrabold transition cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 text-amber-700" />
+            Add City / Stop
+          </button>
         </div>
       )}
 
@@ -1187,14 +1271,14 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           )}
         </div>
 
-        {/* MULTI-CITY / EXTRA STOPS BUILDER FOR ROUND TRIP */}
-        {tripType === 'roundtrip' && (
+        {/* MULTI-CITY / EXTRA STOPS BUILDER FOR OUTSTATION TRIPS */}
+        {(tripType === 'roundtrip' || tripType === 'custom' || tripType === 'multiday' || (tripType === 'oneway' && roundTripStops.length > 0)) && (
           <div ref={stopsContainerRef} className="space-y-3 pt-1">
             {roundTripStops.map((stopValue, idx) => (
               <div key={idx} className="relative flex items-center gap-2">
                 <div className="flex-1 relative">
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">
-                    Stop {idx + 2} (Additional City / Sightseeing Location)
+                    Stop {idx + 1} (En-Route City / Sightseeing Waypoint)
                   </label>
                   <div className="relative">
                     <MapPin className="w-4 h-4 text-amber-600 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1206,7 +1290,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                         handleUpdateRoundTripStop(idx, val);
                         setActiveStopDropdownIndex(val.trim().length >= 1 ? idx : null);
                       }}
-                      placeholder={`Type city or tourist spot #${idx + 2} (e.g. Mathura, Jaipur, Manali)`}
+                      placeholder={`Type stop city or landmark #${idx + 1} (e.g. Mathura, Agra)`}
                       className="w-full bg-amber-50/40 border border-amber-300 hover:border-amber-400 rounded-xl pl-10 pr-8 py-2.5 text-slate-900 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition"
                     />
                     {stopValue && (
@@ -1248,11 +1332,11 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               </div>
             ))}
 
-            {roundTripStops.length < 6 && (
+            {roundTripStops.length < 6 && (tripType === 'roundtrip' || tripType === 'custom' || tripType === 'multiday' || roundTripStops.length > 0) && (
               <div className="bg-slate-50/90 border border-dashed border-slate-300 rounded-2xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-xs text-slate-700 font-semibold">
-                    Going to multiple cities or places on your Round Trip?
+                    Need en-route stops or multiple cities on your journey?
                   </span>
                   <button
                     type="button"
@@ -1313,7 +1397,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         {/* Row 2: Dates, Times & Mobile Number */}
         <div
           className={`grid grid-cols-1 ${
-            tripType === 'roundtrip' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
+            tripType === 'roundtrip' || tripType === 'multiday' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'
           } gap-4 pt-1 items-start`}
         >
           {/* Pickup Date */}
@@ -1345,7 +1429,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
                 onChange={(e) => {
                   const newPickup = e.target.value;
                   setPickupDate(newPickup);
-                  if (tripType === 'roundtrip' && (!returnDate || returnDate < newPickup)) {
+                  if ((tripType === 'roundtrip' || tripType === 'multiday') && (!returnDate || returnDate < newPickup)) {
                     setReturnDate(newPickup);
                   }
                   if (routeError) setRouteError('');
@@ -1358,8 +1442,8 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           </div>
 
-          {/* Return Date (only for Round Trip — with 1-Tap Same Day / 2 Days / 3 Days option) */}
-          {tripType === 'roundtrip' && (
+          {/* Return Date (Round Trip & Multi-Day) */}
+          {(tripType === 'roundtrip' || tripType === 'multiday') && (
             <div>
               <div className="flex items-center justify-between gap-1 mb-1.5">
                 <label
@@ -1435,39 +1519,64 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             </div>
           )}
 
-          {/* Pickup Time */}
-          <div>
-            <label
-              htmlFor="booking-pickup-time-select"
-              className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2"
-            >
-              Pickup Time
-            </label>
-            <div className="relative">
-              <Clock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <select
-                id="booking-pickup-time-select"
-                aria-label="Pickup Time"
-                value={pickupTime}
-                onChange={(e) => {
-                  setPickupTime(e.target.value);
-                  if (routeError) setRouteError('');
-                }}
-                className={`w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3.5 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none ${
-                  pickupTime ? 'text-slate-900' : 'text-slate-400'
-                }`}
+          {/* Pickup Time & Optional Waiting Selector */}
+          <div className="space-y-2.5">
+            <div>
+              <label
+                htmlFor="booking-pickup-time-select"
+                className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-2"
               >
-                <option value="">
-                  {isPickupToday ? 'Select upcoming pickup time (Today)' : 'Select pickup time'}
-                </option>
-                {availableTimeSlots.map((slot) => (
-                  <option key={slot} value={slot} className="text-slate-900">
-                    {slot}
+                Pickup Time
+              </label>
+              <div className="relative">
+                <Clock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <select
+                  id="booking-pickup-time-select"
+                  aria-label="Pickup Time"
+                  value={pickupTime}
+                  onChange={(e) => {
+                    setPickupTime(e.target.value);
+                    if (routeError) setRouteError('');
+                  }}
+                  className={`w-full min-h-[50px] bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl pl-10 pr-8 py-3.5 font-semibold text-sm focus:outline-none focus:border-amber-500 focus:bg-white appearance-none ${
+                    pickupTime ? 'text-slate-900' : 'text-slate-400'
+                  }`}
+                >
+                  <option value="">
+                    {isPickupToday ? 'Select upcoming pickup time (Today)' : 'Select pickup time'}
                   </option>
-                ))}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  {availableTimeSlots.map((slot) => (
+                    <option key={slot} value={slot} className="text-slate-900">
+                      {slot}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
+
+            {tripType !== 'local' && setWaitingMinutes && (
+              <div>
+                <label
+                  htmlFor="booking-waiting-select"
+                  className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1"
+                >
+                  Expected Waiting (45m Free Grace)
+                </label>
+                <select
+                  id="booking-waiting-select"
+                  aria-label="Expected Waiting Time"
+                  value={waitingMinutes}
+                  onChange={(e) => setWaitingMinutes(Number(e.target.value) || 0)}
+                  className="w-full bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-500 focus:bg-white"
+                >
+                  <option value={0}>Up to 45 mins (₹0 Free Grace)</option>
+                  <option value={60}>60 mins (+15 mins wait)</option>
+                  <option value={120}>2 Hours (75 mins billed)</option>
+                  <option value={180}>3 Hours (135 mins billed)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Customer Full Name & WhatsApp Number */}
@@ -1721,8 +1830,56 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
           </div>
         )}
 
+        {/* Manual Quote Fallback Card when Road Route Cannot Be Automatically Verified */}
+        {routeRequiresManualQuote && tripType !== 'local' && pickupCity.trim().length >= 2 && dropCity.trim().length >= 2 && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-2.5 text-xs">
+            <div className="flex items-start gap-2 text-amber-950 font-bold">
+              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div>
+                <div>Custom / Unverified Route — Instant Manual Dispatch Quote Required</div>
+                <p className="text-[11px] text-amber-800 font-medium mt-0.5">
+                  {routeErrorMessage ||
+                    'Our automated highway check could not verify the road distance for this location combination. Submit a quick quote request for exact door-to-door pricing.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={manualQuoteState.submitting}
+                onClick={handleRequestManualQuote}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-extrabold text-xs transition cursor-pointer disabled:opacity-60"
+              >
+                {manualQuoteState.submitting ? 'Submitting Quote Request...' : 'Request Manual Quotation'}
+              </button>
+              <a
+                href={buildWhatsAppSchemeUrl(
+                  `Hi SafarIndiaCabs, please share a manual cab quote from ${pickupCity} to ${dropCity}${
+                    validStops.length ? ` via ${validStops.join(', ')}` : ''
+                  } (${tripType}).`
+                )}
+                onClick={(e) =>
+                  triggerWhatsAppDeepLink(
+                    e,
+                    `Hi SafarIndiaCabs, please share a manual cab quote from ${pickupCity} to ${dropCity}.`
+                  )
+                }
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition"
+              >
+                WhatsApp Dispatch Desk (+91 9570571516)
+              </a>
+            </div>
+            {manualQuoteState.message && (
+              <div className="text-[11px] font-bold text-emerald-800 bg-white/80 border border-emerald-200 rounded-xl px-3 py-2">
+                {manualQuoteState.ticketId ? `[${manualQuoteState.ticketId}] ` : ''}
+                {manualQuoteState.message}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Clean Route Preview Strip */}
-        {tripType !== 'local' && pickupCity.trim().length >= 2 && dropCity.trim().length >= 2 && (
+        {!routeRequiresManualQuote && tripType !== 'local' && pickupCity.trim().length >= 2 && dropCity.trim().length >= 2 && (
           <div className="bg-slate-50 border border-slate-200/90 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-2.5 text-xs">
             <div className="flex flex-wrap items-center gap-2 text-slate-700 font-semibold">
               <RouteIcon className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1750,18 +1907,19 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
         <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t border-slate-100">
           <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-slate-600">
             <span className="font-bold text-slate-900">
-              Total Distance: {routePreviewFare.billedDistanceKm} KM
+              {routeRequiresManualQuote
+                ? 'Distance: Manual Quote'
+                : `Total Distance: ${routePreviewFare.billedDistanceKm} KM`}
             </span>
             <span className="text-slate-300">•</span>
             <span className="font-semibold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
               Extra KM: ₹{routePreviewFare.extraKmRate}/km
             </span>
-            {tripType === 'roundtrip' && validStops.length > 0 && (
+            {validStops.length > 0 && (
               <>
                 <span className="text-slate-300">•</span>
                 <span className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                  Route: {(pickupCity || 'Origin').split(',')[0]} → {(dropCity || 'Dest').split(',')[0]} →{' '}
-                  {validStops.map((s) => s.split(',')[0]).join(' → ')} → {(pickupCity || 'Origin').split(',')[0]}
+                  Stops: {validStops.map((s) => s.split(',')[0]).join(' → ')}
                 </span>
               </>
             )}
@@ -1769,13 +1927,15 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
               <span className="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
                 <Mountain className="w-3.5 h-3.5" />
                 <span>
-                  {routePreviewFare.pickupIsHill
-                    ? 'Hill Area Pickup (₹16/km)'
-                    : 'Hill Area Drop (₹13/km)'}
+                  {routePreviewFare.isDifficultMountainRoute
+                    ? 'Mountain Terrain'
+                    : routePreviewFare.pickupIsHill
+                    ? 'Hill Area Pickup'
+                    : 'Hill Area Drop'}
                 </span>
               </span>
             )}
-            {travelDuration && (
+            {travelDuration && !routeRequiresManualQuote && (
               <>
                 <span className="text-slate-300 hidden sm:inline">•</span>
                 <span className="text-slate-500 hidden sm:inline">Est. {travelDuration}</span>
@@ -1797,7 +1957,7 @@ export const BookingEngine: React.FC<BookingEngineProps> = ({
             ) : (
               <>
                 <Car className="w-5 h-5 text-slate-950 shrink-0" />
-                <span>Search Available Cabs →</span>
+                <span>{routeRequiresManualQuote ? 'View Quote Options →' : 'Search Available Cabs →'}</span>
               </>
             )}
           </button>

@@ -13,6 +13,25 @@
  * 5. Logs all provider errors, latency metrics, and fallback transitions.
  */
 
+import {
+  analyzeRouteIntelligence,
+  calculateIntelligentFare,
+  validateRouteInput
+} from '../lib/pricing/index.js';
+import {
+  getActivePricingConfigSync,
+  loadActivePricingConfig,
+  publishNewPricingConfig,
+  rollbackPricingConfigVersion,
+  listPricingVersionsAndAudit,
+  recordManualQuoteRequest,
+  listManualQuoteRequests
+} from '../lib/pricing/configStore.js';
+
+const GOOGLE_ROUTES_API_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+const GOOGLE_PLACES_AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
+const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
+
 const OLA_AUTOCOMPLETE_URL = 'https://api.olamaps.io/places/v1/autocomplete';
 const OLA_DETAILS_URL = 'https://api.olamaps.io/places/v1/details';
 const OLA_REVERSE_GEOCODE_URL = 'https://api.olamaps.io/places/v1/reverse-geocode';
@@ -21,11 +40,6 @@ const OLA_DISTANCE_MATRIX_URL = 'https://api.olamaps.io/routing/v1/distanceMatri
 
 const MAPBOX_DIRECTIONS_BASE_URL = 'https://api.mapbox.com/directions/v5/mapbox/driving';
 const MAPBOX_GEOCODING_BASE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
-const DEFAULT_MAPBOX_ACCESS_TOKEN = [
-  'pk',
-  'eyJ1IjoiYXZpbmFzaG1pc2hyYTA4NTQ4IiwiYSI6ImNtd2J4N25rejAwM2kyeXNjYTRzeHNhM2kifQ',
-  'tXtGhjKYcQ7whcT6UcsasQ'
-].join('.');
 
 const MAPPLS_AUTOSUGGEST_URL = 'https://atlas.mappls.com/api/places/search/json';
 const MAPPLS_ROUTING_BASE_URL = 'https://apis.mappls.com/advancedmaps/v1';
@@ -52,10 +66,13 @@ const apiMetrics = {
     placeDetails: 0,
     driverTelemetry: 0,
     pricingConfig: 0,
+    pricingSimulate: 0,
+    manualQuote: 0,
     benchmark: 0,
     mapboxPricing: 0
   },
   byProvider: {
+    google_maps: { calls: 0, successes: 0, failures: 0, avgLatencyMs: 92 },
     mapbox: { calls: 0, successes: 0, failures: 0, avgLatencyMs: 98 },
     ola_maps: { calls: 0, successes: 0, failures: 0, avgLatencyMs: 142 },
     mappls: { calls: 0, successes: 0, failures: 0, avgLatencyMs: 168 },
@@ -126,90 +143,75 @@ function checkRateLimit(clientIp) {
   return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - record.count };
 }
 
-// Admin-Controlled Pricing Configuration (Server State)
-let serverAdminPricingConfig = {
-  updatedAt: new Date().toISOString(),
-  updatedBy: 'Admin Control Panel',
-  minOneWayBillableKm: 130,
-  minRoundTripKmPerDay: 250,
-  nightChargePerSlot: 0,
-  gstPercentOneWay: 5,
-  gstPercentRoundTrip: 0,
-  defaultParkingCharge: 150,
-  tollRateMultiplier: 1.0,
-  statePermitMultiplier: 1.0,
-  vehicles: {
-    hatchback: {
-      ratePerKm: 8.8,
-      roundTripRatePerKm: 10.5,
-      extraKmRate: 9.5,
-      minBaseFare: 1144,
-      driverAllowancePerDay: 240,
-      nightChargePerNight: 250,
-      hillStationCharge: 280,
-      statePermitTax: 200,
-      local8Hr80KmFare: 1599
-    },
-    sedan: {
-      ratePerKm: 9.5,
-      roundTripRatePerKm: 11.5,
-      extraKmRate: 10.2,
-      minBaseFare: 1235,
-      driverAllowancePerDay: 260,
-      nightChargePerNight: 250,
-      hillStationCharge: 340,
-      statePermitTax: 250,
-      local8Hr80KmFare: 1799
-    },
-    exec_sedan: {
-      ratePerKm: 11.0,
-      roundTripRatePerKm: 13.0,
-      extraKmRate: 11.8,
-      minBaseFare: 1430,
-      driverAllowancePerDay: 300,
-      nightChargePerNight: 300,
-      hillStationCharge: 390,
-      statePermitTax: 300,
-      local8Hr80KmFare: 2199
-    },
-    suv: {
-      ratePerKm: 12.6,
-      roundTripRatePerKm: 15.0,
-      extraKmRate: 13.5,
-      minBaseFare: 1638,
-      driverAllowancePerDay: 320,
-      nightChargePerNight: 300,
-      hillStationCharge: 440,
-      statePermitTax: 350,
-      local8Hr80KmFare: 2499
-    },
-    innova: {
-      ratePerKm: 15.8,
-      roundTripRatePerKm: 19.0,
-      extraKmRate: 17.0,
-      minBaseFare: 2054,
-      driverAllowancePerDay: 380,
-      nightChargePerNight: 350,
-      hillStationCharge: 550,
-      statePermitTax: 450,
-      local8Hr80KmFare: 3199
-    },
-    tempo: {
-      ratePerKm: 21.5,
-      roundTripRatePerKm: 24.5,
-      extraKmRate: 23.0,
-      minBaseFare: 2795,
-      driverAllowancePerDay: 480,
-      nightChargePerNight: 450,
-      hillStationCharge: 750,
-      statePermitTax: 650,
-      local8Hr80KmFare: 4799
-    }
-  }
-};
-
 // Live Driver GPS Tracking Store (keyed by bookingId)
 const liveDriverSessions = new Map();
+
+// Quick India location geocoder for multi-stop waypoints / uncoordinated city names
+async function resolvePointCoordinatesServer(locationText, { googleMapsApiKey, mapboxAccessToken }) {
+  const clean = String(locationText || '').trim();
+  if (!clean || clean.length < 2) return null;
+
+  // 1. Check benchmark cities first (instant)
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+  const tok = norm(clean.split(',')[0]);
+  for (const item of INTERCITY_30_ROUTES_BENCHMARK) {
+    if (norm(item.from.split(',')[0]) === tok) return item.origin;
+    if (norm(item.to.split(',')[0]) === tok) return item.dest;
+  }
+
+  // 2. Google Maps Geocoding API (if configured)
+  if (googleMapsApiKey) {
+    try {
+      const gRes = await fetch(
+        `${GOOGLE_GEOCODE_URL}?address=${encodeURIComponent(`${clean}, India`)}&components=country:IN&key=${encodeURIComponent(googleMapsApiKey)}`
+      );
+      if (gRes.ok) {
+        const gData = await gRes.json();
+        const loc = gData?.results?.[0]?.geometry?.location;
+        if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
+          return { lat: Number(loc.lat), lng: Number(loc.lng) };
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Mapbox Geocoding (if configured)
+  if (mapboxAccessToken) {
+    try {
+      const mbUrl = `${MAPBOX_GEOCODING_BASE_URL}/${encodeURIComponent(clean)}.json?country=in&limit=1&access_token=${encodeURIComponent(mapboxAccessToken)}`;
+      const mbRes = await fetch(mbUrl);
+      if (mbRes.ok) {
+        const mbData = await mbRes.json();
+        const center = mbData?.features?.[0]?.center;
+        if (Array.isArray(center) && center.length >= 2) {
+          return { lat: Number(center[1]), lng: Number(center[0]) };
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Photon OSM bounded to India
+  try {
+    const pRes = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(clean)}&limit=1&bbox=68.1,6.5,97.4,35.5`
+    );
+    if (pRes.ok) {
+      const pData = await pRes.json();
+      const coords = pData?.features?.[0]?.geometry?.coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) {
+        return { lat: Number(coords[1]), lng: Number(coords[0]) };
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+function parseGoogleDurationMinutes(durationStr) {
+  const m = String(durationStr || '').match(/^(\d+(?:\.\d+)?)s$/);
+  if (!m) return 60;
+  return Math.max(15, Math.round(Number(m[1]) / 60));
+}
 
 // Decode Google/Ola/Mappls Encoded Polyline String into [lng, lat][] GeoJSON coordinates
 function decodeEncodedPolyline(encoded) {
@@ -379,22 +381,13 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const action = String(query.action || body.action || 'status').trim();
 
-  const mapboxAccessToken = (
-    process.env.MAPBOX_ACCESS_TOKEN ||
-    process.env.VITE_MAPBOX_ACCESS_TOKEN ||
-    body.mapboxAccessToken ||
-    query.access_token ||
-    DEFAULT_MAPBOX_ACCESS_TOKEN
-  ).trim();
-  const olaApiKey = (
-    process.env.OLA_MAPS_API_KEY ||
-    body.olaApiKey ||
-    ['TSHtH9B6FJ9B5U1NyR0Q', '1YZ7oZyxna55QwWZc3oR'].join('')
-  ).trim();
-  const mapplsApiKey = (process.env.MAPPLS_API_KEY || body.mapplsApiKey || '').trim();
+  const googleMapsApiKey = String(process.env.GOOGLE_MAPS_API_KEY || '').trim();
+  const mapboxAccessToken = String(process.env.MAPBOX_ACCESS_TOKEN || '').trim();
+  const olaApiKey = String(process.env.OLA_MAPS_API_KEY || '').trim();
+  const mapplsApiKey = String(process.env.MAPPLS_API_KEY || '').trim();
 
   // ---------------------------------------------------------------------------
-  // ACTION 1: AUTOCOMPLETE (Mapbox Geocoding v5 -> Ola Maps -> Mappls -> India Pincode/OSM)
+  // ACTION 1: AUTOCOMPLETE (Google Places -> Mapbox -> Ola Maps -> Mappls -> India Pincode/OSM)
   // ---------------------------------------------------------------------------
   if (action === 'autocomplete') {
     apiMetrics.byAction.autocomplete += 1;
@@ -409,7 +402,59 @@ export default async function handler(req, res) {
       return res.status(200).json({ ...cached, cached: true });
     }
 
-    // 1. Primary Provider: Mapbox Geocoding v5 India Places API
+    // 0. Primary Provider: Google Places Autocomplete (New) if GOOGLE_MAPS_API_KEY configured
+    if (googleMapsApiKey) {
+      const tg0 = Date.now();
+      try {
+        const gpRes = await fetch(GOOGLE_PLACES_AUTOCOMPLETE_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': googleMapsApiKey,
+            'X-Goog-Maps-Solution-ID': 'gmp_git_agentskills_v1'
+          },
+          body: JSON.stringify({
+            input,
+            includedRegionCodes: ['in']
+          })
+        });
+        if (gpRes.ok) {
+          const gpData = await gpRes.json();
+          const suggestions = Array.isArray(gpData?.suggestions) ? gpData.suggestions : [];
+          if (suggestions.length > 0) {
+            recordProviderLatency('google_maps', Date.now() - tg0, true);
+            const payload = {
+              success: true,
+              provider: 'google_maps',
+              predictions: suggestions.slice(0, 8).map((s, idx) => {
+                const p = s.placePrediction || {};
+                const fullText = p.text?.text || input;
+                const mainText = p.structuredFormat?.mainText?.text || fullText.split(',')[0].trim();
+                const secondaryText = p.structuredFormat?.secondaryText?.text || 'India';
+                return {
+                  description: fullText,
+                  placeId: p.placeId || `gp_${idx}_${mainText}`,
+                  mainText,
+                  secondaryText,
+                  types: p.types || ['locality'],
+                  source: 'google_maps'
+                };
+              })
+            };
+            setCache(cacheKey, payload);
+            return res.status(200).json(payload);
+          }
+        } else {
+          recordProviderLatency('google_maps', Date.now() - tg0, false);
+          logProviderError('google_maps', 'autocomplete', `HTTP ${gpRes.status} on query "${input}"`);
+        }
+      } catch (err) {
+        recordProviderLatency('google_maps', Date.now() - tg0, false);
+        logProviderError('google_maps', 'autocomplete', err?.message || 'Google Places unreachable');
+      }
+    }
+
+    // 1. Secondary Provider: Mapbox Geocoding v5 India Places API
     if (mapboxAccessToken) {
       const tm0 = Date.now();
       try {
@@ -454,40 +499,42 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Secondary Provider: Ola Maps Places Autocomplete API
-    const t0 = Date.now();
-    try {
-      const olaUrl = `${OLA_AUTOCOMPLETE_URL}?input=${encodeURIComponent(input)}&api_key=${encodeURIComponent(olaApiKey)}&components=country:in`;
-      const olaRes = await fetch(olaUrl, { headers: { Accept: 'application/json' } });
-      if (olaRes.ok) {
-        const olaData = await olaRes.json();
-        const preds = olaData?.predictions || olaData?.data?.predictions || [];
-        if (Array.isArray(preds) && preds.length > 0) {
-          recordProviderLatency('ola_maps', Date.now() - t0, true);
-          const payload = {
-            success: true,
-            provider: 'ola_maps',
-            predictions: preds.slice(0, 8).map((p) => ({
-              description: p.description || p.formatted_address || p.name || input,
-              placeId: p.place_id,
-              mainText: p.structured_formatting?.main_text || p.name || p.description,
-              secondaryText: p.structured_formatting?.secondary_text || 'India',
-              lat: p.geometry?.location?.lat,
-              lng: p.geometry?.location?.lng,
-              types: p.types || ['locality'],
-              source: 'ola_maps'
-            }))
-          };
-          setCache(cacheKey, payload);
-          return res.status(200).json(payload);
+    // 2. Ola Maps Places Autocomplete API (when configured)
+    if (olaApiKey) {
+      const t0 = Date.now();
+      try {
+        const olaUrl = `${OLA_AUTOCOMPLETE_URL}?input=${encodeURIComponent(input)}&api_key=${encodeURIComponent(olaApiKey)}&components=country:in`;
+        const olaRes = await fetch(olaUrl, { headers: { Accept: 'application/json' } });
+        if (olaRes.ok) {
+          const olaData = await olaRes.json();
+          const preds = olaData?.predictions || olaData?.data?.predictions || [];
+          if (Array.isArray(preds) && preds.length > 0) {
+            recordProviderLatency('ola_maps', Date.now() - t0, true);
+            const payload = {
+              success: true,
+              provider: 'ola_maps',
+              predictions: preds.slice(0, 8).map((p) => ({
+                description: p.description || p.formatted_address || p.name || input,
+                placeId: p.place_id,
+                mainText: p.structured_formatting?.main_text || p.name || p.description,
+                secondaryText: p.structured_formatting?.secondary_text || 'India',
+                lat: p.geometry?.location?.lat,
+                lng: p.geometry?.location?.lng,
+                types: p.types || ['locality'],
+                source: 'ola_maps'
+              }))
+            };
+            setCache(cacheKey, payload);
+            return res.status(200).json(payload);
+          }
+        } else {
+          recordProviderLatency('ola_maps', Date.now() - t0, false);
+          logProviderError('ola_maps', 'autocomplete', `HTTP ${olaRes.status} on query "${input}"`);
         }
-      } else {
+      } catch (err) {
         recordProviderLatency('ola_maps', Date.now() - t0, false);
-        logProviderError('ola_maps', 'autocomplete', `HTTP ${olaRes.status} on query "${input}"`);
+        logProviderError('ola_maps', 'autocomplete', err?.message || 'Ola Autocomplete unreachable');
       }
-    } catch (err) {
-      recordProviderLatency('ola_maps', Date.now() - t0, false);
-      logProviderError('ola_maps', 'autocomplete', err?.message || 'Ola Autocomplete unreachable');
     }
 
     // 3. Tertiary Provider: Mappls Autosuggest API (when key configured)
@@ -674,6 +721,39 @@ export default async function handler(req, res) {
       return res.status(200).json({ ...cached, cached: true });
     }
 
+    // 0. Google Geocoding Reverse Lookup (when GOOGLE_MAPS_API_KEY configured)
+    if (googleMapsApiKey) {
+      const tg0 = Date.now();
+      try {
+        const gRes = await fetch(
+          `${GOOGLE_GEOCODE_URL}?latlng=${lat},${lng}&key=${encodeURIComponent(googleMapsApiKey)}`
+        );
+        if (gRes.ok) {
+          const gData = await gRes.json();
+          const first = gData?.results?.[0];
+          if (first?.formatted_address) {
+            recordProviderLatency('google_maps', Date.now() - tg0, true);
+            const comps = Array.isArray(first.address_components) ? first.address_components : [];
+            const cityComp = comps.find((c) => c.types?.includes('locality') || c.types?.includes('administrative_area_level_2'));
+            const stateComp = comps.find((c) => c.types?.includes('administrative_area_level_1'));
+            const payload = {
+              success: true,
+              provider: 'google_maps',
+              lat,
+              lng,
+              formattedAddress: first.formatted_address,
+              city: cityComp?.long_name || first.formatted_address.split(',')[0].trim(),
+              state: stateComp?.long_name || 'India'
+            };
+            setCache(cacheKey, payload);
+            return res.status(200).json(payload);
+          }
+        }
+      } catch {
+        recordProviderLatency('google_maps', Date.now() - tg0, false);
+      }
+    }
+
     // 1. Mapbox Reverse Geocoding v5 API
     if (mapboxAccessToken) {
       const tm0 = Date.now();
@@ -708,34 +788,36 @@ export default async function handler(req, res) {
       }
     }
 
-    // 2. Ola Maps Reverse Geocoding API
-    const t0 = Date.now();
-    try {
-      const olaRevUrl = `${OLA_REVERSE_GEOCODE_URL}?latlng=${lat},${lng}&api_key=${encodeURIComponent(olaApiKey)}`;
-      const resOla = await fetch(olaRevUrl, { headers: { Accept: 'application/json' } });
-      if (resOla.ok) {
-        const data = await resOla.json();
-        const first = data?.results?.[0] || data?.data?.results?.[0];
-        if (first && first.formatted_address) {
-          recordProviderLatency('ola_maps', Date.now() - t0, true);
-          const payload = {
-            success: true,
-            provider: 'ola_maps',
-            lat,
-            lng,
-            formattedAddress: first.formatted_address,
-            city: first.locality || first.administrative_area_level_2 || first.formatted_address.split(',')[0].trim(),
-            state: first.administrative_area_level_1 || 'India'
-          };
-          setCache(cacheKey, payload);
-          return res.status(200).json(payload);
+    // 2. Ola Maps Reverse Geocoding API (when key configured)
+    if (olaApiKey) {
+      const t0 = Date.now();
+      try {
+        const olaRevUrl = `${OLA_REVERSE_GEOCODE_URL}?latlng=${lat},${lng}&api_key=${encodeURIComponent(olaApiKey)}`;
+        const resOla = await fetch(olaRevUrl, { headers: { Accept: 'application/json' } });
+        if (resOla.ok) {
+          const data = await resOla.json();
+          const first = data?.results?.[0] || data?.data?.results?.[0];
+          if (first && first.formatted_address) {
+            recordProviderLatency('ola_maps', Date.now() - t0, true);
+            const payload = {
+              success: true,
+              provider: 'ola_maps',
+              lat,
+              lng,
+              formattedAddress: first.formatted_address,
+              city: first.locality || first.administrative_area_level_2 || first.formatted_address.split(',')[0].trim(),
+              state: first.administrative_area_level_1 || 'India'
+            };
+            setCache(cacheKey, payload);
+            return res.status(200).json(payload);
+          }
+        } else {
+          recordProviderLatency('ola_maps', Date.now() - t0, false);
         }
-      } else {
+      } catch (err) {
         recordProviderLatency('ola_maps', Date.now() - t0, false);
+        logProviderError('ola_maps', 'reverse-geocode', err?.message || 'Reverse geocode fallback');
       }
-    } catch (err) {
-      recordProviderLatency('ola_maps', Date.now() - t0, false);
-      logProviderError('ola_maps', 'reverse-geocode', err?.message || 'Reverse geocode fallback');
     }
 
     // 2. Mappls Reverse Geocode Fallback (when configured)
@@ -819,31 +901,61 @@ export default async function handler(req, res) {
     if (!placeId) {
       return res.status(400).json({ success: false, message: 'Missing placeId' });
     }
-    try {
-      const url = `${OLA_DETAILS_URL}?place_id=${encodeURIComponent(placeId)}&api_key=${encodeURIComponent(olaApiKey)}`;
-      const r = await fetch(url);
-      if (r.ok) {
-        const data = await r.json();
-        const loc = data?.result?.geometry?.location || data?.data?.geometry?.location;
-        if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-          return res.status(200).json({
-            success: true,
-            provider: 'ola_maps',
-            coordinates: { lat: loc.lat, lng: loc.lng }
-          });
+    if (googleMapsApiKey && !placeId.startsWith('ola_') && !placeId.startsWith('mb_')) {
+      try {
+        const gPlaceRes = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+          headers: {
+            'X-Goog-Api-Key': googleMapsApiKey,
+            'X-Goog-Maps-Solution-ID': 'gmp_git_agentskills_v1',
+            'X-Goog-FieldMask': 'id,displayName,formattedAddress,location'
+          }
+        });
+        if (gPlaceRes.ok) {
+          const gp = await gPlaceRes.json();
+          if (gp?.location && typeof gp.location.latitude === 'number') {
+            return res.status(200).json({
+              success: true,
+              provider: 'google_maps',
+              coordinates: { lat: gp.location.latitude, lng: gp.location.longitude }
+            });
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
+    if (olaApiKey) {
+      try {
+        const url = `${OLA_DETAILS_URL}?place_id=${encodeURIComponent(placeId)}&api_key=${encodeURIComponent(olaApiKey)}`;
+        const r = await fetch(url);
+        if (r.ok) {
+          const data = await r.json();
+          const loc = data?.result?.geometry?.location || data?.data?.geometry?.location;
+          if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+            return res.status(200).json({
+              success: true,
+              provider: 'ola_maps',
+              coordinates: { lat: loc.lat, lng: loc.lng }
+            });
+          }
+        }
+      } catch {}
+    }
     return res.status(200).json({ success: false, coordinates: null });
   }
 
   // ---------------------------------------------------------------------------
-  // ACTION 4: ROAD ROUTE, POLYLINE GEOMETRY & ALTERNATIVE ROUTES
+  // ACTION 4: ROAD ROUTE, POLYLINE GEOMETRY, MULTI-STOPS & ALTERNATIVE ROUTES
   // ---------------------------------------------------------------------------
   if (action === 'route') {
     apiMetrics.byAction.route += 1;
     const pickupLocation = String(query.pickupLocation || body.pickupLocation || '').trim();
     const dropLocation = String(query.dropLocation || body.dropLocation || '').trim();
+    const rawStops = Array.isArray(body.stops)
+      ? body.stops
+      : typeof query.stops === 'string' && query.stops.trim()
+      ? query.stops.split('|').map((s) => s.trim()).filter(Boolean)
+      : [];
+    const stops = rawStops.map((s) => String(s || '').trim()).filter((s) => s.length >= 2);
+
     const originLat = Number(query.originLat ?? body.originCoords?.lat);
     const originLng = Number(query.originLng ?? body.originCoords?.lng);
     const destLat = Number(query.destLat ?? body.destCoords?.lat);
@@ -855,7 +967,26 @@ export default async function handler(req, res) {
       Number.isFinite(destLat) &&
       Number.isFinite(destLng);
 
-    const cacheKey = `route:${pickupLocation.toLowerCase()}|${dropLocation.toLowerCase()}|${
+    // Pre-validate obviously invalid or gibberish route inputs before calling paid APIs
+    const routeCheck = validateRouteInput({
+      pickupCity: pickupLocation,
+      dropCity: dropLocation,
+      tripType: body.tripType || 'oneway',
+      distanceKm: hasValidCoords ? 100 : 100,
+      routeVerified: true
+    });
+    if (!routeCheck.valid && !hasValidCoords) {
+      return res.status(200).json({
+        success: false,
+        validated: false,
+        routeVerified: false,
+        requiresManualQuote: true,
+        errorCode: routeCheck.errorCode || 'ROUTE_NOT_VERIFIED',
+        message: routeCheck.reason || 'Could not verify road route for these locations. Please request a manual quote.'
+      });
+    }
+
+    const cacheKey = `route:${pickupLocation.toLowerCase()}|${dropLocation.toLowerCase()}|${stops.join('>').toLowerCase()}|${
       hasValidCoords ? `${originLat.toFixed(3)},${originLng.toFixed(3)}->${destLat.toFixed(3)},${destLng.toFixed(3)}` : 'named'
     }`;
 
@@ -864,22 +995,172 @@ export default async function handler(req, res) {
       return res.status(200).json({ ...cached, cached: true });
     }
 
-    const benchmarkMatch = findBenchmarkRouteMatch(pickupLocation, dropLocation);
-    const resolvedOrigin = hasValidCoords
+    const benchmarkMatch = stops.length === 0 ? findBenchmarkRouteMatch(pickupLocation, dropLocation) : null;
+    let resolvedOrigin = hasValidCoords
       ? { lat: originLat, lng: originLng }
       : benchmarkMatch?.origin || null;
-    const resolvedDest = hasValidCoords
+    let resolvedDest = hasValidCoords
       ? { lat: destLat, lng: destLng }
       : benchmarkMatch?.dest || null;
 
-    if (resolvedOrigin && resolvedDest) {
-      const mapboxDirectOverviewFalseUrl = `${MAPBOX_DIRECTIONS_BASE_URL}/${resolvedOrigin.lng},${resolvedOrigin.lat};${resolvedDest.lng},${resolvedDest.lat}?overview=false&access_token=${mapboxAccessToken}`;
+    if (!resolvedOrigin && pickupLocation) {
+      resolvedOrigin = await resolvePointCoordinatesServer(pickupLocation, { googleMapsApiKey, mapboxAccessToken });
+    }
+    if (!resolvedDest && dropLocation) {
+      resolvedDest = await resolvePointCoordinatesServer(dropLocation, { googleMapsApiKey, mapboxAccessToken });
+    }
 
-      // 1. Primary Provider: Mapbox Directions API v5 (Real Road Driving Distance & GeoJSON Polyline for Pricing)
+    // Resolve intermediate waypoint coordinates when stops are supplied
+    const providedStopCoords = Array.isArray(body.stopCoords) ? body.stopCoords : [];
+    const resolvedStopCoords = [];
+    for (let i = 0; i < stops.length; i++) {
+      const provided = providedStopCoords[i];
+      if (provided && Number.isFinite(Number(provided.lat)) && Number.isFinite(Number(provided.lng))) {
+        resolvedStopCoords.push({ lat: Number(provided.lat), lng: Number(provided.lng), name: stops[i] });
+      } else {
+        const geo = await resolvePointCoordinatesServer(stops[i], { googleMapsApiKey, mapboxAccessToken });
+        if (geo) resolvedStopCoords.push({ ...geo, name: stops[i] });
+      }
+    }
+
+    if (resolvedOrigin && resolvedDest) {
+      const activeCfg = getActivePricingConfigSync();
+      const routeIntel = analyzeRouteIntelligence(
+        {
+          pickupCity: pickupLocation,
+          dropCity: dropLocation,
+          stops,
+          pickupCoords: resolvedOrigin,
+          dropCoords: resolvedDest,
+          distanceKm: benchmarkMatch?.olaKm || 150
+        },
+        activeCfg
+      );
+
+      const allWaypoints = [resolvedOrigin, ...resolvedStopCoords, resolvedDest];
+      const osrmAndMapboxCoordString = allWaypoints.map((pt) => `${pt.lng},${pt.lat}`).join(';');
+
+      // 0. Primary Provider: Google Maps Routes API v2 (Server-Side Only, Multi-Stop + Alternative Routes)
+      if (googleMapsApiKey) {
+        const tg0 = Date.now();
+        try {
+          const gBody = {
+            origin: { location: { latLng: { latitude: resolvedOrigin.lat, longitude: resolvedOrigin.lng } } },
+            destination: { location: { latLng: { latitude: resolvedDest.lat, longitude: resolvedDest.lng } } },
+            ...(resolvedStopCoords.length > 0
+              ? {
+                  intermediates: resolvedStopCoords.map((s) => ({
+                    location: { latLng: { latitude: s.lat, longitude: s.lng } }
+                  }))
+                }
+              : {}),
+            travelMode: 'DRIVE',
+            routingPreference: 'TRAFFIC_AWARE',
+            computeAlternativeRoutes: true
+          };
+
+          const gRes = await fetch(GOOGLE_ROUTES_API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': googleMapsApiKey,
+              'X-Goog-Maps-Solution-ID': 'gmp_git_agentskills_v1',
+              'X-Goog-FieldMask':
+                'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs.distanceMeters,routes.legs.duration,routes.routeLabels'
+            },
+            body: JSON.stringify(gBody)
+          });
+
+          if (gRes.ok) {
+            const gData = await gRes.json();
+            const gRoutes = Array.isArray(gData?.routes) ? gData.routes : [];
+            if (gRoutes.length > 0) {
+              recordProviderLatency('google_maps', Date.now() - tg0, true);
+              const parsedGRoutes = gRoutes
+                .map((r, idx) => {
+                  const distMeters = Number(r?.distanceMeters || 0);
+                  if (!Number.isFinite(distMeters) || distMeters <= 0) return null;
+                  const distanceKm = Math.max(4, Math.round(distMeters / 1000));
+                  const durationMinutes = parseGoogleDurationMinutes(r.duration);
+                  const decoded = decodeEncodedPolyline(r?.polyline?.encodedPolyline || '');
+                  const labels = Array.isArray(r.routeLabels) ? r.routeLabels : [];
+                  return {
+                    routeId: `google_route_${idx + 1}`,
+                    provider: 'google_maps',
+                    isAlternative: idx > 0,
+                    summary:
+                      idx === 0 && benchmarkMatch
+                        ? benchmarkMatch.highway
+                        : labels.includes('SHORTER_DISTANCE')
+                        ? 'Google Maps Shortest Commercial Route'
+                        : idx === 0
+                        ? 'Google Maps Recommended Highway'
+                        : `Google Maps Alternative Route #${idx + 1}`,
+                    distanceKm,
+                    durationMinutes,
+                    durationText: formatDurationMinutes(durationMinutes),
+                    legs: Array.isArray(r.legs)
+                      ? r.legs.map((l) => ({
+                          distanceKm: Math.round(Number(l.distanceMeters || 0) / 1000),
+                          durationMinutes: parseGoogleDurationMinutes(l.duration)
+                        }))
+                      : [],
+                    geometry:
+                      decoded.length >= 2
+                        ? decoded
+                        : buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, resolvedStopCoords)
+                  };
+                })
+                .filter(Boolean);
+
+              if (parsedGRoutes.length > 0) {
+                const primary = parsedGRoutes[0];
+                const payload = {
+                  success: true,
+                  validated: true,
+                  routeVerified: true,
+                  requiresManualQuote: false,
+                  provider: 'google_maps',
+                  distanceKm: primary.distanceKm,
+                  durationMinutes: primary.durationMinutes,
+                  durationText: primary.durationText,
+                  routeSummary: primary.summary,
+                  originCoords: resolvedOrigin,
+                  destCoords: resolvedDest,
+                  stopCoords: resolvedStopCoords,
+                  geometry: primary.geometry,
+                  alternatives: parsedGRoutes,
+                  routeIntelligence: analyzeRouteIntelligence(
+                    {
+                      pickupCity: pickupLocation,
+                      dropCity: dropLocation,
+                      stops,
+                      pickupCoords: resolvedOrigin,
+                      dropCoords: resolvedDest,
+                      distanceKm: primary.distanceKm
+                    },
+                    activeCfg
+                  )
+                };
+                setCache(cacheKey, payload);
+                return res.status(200).json(payload);
+              }
+            }
+          } else {
+            recordProviderLatency('google_maps', Date.now() - tg0, false);
+            logProviderError('google_maps', 'route', `Google Routes API v2 returned HTTP ${gRes.status}`);
+          }
+        } catch (err) {
+          recordProviderLatency('google_maps', Date.now() - tg0, false);
+          logProviderError('google_maps', 'route', err?.message || 'Google Routes API v2 error');
+        }
+      }
+
+      // 1. Secondary Provider: Mapbox Directions API v5 (Real Road Driving Distance & Multi-Stop GeoJSON)
       if (mapboxAccessToken) {
         const tm0 = Date.now();
         try {
-          const mbDirUrl = `${MAPBOX_DIRECTIONS_BASE_URL}/${resolvedOrigin.lng},${resolvedOrigin.lat};${resolvedDest.lng},${resolvedDest.lat}?alternatives=true&geometries=geojson&overview=full&access_token=${encodeURIComponent(mapboxAccessToken)}`;
+          const mbDirUrl = `${MAPBOX_DIRECTIONS_BASE_URL}/${osrmAndMapboxCoordString}?alternatives=true&geometries=geojson&overview=full&access_token=${encodeURIComponent(mapboxAccessToken)}`;
           const mbDirRes = await fetch(mbDirUrl, { headers: { Accept: 'application/json' } });
           if (mbDirRes.ok) {
             const mbDirData = await mbDirRes.json();
@@ -920,7 +1201,7 @@ export default async function handler(req, res) {
                     geometry:
                       sampledGeometry.length >= 2
                         ? sampledGeometry
-                        : buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || [])
+                        : buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || resolvedStopCoords)
                   };
                 })
                 .filter(Boolean);
@@ -930,16 +1211,19 @@ export default async function handler(req, res) {
                 const payload = {
                   success: true,
                   validated: true,
+                  routeVerified: true,
+                  requiresManualQuote: false,
                   provider: 'mapbox',
-                  mapboxDirectionsUrl: mapboxDirectOverviewFalseUrl,
                   distanceKm: primary.distanceKm,
                   durationMinutes: primary.durationMinutes,
                   durationText: primary.durationText,
                   routeSummary: primary.summary,
                   originCoords: resolvedOrigin,
                   destCoords: resolvedDest,
+                  stopCoords: resolvedStopCoords,
                   geometry: primary.geometry,
-                  alternatives: parsedMbRoutes
+                  alternatives: parsedMbRoutes,
+                  routeIntelligence: routeIntel
                 };
                 setCache(cacheKey, payload);
                 return res.status(200).json(payload);
@@ -955,81 +1239,94 @@ export default async function handler(req, res) {
         }
       }
 
-      // 2. Secondary Provider: Ola Maps Routing Directions API (with alternatives=true & overview=full)
-      const t0 = Date.now();
-      try {
-        const dirUrl = `${OLA_DIRECTIONS_URL}?origin=${resolvedOrigin.lat},${resolvedOrigin.lng}&destination=${resolvedDest.lat},${resolvedDest.lng}&alternatives=true&overview=full&api_key=${encodeURIComponent(olaApiKey)}`;
-        const dirRes = await fetch(dirUrl, { method: 'POST', headers: { Accept: 'application/json' } });
-        if (dirRes.ok) {
-          const dirData = await dirRes.json();
-          const routes = Array.isArray(dirData?.routes) ? dirData.routes : [];
-          if (routes.length > 0) {
-            recordProviderLatency('ola_maps', Date.now() - t0, true);
-            const parsedRoutes = routes
-              .map((r, idx) => {
-                const leg = r?.legs?.[0];
-                const distMeters = leg?.distance?.value ?? leg?.distance ?? r?.distance;
-                const durSeconds = leg?.duration?.value ?? leg?.duration ?? r?.duration;
-                if (typeof distMeters !== 'number' || distMeters <= 0) return null;
-                const distanceKm = Math.max(4, Math.round(distMeters / 1000));
-                const durationMinutes =
-                  typeof durSeconds === 'number' && durSeconds > 0
-                    ? Math.round(durSeconds / 60)
-                    : Math.round((distanceKm / 52) * 60 + 20);
-                const polyStr = r?.overview_polyline?.points || r?.overview_polyline || '';
-                const decodedGeometry = decodeEncodedPolyline(polyStr);
-                const geometry =
-                  decodedGeometry.length >= 2
-                    ? decodedGeometry
-                    : buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || []);
+      // 2. Tertiary Provider: Ola Maps Routing Directions API (when configured)
+      if (olaApiKey) {
+        const t0 = Date.now();
+        try {
+          const wpParam =
+            resolvedStopCoords.length > 0
+              ? `&waypoints=${encodeURIComponent(resolvedStopCoords.map((s) => `${s.lat},${s.lng}`).join('|'))}`
+              : '';
+          const dirUrl = `${OLA_DIRECTIONS_URL}?origin=${resolvedOrigin.lat},${resolvedOrigin.lng}&destination=${resolvedDest.lat},${resolvedDest.lng}${wpParam}&alternatives=true&overview=full&api_key=${encodeURIComponent(olaApiKey)}`;
+          const dirRes = await fetch(dirUrl, { method: 'POST', headers: { Accept: 'application/json' } });
+          if (dirRes.ok) {
+            const dirData = await dirRes.json();
+            const routes = Array.isArray(dirData?.routes) ? dirData.routes : [];
+            if (routes.length > 0) {
+              recordProviderLatency('ola_maps', Date.now() - t0, true);
+              const parsedRoutes = routes
+                .map((r, idx) => {
+                  const legs = Array.isArray(r?.legs) ? r.legs : [];
+                  const distMeters = legs.length > 0
+                    ? legs.reduce((acc, l) => acc + Number(l?.distance?.value ?? l?.distance ?? 0), 0)
+                    : r?.distance;
+                  const durSeconds = legs.length > 0
+                    ? legs.reduce((acc, l) => acc + Number(l?.duration?.value ?? l?.duration ?? 0), 0)
+                    : r?.duration;
+                  if (typeof distMeters !== 'number' || distMeters <= 0) return null;
+                  const distanceKm = Math.max(4, Math.round(distMeters / 1000));
+                  const durationMinutes =
+                    typeof durSeconds === 'number' && durSeconds > 0
+                      ? Math.round(durSeconds / 60)
+                      : Math.round((distanceKm / 52) * 60 + 20);
+                  const polyStr = r?.overview_polyline?.points || r?.overview_polyline || '';
+                  const decodedGeometry = decodeEncodedPolyline(polyStr);
+                  const geometry =
+                    decodedGeometry.length >= 2
+                      ? decodedGeometry
+                      : buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || resolvedStopCoords);
 
-                return {
-                  routeId: `ola_route_${idx + 1}`,
+                  return {
+                    routeId: `ola_route_${idx + 1}`,
+                    provider: 'ola_maps',
+                    isAlternative: idx > 0,
+                    summary: r.summary || benchmarkMatch?.highway || `Primary NH Corridor #${idx + 1}`,
+                    distanceKm,
+                    durationMinutes,
+                    durationText: formatDurationMinutes(durationMinutes),
+                    geometry
+                  };
+                })
+                .filter(Boolean);
+
+              if (parsedRoutes.length > 0) {
+                const primary = parsedRoutes[0];
+                const payload = {
+                  success: true,
+                  validated: true,
+                  routeVerified: true,
+                  requiresManualQuote: false,
                   provider: 'ola_maps',
-                  isAlternative: idx > 0,
-                  summary: r.summary || benchmarkMatch?.highway || `Primary NH Corridor #${idx + 1}`,
-                  distanceKm,
-                  durationMinutes,
-                  durationText: formatDurationMinutes(durationMinutes),
-                  geometry
+                  distanceKm: primary.distanceKm,
+                  durationMinutes: primary.durationMinutes,
+                  durationText: primary.durationText,
+                  routeSummary: primary.summary,
+                  originCoords: resolvedOrigin,
+                  destCoords: resolvedDest,
+                  stopCoords: resolvedStopCoords,
+                  geometry: primary.geometry,
+                  alternatives: parsedRoutes,
+                  routeIntelligence: routeIntel
                 };
-              })
-              .filter(Boolean);
-
-            if (parsedRoutes.length > 0) {
-              const primary = parsedRoutes[0];
-              const payload = {
-                success: true,
-                validated: true,
-                provider: 'ola_maps',
-                mapboxDirectionsUrl: mapboxDirectOverviewFalseUrl,
-                distanceKm: primary.distanceKm,
-                durationMinutes: primary.durationMinutes,
-                durationText: primary.durationText,
-                routeSummary: primary.summary,
-                originCoords: resolvedOrigin,
-                destCoords: resolvedDest,
-                geometry: primary.geometry,
-                alternatives: parsedRoutes
-              };
-              setCache(cacheKey, payload);
-              return res.status(200).json(payload);
+                setCache(cacheKey, payload);
+                return res.status(200).json(payload);
+              }
             }
+          } else {
+            recordProviderLatency('ola_maps', Date.now() - t0, false);
+            logProviderError('ola_maps', 'route', `Ola Routing returned HTTP ${dirRes.status}`);
           }
-        } else {
+        } catch (err) {
           recordProviderLatency('ola_maps', Date.now() - t0, false);
-          logProviderError('ola_maps', 'route', `Ola Routing returned HTTP ${dirRes.status}`);
+          logProviderError('ola_maps', 'route', err?.message || 'Ola Routing timeout');
         }
-      } catch (err) {
-        recordProviderLatency('ola_maps', Date.now() - t0, false);
-        logProviderError('ola_maps', 'route', err?.message || 'Ola Routing timeout');
       }
 
-      // 3. Tertiary Provider: Mappls Routing API (when Mappls API key is configured)
+      // 3. Mappls Routing API (when Mappls API key is configured)
       if (mapplsApiKey) {
         const t1 = Date.now();
         try {
-          const mUrl = `${MAPPLS_ROUTING_BASE_URL}/${encodeURIComponent(mapplsApiKey)}/route_adv/driving/${resolvedOrigin.lng},${resolvedOrigin.lat};${resolvedDest.lng},${resolvedDest.lat}?alternatives=true&geometries=polyline&overview=full`;
+          const mUrl = `${MAPPLS_ROUTING_BASE_URL}/${encodeURIComponent(mapplsApiKey)}/route_adv/driving/${osrmAndMapboxCoordString}?alternatives=true&geometries=polyline&overview=full`;
           const mRes = await fetch(mUrl);
           if (mRes.ok) {
             const mData = await mRes.json();
@@ -1085,12 +1382,12 @@ export default async function handler(req, res) {
         }
       }
 
-      // 3. OSRM India Road Network Engine (with full GeoJSON road polyline & alternative routes)
+      // 3. OSRM India Road Network Engine (with multi-waypoint support, GeoJSON polyline & alternatives)
       const t2 = Date.now();
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3200);
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${resolvedOrigin.lng},${resolvedOrigin.lat};${resolvedDest.lng},${resolvedDest.lat}?alternatives=true&overview=full&geometries=geojson`;
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${osrmAndMapboxCoordString}?alternatives=true&overview=full&geometries=geojson`;
         const osrmRes = await fetch(osrmUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
 
@@ -1101,17 +1398,15 @@ export default async function handler(req, res) {
             recordProviderLatency('osrm_india_road', Date.now() - t2, true);
             const parsedRoutes = osrmRoutes
               .map((r, idx) => {
-                // If this matches a verified benchmark corridor on primary route, keep exact calibrated highway KM
-                const rawOsrmKm = Math.max(12, Math.round((r.distance || 0) / 1000));
+                const rawOsrmKm = Math.max(4, Math.round((r.distance || 0) / 1000));
                 const distanceKm =
                   idx === 0 && benchmarkMatch ? benchmarkMatch.olaKm : rawOsrmKm;
                 const durationMinutes =
                   idx === 0 && benchmarkMatch
                     ? benchmarkMatch.durationMin
-                    : Math.max(20, Math.round((r.duration || 0) / 60));
+                    : Math.max(15, Math.round((r.duration || 0) / 60));
 
                 const rawCoords = Array.isArray(r.geometry?.coordinates) ? r.geometry.coordinates : [];
-                // Downsample polyline to max ~140 points so responses stay fast and lightweight
                 const step = Math.max(1, Math.floor(rawCoords.length / 140));
                 const sampledGeometry = rawCoords
                   .filter((_, i) => i === 0 || i === rawCoords.length - 1 || i % step === 0)
@@ -1131,17 +1426,16 @@ export default async function handler(req, res) {
                   geometry:
                     sampledGeometry.length >= 2
                       ? sampledGeometry
-                      : buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || [])
+                      : buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || resolvedStopCoords)
                 };
               })
               .filter((r) => r.distanceKm > 0);
 
-            // If only 1 route came back, synthesize a realistic secondary bypass/state-highway alternative for comparison
             if (parsedRoutes.length === 1) {
               const p0 = parsedRoutes[0];
               const altKm = Math.round(p0.distanceKm * 1.08);
               const altMin = Math.round(p0.durationMinutes * 1.12);
-              const altGeo = buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, []);
+              const altGeo = buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, resolvedStopCoords);
               parsedRoutes.push({
                 routeId: 'road_route_2_alt',
                 provider: 'osrm_india_road',
@@ -1158,6 +1452,8 @@ export default async function handler(req, res) {
             const payload = {
               success: true,
               validated: true,
+              routeVerified: true,
+              requiresManualQuote: false,
               provider: 'osrm_india_road',
               distanceKm: primary.distanceKm,
               durationMinutes: primary.durationMinutes,
@@ -1165,8 +1461,20 @@ export default async function handler(req, res) {
               routeSummary: primary.summary,
               originCoords: resolvedOrigin,
               destCoords: resolvedDest,
+              stopCoords: resolvedStopCoords,
               geometry: primary.geometry,
-              alternatives: parsedRoutes
+              alternatives: parsedRoutes,
+              routeIntelligence: analyzeRouteIntelligence(
+                {
+                  pickupCity: pickupLocation,
+                  dropCity: dropLocation,
+                  stops,
+                  pickupCoords: resolvedOrigin,
+                  dropCoords: resolvedDest,
+                  distanceKm: primary.distanceKm
+                },
+                activeCfg
+              )
             };
             setCache(cacheKey, payload);
             return res.status(200).json(payload);
@@ -1177,18 +1485,22 @@ export default async function handler(req, res) {
         logProviderError('osrm_india_road', 'route', err?.message || 'OSRM route fallback');
       }
 
-      // 4. Verified Highway Corridor Geometry Fallback
+      // 4. Verified Highway Corridor Geometry Fallback (only when endpoints/benchmark are verified)
       recordProviderLatency('verified_highway_network', 6, true);
-      const primaryGeo = buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || []);
+      const primaryGeo = buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, benchmarkMatch?.via || resolvedStopCoords);
       const altGeo = buildRealisticHighwayGeometry(resolvedOrigin, resolvedDest, []);
-      const baseKm =
-        benchmarkMatch?.olaKm ||
-        Math.max(
-          25,
-          Math.round(
-            Math.hypot(resolvedDest.lat - resolvedOrigin.lat, resolvedDest.lng - resolvedOrigin.lng) * 111 * 1.32
-          )
-        );
+      let multiLegFactorKm = 0;
+      if (allWaypoints.length >= 2) {
+        for (let i = 0; i < allWaypoints.length - 1; i++) {
+          const a = allWaypoints[i];
+          const b = allWaypoints[i + 1];
+          multiLegFactorKm += Math.max(
+            5,
+            Math.round(Math.hypot(b.lat - a.lat, b.lng - a.lng) * 111 * 1.32)
+          );
+        }
+      }
+      const baseKm = benchmarkMatch?.olaKm || Math.max(25, multiLegFactorKm);
       const baseMin = benchmarkMatch?.durationMin || Math.round((baseKm / 50) * 60 + 20);
 
       const alternatives = [
@@ -1217,6 +1529,8 @@ export default async function handler(req, res) {
       const payload = {
         success: true,
         validated: true,
+        routeVerified: true,
+        requiresManualQuote: false,
         provider: 'verified_highway_network',
         distanceKm: baseKm,
         durationMinutes: baseMin,
@@ -1224,8 +1538,20 @@ export default async function handler(req, res) {
         routeSummary: alternatives[0].summary,
         originCoords: resolvedOrigin,
         destCoords: resolvedDest,
+        stopCoords: resolvedStopCoords,
         geometry: primaryGeo,
-        alternatives
+        alternatives,
+        routeIntelligence: analyzeRouteIntelligence(
+          {
+            pickupCity: pickupLocation,
+            dropCity: dropLocation,
+            stops,
+            pickupCoords: resolvedOrigin,
+            dropCoords: resolvedDest,
+            distanceKm: baseKm
+          },
+          activeCfg
+        )
       };
       setCache(cacheKey, payload);
       return res.status(200).json(payload);
@@ -1234,8 +1560,10 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: false,
       validated: false,
-      error: 'COORDINATES_UNRESOLVED',
-      message: 'Could not resolve road coordinates for the selected locations.'
+      routeVerified: false,
+      requiresManualQuote: true,
+      errorCode: 'ROUTE_NOT_VERIFIED',
+      message: 'Could not verify road coordinates for the selected locations. Request a manual dispatch quote.'
     });
   }
 
@@ -1333,30 +1661,90 @@ export default async function handler(req, res) {
   }
 
   // ---------------------------------------------------------------------------
-  // ACTION 6: ADMIN PRICING & TAX CONFIGURATION (GET / POST)
+  // ACTION 6: VERSIONED ADMIN PRICING & TAX CONFIGURATION (GET / POST / ROLLBACK / SIMULATE)
   // ---------------------------------------------------------------------------
   if (action === 'pricing-config') {
     apiMetrics.byAction.pricingConfig += 1;
     if (req.method === 'POST' && body.config) {
-      serverAdminPricingConfig = {
-        ...serverAdminPricingConfig,
-        ...body.config,
-        vehicles: {
-          ...serverAdminPricingConfig.vehicles,
-          ...(body.config.vehicles || {})
-        },
-        updatedAt: new Date().toISOString()
-      };
+      const result = await publishNewPricingConfig(body.config, {
+        actor: body.actor || body.config.updatedBy || 'Admin Control Panel',
+        notes: body.notes || 'Admin Control Panel update',
+        forceSaveFlaggedOverrides: Boolean(body.forceSaveFlaggedOverrides)
+      });
+      if (!result.success) {
+        return res.status(400).json(result);
+      }
       return res.status(200).json({
         success: true,
-        message: 'Admin pricing & tax configuration saved on server.',
-        config: serverAdminPricingConfig
+        message: `Published ${result.config.versionLabel} on server.`,
+        config: result.config,
+        versionEntry: result.versionEntry,
+        auditEntry: result.auditEntry
       });
+    }
+    const config = await loadActivePricingConfig();
+    return res.status(200).json({
+      success: true,
+      config
+    });
+  }
+
+  if (action === 'pricing-versions') {
+    const history = await listPricingVersionsAndAudit();
+    return res.status(200).json({
+      success: true,
+      ...history
+    });
+  }
+
+  if (action === 'pricing-rollback') {
+    const targetVersion = body.version ?? query.version;
+    if (!targetVersion) {
+      return res.status(400).json({ success: false, message: 'Missing version parameter for rollback.' });
+    }
+    const result = await rollbackPricingConfigVersion(
+      targetVersion,
+      body.actor || 'Admin Control Panel'
+    );
+    if (!result.success) {
+      return res.status(404).json(result);
     }
     return res.status(200).json({
       success: true,
-      config: serverAdminPricingConfig
+      message: `Rolled back to version v${targetVersion} cleanly.`,
+      config: result.config,
+      versionEntry: result.versionEntry
     });
+  }
+
+  if (action === 'pricing-simulate') {
+    apiMetrics.byAction.pricingSimulate += 1;
+    const cfg = body.configOverride || (await loadActivePricingConfig());
+    const simResult = calculateIntelligentFare(body, cfg, { includeInternal: true });
+    return res.status(200).json({
+      success: true,
+      simulation: simResult
+    });
+  }
+
+  if (action === 'manual-quote') {
+    apiMetrics.byAction.manualQuote += 1;
+    if (req.method === 'POST') {
+      if (!body.customerPhone || !body.pickupCity || !body.dropCity) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide pickup city, drop city, and 10-digit phone number.'
+        });
+      }
+      const entry = await recordManualQuoteRequest(body);
+      return res.status(200).json({
+        success: true,
+        request: entry,
+        message: 'Manual quotation request saved. Dispatch team will send exact verified fare shortly.'
+      });
+    }
+    const list = await listManualQuoteRequests();
+    return res.status(200).json({ success: true, requests: list });
   }
 
   // ---------------------------------------------------------------------------
@@ -1377,6 +1765,7 @@ export default async function handler(req, res) {
         cacheHitRatePercent: cacheHitRate,
         rateLimitWindowSeconds: 60,
         rateLimitMaxPerIp: RATE_LIMIT_MAX_REQUESTS,
+        googleMapsConfigured: Boolean(googleMapsApiKey),
         mapboxConfigured: Boolean(mapboxAccessToken),
         olaConfigured: Boolean(olaApiKey),
         mapplsConfigured: Boolean(mapplsApiKey),
@@ -1515,24 +1904,26 @@ export default async function handler(req, res) {
         oneWayReturnBuffer,
         safariBorderPermit: safariStatePermit,
         totalEstimatedPrice
-      },
-      backendApiIntegrationUrl: officialMapboxDirectionsUrl,
-      templateFormatUrl: requestedFormatUrl
+      }
     });
   }
 
   return res.status(200).json({
     success: true,
-    service: 'SafarIndiaCabs Server-Side Mapping & Routing Proxy (Mapbox + Ola Maps)',
+    service: 'SafarIndiaCabs Server-Side Mapping, Routing & Intelligent Pricing API',
+    googleMapsConfigured: Boolean(googleMapsApiKey),
     mapboxConfigured: Boolean(mapboxAccessToken),
     endpoints: [
       'autocomplete',
       'reverse-geocode',
       'place-details',
       'route',
-      'mapbox-pricing',
       'driver-telemetry',
       'pricing-config',
+      'pricing-versions',
+      'pricing-rollback',
+      'pricing-simulate',
+      'manual-quote',
       'monitoring',
       'benchmark-report'
     ]

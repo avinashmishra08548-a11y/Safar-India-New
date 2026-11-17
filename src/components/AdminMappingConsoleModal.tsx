@@ -18,7 +18,13 @@ import {
   Car,
   MapPin,
   CreditCard,
-  QrCode
+  QrCode,
+  Plus,
+  Trash2,
+  RotateCcw,
+  Calculator,
+  TrendingUp,
+  History
 } from 'lucide-react';
 import {
   AdminPricingConfig,
@@ -28,8 +34,13 @@ import {
   fetchApiMonitoringMetrics,
   fetchIntercityBenchmarkReport,
   IntercityRouteBenchmarkRow,
-  DEFAULT_ADMIN_PRICING_CONFIG
+  DEFAULT_ADMIN_PRICING_CONFIG,
+  fetchPricingVersions,
+  rollbackPricingVersion,
+  simulateAdminPricing,
+  fetchManualQuoteRequests
 } from '../utils/olaMapsService';
+import type { LeadTimeBucket, VehicleEngineConfig } from '../../lib/pricing/index.js';
 import { BookingRecord, CabCategoryId, PaymentAuditLogRecord } from '../types';
 import { formatINR } from '../utils/fareCalculator';
 import { resolveItemizedInvoiceBreakup } from './BookingConfirmationModal';
@@ -52,13 +63,17 @@ interface AdminMappingConsoleModalProps {
   onUpsertBooking?: (booking: BookingRecord) => void;
 }
 
-const VEHICLE_LABELS: Record<CabCategoryId, string> = {
+const VEHICLE_LABELS: Record<string, string> = {
   hatchback: 'Hatchback AC (WagonR / Tiago)',
+  dzire: 'Dzire / Aura AC Sedan',
   sedan: 'Sedan AC (Dzire / Etios)',
   exec_sedan: 'Executive Sedan (City / Ciaz)',
+  ertiga: 'Ertiga AC (6+1 MPV)',
   suv: 'SUV AC (Ertiga / Carens)',
-  innova: 'Innova Crysta (6+1 / 7+1)',
-  tempo: 'Tempo Traveller (12+1 AC)'
+  innova: 'Innova AC (6+1 / 7+1)',
+  innova_crysta: 'Innova Crysta (6+1 / 7+1)',
+  premium_suv: 'Premium SUV (Fortuner / Hycross)',
+  tempo: 'Tempo Traveller (12+1 / 17+1 AC)'
 };
 
 export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> = ({
@@ -74,8 +89,77 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
   >('bookings_bills');
   const [pricingConfig, setPricingConfig] = useState<AdminPricingConfig>(() => getAdminPricingConfigSync());
   const [saveBanner, setSaveBanner] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingBookings, setIsSyncingBookings] = useState(false);
+
+  // Module 12 Fare Control Center & Profit Simulator State
+  const [pricingSubSection, setPricingSubSection] = useState<
+    'rates' | 'rules' | 'overrides' | 'competitors' | 'simulator' | 'versions' | 'quotes'
+  >('rates');
+  const [pricingVersions, setPricingVersions] = useState<any[]>([]);
+  const [pricingAuditLogs, setPricingAuditLogs] = useState<any[]>([]);
+  const [manualQuoteTickets, setManualQuoteTickets] = useState<any[]>([]);
+  const [simInput, setSimInput] = useState({
+    pickupCity: 'Delhi',
+    dropCity: 'Jaipur',
+    tripType: 'oneway',
+    cabId: 'sedan',
+    distanceKm: 280,
+    days: 1,
+    pickupDate: new Date().toISOString().split('T')[0],
+    pickupTime: '08:00 AM',
+    waitingMinutes: 0,
+    fleetAvailabilityRatio: 0.7,
+    promoDiscount: 0,
+    stopsText: ''
+  });
+  const [simResult, setSimResult] = useState<any>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  const [newVehicleForm, setNewVehicleForm] = useState({
+    id: '',
+    name: '',
+    models: '',
+    ratePerKm: 13,
+    roundTripRatePerKm: 13,
+    extraKmRate: 14,
+    driverAllowancePerDay: 300,
+    hillStationCharge: 500,
+    statePermitTax: 250,
+    operatingCostPerKm: 6.2,
+    driverPayoutPerKm: 4.5,
+    minProfitMargin: 500,
+    minProfitType: 'fixed_inr' as 'fixed_inr' | 'percent',
+    capacityPassengers: 4
+  });
+
+  const [newEventForm, setNewEventForm] = useState({
+    name: '',
+    startDate: '2026-11-01',
+    endDate: '2026-11-12',
+    multiplier: 1.15,
+    cities: 'All India'
+  });
+
+  const [newOverrideForm, setNewOverrideForm] = useState({
+    pickupCity: '',
+    dropCity: '',
+    tripType: 'oneway',
+    vehicleId: 'sedan',
+    fixedTotalFare: '',
+    ratePerKmOverride: '',
+    bidirectional: true
+  });
+
+  const [newCompetitorForm, setNewCompetitorForm] = useState({
+    competitorName: 'CabBazar',
+    pickupCity: '',
+    dropCity: '',
+    tripType: 'oneway',
+    vehicleId: 'sedan',
+    competitorFare: 3500
+  });
 
   // Admin Payment Logs & Gateway Diagnostics State
   const [paymentLogs, setPaymentLogs] = useState<PaymentAuditLogRecord[]>([]);
@@ -259,6 +343,15 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
   useEffect(() => {
     if (!isOpen) return;
     syncAdminPricingFromServer().then((cfg) => setPricingConfig(cfg));
+    fetchPricingVersions()
+      .then(({ versions, auditLogs }) => {
+        setPricingVersions(versions);
+        setPricingAuditLogs(auditLogs);
+      })
+      .catch(() => {});
+    fetchManualQuoteRequests()
+      .then((tickets) => setManualQuoteTickets(tickets))
+      .catch(() => {});
     loadMonitoring();
     loadBenchmark();
     loadPaymentLogsAndDiagnostics(false);
@@ -605,23 +698,255 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
   const handleSavePricing = async () => {
     setIsSaving(true);
     setSaveBanner('');
+    setSaveError('');
     try {
-      const saved = await saveAdminPricingConfig(pricingConfig);
+      const saved = await saveAdminPricingConfig(pricingConfig, 'Admin Fare Control Center Update');
       setPricingConfig(saved);
       onPricingUpdated?.(saved);
-      setSaveBanner('Admin Pricing, Per-KM Rates, Toll & State Tax Configuration saved & active!');
-      setTimeout(() => setSaveBanner(''), 4000);
+      fetchPricingVersions()
+        .then(({ versions, auditLogs }) => {
+          setPricingVersions(versions);
+          setPricingAuditLogs(auditLogs);
+        })
+        .catch(() => {});
+      setSaveBanner(`Pricing v${saved.version || 1} (${saved.versionLabel || 'Active'}) saved, validated & published!`);
+      setTimeout(() => setSaveBanner(''), 4500);
+    } catch (err: any) {
+      setSaveError(
+        err?.message || 'Pricing update rejected by Minimum Profit Floor guard. Adjust fares or profit floors.'
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleResetDefaults = async () => {
-    const reset = await saveAdminPricingConfig(DEFAULT_ADMIN_PRICING_CONFIG);
-    setPricingConfig(reset);
-    onPricingUpdated?.(reset);
-    setSaveBanner('Restored default calibrated SafarIndiaCabs pricing matrix.');
-    setTimeout(() => setSaveBanner(''), 4000);
+    setSaveError('');
+    setSaveBanner('');
+    try {
+      const reset = await saveAdminPricingConfig(DEFAULT_ADMIN_PRICING_CONFIG, 'Reset to calibrated defaults');
+      setPricingConfig(reset);
+      onPricingUpdated?.(reset);
+      fetchPricingVersions()
+        .then(({ versions, auditLogs }) => {
+          setPricingVersions(versions);
+          setPricingAuditLogs(auditLogs);
+        })
+        .catch(() => {});
+      setSaveBanner('Restored default calibrated SafarIndiaCabs pricing matrix.');
+      setTimeout(() => setSaveBanner(''), 4000);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Failed to reset pricing defaults.');
+    }
+  };
+
+  const handleRunSimulation = async () => {
+    setIsSimulating(true);
+    setSaveError('');
+    try {
+      const stopsList = simInput.stopsText
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const res = await simulateAdminPricing({
+        tripType: simInput.tripType,
+        cabId: simInput.cabId,
+        pickupCity: simInput.pickupCity,
+        dropCity: simInput.dropCity,
+        distanceKm: Number(simInput.distanceKm) || 130,
+        days: Number(simInput.days) || 1,
+        pickupDate: simInput.pickupDate,
+        pickupTime: simInput.pickupTime,
+        waitingMinutes: Number(simInput.waitingMinutes) || 0,
+        stops: stopsList,
+        promoDiscount: Number(simInput.promoDiscount) || 0,
+        fleetAvailabilityRatio: Number(simInput.fleetAvailabilityRatio) || 0.7,
+        configOverride: pricingConfig
+      });
+      setSimResult(res);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Profit simulation failed.');
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const handleRollbackVersion = async (versionNum: number) => {
+    setSaveError('');
+    setSaveBanner('');
+    try {
+      const rolled = await rollbackPricingVersion(versionNum, 'Admin Console');
+      setPricingConfig(rolled);
+      onPricingUpdated?.(rolled);
+      const { versions, auditLogs } = await fetchPricingVersions();
+      setPricingVersions(versions);
+      setPricingAuditLogs(auditLogs);
+      setSaveBanner(`Rolled back pricing engine to Snapshot v${versionNum}.`);
+      setTimeout(() => setSaveBanner(''), 4500);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Unable to rollback pricing version.');
+    }
+  };
+
+  const handleAddCustomVehicle = () => {
+    const cleanId = (newVehicleForm.id || newVehicleForm.name)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, '_');
+    if (!cleanId || !newVehicleForm.name.trim()) {
+      setSaveError('Please enter a valid Vehicle ID and Display Name.');
+      return;
+    }
+    setSaveError('');
+    const newVeh: VehicleEngineConfig = {
+      id: cleanId,
+      name: newVehicleForm.name.trim(),
+      models: newVehicleForm.models.trim() || newVehicleForm.name.trim(),
+      category: 'Custom',
+      ratePerKm: Number(newVehicleForm.ratePerKm) || 13,
+      roundTripRatePerKm: Number(newVehicleForm.roundTripRatePerKm) || 13,
+      extraKmRate: Number(newVehicleForm.extraKmRate) || 14,
+      minKm: 130,
+      minRoundTripKmPerDay: 250,
+      minFare: Math.round((Number(newVehicleForm.ratePerKm) || 13) * 130),
+      driverAllowancePerDay: Number(newVehicleForm.driverAllowancePerDay) || 300,
+      waitingChargePerHour: 150,
+      freeWaitingMinutes: 45,
+      nightAllowance: 150,
+      hillStationCharge: Number(newVehicleForm.hillStationCharge) || 400,
+      difficultMountainCharge: Math.round((Number(newVehicleForm.hillStationCharge) || 400) * 1.8),
+      statePermitTax: Number(newVehicleForm.statePermitTax) || 250,
+      local8Hr80KmFare: 2200,
+      operatingCostPerKm: Number(newVehicleForm.operatingCostPerKm) || 6,
+      driverPayoutPerKm: Number(newVehicleForm.driverPayoutPerKm) || 4.5,
+      minProfitMargin: Number(newVehicleForm.minProfitMargin) || 450,
+      minProfitType: newVehicleForm.minProfitType,
+      capacityPassengers: Number(newVehicleForm.capacityPassengers) || 4,
+      capacityLuggage: 3,
+      popular: false,
+      enabled: true,
+      isCustom: true
+    };
+    setPricingConfig((prev) => ({
+      ...prev,
+      vehicles: {
+        ...prev.vehicles,
+        [cleanId]: newVeh
+      }
+    }));
+    setNewVehicleForm({
+      id: '',
+      name: '',
+      models: '',
+      ratePerKm: 13,
+      roundTripRatePerKm: 13,
+      extraKmRate: 14,
+      driverAllowancePerDay: 300,
+      hillStationCharge: 500,
+      statePermitTax: 250,
+      operatingCostPerKm: 6.2,
+      driverPayoutPerKm: 4.5,
+      minProfitMargin: 500,
+      minProfitType: 'fixed_inr',
+      capacityPassengers: 4
+    });
+    setSaveBanner(`Added vehicle "${newVeh.name}" (${cleanId}). Click "Save & Apply" to publish.`);
+  };
+
+  const handleAddSeasonalEvent = () => {
+    if (!newEventForm.name.trim()) {
+      setSaveError('Please enter a Seasonal Event / Festival name.');
+      return;
+    }
+    setSaveError('');
+    const cities = newEventForm.cities
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    setPricingConfig((prev) => ({
+      ...prev,
+      seasonalEvents: [
+        ...(prev.seasonalEvents || []),
+        {
+          id: `evt_${Date.now()}`,
+          name: newEventForm.name.trim(),
+          startDate: newEventForm.startDate,
+          endDate: newEventForm.endDate,
+          multiplier: Math.max(0.8, Math.min(1.5, Number(newEventForm.multiplier) || 1.15)),
+          cities: cities.length ? cities : ['All India'],
+          active: true
+        }
+      ]
+    }));
+    setNewEventForm({ name: '', startDate: '2026-11-01', endDate: '2026-11-12', multiplier: 1.15, cities: 'All India' });
+  };
+
+  const handleAddRouteOverride = () => {
+    if (!newOverrideForm.pickupCity.trim() || !newOverrideForm.dropCity.trim()) {
+      setSaveError('Enter both Pickup City and Drop City for Route Override.');
+      return;
+    }
+    setSaveError('');
+    setPricingConfig((prev) => ({
+      ...prev,
+      routeOverrides: [
+        ...(prev.routeOverrides || []),
+        {
+          id: `ov_${Date.now()}`,
+          name: `${newOverrideForm.pickupCity.trim()} -> ${newOverrideForm.dropCity.trim()}`,
+          pickupCity: newOverrideForm.pickupCity.trim(),
+          dropCity: newOverrideForm.dropCity.trim(),
+          tripType: newOverrideForm.tripType,
+          vehicleId: newOverrideForm.vehicleId,
+          bidirectional: newOverrideForm.bidirectional,
+          fixedTotalFare: newOverrideForm.fixedTotalFare ? Number(newOverrideForm.fixedTotalFare) : null,
+          ratePerKmOverride: newOverrideForm.ratePerKmOverride ? Number(newOverrideForm.ratePerKmOverride) : null,
+          active: true
+        }
+      ]
+    }));
+    setNewOverrideForm({
+      pickupCity: '',
+      dropCity: '',
+      tripType: 'oneway',
+      vehicleId: 'sedan',
+      fixedTotalFare: '',
+      ratePerKmOverride: '',
+      bidirectional: true
+    });
+  };
+
+  const handleAddCompetitorQuote = () => {
+    if (!newCompetitorForm.pickupCity.trim() || !newCompetitorForm.dropCity.trim()) {
+      setSaveError('Enter both Pickup City and Drop City for Competitor Benchmark.');
+      return;
+    }
+    setSaveError('');
+    setPricingConfig((prev) => ({
+      ...prev,
+      competitorQuotes: [
+        ...(prev.competitorQuotes || []),
+        {
+          id: `cmp_${Date.now()}`,
+          competitorName: newCompetitorForm.competitorName.trim() || 'CabBazar',
+          pickupCity: newCompetitorForm.pickupCity.trim(),
+          dropCity: newCompetitorForm.dropCity.trim(),
+          tripType: newCompetitorForm.tripType,
+          vehicleId: newCompetitorForm.vehicleId,
+          competitorFare: Math.max(500, Number(newCompetitorForm.competitorFare) || 3500),
+          verifiedDate: new Date().toISOString().split('T')[0],
+          active: true
+        }
+      ]
+    }));
+    setNewCompetitorForm({
+      competitorName: 'CabBazar',
+      pickupCity: '',
+      dropCity: '',
+      tripType: 'oneway',
+      vehicleId: 'sedan',
+      competitorFare: 3500
+    });
   };
 
   const handleExportBenchmarkCsv = () => {
@@ -804,6 +1129,22 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
             <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-extrabold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{saveBanner}</span>
+            </div>
+          )}
+
+          {saveError && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-xs font-extrabold flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{saveError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaveError('')}
+                className="text-rose-700 hover:text-rose-950 font-black cursor-pointer"
+              >
+                Dismiss
+              </button>
             </div>
           )}
 
@@ -1877,172 +2218,1039 @@ export const AdminMappingConsoleModal: React.FC<AdminMappingConsoleModalProps> =
           )}
 
           {activeTab === 'pricing' && (
-            <div className="space-y-6">
-              {/* Global Minimums & Surcharges */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <div className="text-xs font-black uppercase tracking-wider text-slate-700">
-                  Global Minimum Distance, Night Charges &amp; Tax Rules
+            <div className="space-y-5">
+              {/* Top Control Bar & Sub-Section Selector */}
+              <div className="bg-[#0B0F19] text-white rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 font-black text-[10px] uppercase">
+                      Engine v{pricingConfig.version || 1}
+                    </span>
+                    <span className="text-xs font-black text-emerald-400">
+                      {pricingConfig.dynamicPricing?.emergencyDisableSurge
+                        ? '⚠ Surge Paused (Emergency Flat-Rate Active)'
+                        : 'Profit-Protected Dynamic Pricing Active'}
+                    </span>
+                  </div>
+                  <h4 className="text-sm sm:text-base font-black mt-1">
+                    Module 12 — Intelligent Fare Control Center &amp; Profit Simulator
+                  </h4>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Min One-Way Billable KM
-                    </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs font-extrabold cursor-pointer">
                     <input
-                      type="number"
-                      value={pricingConfig.minOneWayBillableKm}
+                      type="checkbox"
+                      checked={Boolean(pricingConfig.dynamicPricing?.emergencyDisableSurge)}
                       onChange={(e) =>
                         setPricingConfig((prev) => ({
                           ...prev,
-                          minOneWayBillableKm: Math.max(50, Number(e.target.value) || 130)
-                        }))
-                      }
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Min Round-Trip KM / Day
-                    </label>
-                    <input
-                      type="number"
-                      value={pricingConfig.minRoundTripKmPerDay}
-                      onChange={(e) =>
-                        setPricingConfig((prev) => ({
-                          ...prev,
-                          minRoundTripKmPerDay: Math.max(150, Number(e.target.value) || 250)
-                        }))
-                      }
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Night Pickup/Drop Slot (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={pricingConfig.nightChargePerSlot}
-                      onChange={(e) =>
-                        setPricingConfig((prev) => ({
-                          ...prev,
-                          nightChargePerSlot: Math.max(0, Number(e.target.value) || 150)
-                        }))
-                      }
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Default Airport/City Parking (₹)
-                    </label>
-                    <input
-                      type="number"
-                      value={pricingConfig.defaultParkingCharge}
-                      onChange={(e) =>
-                        setPricingConfig((prev) => ({
-                          ...prev,
-                          defaultParkingCharge: Math.max(0, Number(e.target.value) || 150)
-                        }))
-                      }
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Per-Vehicle Rate Table */}
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-900 text-white">
-                      <th className="p-3 font-extrabold">Vehicle Category</th>
-                      <th className="p-3 font-extrabold">One-Way ₹/KM</th>
-                      <th className="p-3 font-extrabold">Round-Trip ₹/KM</th>
-                      <th className="p-3 font-extrabold">Extra ₹/KM</th>
-                      <th className="p-3 font-extrabold">Driver Bata/Day (₹)</th>
-                      <th className="p-3 font-extrabold">Hill Charge (₹)</th>
-                      <th className="p-3 font-extrabold">State Permit Base (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {(Object.keys(VEHICLE_LABELS) as CabCategoryId[]).map((cabKey) => {
-                      const v = pricingConfig.vehicles[cabKey];
-                      if (!v) return null;
-                      const updateField = (field: keyof typeof v, val: number) => {
-                        setPricingConfig((prev) => ({
-                          ...prev,
-                          vehicles: {
-                            ...prev.vehicles,
-                            [cabKey]: {
-                              ...prev.vehicles[cabKey],
-                              [field]: val
-                            }
+                          dynamicPricing: {
+                            ...prev.dynamicPricing,
+                            emergencyDisableSurge: e.target.checked
                           }
-                        }));
-                      };
-                      return (
-                        <tr key={cabKey} className="hover:bg-slate-50">
-                          <td className="p-3 font-black text-slate-900">{VEHICLE_LABELS[cabKey]}</td>
-                          <td className="p-2.5">
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={v.ratePerKm}
-                              onChange={(e) => updateField('ratePerKm', Number(e.target.value) || 10)}
-                              className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-mono font-bold"
-                            />
-                          </td>
-                          <td className="p-2.5">
-                            <input
-                              type="number"
-                              step="0.5"
-                              value={v.roundTripRatePerKm}
-                              onChange={(e) => updateField('roundTripRatePerKm', Number(e.target.value) || 11)}
-                              className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-mono font-bold"
-                            />
-                          </td>
-                          <td className="p-2.5">
-                            <input
-                              type="number"
-                              step="0.5"
-                              value={v.extraKmRate}
-                              onChange={(e) => updateField('extraKmRate', Number(e.target.value) || 12)}
-                              className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-mono font-bold"
-                            />
-                          </td>
-                          <td className="p-2.5">
-                            <input
-                              type="number"
-                              value={v.driverAllowancePerDay}
-                              onChange={(e) => updateField('driverAllowancePerDay', Number(e.target.value) || 300)}
-                              className="w-24 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-mono font-bold"
-                            />
-                          </td>
-                          <td className="p-2.5">
-                            <input
-                              type="number"
-                              value={v.hillStationCharge}
-                              onChange={(e) => updateField('hillStationCharge', Number(e.target.value) || 400)}
-                              className="w-24 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-mono font-bold"
-                            />
-                          </td>
-                          <td className="p-2.5">
-                            <input
-                              type="number"
-                              value={v.statePermitTax}
-                              onChange={(e) => updateField('statePermitTax', Number(e.target.value) || 200)}
-                              className="w-24 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-mono font-bold"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        }))
+                      }
+                      className="accent-rose-500"
+                    />
+                    <span className={pricingConfig.dynamicPricing?.emergencyDisableSurge ? 'text-rose-300' : 'text-slate-200'}>
+                      Emergency Pause Surge
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleSavePricing}
+                    className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs cursor-pointer shadow-sm"
+                  >
+                    {isSaving ? 'Validating & Saving...' : 'Save & Publish Config'}
+                  </button>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Sub-section Navigation */}
+              <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+                {[
+                  { id: 'rates', label: `Fleet & Profit Floors (${Object.keys(pricingConfig.vehicles || {}).length})` },
+                  { id: 'rules', label: 'Lead-Time & Festivals' },
+                  { id: 'overrides', label: `Smart Route Overrides (${(pricingConfig.routeOverrides || []).length})` },
+                  { id: 'competitors', label: `Competitor Quotes (${(pricingConfig.competitorQuotes || []).length})` },
+                  { id: 'simulator', label: 'Live Profit Simulator (Admin Only)' },
+                  { id: 'versions', label: `Versions & Rollback (${pricingVersions.length})` },
+                  { id: 'quotes', label: `Manual Quote Queue (${manualQuoteTickets.length})` }
+                ].map((sub) => (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => setPricingSubSection(sub.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                      pricingSubSection === sub.id
+                        ? 'bg-slate-900 text-amber-400 shadow-2xs'
+                        : 'text-slate-700 hover:bg-white'
+                    }`}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* SUB-SECTION 1: GLOBAL RULES, 10+ VEHICLES & CUSTOM FLEET */}
+              {pricingSubSection === 'rates' && (
+                <div className="space-y-5">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="text-xs font-black uppercase tracking-wider text-slate-700">
+                      Global Minimums, Tax, Competitor Target &amp; Surge Bounds
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Min One-Way KM
+                        </label>
+                        <input
+                          type="number"
+                          value={pricingConfig.minOneWayBillableKm}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              minOneWayBillableKm: Math.max(50, Number(e.target.value) || 130)
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Min Round-Trip KM/Day
+                        </label>
+                        <input
+                          type="number"
+                          value={pricingConfig.minRoundTripKmPerDay}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              minRoundTripKmPerDay: Math.max(150, Number(e.target.value) || 250)
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          GST Rate (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={pricingConfig.gstRatePct ?? 5}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              gstRatePct: Math.max(0, Number(e.target.value) || 0)
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Gateway Fee (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={pricingConfig.paymentGatewayFeePct ?? 2}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              paymentGatewayFeePct: Math.max(0, Number(e.target.value) || 0)
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Platform Comm (%)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={pricingConfig.platformCommissionPct ?? 8}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              platformCommissionPct: Math.max(0, Number(e.target.value) || 0)
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Extra Stop Fee (₹)
+                        </label>
+                        <input
+                          type="number"
+                          value={pricingConfig.extraStopChargePerStop ?? 180}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              extraStopChargePerStop: Math.max(0, Number(e.target.value) || 0)
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Short Saving Target (₹)
+                        </label>
+                        <input
+                          type="number"
+                          value={pricingConfig.competitorRules?.shortRouteMinSavingInr ?? 150}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              competitorRules: {
+                                ...prev.competitorRules,
+                                shortRouteMinSavingInr: Math.max(0, Number(e.target.value) || 150)
+                              }
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Long Saving Target (₹)
+                        </label>
+                        <input
+                          type="number"
+                          value={pricingConfig.competitorRules?.longRouteMinSavingInr ?? 250}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              competitorRules: {
+                                ...prev.competitorRules,
+                                longRouteMinSavingInr: Math.max(0, Number(e.target.value) || 250)
+                              }
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Min Surge Mult
+                        </label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={pricingConfig.dynamicPricing?.minSurgeMultiplier ?? 0.9}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              dynamicPricing: {
+                                ...prev.dynamicPricing,
+                                minSurgeMultiplier: Math.max(0.7, Number(e.target.value) || 0.9)
+                              }
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Max Surge Cap
+                        </label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={pricingConfig.dynamicPricing?.maxSurgeMultiplier ?? 1.45}
+                          onChange={(e) =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              dynamicPricing: {
+                                ...prev.dynamicPricing,
+                                maxSurgeMultiplier: Math.max(1, Number(e.target.value) || 1.45)
+                              }
+                            }))
+                          }
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dynamic All-Vehicles Table (10 Built-in + Custom Vehicles) */}
+                  <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-900 text-white">
+                          <th className="p-2.5 font-extrabold">Vehicle Category</th>
+                          <th className="p-2.5 font-extrabold">Active</th>
+                          <th className="p-2.5 font-extrabold">1-Way ₹/KM</th>
+                          <th className="p-2.5 font-extrabold">RT ₹/KM</th>
+                          <th className="p-2.5 font-extrabold">Extra ₹/KM</th>
+                          <th className="p-2.5 font-extrabold">Bata/Day ₹</th>
+                          <th className="p-2.5 font-extrabold">Hill ₹</th>
+                          <th className="p-2.5 font-extrabold">Mtn ₹</th>
+                          <th className="p-2.5 font-extrabold">Op Cost/KM</th>
+                          <th className="p-2.5 font-extrabold">Driver/KM</th>
+                          <th className="p-2.5 font-extrabold">Min Profit</th>
+                          <th className="p-2.5 font-extrabold">Floor Type</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {Object.entries(pricingConfig.vehicles || {}).map(([cabKey, v]) => {
+                          if (!v) return null;
+                          const updateField = (field: keyof VehicleEngineConfig, val: any) => {
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              vehicles: {
+                                ...prev.vehicles,
+                                [cabKey]: {
+                                  ...prev.vehicles[cabKey],
+                                  [field]: val
+                                }
+                              }
+                            }));
+                          };
+                          return (
+                            <tr key={cabKey} className="hover:bg-slate-50">
+                              <td className="p-2.5 font-black text-slate-900 whitespace-nowrap">
+                                <div>{VEHICLE_LABELS[cabKey] || v.name}</div>
+                                <div className="text-[10px] font-mono text-slate-500">
+                                  {cabKey}{v.isCustom ? ' • Custom' : ''}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="checkbox"
+                                  checked={v.enabled !== false}
+                                  onChange={(e) => updateField('enabled', e.target.checked)}
+                                  className="accent-emerald-600 cursor-pointer"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  step="0.25"
+                                  value={v.ratePerKm}
+                                  onChange={(e) => updateField('ratePerKm', Number(e.target.value) || 10)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  step="0.25"
+                                  value={v.roundTripRatePerKm}
+                                  onChange={(e) => updateField('roundTripRatePerKm', Number(e.target.value) || 10)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  value={v.extraKmRate}
+                                  onChange={(e) => updateField('extraKmRate', Number(e.target.value) || 11)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  value={v.driverAllowancePerDay}
+                                  onChange={(e) => updateField('driverAllowancePerDay', Number(e.target.value) || 250)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  value={v.hillStationCharge}
+                                  onChange={(e) => updateField('hillStationCharge', Number(e.target.value) || 350)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  value={v.difficultMountainCharge}
+                                  onChange={(e) => updateField('difficultMountainCharge', Number(e.target.value) || 700)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  step="0.2"
+                                  value={v.operatingCostPerKm}
+                                  onChange={(e) => updateField('operatingCostPerKm', Number(e.target.value) || 5)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  step="0.2"
+                                  value={v.driverPayoutPerKm}
+                                  onChange={(e) => updateField('driverPayoutPerKm', Number(e.target.value) || 3)}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number"
+                                  value={v.minProfitMargin}
+                                  onChange={(e) => updateField('minProfitMargin', Math.max(0, Number(e.target.value) || 0))}
+                                  className="w-16 bg-white border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <select
+                                  value={v.minProfitType || 'fixed_inr'}
+                                  onChange={(e) => updateField('minProfitType', e.target.value as 'fixed_inr' | 'percent')}
+                                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold"
+                                >
+                                  <option value="fixed_inr">₹ Fixed</option>
+                                  <option value="percent">% Margin</option>
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Add Custom Vehicle Form */}
+                  <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-4 space-y-3">
+                    <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <Plus className="w-4 h-4 text-amber-600" />
+                      <span>Add Custom Fleet Vehicle Category</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                      <input
+                        type="text"
+                        placeholder="ID (e.g. kia_carens)"
+                        value={newVehicleForm.id}
+                        onChange={(e) => setNewVehicleForm((p) => ({ ...p, id: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Display Name (Kia Carens)"
+                        value={newVehicleForm.name}
+                        onChange={(e) => setNewVehicleForm((p) => ({ ...p, name: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Models"
+                        value={newVehicleForm.models}
+                        onChange={(e) => setNewVehicleForm((p) => ({ ...p, models: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                      />
+                      <input
+                        type="number"
+                        placeholder="₹/KM (e.g. 15)"
+                        value={newVehicleForm.ratePerKm}
+                        onChange={(e) => setNewVehicleForm((p) => ({ ...p, ratePerKm: Number(e.target.value) || 13 }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomVehicle}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black cursor-pointer"
+                      >
+                        + Add Vehicle
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-SECTION 2: LEAD-TIME & FESTIVAL MULTIPLIERS */}
+              {pricingSubSection === 'rules' && (
+                <div className="space-y-5">
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                    <div className="bg-slate-900 text-white px-4 py-2.5 text-xs font-extrabold">
+                      8-Tier Lead-Time Pricing Rules (Booking Window Multipliers)
+                    </div>
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-700">
+                        <tr>
+                          <th className="p-2.5 font-extrabold">Bucket Key</th>
+                          <th className="p-2.5 font-extrabold">Label</th>
+                          <th className="p-2.5 font-extrabold">Max Hours</th>
+                          <th className="p-2.5 font-extrabold">Base Multiplier</th>
+                          <th className="p-2.5 font-extrabold">Tight Supply Boost</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {Object.entries(pricingConfig.leadTimeRules || {}).map(([bucketKey, rule]) => (
+                          <tr key={bucketKey}>
+                            <td className="p-2.5 font-mono font-bold text-slate-900">{bucketKey}</td>
+                            <td className="p-2.5 font-bold text-slate-700">{rule.label}</td>
+                            <td className="p-2.5 font-mono">{rule.maxHours}h</td>
+                            <td className="p-2.5">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={rule.baseMultiplier}
+                                onChange={(e) => {
+                                  const key = bucketKey as LeadTimeBucket;
+                                  setPricingConfig((prev) => ({
+                                    ...prev,
+                                    leadTimeRules: {
+                                      ...prev.leadTimeRules,
+                                      [key]: { ...prev.leadTimeRules[key], baseMultiplier: Number(e.target.value) || 1 }
+                                    }
+                                  }));
+                                }}
+                                className="w-24 border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                              />
+                            </td>
+                            <td className="p-2.5">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={rule.tightAvailabilityBoost}
+                                onChange={(e) => {
+                                  const key = bucketKey as LeadTimeBucket;
+                                  setPricingConfig((prev) => ({
+                                    ...prev,
+                                    leadTimeRules: {
+                                      ...prev.leadTimeRules,
+                                      [key]: { ...prev.leadTimeRules[key], tightAvailabilityBoost: Number(e.target.value) || 0 }
+                                    }
+                                  }));
+                                }}
+                                className="w-24 border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Seasonal & Festival Events */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                      Seasonal, Festival &amp; Special Event Peak Rules
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 text-xs">
+                      <input
+                        type="text"
+                        placeholder="Event Name (e.g. Diwali)"
+                        value={newEventForm.name}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, name: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                      />
+                      <input
+                        type="date"
+                        value={newEventForm.startDate}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, startDate: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono"
+                      />
+                      <input
+                        type="date"
+                        value={newEventForm.endDate}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, endDate: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono"
+                      />
+                      <input
+                        type="number"
+                        step="0.02"
+                        placeholder="Mult (e.g. 1.15)"
+                        value={newEventForm.multiplier}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, multiplier: Number(e.target.value) || 1.15 }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Cities (All India)"
+                        value={newEventForm.cities}
+                        onChange={(e) => setNewEventForm((p) => ({ ...p, cities: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddSeasonalEvent}
+                        className="px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 font-black cursor-pointer"
+                      >
+                        + Add Event
+                      </button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {(pricingConfig.seasonalEvents || []).map((ev, idx) => (
+                        <div key={ev.id || idx} className="bg-white border border-slate-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div>
+                            <span className="font-black text-slate-900">{ev.name}</span>
+                            <span className="ml-2 font-mono text-slate-500">
+                              {ev.startDate} → {ev.endDate}
+                            </span>
+                            <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono font-bold">
+                              {ev.multiplier}x
+                            </span>
+                            <span className="ml-2 text-slate-500">{(ev.cities || []).join(', ')}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPricingConfig((prev) => ({
+                                  ...prev,
+                                  seasonalEvents: prev.seasonalEvents.map((item, i) =>
+                                    i === idx ? { ...item, active: !item.active } : item
+                                  )
+                                }))
+                              }
+                              className={`px-2.5 py-1 rounded-lg font-bold cursor-pointer ${
+                                ev.active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {ev.active ? 'Active' : 'Paused'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPricingConfig((prev) => ({
+                                  ...prev,
+                                  seasonalEvents: prev.seasonalEvents.filter((_, i) => i !== idx)
+                                }))
+                              }
+                              className="p-1 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-SECTION 3: SMART ROUTE OVERRIDES */}
+              {pricingSubSection === 'overrides' && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
+                  <div className="text-xs text-slate-700 font-semibold">
+                    Server validates every route override against Minimum Profit Floor when you click <strong>Save &amp; Publish Config</strong>. Unprofitable overrides are automatically blocked.
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs">
+                    <input
+                      type="text"
+                      placeholder="Pickup City"
+                      value={newOverrideForm.pickupCity}
+                      onChange={(e) => setNewOverrideForm((p) => ({ ...p, pickupCity: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Drop City"
+                      value={newOverrideForm.dropCity}
+                      onChange={(e) => setNewOverrideForm((p) => ({ ...p, dropCity: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                    />
+                    <select
+                      value={newOverrideForm.vehicleId}
+                      onChange={(e) => setNewOverrideForm((p) => ({ ...p, vehicleId: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2 py-1.5 font-bold"
+                    >
+                      {Object.keys(pricingConfig.vehicles || {}).map((id) => (
+                        <option key={id} value={id}>{id}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Fixed Total ₹ (opt)"
+                      value={newOverrideForm.fixedTotalFare}
+                      onChange={(e) => setNewOverrideForm((p) => ({ ...p, fixedTotalFare: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                    />
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="₹/KM Override (opt)"
+                      value={newOverrideForm.ratePerKmOverride}
+                      onChange={(e) => setNewOverrideForm((p) => ({ ...p, ratePerKmOverride: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddRouteOverride}
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 font-black cursor-pointer"
+                    >
+                      + Add Override
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {(pricingConfig.routeOverrides || []).map((ov, idx) => (
+                      <div key={ov.id || idx} className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div>
+                          <span className="font-black text-slate-900">
+                            {ov.pickupCity} {ov.bidirectional ? '↔' : '→'} {ov.dropCity}
+                          </span>
+                          <span className="ml-2 font-mono text-slate-500">
+                            [{ov.vehicleId || 'all'} • {ov.tripType || 'all'}]
+                          </span>
+                          {ov.fixedTotalFare && (
+                            <span className="ml-2 px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 font-mono font-bold">
+                              Fixed {formatINR(ov.fixedTotalFare)}
+                            </span>
+                          )}
+                          {ov.ratePerKmOverride && (
+                            <span className="ml-2 px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono font-bold">
+                              ₹{ov.ratePerKmOverride}/km
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              routeOverrides: prev.routeOverrides.filter((_, i) => i !== idx)
+                            }))
+                          }
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-SECTION 4: VERIFIED COMPETITOR BENCHMARK QUOTES */}
+              {pricingSubSection === 'competitors' && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs">
+                    <input
+                      type="text"
+                      placeholder="Competitor (CabBazar)"
+                      value={newCompetitorForm.competitorName}
+                      onChange={(e) => setNewCompetitorForm((p) => ({ ...p, competitorName: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Pickup City"
+                      value={newCompetitorForm.pickupCity}
+                      onChange={(e) => setNewCompetitorForm((p) => ({ ...p, pickupCity: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Drop City"
+                      value={newCompetitorForm.dropCity}
+                      onChange={(e) => setNewCompetitorForm((p) => ({ ...p, dropCity: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                    />
+                    <select
+                      value={newCompetitorForm.vehicleId}
+                      onChange={(e) => setNewCompetitorForm((p) => ({ ...p, vehicleId: e.target.value }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2 py-1.5 font-bold"
+                    >
+                      {Object.keys(pricingConfig.vehicles || {}).map((id) => (
+                        <option key={id} value={id}>{id}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      placeholder="Competitor Fare ₹"
+                      value={newCompetitorForm.competitorFare}
+                      onChange={(e) => setNewCompetitorForm((p) => ({ ...p, competitorFare: Number(e.target.value) || 3500 }))}
+                      className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCompetitorQuote}
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 text-amber-400 font-black cursor-pointer"
+                    >
+                      + Add Quote
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {(pricingConfig.competitorQuotes || []).map((cq, idx) => (
+                      <div key={cq.id || idx} className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div>
+                          <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-bold mr-2">
+                            {cq.competitorName}
+                          </span>
+                          <span className="font-black text-slate-900">
+                            {cq.pickupCity} → {cq.dropCity}
+                          </span>
+                          <span className="ml-2 font-mono text-slate-500">
+                            ({cq.vehicleId} • {cq.tripType})
+                          </span>
+                          <span className="ml-2 font-mono font-black text-amber-800">
+                            {formatINR(cq.competitorFare)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPricingConfig((prev) => ({
+                              ...prev,
+                              competitorQuotes: prev.competitorQuotes.filter((_, i) => i !== idx)
+                            }))
+                          }
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SUB-SECTION 5: LIVE ADMIN-ONLY PROFIT SIMULATOR */}
+              {pricingSubSection === 'simulator' && (
+                <div className="space-y-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                        <Calculator className="w-4 h-4 text-amber-600" />
+                        <span>Live Profit, Driver Payout &amp; Competitor Simulator (Admin-Only Data)</span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isSimulating}
+                        onClick={handleRunSimulation}
+                        className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs cursor-pointer"
+                      >
+                        {isSimulating ? 'Simulating...' : 'Run Simulation'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                      <input
+                        type="text"
+                        placeholder="Pickup City"
+                        value={simInput.pickupCity}
+                        onChange={(e) => setSimInput((p) => ({ ...p, pickupCity: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Drop City"
+                        value={simInput.dropCity}
+                        onChange={(e) => setSimInput((p) => ({ ...p, dropCity: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                      />
+                      <select
+                        value={simInput.tripType}
+                        onChange={(e) => setSimInput((p) => ({ ...p, tripType: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2 py-1.5 font-bold"
+                      >
+                        <option value="oneway">One-Way</option>
+                        <option value="roundtrip">Round Trip</option>
+                        <option value="multiday">Multi-Day Tour</option>
+                        <option value="airport">Airport</option>
+                        <option value="local">Local</option>
+                        <option value="custom">Custom Multi-Stop</option>
+                      </select>
+                      <select
+                        value={simInput.cabId}
+                        onChange={(e) => setSimInput((p) => ({ ...p, cabId: e.target.value }))}
+                        className="bg-white border border-slate-300 rounded-xl px-2 py-1.5 font-bold"
+                      >
+                        {Object.keys(pricingConfig.vehicles || {}).map((id) => (
+                          <option key={id} value={id}>{VEHICLE_LABELS[id] || id}</option>
+                        ))}
+                      </select>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500">Road KM</label>
+                        <input
+                          type="number"
+                          value={simInput.distanceKm}
+                          onChange={(e) => setSimInput((p) => ({ ...p, distanceKm: Number(e.target.value) || 130 }))}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500">Days</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={simInput.days}
+                          onChange={(e) => setSimInput((p) => ({ ...p, days: Math.max(1, Number(e.target.value) || 1) }))}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500">Fleet Supply Ratio (0.1–1.0)</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          min={0.1}
+                          max={1}
+                          value={simInput.fleetAvailabilityRatio}
+                          onChange={(e) => setSimInput((p) => ({ ...p, fleetAvailabilityRatio: Number(e.target.value) || 0.7 }))}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500">Stops (comma separated)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Mathura, Agra"
+                          value={simInput.stopsText}
+                          onChange={(e) => setSimInput((p) => ({ ...p, stopsText: e.target.value }))}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {simResult && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                      <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2">
+                        <div className="font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                          <span>Customer Quote Summary</span>
+                          <span className="font-mono text-base text-slate-950">{formatINR(simResult.totalFare)}</span>
+                        </div>
+                        <div className="space-y-1 text-slate-700">
+                          <div className="flex justify-between"><span>Base Cab Fare:</span><span className="font-mono font-bold">{formatINR(simResult.baseFare)}</span></div>
+                          <div className="flex justify-between"><span>Billed Distance:</span><span className="font-mono font-bold">{simResult.billedDistanceKm} KM @ ₹{simResult.effectiveRatePerKm}/km</span></div>
+                          <div className="flex justify-between"><span>State Permit + MCD:</span><span className="font-mono font-bold">{formatINR((simResult.statePermitTax || 0) + (simResult.delhiMcdToll || 0))}</span></div>
+                          <div className="flex justify-between"><span>GST:</span><span className="font-mono font-bold">{formatINR(simResult.gstAmount)}</span></div>
+                          <div className="flex justify-between"><span>Categories:</span><span className="font-bold">{simResult.locationCategories?.pickupCategoryLabel} → {simResult.locationCategories?.dropCategoryLabel}</span></div>
+                          {simResult.competitorBenchmark && (
+                            <div className="flex justify-between text-emerald-700 font-bold">
+                              <span>vs {simResult.competitorBenchmark.competitorName} ({formatINR(simResult.competitorBenchmark.competitorFare)}):</span>
+                              <span>Save {formatINR(simResult.competitorBenchmark.actualSaving)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {simResult.internalCostAndProfit && (
+                        <div className="bg-[#0B0F19] text-white border border-slate-800 rounded-2xl p-4 space-y-2">
+                          <div className="font-black text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                            <span className="flex items-center gap-1.5">
+                              <TrendingUp className="w-4 h-4" />
+                              <span>Internal Cost &amp; Net Profit (Private)</span>
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                              {simResult.internalCostAndProfit.isProfitProtected ? '✓ Profit Protected' : '⚠ Below Floor'}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-slate-300">
+                            <div className="flex justify-between"><span>Driver Payment:</span><span className="font-mono font-bold text-white">{formatINR(simResult.internalCostAndProfit.driverPayment)}</span></div>
+                            <div className="flex justify-between"><span>Fuel &amp; Operating Cost:</span><span className="font-mono font-bold text-white">{formatINR(simResult.internalCostAndProfit.vehicleOperatingExpense)}</span></div>
+                            <div className="flex justify-between"><span>Positioning + Return Deadhead:</span><span className="font-mono font-bold text-white">{formatINR(simResult.internalCostAndProfit.positioningCost + simResult.internalCostAndProfit.returnDeadheadCost)}</span></div>
+                            <div className="flex justify-between"><span>Gateway + Commission + Taxes:</span><span className="font-mono font-bold text-white">{formatINR(simResult.internalCostAndProfit.paymentGatewayFee + simResult.internalCostAndProfit.platformCommission + simResult.internalCostAndProfit.taxes)}</span></div>
+                            <div className="flex justify-between border-t border-slate-700 pt-1.5 text-sm font-black text-emerald-400">
+                              <span>Estimated Net Profit:</span>
+                              <span className="font-mono">
+                                {formatINR(simResult.internalCostAndProfit.netProfit)} ({simResult.internalCostAndProfit.netProfitPercent}%)
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SUB-SECTION 6: VERSION HISTORY & ROLLBACK */}
+              {pricingSubSection === 'versions' && (
+                <div className="space-y-4">
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                    <div className="bg-slate-900 text-white px-4 py-2.5 text-xs font-extrabold flex items-center gap-2">
+                      <History className="w-4 h-4 text-amber-400" />
+                      <span>Pricing Configuration Versions (Instant Rollback)</span>
+                    </div>
+                    <div className="divide-y divide-slate-200 text-xs">
+                      {pricingVersions.length === 0 ? (
+                        <div className="p-4 text-slate-500 font-semibold">
+                          Save a pricing update to create your first version snapshot.
+                        </div>
+                      ) : (
+                        pricingVersions.map((ver) => (
+                          <div key={ver.version} className="p-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <span className="font-mono font-black text-slate-900">v{ver.version}</span>
+                              <span className="ml-2 font-bold text-slate-800">{ver.versionLabel}</span>
+                              <span className="ml-2 text-slate-500">by {ver.createdBy}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRollbackVersion(ver.version)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-400 text-slate-900 font-black flex items-center gap-1 cursor-pointer"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Rollback to v{ver.version}</span>
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {pricingAuditLogs.length > 0 && (
+                    <div className="border border-slate-200 rounded-2xl p-3.5 bg-slate-50 space-y-1.5 text-xs">
+                      <div className="font-black text-slate-900">Recent Pricing Audit Trail</div>
+                      {pricingAuditLogs.slice(0, 8).map((log) => (
+                        <div key={log.id} className="flex justify-between text-slate-700 border-b border-slate-200/70 pb-1">
+                          <span><strong>{log.action}</strong> — {log.summary}</span>
+                          <span className="font-mono text-[11px] text-slate-500">{log.createdAt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SUB-SECTION 7: MANUAL QUOTATION QUEUE */}
+              {pricingSubSection === 'quotes' && (
+                <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                  <div className="bg-slate-900 text-white px-4 py-2.5 text-xs font-extrabold">
+                    Manual Route Verification &amp; Dispatch Quotation Queue
+                  </div>
+                  <div className="divide-y divide-slate-200 text-xs">
+                    {manualQuoteTickets.length === 0 ? (
+                      <div className="p-6 text-center text-slate-500 font-semibold">
+                        No pending manual quotation requests. Unverified or remote routes submitted by customers appear here.
+                      </div>
+                    ) : (
+                      manualQuoteTickets.map((t) => (
+                        <div key={t.id} className="p-3.5 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <div className="font-black text-slate-900">
+                              {t.id} • {t.pickupCity} → {t.dropCity}
+                            </div>
+                            <div className="text-slate-600">
+                              {t.customerName} (+91 {t.customerPhone}) • {t.tripType} • {t.cabId}
+                            </div>
+                            {t.reason && <div className="text-amber-800 text-[11px] mt-0.5">{t.reason}</div>}
+                          </div>
+                          <a
+                            href={`https://wa.me/91${t.customerPhone}?text=${encodeURIComponent(
+                              `Namaste ${t.customerName}, regarding your SafarIndiaCabs quote ${t.id} (${t.pickupCity} to ${t.dropCity}).`
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-black text-xs"
+                          >
+                            Send Quote on WhatsApp
+                          </a>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={handleResetDefaults}

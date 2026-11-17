@@ -214,21 +214,25 @@ export async function handleCreateOrder(req, res, body) {
       });
     }
 
-    // 2. Authoritative Server-Side Fare Calculation (Trusted Source of Truth)
+    // 2. Authoritative Server-Side Fare Calculation (Trusted Source of Truth — Fails Closed)
     let serverFare;
     try {
       serverFare = computeServerTripFare({
         tripType: tripType || 'oneway',
         cabId: cabId || 'sedan',
-        distanceKm: Number(distanceKm) > 0 ? Number(distanceKm) : 130,
+        distanceKm: tripType === 'local' ? Number(distanceKm || 80) : Number(distanceKm || 0),
         extraKm: Number(body.extraKm || 0),
         pickupCity: safePickupCity,
         dropCity: safeDropCity,
+        stops: Array.isArray(body.stops) ? body.stops : [],
+        waitingMinutes: Number(body.waitingMinutes || 0),
         pickupDate: safePickupDate,
         pickupTime: safePickupTime,
         returnDate,
         returnTime,
+        daysCount: Number(body.tripDays || body.daysCount || 1),
         routeGeometry,
+        routeVerified: body.routeVerified !== false,
         localPackageId,
         includeTolls: false,
         addonCarrier: Boolean(body.addonCarrier),
@@ -239,26 +243,20 @@ export async function handleCreateOrder(req, res, body) {
         customerName: customerName ? String(customerName) : ''
       });
     } catch (fareErr) {
-      console.warn('[/api/create-order] Fare calculation fallback notice:', {
-        bookingId: normalizedBookingId,
-        message: fareErr?.message
+      return res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_ROUTE_OR_FARE',
+        error: fareErr?.message || 'Unable to verify route fare on server.'
       });
-      const fallbackTotal = Math.max(
-        100,
-        Math.round(Number(clientTotalFareRupees || clientExpectedAmountRupees || 1500))
-      );
-      const fallbackAdvance = Math.max(1, Math.round(fallbackTotal * 0.20));
-      serverFare = {
-        distanceKm: Number(distanceKm) || 130,
-        billedDistanceKm: Number(distanceKm) || 130,
-        baseFare: Math.round(fallbackTotal * 0.85),
-        driverAllowance: 0,
-        tollsAndTaxes: 0,
-        gstAmount: Math.round(fallbackTotal * 0.05),
-        totalFare: fallbackTotal,
-        advanceFare: fallbackAdvance,
-        balanceDue: Math.max(0, fallbackTotal - fallbackAdvance)
-      };
+    }
+
+    if (!serverFare || serverFare.requiresManualQuote || !Number.isFinite(Number(serverFare.totalFare)) || Number(serverFare.totalFare) <= 0) {
+      return res.status(400).json({
+        success: false,
+        errorCode: 'MANUAL_QUOTE_REQUIRED',
+        requiresManualQuote: true,
+        error: serverFare?.errorMessage || 'Road route could not be automatically verified. Please request a manual dispatch quote.'
+      });
     }
 
     const finalTotalFare = Math.max(50, Math.round(Number(serverFare.totalFare)));
@@ -1549,27 +1547,49 @@ export default async function handler(req, res) {
       const cleanPhone = sanitize10Digit(customerPhone);
       const safePickupDate = String(pickupDate || new Date().toISOString().slice(0, 10)).trim();
 
-      const serverFare = computeServerTripFare({
-        tripType,
-        cabId,
-        distanceKm: Number(distanceKm) > 0 ? Number(distanceKm) : 130,
-        extraKm: Number(extraKm || 0),
-        pickupCity,
-        dropCity,
-        pickupDate: safePickupDate,
-        pickupTime,
-        returnDate,
-        returnTime,
-        routeGeometry,
-        localPackageId,
-        includeTolls: false,
-        addonCarrier: Boolean(body.addonCarrier),
-        addonPet: Boolean(body.addonPet),
-        addonAssuredModel: Boolean(body.addonAssuredModel),
-        promoCode: body.promoCode ? String(body.promoCode) : '',
-        promoDiscount: Number(body.promoDiscount || 0),
-        customerName
-      });
+      let serverFare;
+      try {
+        serverFare = computeServerTripFare({
+          tripType,
+          cabId,
+          distanceKm: tripType === 'local' ? Number(distanceKm || 80) : Number(distanceKm || 0),
+          extraKm: Number(extraKm || 0),
+          pickupCity,
+          dropCity,
+          stops: Array.isArray(body.stops) ? body.stops : [],
+          waitingMinutes: Number(body.waitingMinutes || 0),
+          pickupDate: safePickupDate,
+          pickupTime,
+          returnDate,
+          returnTime,
+          daysCount: Number(body.tripDays || body.daysCount || 1),
+          routeGeometry,
+          routeVerified: body.routeVerified !== false,
+          localPackageId,
+          includeTolls: false,
+          addonCarrier: Boolean(body.addonCarrier),
+          addonPet: Boolean(body.addonPet),
+          addonAssuredModel: Boolean(body.addonAssuredModel),
+          promoCode: body.promoCode ? String(body.promoCode) : '',
+          promoDiscount: Number(body.promoDiscount || 0),
+          customerName
+        });
+      } catch (qrFareErr) {
+        return res.status(400).json({
+          success: false,
+          errorCode: 'INVALID_ROUTE_OR_FARE',
+          error: qrFareErr?.message || 'Unable to compute verified QR fare.'
+        });
+      }
+
+      if (!serverFare || serverFare.requiresManualQuote || Number(serverFare.totalFare) <= 0) {
+        return res.status(400).json({
+          success: false,
+          errorCode: 'MANUAL_QUOTE_REQUIRED',
+          requiresManualQuote: true,
+          error: serverFare?.errorMessage || 'Road route requires manual dispatch quotation.'
+        });
+      }
 
       const finalTotalFare = Math.max(50, Math.round(Number(serverFare.totalFare)));
       const exactAdvanceFare = Math.max(1, Math.round(finalTotalFare * 0.20));

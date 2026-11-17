@@ -1,6 +1,11 @@
 import { CabCategoryId, TripType } from '../types';
 import { CABS_FLEET } from '../data/cabsFleet';
 import { getAdminPricingConfigSync } from './olaMapsService';
+import {
+  calculateIntelligentFare,
+  applyCompetitorAdvantageAndProfitProtection,
+  sanitizePublicFareBreakdown
+} from '../../lib/pricing/index.js';
 
 export interface StatePermitBreakdownItem {
   state: string;
@@ -13,6 +18,7 @@ export interface CompetitorRateBenchmark {
   cabBazarFare: number;
   gozoCabsFare: number;
   savaariFare: number;
+  makemytripFare?: number;
   marketAverageFare: number;
   safarSavingsVsMarket: number;
   bestPriceBadgeText: string;
@@ -58,7 +64,7 @@ export interface FareCalculationResult {
   daysCount: number;
   days: number;
   ratePerKm: number;
-  leadTimeTier: 'same_day' | 'tomorrow' | 'advance';
+  leadTimeTier: 'same_day' | 'tomorrow' | 'advance' | string;
   leadTimeMultiplier: number;
   leadTimeLabel: string;
   estimatedDropTime: string;
@@ -95,6 +101,30 @@ export interface FareCalculationResult {
   regionalCompetitorLabel?: string;
   stateTaxDays?: number;
   delhiMcdToll?: number;
+  // Intelligent Engine v2 Public Fields (NEVER contains internalCostAndProfit)
+  waitingCharge?: number;
+  billableWaitMinutes?: number;
+  extraStopsCharge?: number;
+  validStopsCount?: number;
+  positioningDistanceKm?: number;
+  positioningCharge?: number;
+  emptyReturnDeadheadKm?: number;
+  emptyReturnCost?: number;
+  isDifficultMountainRoute?: boolean;
+  locationCategories?: any;
+  dynamicDemand?: any;
+  seasonalEvent?: any;
+  competitorBenchmark?: any;
+  profitFloorProtected?: boolean;
+  requiresManualQuote?: boolean;
+  routeVerified?: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  pricingVersion?: number;
+  pricingVersionLabel?: string;
+  cancellationPolicy?: string;
+  tollsExtraActuals?: boolean;
+  tollPolicyText?: string;
 }
 
 export type FareBreakdown = FareCalculationResult;
@@ -860,7 +890,14 @@ export interface RegionalFixedRouteEntry {
   tollRule: 'toll_free' | 'intra_state_nhai' | 'inter_state_border';
   tollPolicyNote: string;
   marketBeat: number; // Strictly ₹150 to ₹200 cheaper than PatnaGo / RP Shakti local market
-  rates: Record<CabCategoryId, number>;
+  rates: Partial<Record<CabCategoryId, number>> & {
+    hatchback: number;
+    sedan: number;
+    exec_sedan: number;
+    suv: number;
+    innova: number;
+    tempo: number;
+  };
 }
 
 const REGIONAL_CITY_TOKEN_MAP: Array<{ key: string; tokens: string[] }> = [
@@ -1983,23 +2020,31 @@ export function getHillAreaPerKmRate(
   // - If Pickup is from any Hill Area in India -> Base ₹16/km
   // - If Drop is in any Hill Area in India (and Pickup is Plains/Foothill) -> Base ₹13/km
   if (pickupIsHill) {
-    const hillPickupRates: Record<CabCategoryId, number> = {
+    const hillPickupRates: Record<string, number> = {
       hatchback: 16,
+      dzire: 16,
       sedan: 16,
       exec_sedan: 17.5,
+      ertiga: 19,
       suv: 19.5,
       innova: 23,
+      innova_crysta: 24,
+      premium_suv: 32,
       tempo: 29
     };
     return hillPickupRates[cabId] ?? 16;
   }
   if (dropIsHill) {
-    const hillDropRates: Record<CabCategoryId, number> = {
+    const hillDropRates: Record<string, number> = {
       hatchback: 13,
+      dzire: 13,
       sedan: 13,
       exec_sedan: 14.5,
+      ertiga: 16,
       suv: 16.5,
       innova: 20,
+      innova_crysta: 21,
+      premium_suv: 28,
       tempo: 26
     };
     return hillDropRates[cabId] ?? 13;
@@ -2939,11 +2984,6 @@ export function calculateRoundTripFare(
   };
 }
 
-/**
- * SafarIndiaCabs Dynamic Fare Engine (Calibrated ₹150–₹200 below CabBazar / Gozo / Savaari)
- * Evaluates Pickup Location, Drop Location, Pickup Timing, Drop Arrival Timing, and Hill Station Tiers.
- * (100% synchronized with computeServerTripFare in /api/bookings.js)
- */
 export function computeTripFare(params: {
   tripType: TripType;
   cabId: CabCategoryId;
@@ -2951,10 +2991,13 @@ export function computeTripFare(params: {
   extraKm?: number;
   pickupCity?: string;
   dropCity?: string;
+  stops?: Array<string | { location: string; haltMinutes?: number }>;
+  waitingMinutes?: number;
   pickupDate?: string;
   pickupTime?: string;
   returnDate?: string;
   returnTime?: string;
+  days?: number;
   localPackageId?: string;
   includeTolls?: boolean;
   addonCarrier?: boolean;
@@ -2964,6 +3007,7 @@ export function computeTripFare(params: {
   promoDiscount?: number | boolean;
   customerName?: string;
   routeGeometry?: Array<[number, number]>;
+  routeVerified?: boolean;
 }): FareCalculationResult {
   const {
     tripType,
@@ -2972,35 +3016,54 @@ export function computeTripFare(params: {
     extraKm = 0,
     pickupCity = '',
     dropCity = '',
+    stops = [],
+    waitingMinutes = 0,
     pickupDate = '',
     pickupTime = '',
     returnDate,
     returnTime = '',
+    days: explicitDays,
     localPackageId = '8h_80k',
-    includeTolls = false,
     addonCarrier = false,
     addonPet = false,
     addonAssuredModel = false,
     promoCode = '',
     promoDiscount = 0,
     customerName = '',
-    routeGeometry
+    routeGeometry,
+    routeVerified = true
   } = params;
 
-  const cab = CABS_FLEET.find((c) => c.id === cabId) || CABS_FLEET[0];
   const adminCfg = getAdminPricingConfigSync();
   const adminVehicle = adminCfg.vehicles?.[cabId];
-
-  const oneWayRate = adminVehicle?.ratePerKm ?? cab.ratePerKm;
-  const baseExtraKmRate = adminVehicle?.extraKmRate ?? (cab.extraKmRate || Math.round(cab.ratePerKm + 1));
-  const dailyBata = adminVehicle?.driverAllowancePerDay ?? (cab.driverAllowancePerDay || 320);
-  const hillBase = adminVehicle?.hillStationCharge ?? (cab.hillStationCharge || 420);
-  const local8HrBase = adminVehicle?.local8Hr80KmFare ?? (cab.local8Hr80KmFare || 1999);
-  const minOneWaySlabKm = adminCfg.minOneWayBillableKm || 130;
+  const cab = CABS_FLEET.find((c) => c.id === cabId) || CABS_FLEET[0];
+  const vehicleCfg = adminVehicle || cab;
 
   const cleanExtraKm = Math.max(0, Math.round(Number(extraKm || 0)));
+  const cleanWaitingMinutes = Math.max(0, Math.round(Number(waitingMinutes || 0)));
+  const cleanStops = Array.isArray(stops)
+    ? stops
+        .map((s) => (typeof s === 'string' ? s.trim() : s?.location ? String(s.location).trim() : ''))
+        .filter((s) => s.length >= 2)
+    : [];
 
-  // 1. Hill Station, Deep Mountain & Foothill Gateway Pricing
+  let daysCount = Math.max(1, Math.round(Number(explicitDays || 1)));
+  if ((tripType === 'roundtrip' || tripType === 'multiday') && pickupDate && returnDate) {
+    const p = new Date(pickupDate).getTime();
+    const r = new Date(returnDate).getTime();
+    if (Number.isFinite(p) && Number.isFinite(r)) {
+      const diffDays = Math.ceil((r - p) / (1000 * 60 * 60 * 24));
+      daysCount = Math.max(daysCount, diffDays + 1);
+    }
+  }
+
+  const originState = detectLocationState(pickupCity, 'Delhi');
+  const destState =
+    tripType === 'local'
+      ? originState
+      : detectLocationState(dropCity, pickupCity ? originState : 'Uttar Pradesh');
+  const isInterState = tripType !== 'local' && Boolean(originState && destState && originState !== destState);
+
   const {
     isHillRoute,
     pickupIsHill,
@@ -3010,553 +3073,276 @@ export function computeTripFare(params: {
     hillTierLabel
   } = computeHillTerrainPricing(tripType, pickupCity, dropCity);
 
-  // 2. Pickup Timing, Drop Arrival Timing & Booking Lead-Time Pricing
-  const {
-    leadTimeTier,
-    leadTimeMultiplier,
-    leadTimeLabel,
-    estimatedDropTime,
-    isLateNightDrop,
-    isEarlyOrNightPickup,
-    timingAllowance
-  } = computeLeadTimePricing(pickupDate, pickupTime, distanceKm, isHillRoute, hillTier, dropIsHill);
+  const shouldApplyPromo =
+    promoDiscount === true ||
+    Number(promoDiscount) >= PROMO_DISCOUNT_AMOUNT ||
+    isValidFirst300Promo(promoCode, customerName);
+  const requestedPromoAmount =
+    Number(promoDiscount) > 0 ? Number(promoDiscount) : shouldApplyPromo ? PROMO_DISCOUNT_AMOUNT : 0;
 
-  // 3. Pickup Area & Drop Area (Outer / Empty Return Deadhead) Pricing
-  const {
-    isOuterRoute,
-    pickupIsOuter,
-    dropIsOuter,
-    routeTierMultiplier,
-    routeTierLabel
-  } = computeRouteTierPricing(tripType, pickupCity, dropCity, distanceKm, isHillRoute);
+  // Delegate core dynamic pricing + profit protection floor + competitor benchmarking to /lib/pricing engine
+  const intel = calculateIntelligentFare(
+    {
+      tripType,
+      cabId: cabId || 'sedan',
+      vehicleId: cabId || 'sedan',
+      distanceKm: Math.max(0, Number(distanceKm || 0)),
+      extraKm: cleanExtraKm,
+      pickupCity,
+      dropCity,
+      stops,
+      waitingMinutes: cleanWaitingMinutes,
+      pickupDate,
+      pickupTime,
+      returnDate,
+      returnTime,
+      days: daysCount,
+      localPackageId,
+      promoDiscount: requestedPromoAmount,
+      routeGeometry,
+      routeVerified
+    },
+    adminCfg,
+    { includeInternal: false }
+  );
 
-  const dynamicRateFactor = leadTimeMultiplier * routeTierMultiplier * hillRateMultiplier;
-
-  const extraHourRate =
-    cabId === 'hatchback'
-      ? 130
-      : cabId === 'sedan'
-      ? 150
-      : cabId === 'exec_sedan'
-      ? 180
-      : cabId === 'suv'
-      ? 200
-      : cabId === 'innova'
-      ? 260
-      : 350;
-
-  let baseBilledDistanceKm = Math.max(0, Math.round(distanceKm));
-  let ratePerKm = oneWayRate;
-  let baseRouteFare = 0;
-  let driverAllowance = 0;
-  let nightCharges = 0;
-  let daysCount = 1;
-
-  const originState = detectLocationState(pickupCity, 'Delhi');
-  const destState =
-    tripType === 'local'
-      ? originState
-      : detectLocationState(dropCity, pickupCity ? originState : 'Uttar Pradesh');
-  const isInterState =
-    tripType !== 'local' &&
-    Boolean(originState && destState && originState !== destState);
-
-  let hillStationCharge = 0;
-  const hillDriverBonusPerDay = 0;
-
-  // High-Priority Bihar & Jharkhand Regional Pricing Engine Override
-  const isRegionalTrip = isBiharJharkhandRegionalTrip(pickupCity, dropCity, originState, destState);
-  const fixedRegionalRoute =
-    tripType === 'oneway' || tripType === 'roundtrip'
-      ? lookupBiharJharkhandFixedRoute(pickupCity, dropCity)
-      : null;
-
-  let isRegionalFixedRoute = false;
-  let regionalEngineName = '';
-  let regionalCorridorName = '';
-  let regionalTollPolicyNote = '';
-  let regionalCompetitorLabel = '';
-  let regionalMarketBeatOverride: number | null = null;
-  let fixedOneWayGstOverride: number | null = null;
-
-  if (tripType === 'oneway') {
-    const actualRoundedKm = Math.max(
-      1,
-      !isHillRoute && fixedRegionalRoute ? fixedRegionalRoute.km : Math.round(distanceKm)
-    );
-    baseBilledDistanceKm = actualRoundedKm;
-
-    if (isHillRoute) {
-      // ALL-INDIA HILL AREA PRICING RULE (₹13/km for Hill Drop, ₹16/km for Hill Pickup)
-      ratePerKm = getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill);
-      hillStationCharge = 0;
-
-      const shortTripMinBase =
-        cab.id === 'hatchback'
-          ? 520
-          : cab.id === 'sedan'
-          ? 580
-          : cab.id === 'exec_sedan'
-          ? 680
-          : cab.id === 'suv'
-          ? 780
-          : cab.id === 'innova'
-          ? 980
-          : 1380;
-
-      baseRouteFare =
-        baseBilledDistanceKm < 45
-          ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
-          : Math.round(baseBilledDistanceKm * ratePerKm);
-
-      const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
-      driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
-      nightCharges = timingAllowance;
-    } else if (fixedRegionalRoute) {
-      // 1A. BIHAR & JHARKHAND FIXED ROUTE-RATE TABLE OVERRIDE (PatnaGo & RP Shakti Benchmark Beat)
-      isRegionalFixedRoute = true;
-      regionalEngineName = 'Bihar & Jharkhand Fixed Route Special';
-      regionalCorridorName = fixedRegionalRoute.corridorName;
-      regionalTollPolicyNote = fixedRegionalRoute.tollPolicyNote;
-      regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
-      regionalMarketBeatOverride = fixedRegionalRoute.marketBeat; // Strictly ₹150 to ₹200 cheaper
-
-      const targetFixedTotal =
-        fixedRegionalRoute.rates[cabId] ?? fixedRegionalRoute.rates.sedan;
-      const regionalDriverBata =
-        cabId === 'tempo'
-          ? 380
-          : cabId === 'innova'
-          ? 300
-          : cabId === 'suv'
-          ? 260
-          : fixedRegionalRoute.km < 60
-          ? 180
-          : 220;
-
-      const preTaxTarget = Math.round(targetFixedTotal / 1.05);
-      fixedOneWayGstOverride = targetFixedTotal - preTaxTarget;
-      driverAllowance = regionalDriverBata;
-      baseRouteFare = Math.max(250, preTaxTarget - driverAllowance);
-      ratePerKm = Number((baseRouteFare / Math.max(1, baseBilledDistanceKm)).toFixed(1));
-      hillStationCharge = 0;
-      nightCharges = timingAllowance;
-    } else if (isRegionalTrip) {
-      // 1B. BIHAR & JHARKHAND REGIONAL FALLBACK ENGINE (Unlisted regional routes)
-      regionalEngineName = 'Bihar & Jharkhand Regional Rate Card';
-      regionalCorridorName = `${originState === 'Jharkhand' || destState === 'Jharkhand' ? 'Bihar–Jharkhand' : 'Bihar'} Regional Highway Corridor`;
-      regionalTollPolicyNote = isInterState
-        ? 'Bihar–Jharkhand Inter-State Corridor (FASTag Toll Extra · State Tax Included)'
-        : baseBilledDistanceKm <= 65
-        ? 'Short Regional Corridor (0 Toll Plazas · ₹0 Highway Toll)'
-        : `Intra-State ${originState} Corridor (₹0 State Tax · NHAI Toll Extra)`;
-      regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
-      regionalMarketBeatOverride = baseBilledDistanceKm >= 140 ? 190 : 175;
-
-      const regionalPerKmRates: Record<CabCategoryId, number> = {
-        hatchback: 8.5,
-        sedan: 9.2,
-        exec_sedan: 10.6,
-        suv: 12.2,
-        innova: 15.2,
-        tempo: 20.8
-      };
-      const regionalBataMap: Record<CabCategoryId, number> = {
-        hatchback: 210,
-        sedan: 230,
-        exec_sedan: 270,
-        suv: 290,
-        innova: 350,
-        tempo: 440
-      };
-
-      ratePerKm = regionalPerKmRates[cabId] ?? 9.2;
-      const shortTripMinBase =
-        cabId === 'hatchback'
-          ? 450
-          : cabId === 'sedan'
-          ? 510
-          : cabId === 'exec_sedan'
-          ? 620
-          : cabId === 'suv'
-          ? 720
-          : cabId === 'innova'
-          ? 900
-          : 1280;
-
-      baseRouteFare =
-        baseBilledDistanceKm < 55
-          ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
-          : Math.round(baseBilledDistanceKm * ratePerKm);
-      const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
-      driverAllowance = Math.round((regionalBataMap[cabId] ?? 230) * oneWayDriverDays);
-      hillStationCharge = 0;
-      nightCharges = timingAllowance;
-    } else {
-      // Standard National One-Way Pricing
-      const slabFactor = baseBilledDistanceKm <= 130 ? 1.02 : 1.0;
-
-      ratePerKm = Number((oneWayRate * slabFactor * dynamicRateFactor).toFixed(1));
-      hillStationCharge = 0;
-
-      const shortTripMinBase =
-        cab.id === 'hatchback'
-          ? 480
-          : cab.id === 'sedan'
-          ? 540
-          : cab.id === 'exec_sedan'
-          ? 660
-          : cab.id === 'suv'
-          ? 760
-          : cab.id === 'innova'
-          ? 950
-          : 1350;
-
-      baseRouteFare =
-        baseBilledDistanceKm < 55
-          ? Math.max(shortTripMinBase, Math.round(baseBilledDistanceKm * ratePerKm))
-          : Math.round(baseBilledDistanceKm * ratePerKm);
-
-      const oneWayDriverDays = baseBilledDistanceKm > 500 ? 1.5 : 1;
-
-      driverAllowance = Math.round((dailyBata + hillDriverBonusPerDay) * oneWayDriverDays);
-      nightCharges = timingAllowance;
-    }
-  } else if (tripType === 'roundtrip') {
-    if (pickupDate && returnDate) {
-      const p = new Date(pickupDate).getTime();
-      const r = new Date(returnDate).getTime();
-      if (Number.isFinite(p) && Number.isFinite(r)) {
-        const diffDays = Math.ceil((r - p) / (1000 * 60 * 60 * 24));
-        daysCount = Math.max(1, diffDays + 1);
-      }
-    }
-    const baseOneWayKm = !isHillRoute && fixedRegionalRoute ? fixedRegionalRoute.km : distanceKm;
-    const actualTwoWayKm = Math.round(baseOneWayKm * 2);
-    const nightHalts = Math.max(0, daysCount - 1);
-
-    if (isHillRoute) {
-      // ALL-INDIA HILL AREA ROUND-TRIP PRICING RULE (₹13/km for Hill Drop, ₹16/km for Hill Pickup)
-      const hillMinSlabKm = daysCount * 250;
-      baseBilledDistanceKm = Math.max(actualTwoWayKm, hillMinSlabKm);
-      ratePerKm = getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill);
-      baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
-      driverAllowance = daysCount * dailyBata;
-      nightCharges = nightHalts * 250;
-      hillStationCharge = 0;
-    } else if (isRegionalTrip) {
-      // 3. BIHAR & JHARKHAND REGIONAL ROUND-TRIP PACKAGE LOGIC
-      regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
-      regionalMarketBeatOverride = 190;
-
-      const regionalRoundTripRates: Record<
-        CabCategoryId,
-        { perKm: number; bataPerDay: number; nightPerHalt: number }
-      > = {
-        hatchback: { perKm: 9.8, bataPerDay: 220, nightPerHalt: 200 },
-        sedan: { perKm: 10.8, bataPerDay: 250, nightPerHalt: 220 },
-        exec_sedan: { perKm: 12.2, bataPerDay: 280, nightPerHalt: 250 },
-        suv: { perKm: 13.8, bataPerDay: 300, nightPerHalt: 260 },
-        innova: { perKm: 17.5, bataPerDay: 350, nightPerHalt: 300 },
-        tempo: { perKm: 23.0, bataPerDay: 450, nightPerHalt: 400 }
-      };
-      const rCfg = regionalRoundTripRates[cabId] || regionalRoundTripRates.sedan;
-
-      if (fixedRegionalRoute && daysCount === 1 && actualTwoWayKm <= 260) {
-        // Same-Day Return Fixed Corridor Package (1.75x of fixed one-way fare)
-        isRegionalFixedRoute = true;
-        regionalEngineName = 'Bihar & Jharkhand Same-Day Return Package';
-        regionalCorridorName = `${fixedRegionalRoute.corridorName} (2-Way Return)`;
-        regionalTollPolicyNote = fixedRegionalRoute.tollPolicyNote;
-        const oneWayFixed =
-          fixedRegionalRoute.rates[cabId] ?? fixedRegionalRoute.rates.sedan;
-        const returnPackageTotal = Math.round(oneWayFixed * 1.75);
-        baseBilledDistanceKm = actualTwoWayKm;
-        driverAllowance = rCfg.bataPerDay;
-        nightCharges = 0;
-        baseRouteFare = Math.max(400, returnPackageTotal - driverAllowance);
-        ratePerKm = Number((baseRouteFare / Math.max(1, baseBilledDistanceKm)).toFixed(1));
-        hillStationCharge = 0;
-      } else {
-        // Multi-day or longer Bihar/Jharkhand Regional Round Trip (200 KM/day regional slab)
-        isRegionalFixedRoute = Boolean(fixedRegionalRoute);
-        regionalEngineName = 'Bihar & Jharkhand Regional Round-Trip Package';
-        regionalCorridorName = fixedRegionalRoute
-          ? `${fixedRegionalRoute.corridorName} (${daysCount}-Day Package)`
-          : `Bihar & Jharkhand ${daysCount}-Day Round-Trip Package`;
-        regionalTollPolicyNote = isInterState
-          ? 'Bihar–Jharkhand Inter-State Round Trip (FASTag Toll Extra · State Tax Included)'
-          : `Intra-State ${originState} Round Trip (₹0 State Tax · NHAI Toll Extra)`;
-
-        const regionalMinSlabKm = daysCount * 200; // 200 KM/day regional slab instead of 250 KM/day
-        baseBilledDistanceKm = Math.max(actualTwoWayKm, regionalMinSlabKm);
-        ratePerKm = rCfg.perKm;
-        baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm);
-        driverAllowance = daysCount * rCfg.bataPerDay;
-        nightCharges = nightHalts * rCfg.nightPerHalt;
-        hillStationCharge = 0;
-      }
-    } else {
-      const rtFare = calculateRoundTripFare(
-        actualTwoWayKm,
-        daysCount,
-        cabId.toUpperCase(),
-        nightHalts,
-        1.0
-      );
-
-      baseBilledDistanceKm = rtFare.chargeableKm;
-      ratePerKm = rtFare.perKmRate;
-      baseRouteFare = rtFare.baseDistanceFare;
-      driverAllowance = rtFare.driverAllowance + hillDriverBonusPerDay * daysCount;
-      nightCharges = rtFare.nightAllowance;
-      hillStationCharge = 0;
-    }
-  } else if (tripType === 'local') {
-    const adjustedLocal8HrBase = Math.round(local8HrBase * dynamicRateFactor);
-    if (localPackageId === '4h_40k') {
-      baseBilledDistanceKm = 40;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 0.70) - 200;
-      driverAllowance = 200 + hillDriverBonusPerDay;
-    } else if (localPackageId === '12h_120k') {
-      baseBilledDistanceKm = 120;
-      baseRouteFare = Math.round(adjustedLocal8HrBase * 1.33) - 260;
-      driverAllowance = 260 + hillDriverBonusPerDay;
-    } else {
-      baseBilledDistanceKm = 80;
-      baseRouteFare = adjustedLocal8HrBase - 240;
-      driverAllowance = 240 + hillDriverBonusPerDay;
-    }
-    ratePerKm = isHillRoute
-      ? getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill)
-      : Number((oneWayRate * dynamicRateFactor).toFixed(1));
-    hillStationCharge = 0;
-    nightCharges = 0;
-  } else if (tripType === 'airport') {
-    baseBilledDistanceKm = Math.max(40, Math.round(distanceKm));
-    ratePerKm = isHillRoute
-      ? getHillAreaPerKmRate(cabId, pickupIsHill, dropIsHill)
-      : Number((oneWayRate * dynamicRateFactor).toFixed(1));
-    const airportFixedPickupFee =
-      cabId === 'tempo' ? 500 : cabId === 'innova' || cabId === 'suv' ? 350 : 240;
-    baseRouteFare = Math.round(baseBilledDistanceKm * ratePerKm + airportFixedPickupFee);
-    driverAllowance = 200 + hillDriverBonusPerDay;
-    hillStationCharge = 0;
-    nightCharges = 0;
+  if (intel.requiresManualQuote) {
+    const manualQuotePayload: FareCalculationResult = {
+      distanceKm: 0,
+      extraKm: 0,
+      sliderExtraFare: 0,
+      billedDistanceKm: 0,
+      baseFare: 0,
+      driverAllowance: 0,
+      nightCharges: 0,
+      highwayToll: 0,
+      statePermitTax: 0,
+      stateRoutePath: [originState],
+      statePermitBreakdown: [],
+      estimatedTollsAndTaxes: 0,
+      tollsAndTaxes: 0,
+      hillStationCharge: 0,
+      isHillRoute,
+      pickupIsHill,
+      dropIsHill,
+      hillTier,
+      hillRateMultiplier,
+      hillTierLabel,
+      isInterState,
+      originState,
+      destState,
+      expresswayName: 'Manual Route Verification Required',
+      tollPlazaCount: 0,
+      tollPlazas: [],
+      extraKmRate: Number(vehicleCfg?.extraKmRate || 10.2),
+      extraHourRate: Number(vehicleCfg?.waitingChargePerHour || 120),
+      addonsTotal: 0,
+      gstAmount: 0,
+      totalFare: 0,
+      originalMarketFare: 0,
+      savingsAmount: 0,
+      savingsPercent: 0,
+      advanceFare: 0,
+      balanceDue: 0,
+      daysCount,
+      days: daysCount,
+      ratePerKm: Number(vehicleCfg?.ratePerKm || 9.5),
+      leadTimeTier: 'same_day',
+      leadTimeMultiplier: 1,
+      leadTimeLabel: 'Manual Quote Required',
+      estimatedDropTime: '',
+      isLateNightDrop: false,
+      isEarlyOrNightPickup: false,
+      isOuterRoute: false,
+      pickupIsOuter: false,
+      dropIsOuter: false,
+      routeTierMultiplier: 1,
+      routeTierLabel: 'Custom Manual Quote Corridor',
+      isHillAreaRoute: isHillRoute,
+      effectiveRatePerKm: Number(vehicleCfg?.ratePerKm || 9.5),
+      isDropHillArea: dropIsHill,
+      isPickupHillArea: pickupIsHill,
+      extraKmRateUsed: Number(vehicleCfg?.extraKmRate || 10.2),
+      extraKmCharge: 0,
+      originalFare: 0,
+      discountAmount: 0,
+      advanceAmount: 0,
+      promoDiscount: 0,
+      promoCodeApplied: '',
+      totalFareBeforePromo: 0,
+      terrainBadge: '',
+      routeDemandBadge: 'Manual Quote Required',
+      bookingLeadBadge: '',
+      competitorRates: {
+        cabBazarFare: 0,
+        gozoCabsFare: 0,
+        savaariFare: 0,
+        marketAverageFare: 0,
+        safarSavingsVsMarket: 0,
+        bestPriceBadgeText: 'Custom Quote on Request'
+      },
+      requiresManualQuote: true,
+      routeVerified: false,
+      errorCode: intel.errorCode,
+      errorMessage: intel.errorMessage,
+      pricingVersion: intel.pricingVersion,
+      tollsExtraActuals: true,
+      tollPolicyText: 'TOLL EXTRA (As Per Actuals)'
+    };
+    return sanitizePublicFareBreakdown(manualQuotePayload as FareCalculationResult & { internalCostAndProfit?: unknown }) as FareCalculationResult;
   }
-
-  // 4. Extra KM Rate:
-  // - On Hill Area routes: ₹16/km for Hill Pickup, ₹13/km for Hill Drop (matches ratePerKm)
-  // - On Round Trips: matches ratePerKm
-  // - On Standard Plains routes: matches standard vehicle extra KM rate (e.g., ₹10.2/km for Sedan)
-  const extraKmRate =
-    isHillRoute || tripType === 'roundtrip'
-      ? ratePerKm
-      : Number(baseExtraKmRate.toFixed(1));
-
-  const sliderExtraFare = Math.round(cleanExtraKm * extraKmRate);
-  const billedDistanceKm = baseBilledDistanceKm + cleanExtraKm;
-  const baseFare = baseRouteFare + hillStationCharge + sliderExtraFare;
-
-  // 5. NHAI FASTag Highway Toll (Extra) + Fixed Per-Day State Tax & Delhi MCD Entry Toll
-  let highwayToll = 0;
-  let statePermitTax = 0;
-  let delhiMcdToll = 0;
-  let stateRoutePath: string[] = [originState];
-  let statePermitBreakdown: StatePermitBreakdownItem[] = [];
-  let expresswayName = 'Local City Road (0 Toll Plazas)';
-  let tollPlazaCount = 0;
-  let tollPlazas: string[] = [];
-
-  const stateTaxDays = computeStateTaxCalendarDays({
-    tripType,
-    distanceKm: tripType === 'roundtrip' ? Math.round(billedDistanceKm / 2) : billedDistanceKm,
-    pickupDate,
-    pickupTime,
-    returnDate,
-    returnTime,
-    daysCount,
-    isHillRoute,
-    hillTier
-  });
-
-  if (tripType === 'oneway') {
-    const tollInfo = lookupRouteExpresswayToll(
-      pickupCity,
-      dropCity,
-      billedDistanceKm,
-      cabId,
-      routeGeometry
-    );
-    highwayToll = tollInfo.baseTollOneWay;
-    expresswayName = regionalCorridorName || tollInfo.expresswayName;
-    tollPlazaCount = tollInfo.tollPlazaCount;
-    tollPlazas = tollInfo.tollPlazas;
-
-    const permitInfo = computeMultiStatePermitBreakdown(
-      originState,
-      destState,
-      pickupCity,
-      dropCity,
-      cabId,
-      stateTaxDays,
-      routeGeometry
-    );
-    stateRoutePath = permitInfo.stateRoutePath;
-    statePermitBreakdown = permitInfo.statePermitBreakdown;
-    statePermitTax = permitInfo.totalStatePermitTax;
-    delhiMcdToll = permitInfo.delhiMcdToll;
-  } else if (tripType === 'roundtrip') {
-    const tollInfo = lookupRouteExpresswayToll(
-      pickupCity,
-      dropCity,
-      Math.round(billedDistanceKm / 2),
-      cabId,
-      routeGeometry
-    );
-    highwayToll = tollInfo.baseTollOneWay > 0 ? Math.round(tollInfo.baseTollOneWay * 1.8) : 0;
-    expresswayName = regionalCorridorName || tollInfo.expresswayName;
-    tollPlazaCount = tollInfo.tollPlazaCount > 0 ? tollInfo.tollPlazaCount * 2 : 0;
-    tollPlazas = tollInfo.tollPlazas;
-
-    const permitInfo = computeMultiStatePermitBreakdown(
-      originState,
-      destState,
-      pickupCity,
-      dropCity,
-      cabId,
-      stateTaxDays,
-      routeGeometry
-    );
-    stateRoutePath = permitInfo.stateRoutePath;
-    statePermitBreakdown = permitInfo.statePermitBreakdown;
-    statePermitTax = permitInfo.totalStatePermitTax;
-    delhiMcdToll = permitInfo.delhiMcdToll;
-  } else if (tripType === 'airport') {
-    const tollInfo = lookupRouteExpresswayToll(
-      pickupCity,
-      dropCity,
-      billedDistanceKm,
-      cabId,
-      routeGeometry
-    );
-    highwayToll = tollInfo.baseTollOneWay;
-    expresswayName = tollInfo.tollPlazaCount > 0 ? tollInfo.expresswayName : 'Airport Approach Road (0 Toll Plazas)';
-    tollPlazaCount = tollInfo.tollPlazaCount;
-    tollPlazas = tollInfo.tollPlazas;
-
-    const permitInfo = computeMultiStatePermitBreakdown(
-      originState,
-      destState,
-      pickupCity,
-      dropCity,
-      cabId,
-      stateTaxDays,
-      routeGeometry
-    );
-    stateRoutePath = permitInfo.stateRoutePath;
-    statePermitBreakdown = permitInfo.statePermitBreakdown;
-    statePermitTax = permitInfo.totalStatePermitTax;
-    delhiMcdToll = permitInfo.delhiMcdToll;
-  } else {
-    highwayToll = 0;
-    statePermitTax = 0;
-    delhiMcdToll = 0;
-    expresswayName = 'City Limits (0 Toll Plazas)';
-    tollPlazaCount = 0;
-    tollPlazas = [];
-  }
-
-  // Highway Toll is ALWAYS extra as per actuals; State Tax & Delhi MCD Toll are fixed and included upfront
-  highwayToll = 0;
-  const estimatedTollsAndTaxes = highwayToll + statePermitTax;
-  const tollsAndTaxes = statePermitTax;
 
   // Optional SafarIndiaCabs Add-Ons
   const carrierFee = addonCarrier ? 250 : 0;
   const petFee = addonPet
-    ? cabId === 'suv' || cabId === 'innova' || cabId === 'tempo'
+    ? ['suv', 'innova', 'innova_crysta', 'premium_suv', 'tempo'].includes(String(cabId))
       ? 600
       : 500
     : 0;
   const assuredModelFee = addonAssuredModel ? 300 : 0;
   const addonsTotal = carrierFee + petFee + assuredModelFee;
 
-  // GST: 0 for roundtrip, 5% for other trip types (uses exact fixedOneWayGstOverride on fixed regional routes so total equals exact fixed route price)
-  const taxableSubtotal = baseFare + driverAllowance + nightCharges + addonsTotal;
-  const extraTaxableOverFixed = sliderExtraFare + hillStationCharge + nightCharges + addonsTotal;
-  const gstAmount =
-    tripType === 'roundtrip'
-      ? 0
-      : fixedOneWayGstOverride !== null
-      ? fixedOneWayGstOverride + Math.round(extraTaxableOverFixed * 0.05)
-      : Math.round(taxableSubtotal * 0.05);
+  // Preserve Bihar & Jharkhand Fixed Route Special for direct 1-way / same-day 2-way (without stops/waiting)
+  const isRegionalTrip = isBiharJharkhandRegionalTrip(pickupCity, dropCity, originState, destState);
+  const fixedRegionalRoute =
+    (tripType === 'oneway' || tripType === 'roundtrip') &&
+    !isHillRoute &&
+    cleanStops.length === 0 &&
+    cleanWaitingMinutes === 0 &&
+    !intel.activeRouteOverrideId
+      ? lookupBiharJharkhandFixedRoute(pickupCity, dropCity)
+      : null;
 
-  const totalFareBeforePromo =
-    baseFare + driverAllowance + nightCharges + tollsAndTaxes + addonsTotal + gstAmount;
+  let baseFare = intel.baseFare;
+  let driverAllowance = intel.driverAllowance || 0;
+  let nightCharges = intel.nightCharge || 0;
+  let gstAmount = intel.gstAmount || 0;
+  let appliedPromoDiscount = intel.promoDiscount || 0;
+  let totalFareBeforePromo = intel.totalFare + appliedPromoDiscount;
+  let totalFare = intel.totalFare;
+  let billedDistanceKm = intel.billedDistanceKm;
+  let ratePerKm = intel.effectiveRatePerKm || Number(vehicleCfg?.ratePerKm || 9.5);
+  let regionalEngineName = '';
+  let regionalCorridorName = '';
+  let regionalTollPolicyNote = '';
+  let regionalCompetitorLabel = '';
+  let isRegionalFixedRoute = false;
 
-  const shouldApplyPromo =
-    promoDiscount === true ||
-    Number(promoDiscount) >= PROMO_DISCOUNT_AMOUNT ||
-    isValidFirst300Promo(promoCode, customerName);
+  if (
+    fixedRegionalRoute &&
+    (tripType === 'oneway' || (tripType === 'roundtrip' && daysCount === 1 && fixedRegionalRoute.km * 2 <= 260))
+  ) {
+    isRegionalFixedRoute = true;
+    const rateLookupKey =
+      cabId === 'dzire'
+        ? 'sedan'
+        : cabId === 'ertiga'
+        ? 'suv'
+        : cabId === 'innova_crysta' || cabId === 'premium_suv'
+        ? 'innova'
+        : (cabId as keyof typeof fixedRegionalRoute.rates);
+    const oneWayFixed = fixedRegionalRoute.rates[rateLookupKey] ?? fixedRegionalRoute.rates.sedan;
+    const targetTotal = tripType === 'roundtrip' ? Math.round(oneWayFixed * 1.75) : oneWayFixed;
 
-  const appliedPromoDiscount = shouldApplyPromo ? PROMO_DISCOUNT_AMOUNT : 0;
-  const promoCodeApplied = shouldApplyPromo ? 'FIRST300' : '';
-  const totalFare = Math.max(100, totalFareBeforePromo - appliedPromoDiscount);
+    regionalEngineName =
+      tripType === 'roundtrip'
+        ? 'Bihar & Jharkhand Same-Day Return Package'
+        : 'Bihar & Jharkhand Fixed Route Special';
+    regionalCorridorName =
+      tripType === 'roundtrip'
+        ? `${fixedRegionalRoute.corridorName} (2-Way Return)`
+        : fixedRegionalRoute.corridorName;
+    regionalTollPolicyNote = fixedRegionalRoute.tollPolicyNote;
+    regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
 
-  // Competitor Market Comparison Fare:
-  // For Bihar & Jharkhand Regional trips, beat local competitor market rates (PatnaGo / RP Shakti) by strictly ₹150 to ₹200!
-  const cabBazarGap =
-    regionalMarketBeatOverride !== null
-      ? regionalMarketBeatOverride
-      : totalFareBeforePromo >= 4500
-      ? 195
-      : totalFareBeforePromo >= 2800
-      ? 185
-      : 175;
-  const gozoCabsGap =
-    regionalMarketBeatOverride !== null
-      ? regionalMarketBeatOverride
-      : totalFareBeforePromo >= 4500
-      ? 215
-      : totalFareBeforePromo >= 2800
-      ? 200
-      : 190;
-  const savaariGap =
-    regionalMarketBeatOverride !== null
-      ? regionalMarketBeatOverride
-      : totalFareBeforePromo >= 4500
-      ? 245
-      : totalFareBeforePromo >= 2800
-      ? 225
-      : 215;
+    const gstPct = tripType === 'roundtrip' ? 0 : Number(adminCfg.gstRatePct ?? 5);
+    const preTaxTarget = gstPct > 0 ? Math.round(targetTotal / (1 + gstPct / 100)) : targetTotal;
+    driverAllowance = tripType === 'roundtrip' ? 250 : 220;
+    const extraKmRateVal = Number(vehicleCfg?.extraKmRate || 10.2);
+    baseFare = Math.max(250, preTaxTarget - driverAllowance + cleanExtraKm * extraKmRateVal);
+    billedDistanceKm =
+      tripType === 'roundtrip' ? fixedRegionalRoute.km * 2 + cleanExtraKm : fixedRegionalRoute.km + cleanExtraKm;
+    ratePerKm = Number((baseFare / Math.max(1, billedDistanceKm)).toFixed(1));
 
-  const cabBazarFare = totalFareBeforePromo + cabBazarGap;
-  const gozoCabsFare = totalFareBeforePromo + gozoCabsGap;
-  const savaariFare = totalFareBeforePromo + savaariGap;
-  const competitorGap =
-    regionalMarketBeatOverride !== null
-      ? regionalMarketBeatOverride
-      : Math.round((cabBazarGap + gozoCabsGap + savaariGap) / 3);
-  const originalMarketFare = totalFareBeforePromo + competitorGap;
-  const savingsAmount = competitorGap + appliedPromoDiscount;
-  const savingsPercent = Math.max(5, Math.round((savingsAmount / originalMarketFare) * 100));
+    const protectedRegional = applyCompetitorAdvantageAndProfitProtection({
+      preDiscountSubTotal: baseFare + driverAllowance + nightCharges + (intel.statePermitTax || 0) + addonsTotal,
+      promoDiscountRequested: requestedPromoAmount,
+      gstPct,
+      billedDistanceKm,
+      actualRoadDistanceKm: billedDistanceKm,
+      daysCount,
+      driverAllowance,
+      statePermitTax: intel.statePermitTax || 0,
+      hillCharge: 0,
+      positioningCost: 0,
+      returnDeadheadCost: 0,
+      pickupCity,
+      dropCity,
+      tripType,
+      vehicleId: cabId || 'sedan',
+      routeIntel: {
+        ...intel.locationCategories,
+        isOuterCityRoute: intel.isOuterRoute
+      },
+      vehicleCfg: vehicleCfg as any,
+      config: adminCfg as any
+    });
+
+    gstAmount = protectedRegional.gstAmount;
+    appliedPromoDiscount = protectedRegional.appliedPromoDiscount;
+    totalFareBeforePromo = protectedRegional.totalFare + appliedPromoDiscount;
+    totalFare = protectedRegional.totalFare;
+  } else if (addonsTotal > 0) {
+    const addonGst = tripType === 'roundtrip' ? 0 : Math.round(addonsTotal * (Number(adminCfg.gstRatePct ?? 5) / 100));
+    gstAmount += addonGst;
+    totalFareBeforePromo += addonsTotal + addonGst;
+    totalFare += addonsTotal + addonGst;
+  }
+
+  const tollInfo = lookupRouteExpresswayToll(
+    pickupCity,
+    dropCity,
+    tripType === 'roundtrip' || tripType === 'multiday' ? Math.round(billedDistanceKm / 2) : billedDistanceKm,
+    cabId,
+    routeGeometry
+  );
+
+  const extraKmRateUsed = Number(vehicleCfg?.extraKmRate || intel.extraKmRate || ratePerKm);
+  const sliderExtraFare = Math.round(cleanExtraKm * extraKmRateUsed);
+  const extraHourRate = Number(vehicleCfg?.waitingChargePerHour || 120);
+
+  const originalMarketFare = Math.max(
+    totalFareBeforePromo + 150,
+    intel.competitorBenchmark?.competitorFare || intel.originalFare || totalFareBeforePromo + 185
+  );
+  const savingsAmount = Math.max(0, originalMarketFare - totalFare);
+  const savingsPercent = Math.max(4, Math.round((savingsAmount / Math.max(1, originalMarketFare)) * 100));
 
   const competitorRates: CompetitorRateBenchmark = {
-    cabBazarFare,
-    gozoCabsFare,
-    savaariFare,
+    cabBazarFare: intel.competitorRates?.cabbazarFare || Math.round(originalMarketFare * 1.01),
+    gozoCabsFare: Math.round(originalMarketFare * 0.99),
+    savaariFare: intel.competitorRates?.savaariFare || Math.round(originalMarketFare * 1.03),
+    makemytripFare: intel.competitorRates?.makemytripFare || Math.round(originalMarketFare * 0.99),
     marketAverageFare: originalMarketFare,
     safarSavingsVsMarket: savingsAmount,
     bestPriceBadgeText: isRegionalTrip
       ? `Save ₹${savingsAmount} vs PatnaGo / Local Market`
-      : `Save ₹${savingsAmount} vs Market Average`
+      : `Save ₹${savingsAmount} vs Aggregator Avg`
   };
 
-  const advanceFare = Math.round(totalFare * 0.20);
-  const balanceDue = totalFare - advanceFare;
+  const advanceFare = Math.round(totalFare * 0.2);
+  const balanceDue = Math.max(0, totalFare - advanceFare);
+  const promoCodeApplied = appliedPromoDiscount > 0 ? 'FIRST300' : '';
 
-  return {
+  const leadBucket = intel.leadTime?.bucket || 'next_day';
+  const compatLeadTier =
+    leadBucket === 'immediate' || leadBucket === 'within_2h' || leadBucket === 'same_day'
+      ? 'same_day'
+      : leadBucket === 'next_day'
+      ? 'tomorrow'
+      : 'advance';
+
+  const publicFarePayload: FareCalculationResult = {
     distanceKm,
     extraKm: cleanExtraKm,
     sliderExtraFare,
@@ -3564,14 +3350,14 @@ export function computeTripFare(params: {
     baseFare,
     driverAllowance,
     nightCharges,
-    highwayToll,
-    statePermitTax,
-    stateRoutePath,
-    statePermitBreakdown,
-    estimatedTollsAndTaxes,
-    tollsAndTaxes,
-    hillStationCharge,
-    isHillRoute,
+    highwayToll: 0, // Always Toll Extra As Per Actuals
+    statePermitTax: intel.statePermitTax || 0,
+    stateRoutePath: (intel.stateRoutePath as string[]) || [originState],
+    statePermitBreakdown: (intel.statePermitBreakdown as StatePermitBreakdownItem[]) || [],
+    estimatedTollsAndTaxes: intel.statePermitTax || 0,
+    tollsAndTaxes: intel.statePermitTax || 0,
+    hillStationCharge: intel.hillStationCharge || 0,
+    isHillRoute: Boolean(intel.isHillAreaRoute || isHillRoute),
     pickupIsHill,
     dropIsHill,
     hillTier,
@@ -3580,10 +3366,10 @@ export function computeTripFare(params: {
     isInterState,
     originState,
     destState,
-    expresswayName,
-    tollPlazaCount,
-    tollPlazas,
-    extraKmRate,
+    expresswayName: regionalCorridorName || tollInfo.expresswayName,
+    tollPlazaCount: tollInfo.tollPlazaCount,
+    tollPlazas: tollInfo.tollPlazas,
+    extraKmRate: extraKmRateUsed,
     extraHourRate,
     addonsTotal,
     gstAmount,
@@ -3596,23 +3382,24 @@ export function computeTripFare(params: {
     daysCount,
     days: daysCount,
     ratePerKm,
-    leadTimeTier,
-    leadTimeMultiplier,
-    leadTimeLabel,
-    estimatedDropTime,
-    isLateNightDrop,
-    isEarlyOrNightPickup,
-    isOuterRoute,
-    pickupIsOuter,
-    dropIsOuter,
-    routeTierMultiplier,
-    routeTierLabel,
-    // Compatibility fields for UI views (CabSelector, badges, etc.)
-    isHillAreaRoute: isHillRoute,
+    leadTimeTier: compatLeadTier,
+    leadTimeMultiplier: intel.leadTime?.multiplier || 1.0,
+    leadTimeLabel: intel.leadTime?.label || 'Standard Window',
+    estimatedDropTime: intel.estimatedDropTime || '',
+    isLateNightDrop: Boolean(intel.isLateNightDrop),
+    isEarlyOrNightPickup: Boolean(intel.isEarlyOrNightPickup),
+    isOuterRoute: Boolean(intel.isOuterRoute),
+    pickupIsOuter: intel.locationCategories?.pickupCategory === 'outer_city',
+    dropIsOuter: intel.locationCategories?.dropCategory === 'outer_city',
+    routeTierMultiplier: intel.dynamicDemand?.multiplier || 1.0,
+    routeTierLabel:
+      regionalEngineName ||
+      `${intel.locationCategories?.pickupCategoryLabel || 'City'} → ${intel.locationCategories?.dropCategoryLabel || 'City'}`,
+    isHillAreaRoute: Boolean(intel.isHillAreaRoute || isHillRoute),
     effectiveRatePerKm: ratePerKm,
     isDropHillArea: dropIsHill,
     isPickupHillArea: pickupIsHill,
-    extraKmRateUsed: extraKmRate,
+    extraKmRateUsed,
     extraKmCharge: sliderExtraFare,
     originalFare: originalMarketFare,
     discountAmount: savingsAmount,
@@ -3621,8 +3408,10 @@ export function computeTripFare(params: {
     promoCodeApplied,
     totalFareBeforePromo,
     terrainBadge: hillTier !== 'none' ? hillTierLabel : '',
-    routeDemandBadge: regionalEngineName || routeTierLabel,
-    bookingLeadBadge: leadTimeLabel,
+    routeDemandBadge:
+      regionalEngineName ||
+      (intel.dynamicDemand?.factors?.length ? intel.dynamicDemand.factors[0] : 'Standard Fair Rate'),
+    bookingLeadBadge: intel.leadTime?.label || 'Standard Window',
     competitorRates,
     isRegionalPricingActive: isRegionalTrip,
     isRegionalFixedRoute,
@@ -3630,9 +3419,31 @@ export function computeTripFare(params: {
     regionalCorridorName,
     regionalTollPolicyNote,
     regionalCompetitorLabel,
-    stateTaxDays,
-    delhiMcdToll
+    stateTaxDays: intel.stateTaxDays || 1,
+    delhiMcdToll: intel.delhiMcdToll || 0,
+    waitingCharge: intel.waitingCharge || 0,
+    billableWaitMinutes: intel.billableWaitMinutes || 0,
+    extraStopsCharge: intel.extraStopsCharge || 0,
+    validStopsCount: intel.validStopsCount || 0,
+    positioningDistanceKm: intel.positioningDistanceKm || 0,
+    positioningCharge: intel.positioningCharge || 0,
+    emptyReturnDeadheadKm: intel.emptyReturnDeadheadKm || 0,
+    emptyReturnCost: intel.emptyReturnCost || 0,
+    isDifficultMountainRoute: Boolean(intel.isDifficultMountainRoute),
+    locationCategories: intel.locationCategories,
+    dynamicDemand: intel.dynamicDemand,
+    seasonalEvent: intel.seasonalEvent,
+    competitorBenchmark: intel.competitorBenchmark,
+    profitFloorProtected: Boolean(intel.profitFloorProtected),
+    requiresManualQuote: false,
+    routeVerified: true,
+    pricingVersion: intel.pricingVersion || 1,
+    pricingVersionLabel: intel.pricingVersionLabel || 'v1.0-intelligent-engine',
+    cancellationPolicy: intel.cancellationPolicy || 'Free cancellation up to 6 hours before pickup',
+    tollsExtraActuals: true,
+    tollPolicyText: 'TOLL EXTRA (As Per Actuals)'
   };
+  return sanitizePublicFareBreakdown(publicFarePayload as FareCalculationResult & { internalCostAndProfit?: unknown }) as FareCalculationResult;
 }
 
 /**
@@ -3649,6 +3460,8 @@ export function calculateTripFare(
         extraKm?: number;
         pickupCity?: string;
         dropCity?: string;
+        stops?: Array<string | { location: string; haltMinutes?: number }>;
+        waitingMinutes?: number;
         pickupDate?: string;
         pickupTime?: string;
         returnDate?: string;
@@ -3663,6 +3476,7 @@ export function calculateTripFare(
         promoDiscount?: number | boolean;
         customerName?: string;
         routeGeometry?: Array<[number, number]>;
+        routeVerified?: boolean;
       },
   tripType?: TripType,
   distanceKm?: number,
@@ -3676,7 +3490,9 @@ export function calculateTripFare(
   extraKm?: number,
   promoDiscount?: number | boolean,
   routeGeometry?: Array<[number, number]>,
-  returnTime?: string
+  returnTime?: string,
+  stops?: Array<string | { location: string; haltMinutes?: number }>,
+  waitingMinutes?: number
 ): FareCalculationResult {
   if (typeof cabIdOrParams === 'object' && cabIdOrParams !== null) {
     return computeTripFare(cabIdOrParams);
@@ -3684,16 +3500,14 @@ export function calculateTripFare(
 
   const cabId = cabIdOrParams as CabCategoryId;
   let computedReturnDate: string | undefined = undefined;
-  if (tripType === 'roundtrip' && days && days > 1 && pickupDate) {
+  if ((tripType === 'roundtrip' || tripType === 'multiday') && days && days > 1 && pickupDate) {
     try {
       const p = new Date(pickupDate);
       if (!isNaN(p.getTime())) {
         p.setDate(p.getDate() + (days - 1));
         computedReturnDate = p.toISOString().split('T')[0];
       }
-    } catch {
-      // fallback
-    }
+    } catch {}
   }
 
   return computeTripFare({
@@ -3703,10 +3517,13 @@ export function calculateTripFare(
     extraKm: Number(extraKm || 0),
     pickupCity: pickupCity || '',
     dropCity: dropCity || '',
+    stops: stops || [],
+    waitingMinutes: waitingMinutes || 0,
     pickupDate: pickupDate || new Date().toISOString().split('T')[0],
     pickupTime: pickupTime || '',
     returnDate: computedReturnDate,
     returnTime: returnTime || '',
+    days,
     localPackageId: localPackageId || '8h_80k',
     includeTolls: includeTolls !== undefined ? includeTolls : false,
     promoDiscount: promoDiscount || 0,
@@ -3720,7 +3537,7 @@ export function formatINR(val: number): string {
 
 export function buildBookingFareSnapshot(
   fare: FareCalculationResult,
-  provider = 'ola_maps'
+  provider = 'google_maps'
 ) {
   return {
     capturedAt: new Date().toISOString(),
@@ -3735,9 +3552,12 @@ export function buildBookingFareSnapshot(
     highwayToll: fare.highwayToll,
     statePermitTax: fare.statePermitTax,
     hillStationCharge: fare.hillStationCharge,
+    waitingCharge: fare.waitingCharge || 0,
+    extraStopsCharge: fare.extraStopsCharge || 0,
     gstAmount: fare.gstAmount,
     discountAmount: fare.promoDiscount,
-    totalFare: fare.totalFare
+    totalFare: fare.totalFare,
+    pricingVersion: fare.pricingVersion || 1
   };
 }
 

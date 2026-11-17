@@ -384,6 +384,7 @@ export default function App() {
   const [includeTolls, setIncludeTolls] = useState(false);
   const [parkingExtra, setParkingExtra] = useState(true);
   const [extraKm, setExtraKm] = useState(0);
+  const [waitingMinutes, setWaitingMinutes] = useState(0);
   const [promoCode, setPromoCode] = useState<string>(() =>
     isDrVijayKumarMatch(currentUser?.name) ? 'FIRST300' : ''
   );
@@ -399,7 +400,7 @@ export default function App() {
   }, [currentUser?.name, authNotice]);
 
   const roundTripDays = useMemo(() => {
-    if (tripType === 'roundtrip' && pickupDate && returnDate) {
+    if ((tripType === 'roundtrip' || tripType === 'multiday') && pickupDate && returnDate) {
       const p = new Date(pickupDate).getTime();
       const r = new Date(returnDate).getTime();
       if (!isNaN(p) && !isNaN(r) && r >= p) {
@@ -409,18 +410,14 @@ export default function App() {
     return 1;
   }, [tripType, pickupDate, returnDate]);
 
-  const effectiveDropCity = useMemo(() => {
-    const validStops = roundTripStops.map((s) => s.trim()).filter(Boolean);
-    if (tripType === 'roundtrip' && validStops.length > 0) {
-      return [dropCity, ...validStops].join(' → ');
-    }
-    return dropCity;
-  }, [tripType, dropCity, roundTripStops]);
+  const effectiveDropCity = dropCity;
 
-  // Distance, Geometry, Alternatives and Duration calculation via Ola Maps & Verified Highway/Hill Matrix
+  // Distance, Geometry, Alternatives and Duration calculation via Backend Routing Proxy & Verified Highway Matrix
   const [distanceKm, setDistanceKm] = useState(230);
   const [travelDuration, setTravelDuration] = useState('');
   const [isExactOlaDistance, setIsExactOlaDistance] = useState(false);
+  const [routeRequiresManualQuote, setRouteRequiresManualQuote] = useState(false);
+  const [routeErrorMessage, setRouteErrorMessage] = useState('');
   const [pickupCoords, setPickupCoords] = useState<Coordinates | null>(null);
   const [dropCoords, setDropCoords] = useState<Coordinates | null>(null);
   const [roundTripLegs, setRoundTripLegs] = useState<Array<{ from: string; to: string; distanceKm: number }>>([]);
@@ -428,7 +425,7 @@ export default function App() {
   const [routeAlternatives, setRouteAlternatives] = useState<RouteAlternative[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string>('');
   const [routeSummary, setRouteSummary] = useState<string>('');
-  const [routeProvider, setRouteProvider] = useState<string>('ola_maps');
+  const [routeProvider, setRouteProvider] = useState<string>('google_maps');
   const [mapModalState, setMapModalState] = useState<{
     isOpen: boolean;
     mode: MapModalMode;
@@ -474,18 +471,19 @@ export default function App() {
           setRoundTripLegs([]);
           setTravelDuration(localPackageId === '4h_40k' ? '4 hrs' : localPackageId === '12h_120k' ? '12 hrs' : '8 hrs');
           setIsExactOlaDistance(false);
+          setRouteRequiresManualQuote(false);
+          setRouteErrorMessage('');
         }
         return;
       }
 
       const cleanPickup = (pickupCity || '').trim();
       const cleanDrop = (dropCity || '').trim();
+      const validStops = roundTripStops
+        .map((s) => (s || '').trim())
+        .filter((s) => s.length >= 2);
 
       if (tripType === 'roundtrip') {
-        const validStops = roundTripStops
-          .map((s) => (s || '').trim())
-          .filter((s) => s.length >= 3);
-
         const rawPoints = [cleanPickup, cleanDrop, ...validStops].filter((p) => p.length >= 3);
 
         // Deduplicate consecutive identical points
@@ -501,6 +499,8 @@ export default function App() {
           const circuitPoints = [...uniqueWaypoints, uniqueWaypoints[0]];
           let totalCircuitKm = 0;
           let totalMinutes = 0;
+          let manualQuoteNeeded = false;
+          let failMsg = '';
           const computedLegs: Array<{ from: string; to: string; distanceKm: number }> = [];
 
           for (let i = 0; i < circuitPoints.length - 1; i++) {
@@ -509,6 +509,11 @@ export default function App() {
             const pC = i === 0 ? pickupCoords : null;
             const dC = i === 0 && validStops.length === 0 ? dropCoords : null;
             const legRes = await calculateExactRoadDistance(fromLoc, toLoc, pC, dC);
+            if (legRes.requiresManualQuote || legRes.distanceKm <= 0) {
+              manualQuoteNeeded = true;
+              failMsg = legRes.errorMessage || `Could not determine road distance for ${fromLoc} → ${toLoc}.`;
+              break;
+            }
             totalCircuitKm += legRes.distanceKm;
             totalMinutes += legRes.durationMinutes;
             computedLegs.push({
@@ -519,48 +524,84 @@ export default function App() {
           }
 
           if (!isCancelled) {
-            // computeTripFare multiplies distanceKm * 2 for roundtrip, so store exact half (totalCircuitKm / 2)
-            setDistanceKm(Math.max(40, totalCircuitKm / 2));
-            setRoundTripLegs(computedLegs);
-            const hrs = Math.max(2, Math.round(totalMinutes / 60));
-            setTravelDuration(
-              validStops.length > 0
-                ? `${hrs} hrs (${computedLegs.length} Legs Round Trip)`
-                : `${hrs} hrs (Round Trip)`
-            );
-            setIsExactOlaDistance(true);
+            if (manualQuoteNeeded) {
+              setRouteRequiresManualQuote(true);
+              setRouteErrorMessage(failMsg);
+              setDistanceKm(0);
+              setRoundTripLegs([]);
+              setIsExactOlaDistance(false);
+            } else {
+              // computeTripFare multiplies distanceKm * 2 for roundtrip, so store exact half (totalCircuitKm / 2)
+              setRouteRequiresManualQuote(false);
+              setRouteErrorMessage('');
+              setDistanceKm(Math.max(40, totalCircuitKm / 2));
+              setRoundTripLegs(computedLegs);
+              const hrs = Math.max(2, Math.round(totalMinutes / 60));
+              setTravelDuration(
+                validStops.length > 0
+                  ? `${hrs} hrs (${computedLegs.length} Legs Round Trip)`
+                  : `${hrs} hrs (Round Trip)`
+              );
+              setIsExactOlaDistance(true);
+            }
           }
         }
         return;
       }
 
-      // One-Way or Airport trip
+      // One-Way, Multi-Day, Custom, or Airport trip (supports multi-stop waypoints)
       if (cleanPickup.length < 3 || cleanDrop.length < 3) {
+        if (!isCancelled) {
+          setRouteRequiresManualQuote(false);
+          setRouteErrorMessage('');
+        }
         return;
       }
 
-      // Instant 0ms local highway estimate before async verification completes
-      const quickEstimate = estimateDistanceKm(cleanPickup, cleanDrop);
-      if (!isCancelled && quickEstimate > 0) {
-        setDistanceKm(quickEstimate);
+      // Instant 0ms local highway estimate only when there are no stops
+      if (validStops.length === 0) {
+        const quickEstimate = estimateDistanceKm(cleanPickup, cleanDrop);
+        if (!isCancelled && quickEstimate > 0) {
+          setDistanceKm(quickEstimate);
+          setRouteRequiresManualQuote(false);
+          setRouteErrorMessage('');
+        }
       }
 
-      const res = await calculateExactRoadDistance(cleanPickup, cleanDrop, pickupCoords, dropCoords);
+      const res = await calculateExactRoadDistance(cleanPickup, cleanDrop, pickupCoords, dropCoords, validStops);
       if (!isCancelled) {
-        setDistanceKm(res.distanceKm);
-        setRoundTripLegs([]);
-        setTravelDuration(res.durationText);
-        setIsExactOlaDistance(res.source === 'ola_maps_exact');
-        setRouteGeometry(res.geometry || []);
-        setRouteAlternatives(res.alternatives || []);
-        setSelectedRouteId(res.alternatives?.[0]?.routeId || 'route_primary');
-        setRouteSummary(res.routeSummary || `${cleanPickup} → ${cleanDrop} Highway`);
-        setRouteProvider(res.provider || 'ola_maps');
-        if (res.originCoords && !pickupCoords) {
-          setPickupCoords(res.originCoords);
-        }
-        if (res.destCoords && !dropCoords) {
-          setDropCoords(res.destCoords);
+        if (res.requiresManualQuote || res.distanceKm <= 0) {
+          setRouteRequiresManualQuote(true);
+          setRouteErrorMessage(
+            res.errorMessage || 'Unable to verify driving route automatically. Please request a manual quotation.'
+          );
+          setDistanceKm(0);
+          setRoundTripLegs([]);
+          setTravelDuration('Manual Quote Required');
+          setIsExactOlaDistance(false);
+          setRouteGeometry([]);
+          setRouteAlternatives([]);
+        } else {
+          setRouteRequiresManualQuote(false);
+          setRouteErrorMessage('');
+          setDistanceKm(res.distanceKm);
+          setRoundTripLegs([]);
+          setTravelDuration(res.durationText);
+          setIsExactOlaDistance(res.source === 'ola_maps_exact');
+          setRouteGeometry(res.geometry || []);
+          setRouteAlternatives(res.alternatives || []);
+          setSelectedRouteId(res.alternatives?.[0]?.routeId || 'route_primary');
+          setRouteSummary(
+            res.routeSummary ||
+              [cleanPickup, ...validStops, cleanDrop].map((c) => c.split(',')[0].trim()).join(' → ')
+          );
+          setRouteProvider(res.provider || 'google_maps');
+          if (res.originCoords && !pickupCoords) {
+            setPickupCoords(res.originCoords);
+          }
+          if (res.destCoords && !dropCoords) {
+            setDropCoords(res.destCoords);
+          }
         }
       }
     }, 40);
@@ -1298,6 +1339,10 @@ export default function App() {
               calculatedDistance={distanceKm}
               roundTripLegs={roundTripLegs}
               tripDays={roundTripDays}
+              waitingMinutes={waitingMinutes}
+              setWaitingMinutes={setWaitingMinutes}
+              routeRequiresManualQuote={routeRequiresManualQuote}
+              routeErrorMessage={routeErrorMessage}
               travelDuration={travelDuration}
               isExactOlaDistance={isExactOlaDistance}
               customerMobile={customerMobile}
@@ -1504,6 +1549,10 @@ export default function App() {
               setTripType={setTripType}
               pickupCity={pickupCity}
               dropCity={effectiveDropCity}
+              stops={roundTripStops}
+              waitingMinutes={waitingMinutes}
+              requiresManualQuote={routeRequiresManualQuote}
+              routeErrorMessage={routeErrorMessage}
               distanceKm={distanceKm}
               extraKm={extraKm}
               setExtraKm={setExtraKm}
@@ -1546,6 +1595,10 @@ export default function App() {
             tripType={tripType}
             pickupCity={pickupCity}
             dropCity={effectiveDropCity}
+            stops={roundTripStops}
+            waitingMinutes={waitingMinutes}
+            tripDays={roundTripDays}
+            routeVerified={!routeRequiresManualQuote}
             pickupDate={pickupDate}
             pickupTime={pickupTime}
             returnDate={returnDate}

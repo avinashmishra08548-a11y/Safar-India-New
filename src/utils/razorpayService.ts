@@ -317,6 +317,10 @@ export interface CreateOrderRequestPayload {
   cabId: CabCategoryId;
   distanceKm: number;
   extraKm?: number;
+  stops?: string[];
+  waitingMinutes?: number;
+  tripDays?: number;
+  routeVerified?: boolean;
   pickupCity: string;
   dropCity: string;
   pickupAddress: string;
@@ -418,6 +422,10 @@ export interface RazorpayCheckoutOptions {
   cabId?: CabCategoryId;
   distanceKm?: number;
   extraKm?: number;
+  stops?: string[];
+  waitingMinutes?: number;
+  tripDays?: number;
+  routeVerified?: boolean;
   pickupAddress?: string;
   pickupDateRaw?: string;
   pickupTimeRaw?: string;
@@ -889,6 +897,10 @@ export async function launchRazorpayStandardCheckout(
         cabId,
         distanceKm,
         extraKm,
+        stops: checkoutParams.stops,
+        waitingMinutes: checkoutParams.waitingMinutes,
+        tripDays: checkoutParams.tripDays,
+        routeVerified: checkoutParams.routeVerified ?? true,
         pickupCity: checkoutParams.pickupCity || 'Delhi NCR',
         dropCity: checkoutParams.dropCity || checkoutParams.pickupCity || 'Delhi NCR',
         pickupAddress: checkoutParams.pickupAddress || checkoutParams.pickupCity || 'Doorstep Pickup',

@@ -2,58 +2,35 @@
  * SafarIndiaCabs Production Mapping, Routing, GPS & Reverse-Geocoding Client Service
  *
  * Security & Business Rules:
- * 1. Never exposes secret API keys (Ola Maps Client Secret / Mappls Secret) in frontend JS.
+ * 1. Never stores or exposes API keys/tokens (Google Maps, Mapbox, Ola Maps, Mappls) in frontend JS.
  * 2. Routes all external mapping calls through secure backend `/api/maps` with client-side LRU caching.
- * 3. Calculates actual road distance (never straight-line distance) and never silently mixes providers.
- * 4. Supports route polyline geometry (`[lng, lat][]`), alternative routes, GPS detection,
- *    reverse geocoding, live driver telemetry, admin pricing config, and 30-route benchmarking.
+ * 3. Calculates actual road distance (never straight-line distance) and flags unverified routes for Manual Quote.
+ * 4. Supports multi-stop waypoints, route polyline geometry, alternative routes, GPS detection,
+ *    reverse geocoding, live driver telemetry, versioned admin pricing control, and profit simulation.
  */
 
 import {
   POPULAR_INDIAN_CITIES,
-  estimateDistanceKm,
   lookupVerifiedHighwayDistance,
   findMatchingIndianCity,
   calculateTerrainHaversineKm,
   isHillAreaToken
 } from '../data/indianCities';
 import { searchIndianLandmarks, POPULAR_INDIAN_LANDMARKS } from '../data/indianLandmarks';
-import { CabCategoryId } from '../types';
+import {
+  DEFAULT_PRICING_ENGINE_CONFIG,
+  mergePricingConfig,
+  PricingEngineConfig,
+  VehicleEngineConfig
+} from '../../lib/pricing/index.js';
 
 export interface Coordinates {
   lat: number;
   lng: number;
 }
 
-export const MAPBOX_ACCESS_TOKEN =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MAPBOX_ACCESS_TOKEN) ||
-  [
-    'pk',
-    'eyJ1IjoiYXZpbmFzaG1pc2hyYTA4NTQ4IiwiYSI6ImNtd2J4N25rejAwM2kyeXNjYTRzeHNhM2kifQ',
-    'tXtGhjKYcQ7whcT6UcsasQ'
-  ].join('.');
-
-export const MAPBOX_DIRECTIONS_BASE_URL = 'https://api.mapbox.com/directions/v5/mapbox/driving';
-export const MAPBOX_GEOCODING_BASE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
-
-export function buildMapboxDirectionsApiUrl(
-  pickupLon: number,
-  pickupLat: number,
-  dropLon: number,
-  dropLat: number,
-  overview: 'false' | 'full' | 'simplified' = 'false'
-): {
-  officialUrl: string;
-  templateFormatUrl: string;
-} {
-  const coordsPart = `${Number(pickupLon.toFixed(5))},${Number(pickupLat.toFixed(5))};${Number(dropLon.toFixed(5))},${Number(dropLat.toFixed(5))}`;
-  return {
-    officialUrl: `${MAPBOX_DIRECTIONS_BASE_URL}/${coordsPart}?overview=${overview}&access_token=${MAPBOX_ACCESS_TOKEN}`,
-    templateFormatUrl: `https://mapbox.com${coordsPart}?overview=${overview}&access_token=${MAPBOX_ACCESS_TOKEN}`
-  };
-}
-
 export type MappingProviderId =
+  | 'google_maps'
   | 'mapbox'
   | 'ola_maps'
   | 'mappls'
@@ -74,7 +51,7 @@ export interface OlaPlacePrediction {
   lat?: number;
   lng?: number;
   category?: string;
-  source: 'mapbox' | 'ola_maps' | 'mappls' | 'photon_osm' | 'indian_database';
+  source: 'google_maps' | 'mapbox' | 'ola_maps' | 'mappls' | 'photon_osm' | 'indian_database';
 }
 
 export interface RouteAlternative {
@@ -95,8 +72,8 @@ export interface OlaDistanceResult {
   source: 'ola_maps_exact' | 'road_matrix';
   provider: MappingProviderId;
   validated: boolean;
+  requiresManualQuote?: boolean;
   routeSummary?: string;
-  mapboxDirectionsUrl?: string;
   originCoords?: Coordinates;
   destCoords?: Coordinates;
   geometry?: Array<[number, number]>;
@@ -144,30 +121,18 @@ export interface LiveDriverTelemetry {
   geometry: Array<[number, number]>;
 }
 
-export interface AdminVehiclePricingConfig {
-  ratePerKm: number;
-  roundTripRatePerKm: number;
-  extraKmRate: number;
-  minBaseFare: number;
-  driverAllowancePerDay: number;
-  nightChargePerNight: number;
-  hillStationCharge: number;
-  statePermitTax: number;
-  local8Hr80KmFare: number;
-}
+export type AdminVehiclePricingConfig = VehicleEngineConfig & {
+  minBaseFare?: number;
+  nightChargePerNight?: number;
+};
 
-export interface AdminPricingConfig {
-  updatedAt: string;
+export interface AdminPricingConfig extends PricingEngineConfig {
   updatedBy: string;
-  minOneWayBillableKm: number;
-  minRoundTripKmPerDay: number;
-  nightChargePerSlot: number;
   gstPercentOneWay: number;
   gstPercentRoundTrip: number;
-  defaultParkingCharge: number;
   tollRateMultiplier: number;
   statePermitMultiplier: number;
-  vehicles: Record<CabCategoryId, AdminVehiclePricingConfig>;
+  vehicles: Record<string, AdminVehiclePricingConfig>;
 }
 
 export interface IntercityRouteBenchmarkRow {
@@ -187,104 +152,43 @@ export interface IntercityRouteBenchmarkRow {
   status: string;
 }
 
-const ADMIN_PRICING_STORAGE_KEY = 'safar_admin_pricing_config_v2';
+const ADMIN_PRICING_STORAGE_KEY = 'safar_admin_pricing_config_v3';
 
-export const DEFAULT_ADMIN_PRICING_CONFIG: AdminPricingConfig = {
-  updatedAt: new Date().toISOString(),
-  updatedBy: 'Default Calibrated Matrix',
-  minOneWayBillableKm: 130,
-  minRoundTripKmPerDay: 250,
-  nightChargePerSlot: 0,
-  gstPercentOneWay: 5,
-  gstPercentRoundTrip: 0,
-  defaultParkingCharge: 150,
-  tollRateMultiplier: 1.0,
-  statePermitMultiplier: 1.0,
-  vehicles: {
-    hatchback: {
-      ratePerKm: 8.8,
-      roundTripRatePerKm: 10.5,
-      extraKmRate: 9.5,
-      minBaseFare: 1144,
-      driverAllowancePerDay: 240,
-      nightChargePerNight: 250,
-      hillStationCharge: 280,
-      statePermitTax: 200,
-      local8Hr80KmFare: 1599
-    },
-    sedan: {
-      ratePerKm: 9.5,
-      roundTripRatePerKm: 11.5,
-      extraKmRate: 10.2,
-      minBaseFare: 1235,
-      driverAllowancePerDay: 260,
-      nightChargePerNight: 250,
-      hillStationCharge: 340,
-      statePermitTax: 250,
-      local8Hr80KmFare: 1799
-    },
-    exec_sedan: {
-      ratePerKm: 11.0,
-      roundTripRatePerKm: 13.0,
-      extraKmRate: 11.8,
-      minBaseFare: 1430,
-      driverAllowancePerDay: 300,
-      nightChargePerNight: 300,
-      hillStationCharge: 390,
-      statePermitTax: 300,
-      local8Hr80KmFare: 2199
-    },
-    suv: {
-      ratePerKm: 12.6,
-      roundTripRatePerKm: 15.0,
-      extraKmRate: 13.5,
-      minBaseFare: 1638,
-      driverAllowancePerDay: 320,
-      nightChargePerNight: 300,
-      hillStationCharge: 440,
-      statePermitTax: 350,
-      local8Hr80KmFare: 2499
-    },
-    innova: {
-      ratePerKm: 15.8,
-      roundTripRatePerKm: 19.0,
-      extraKmRate: 17.0,
-      minBaseFare: 2054,
-      driverAllowancePerDay: 380,
-      nightChargePerNight: 350,
-      hillStationCharge: 550,
-      statePermitTax: 450,
-      local8Hr80KmFare: 3199
-    },
-    tempo: {
-      ratePerKm: 21.5,
-      roundTripRatePerKm: 24.5,
-      extraKmRate: 23.0,
-      minBaseFare: 2795,
-      driverAllowancePerDay: 480,
-      nightChargePerNight: 450,
-      hillStationCharge: 750,
-      statePermitTax: 650,
-      local8Hr80KmFare: 4799
-    }
+function enrichLegacyCompatibility(raw: PricingEngineConfig, updatedBy = 'SafarIndiaCabs Engine'): AdminPricingConfig {
+  const merged = mergePricingConfig(raw);
+  const enrichedVehicles: Record<string, AdminVehiclePricingConfig> = {};
+  for (const [id, v] of Object.entries(merged.vehicles || {})) {
+    enrichedVehicles[id] = {
+      ...v,
+      minBaseFare: v.minFare || Math.round((v.ratePerKm || 9.5) * (v.minKm || 130)),
+      nightChargePerNight: v.nightAllowance ?? 150
+    };
   }
-};
+  return {
+    ...merged,
+    updatedBy: (raw as any)?.updatedBy || updatedBy,
+    gstPercentOneWay: (raw as any)?.gstPercentOneWay ?? merged.gstRatePct ?? 5,
+    gstPercentRoundTrip: (raw as any)?.gstPercentRoundTrip ?? 0,
+    tollRateMultiplier: (raw as any)?.tollRateMultiplier ?? 1.0,
+    statePermitMultiplier: (raw as any)?.statePermitMultiplier ?? 1.0,
+    vehicles: enrichedVehicles
+  };
+}
+
+export const DEFAULT_ADMIN_PRICING_CONFIG: AdminPricingConfig = enrichLegacyCompatibility(
+  DEFAULT_PRICING_ENGINE_CONFIG,
+  'Default Intelligent Matrix v1.0'
+);
 
 export function getAdminPricingConfigSync(): AdminPricingConfig {
   try {
     localStorage.removeItem('safar_admin_pricing_config_v1');
+    localStorage.removeItem('safar_admin_pricing_config_v2');
     const raw = localStorage.getItem(ADMIN_PRICING_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.vehicles) {
-        return {
-          ...DEFAULT_ADMIN_PRICING_CONFIG,
-          ...parsed,
-          vehicles: {
-            ...DEFAULT_ADMIN_PRICING_CONFIG.vehicles,
-            ...parsed.vehicles
-          }
-        };
+        return enrichLegacyCompatibility(parsed, parsed.updatedBy || 'Admin Override');
       }
     }
   } catch {}
@@ -297,38 +201,161 @@ export async function syncAdminPricingFromServer(): Promise<AdminPricingConfig> 
     if (res.ok) {
       const data = await res.json();
       if (data?.success && data.config) {
-        localStorage.setItem(ADMIN_PRICING_STORAGE_KEY, JSON.stringify(data.config));
-        return data.config;
+        const enriched = enrichLegacyCompatibility(data.config, data.config.updatedBy || 'Server Config');
+        try {
+          localStorage.setItem(ADMIN_PRICING_STORAGE_KEY, JSON.stringify(enriched));
+        } catch {}
+        return enriched;
       }
     }
   } catch {}
   return getAdminPricingConfigSync();
 }
 
-export async function saveAdminPricingConfig(config: AdminPricingConfig): Promise<AdminPricingConfig> {
-  const updated: AdminPricingConfig = {
-    ...config,
-    updatedAt: new Date().toISOString()
-  };
-  try {
-    localStorage.setItem(ADMIN_PRICING_STORAGE_KEY, JSON.stringify(updated));
-  } catch {}
+export async function saveAdminPricingConfig(
+  config: AdminPricingConfig,
+  changeSummary = 'Admin pricing update'
+): Promise<AdminPricingConfig> {
+  const prepared = enrichLegacyCompatibility(
+    {
+      ...config,
+      gstRatePct: config.gstRatePct ?? config.gstPercentOneWay ?? 5,
+      updatedAt: new Date().toISOString()
+    },
+    config.updatedBy || 'Admin Console'
+  );
 
   try {
     const res = await fetch('/api/maps?action=pricing-config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'pricing-config', config: updated })
+      body: JSON.stringify({
+        action: 'pricing-config',
+        config: prepared,
+        actor: prepared.updatedBy || 'Admin Console',
+        changeSummary
+      })
     });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.message || data?.error || 'Server rejected pricing configuration.');
+    }
+    if (data?.config) {
+      const saved = enrichLegacyCompatibility(data.config, prepared.updatedBy);
+      try {
+        localStorage.setItem(ADMIN_PRICING_STORAGE_KEY, JSON.stringify(saved));
+      } catch {}
+      return saved;
+    }
+  } catch (err: any) {
+    if (err?.message && err.message.includes('rejected') || err?.message?.includes('Profit')) {
+      throw err;
+    }
+  }
+
+  try {
+    localStorage.setItem(ADMIN_PRICING_STORAGE_KEY, JSON.stringify(prepared));
+  } catch {}
+  return prepared;
+}
+
+export async function fetchPricingVersions(): Promise<{ versions: any[]; auditLogs: any[] }> {
+  try {
+    const res = await fetch('/api/maps?action=pricing-versions');
     if (res.ok) {
       const data = await res.json();
-      if (data?.config) {
-        localStorage.setItem(ADMIN_PRICING_STORAGE_KEY, JSON.stringify(data.config));
-        return data.config;
-      }
+      return {
+        versions: Array.isArray(data?.versions) ? data.versions : [],
+        auditLogs: Array.isArray(data?.auditLogs) ? data.auditLogs : []
+      };
     }
   } catch {}
-  return updated;
+  return { versions: [], auditLogs: [] };
+}
+
+export async function rollbackPricingVersion(version: number, actor = 'Admin Console'): Promise<AdminPricingConfig> {
+  const res = await fetch('/api/maps?action=pricing-rollback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'pricing-rollback', version, actor })
+  });
+  const data = await res.json();
+  if (!res.ok || !data?.config) {
+    throw new Error(data?.message || 'Unable to rollback pricing version.');
+  }
+  const rolled = enrichLegacyCompatibility(data.config, actor);
+  try {
+    localStorage.setItem(ADMIN_PRICING_STORAGE_KEY, JSON.stringify(rolled));
+  } catch {}
+  return rolled;
+}
+
+export async function simulateAdminPricing(payload: {
+  tripType: string;
+  cabId: string;
+  pickupCity: string;
+  dropCity: string;
+  distanceKm: number;
+  days?: number;
+  pickupDate?: string;
+  pickupTime?: string;
+  waitingMinutes?: number;
+  stops?: string[];
+  promoDiscount?: number;
+  fleetAvailabilityRatio?: number;
+  configOverride?: Partial<AdminPricingConfig>;
+}): Promise<any> {
+  const res = await fetch('/api/maps?action=pricing-simulate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'pricing-simulate', ...payload })
+  });
+  const data = await res.json();
+  if (!res.ok || !data?.success) {
+    throw new Error(data?.message || 'Simulation failed.');
+  }
+  return data.simulation;
+}
+
+export async function submitManualQuoteRequest(payload: {
+  pickupCity: string;
+  dropCity: string;
+  tripType?: string;
+  pickupDate?: string;
+  pickupTime?: string;
+  cabId?: string;
+  customerName?: string;
+  customerPhone: string;
+  stops?: string[];
+  notes?: string;
+  reason?: string;
+}): Promise<{ success: boolean; ticketId?: string; message?: string }> {
+  try {
+    const res = await fetch('/api/maps?action=manual-quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'manual-quote', ...payload })
+    });
+    const data = await res.json();
+    return {
+      success: Boolean(res.ok && data?.success),
+      ticketId: data?.ticket?.id,
+      message: data?.message
+    };
+  } catch {
+    return { success: false, message: 'Network error submitting manual quote request.' };
+  }
+}
+
+export async function fetchManualQuoteRequests(): Promise<any[]> {
+  try {
+    const res = await fetch('/api/maps?action=manual-quote');
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data?.tickets) ? data.tickets : [];
+    }
+  } catch {}
+  return [];
 }
 
 // Client-Side In-Memory LRU Cache to avoid redundant network hops
@@ -355,7 +382,7 @@ function buildCuratedCurveGeometry(origin: Coordinates, dest: Coordinates): Arra
 
 /**
  * Autocomplete search for pickup and drop locations
- * Restricted strictly to India (country code: IN), routed via `/api/maps`
+ * Restricted strictly to India (country code: IN), routed via backend `/api/maps`
  */
 export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction[]> {
   const trimmed = (query || '').trim();
@@ -424,7 +451,7 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
     }
   };
 
-  // 1. Instant check in Curated Indian Landmarks & Localities
+  // 1. Curated Indian Landmarks & Localities
   const landmarkMatches = searchIndianLandmarks(trimmed);
   landmarkMatches.forEach((item) => {
     addUnique({
@@ -438,7 +465,7 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
     });
   });
 
-  // 2. City match from POPULAR_INDIAN_CITIES (including hill stations like Rudraprayag, Nainital, Mussoorie)
+  // 2. City match from POPULAR_INDIAN_CITIES
   const qLower = trimmed.toLowerCase();
   POPULAR_INDIAN_CITIES.filter(
     (c) => c.name.toLowerCase().includes(qLower) || c.state.toLowerCase().includes(qLower)
@@ -455,7 +482,7 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
       });
     });
 
-  // 3. Query Secure Server-Side Proxy `/api/maps?action=autocomplete` (Mapbox Geocoding v5 -> Ola Maps -> Mappls -> OSM India)
+  // 3. Query Secure Server-Side Proxy `/api/maps?action=autocomplete`
   try {
     const res = await fetch(`/api/maps?action=autocomplete&input=${encodeURIComponent(trimmed)}`);
     if (res.ok) {
@@ -470,40 +497,11 @@ export async function searchOlaPlaces(query: string): Promise<OlaPlacePrediction
           lat: typeof p.lat === 'number' ? p.lat : undefined,
           lng: typeof p.lng === 'number' ? p.lng : undefined,
           types: p.types || ['locality'],
-          source: p.source || 'mapbox'
+          source: p.source || 'google_maps'
         });
       });
     }
   } catch {}
-
-  // 4. Direct Mapbox Geocoding v5 Fallback if server proxy returned few/no coordinates
-  if (results.length < 3 && MAPBOX_ACCESS_TOKEN) {
-    try {
-      const mbUrl = `${MAPBOX_GEOCODING_BASE_URL}/${encodeURIComponent(trimmed)}.json?country=in&types=place,locality,neighborhood,address,poi,postcode&autocomplete=true&limit=6&access_token=${encodeURIComponent(MAPBOX_ACCESS_TOKEN)}`;
-      const mbRes = await fetch(mbUrl);
-      if (mbRes.ok) {
-        const mbData = await mbRes.json();
-        const features = Array.isArray(mbData?.features) ? mbData.features : [];
-        features.forEach((f: any) => {
-          const center = Array.isArray(f.center) ? f.center : [];
-          const lng = typeof center[0] === 'number' ? center[0] : undefined;
-          const lat = typeof center[1] === 'number' ? center[1] : undefined;
-          const placeName = f.place_name || f.text || trimmed;
-          const parts = placeName.split(',').map((s: string) => s.trim());
-          addUnique({
-            description: placeName,
-            placeId: f.id || `mb_${lat}_${lng}`,
-            mainText: f.text || parts[0] || trimmed,
-            secondaryText: parts.slice(1).join(', ') || 'India',
-            lat,
-            lng,
-            types: Array.isArray(f.place_type) ? f.place_type : ['locality'],
-            source: 'mapbox'
-          });
-        });
-      }
-    } catch {}
-  }
 
   if (results.length === 0) {
     results.push({
@@ -552,7 +550,7 @@ export async function reverseGeocodeCoordinates(
     if (res.ok && data?.success) {
       return {
         success: true,
-        provider: data.provider || 'ola_maps',
+        provider: data.provider || 'google_maps',
         lat,
         lng,
         formattedAddress: data.formattedAddress,
@@ -657,13 +655,11 @@ export function resolveLocalCoordsSync(locationName: string): Coordinates | null
   const trimmed = (locationName || '').trim();
   if (trimmed.length < 3) return null;
 
-  // 1. Check Indian Cities database first
   const matchedCity = findMatchingIndianCity(trimmed);
   if (matchedCity) {
     return { lat: matchedCity.lat, lng: matchedCity.lon };
   }
 
-  // 2. Check specific Landmarks only on primary segment (>= 3 chars) matching name or alias
   const primary = trimmed.split(',')[0].trim().toLowerCase();
   if (primary.length >= 3) {
     const exactLandmark = POPULAR_INDIAN_LANDMARKS.find(
@@ -683,7 +679,7 @@ export function resolveLocalCoordsSync(locationName: string): Coordinates | null
   return null;
 }
 
-async function resolveLocationCoords(locationName: string): Promise<Coordinates | null> {
+async function resolveLocationCoordsViaProxy(locationName: string): Promise<Coordinates | null> {
   const trimmed = (locationName || '').trim();
   if (trimmed.length < 3) return null;
 
@@ -695,34 +691,25 @@ async function resolveLocationCoords(locationName: string): Promise<Coordinates 
   if (trimmed.length < 4) return null;
 
   try {
-    const preds = await searchOlaPlaces(trimmed);
-    const withCoords = preds.find(
-      (p) =>
-        typeof p.lat === 'number' &&
-        typeof p.lng === 'number' &&
-        p.lat >= 6.0 &&
-        p.lat <= 38.5 &&
-        p.lng >= 67.0 &&
-        p.lng <= 98.5
-    );
-    if (withCoords && withCoords.lat && withCoords.lng) {
-      return { lat: withCoords.lat, lng: withCoords.lng };
-    }
-  } catch {}
-
-  try {
-    const cleanQ = trimmed.toLowerCase().includes('india') ? trimmed : `${trimmed}, India`;
-    const nomRes = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&countrycodes=in&limit=1&q=${encodeURIComponent(cleanQ)}`
-    );
-    if (nomRes.ok) {
-      const nomArr = await nomRes.json();
-      if (Array.isArray(nomArr) && nomArr[0]) {
-        const lat = Number(nomArr[0].lat);
-        const lng = Number(nomArr[0].lon);
-        if (lat >= 6.0 && lat <= 38.5 && lng >= 67.0 && lng <= 98.5) {
-          return { lat, lng };
-        }
+    const res = await fetch(`/api/maps?action=autocomplete&input=${encodeURIComponent(trimmed)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const predictions = Array.isArray(data?.predictions) ? data.predictions : [];
+      const withCoords = predictions.find(
+        (p: any) =>
+          typeof p.lat === 'number' &&
+          typeof p.lng === 'number' &&
+          p.lat >= 6.0 &&
+          p.lat <= 38.5 &&
+          p.lng >= 67.0 &&
+          p.lng <= 98.5
+      );
+      if (withCoords) {
+        return { lat: withCoords.lat, lng: withCoords.lng };
+      }
+      if (predictions[0]?.placeId) {
+        const det = await getOlaPlaceDetails(predictions[0].placeId);
+        if (det) return det;
       }
     }
   } catch {}
@@ -735,19 +722,27 @@ async function resolveLocationCoords(locationName: string): Promise<Coordinates 
  * decoded route polyline geometry, and alternative routes via `/api/maps?action=route`.
  *
  * Strictly enforces:
- * - Actual road distance (never straight-line distance).
- * - Single-provider distance consistency (never silently mixes distances across providers).
+ * - Actual road distance (never straight-line distance; supports multi-stop waypoints).
+ * - Unverified/unresolvable routes return `requiresManualQuote: true` instead of fabricating fares.
  */
 export async function calculateExactRoadDistance(
   pickupLocation: string,
   dropLocation: string,
   pickupCoords?: Coordinates | null,
-  dropCoords?: Coordinates | null
+  dropCoords?: Coordinates | null,
+  stops?: Array<string | { location: string; haltMinutes?: number }>
 ): Promise<OlaDistanceResult> {
-  const pCoords = pickupCoords || resolveLocalCoordsSync(pickupLocation) || (await resolveLocationCoords(pickupLocation));
-  const dCoords = dropCoords || resolveLocalCoordsSync(dropLocation) || (await resolveLocationCoords(dropLocation));
+  const cleanStops = Array.isArray(stops)
+    ? stops
+        .map((s) => (typeof s === 'string' ? s.trim() : String(s?.location || '').trim()))
+        .filter((s) => s.length >= 2)
+    : [];
 
-  const cacheKey = `${pickupLocation.toLowerCase()}|${dropLocation.toLowerCase()}|${
+  const pCoords = pickupCoords || resolveLocalCoordsSync(pickupLocation) || (await resolveLocationCoordsViaProxy(pickupLocation));
+  const dCoords = dropCoords || resolveLocalCoordsSync(dropLocation) || (await resolveLocationCoordsViaProxy(dropLocation));
+
+  const stopsKey = cleanStops.map((s) => s.toLowerCase()).join('>');
+  const cacheKey = `${pickupLocation.toLowerCase()}|${dropLocation.toLowerCase()}|${stopsKey}|${
     pCoords ? `${pCoords.lat.toFixed(3)},${pCoords.lng.toFixed(3)}` : ''
   }|${dCoords ? `${dCoords.lat.toFixed(3)},${dCoords.lng.toFixed(3)}` : ''}`;
 
@@ -756,10 +751,10 @@ export async function calculateExactRoadDistance(
     return cached;
   }
 
-  // 1. Check Verified Highway & Hill Route Matrix for calibrated road distance
-  const verifiedKm = lookupVerifiedHighwayDistance(pickupLocation, dropLocation);
+  // Only apply direct corridor matrix if there are NO custom multi-stop waypoints
+  const verifiedKm = cleanStops.length === 0 ? lookupVerifiedHighwayDistance(pickupLocation, dropLocation) : null;
 
-  // 2. Query Secure Backend `/api/maps?action=route` for Mapbox / Ola road polyline geometry & alternative routes
+  // Query Secure Backend `/api/maps?action=route`
   try {
     const res = await fetch('/api/maps?action=route', {
       method: 'POST',
@@ -768,127 +763,68 @@ export async function calculateExactRoadDistance(
         action: 'route',
         pickupLocation,
         dropLocation,
+        stops: cleanStops,
         originCoords: pCoords || undefined,
         destCoords: dCoords || undefined
       })
     });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.success && typeof data.distanceKm === 'number' && data.distanceKm > 0) {
-        // If we have a verified Indian Highway/Mountain distance (e.g., Patna->Hajipur = 27 KM or Rudraprayag->Nainital = 223 KM),
-        // preserve that exact verified highway distance on the primary route while keeping the road polyline!
-        const finalDistanceKm = verifiedKm !== null ? verifiedKm : data.distanceKm;
-        const finalDurationMinutes =
-          verifiedKm !== null
-            ? computeRealisticTravelMinutes(verifiedKm, pickupLocation, dropLocation)
-            : data.durationMinutes || computeRealisticTravelMinutes(finalDistanceKm, pickupLocation, dropLocation);
+    const data = await res.json().catch(() => null);
 
-        const alternatives: RouteAlternative[] = Array.isArray(data.alternatives)
-          ? data.alternatives.map((alt: RouteAlternative, idx: number) =>
-              idx === 0 && verifiedKm !== null
-                ? {
-                    ...alt,
-                    distanceKm: verifiedKm,
-                    durationMinutes: finalDurationMinutes,
-                    durationText: formatMinutes(finalDurationMinutes)
-                  }
-                : alt
-            )
-          : [];
+    if (data?.requiresManualQuote) {
+      return {
+        distanceKm: 0,
+        durationText: 'Manual Quote Required',
+        durationMinutes: 0,
+        source: 'road_matrix',
+        provider: 'verified_highway_network',
+        validated: false,
+        requiresManualQuote: true,
+        errorMessage: data?.message || 'Unable to verify driving route. Request a manual dispatch quote.'
+      };
+    }
 
-        const mapboxUrls =
-          pCoords && dCoords
-            ? buildMapboxDirectionsApiUrl(pCoords.lng, pCoords.lat, dCoords.lng, dCoords.lat, 'false')
-            : undefined;
+    if (res.ok && data?.success && typeof data.distanceKm === 'number' && data.distanceKm > 0) {
+      const finalDistanceKm = verifiedKm !== null ? verifiedKm : data.distanceKm;
+      const finalDurationMinutes =
+        verifiedKm !== null
+          ? computeRealisticTravelMinutes(verifiedKm, pickupLocation, dropLocation)
+          : data.durationMinutes || computeRealisticTravelMinutes(finalDistanceKm, pickupLocation, dropLocation);
 
-        const result: OlaDistanceResult = {
-          distanceKm: finalDistanceKm,
-          durationText: formatMinutes(finalDurationMinutes),
-          durationMinutes: finalDurationMinutes,
-          source: 'ola_maps_exact',
-          provider: data.provider || 'mapbox',
-          validated: true,
-          routeSummary: data.routeSummary || `Verified Highway Route: ${pickupLocation} → ${dropLocation}`,
-          mapboxDirectionsUrl: data.mapboxDirectionsUrl || mapboxUrls?.officialUrl,
-          originCoords: data.originCoords || pCoords || undefined,
-          destCoords: data.destCoords || dCoords || undefined,
-          geometry: data.geometry,
-          alternatives
-        };
+      const alternatives: RouteAlternative[] = Array.isArray(data.alternatives)
+        ? data.alternatives.map((alt: RouteAlternative, idx: number) =>
+            idx === 0 && verifiedKm !== null
+              ? {
+                  ...alt,
+                  distanceKm: verifiedKm,
+                  durationMinutes: finalDurationMinutes,
+                  durationText: formatMinutes(finalDurationMinutes)
+                }
+              : alt
+          )
+        : [];
 
-        clientRouteCache.set(cacheKey, result);
-        return result;
-      }
+      const result: OlaDistanceResult = {
+        distanceKm: finalDistanceKm,
+        durationText: formatMinutes(finalDurationMinutes),
+        durationMinutes: finalDurationMinutes,
+        source: 'ola_maps_exact',
+        provider: data.provider || 'google_maps',
+        validated: true,
+        requiresManualQuote: false,
+        routeSummary: data.routeSummary || `Verified Highway Route: ${pickupLocation} → ${dropLocation}`,
+        originCoords: data.originCoords || pCoords || undefined,
+        destCoords: data.destCoords || dCoords || undefined,
+        geometry: data.geometry,
+        alternatives
+      };
+
+      clientRouteCache.set(cacheKey, result);
+      return result;
     }
   } catch {}
 
-  // 2B. Direct Mapbox Directions API v5 Live Call (if backend proxy is unavailable in preview)
-  if (pCoords && dCoords && MAPBOX_ACCESS_TOKEN) {
-    try {
-      const mbDirUrl = `${MAPBOX_DIRECTIONS_BASE_URL}/${pCoords.lng},${pCoords.lat};${dCoords.lng},${dCoords.lat}?alternatives=true&geometries=geojson&overview=full&access_token=${encodeURIComponent(MAPBOX_ACCESS_TOKEN)}`;
-      const mbRes = await fetch(mbDirUrl);
-      if (mbRes.ok) {
-        const mbData = await mbRes.json();
-        const mbRoutes = Array.isArray(mbData?.routes) ? mbData.routes : [];
-        if (mbRoutes.length > 0) {
-          const parsedAlts: RouteAlternative[] = mbRoutes
-            .map((r: any, idx: number) => {
-              const rawKm = Math.max(4, Math.round((r.distance || 0) / 1000));
-              const distKm = idx === 0 && verifiedKm !== null ? verifiedKm : rawKm;
-              const durMin =
-                idx === 0 && verifiedKm !== null
-                  ? computeRealisticTravelMinutes(verifiedKm, pickupLocation, dropLocation)
-                  : Math.max(15, Math.round((r.duration || 0) / 60));
-              const rawCoords: Array<[number, number]> = Array.isArray(r.geometry?.coordinates)
-                ? r.geometry.coordinates
-                : [];
-              const step = Math.max(1, Math.floor(rawCoords.length / 140));
-              const sampledGeo = rawCoords
-                .filter((_, i) => i === 0 || i === rawCoords.length - 1 || i % step === 0)
-                .map((pt) => [Number(pt[0].toFixed(5)), Number(pt[1].toFixed(5))] as [number, number]);
-
-              return {
-                routeId: `mapbox_live_${idx + 1}`,
-                provider: 'mapbox' as const,
-                isAlternative: idx > 0,
-                summary:
-                  r.legs?.[0]?.summary ||
-                  (idx === 0 ? `Mapbox Highway: ${pickupLocation} → ${dropLocation}` : `Mapbox Alternative Route #${idx + 1}`),
-                distanceKm: distKm,
-                durationMinutes: durMin,
-                durationText: formatMinutes(durMin),
-                geometry: sampledGeo.length >= 2 ? sampledGeo : buildCuratedCurveGeometry(pCoords, dCoords)
-              };
-            })
-            .filter((r: RouteAlternative) => r.distanceKm > 0);
-
-          if (parsedAlts.length > 0) {
-            const p0 = parsedAlts[0];
-            const mbUrls = buildMapboxDirectionsApiUrl(pCoords.lng, pCoords.lat, dCoords.lng, dCoords.lat, 'false');
-            const result: OlaDistanceResult = {
-              distanceKm: p0.distanceKm,
-              durationText: p0.durationText,
-              durationMinutes: p0.durationMinutes,
-              source: 'ola_maps_exact',
-              provider: 'mapbox',
-              validated: true,
-              routeSummary: p0.summary,
-              mapboxDirectionsUrl: mbUrls.officialUrl,
-              originCoords: pCoords,
-              destCoords: dCoords,
-              geometry: p0.geometry,
-              alternatives: parsedAlts
-            };
-            clientRouteCache.set(cacheKey, result);
-            return result;
-          }
-        }
-      }
-    } catch {}
-  }
-
-  // 3. Fallback when offline or custom town name: Verified Highway Matrix / Calibrated Road Corridor
+  // Offline / Local Verified Fallback: ONLY if verified highway matrix matched OR BOTH coordinates resolved genuinely
   if (verifiedKm !== null) {
     const durationMinutes = computeRealisticTravelMinutes(verifiedKm, pickupLocation, dropLocation);
     const geometry = pCoords && dCoords ? buildCuratedCurveGeometry(pCoords, dCoords) : undefined;
@@ -902,17 +838,6 @@ export async function calculateExactRoadDistance(
       durationText: formatMinutes(durationMinutes),
       geometry: geometry || []
     };
-    const secondaryAlt: RouteAlternative = {
-      routeId: 'verified_nh_2',
-      provider: 'verified_highway_network',
-      isAlternative: true,
-      summary: `Alternative State Highway Bypass`,
-      distanceKm: Math.round(verifiedKm * 1.08),
-      durationMinutes: Math.round(durationMinutes * 1.12),
-      durationText: formatMinutes(Math.round(durationMinutes * 1.12)),
-      geometry: geometry || []
-    };
-
     const result: OlaDistanceResult = {
       distanceKm: verifiedKm,
       durationText: formatMinutes(durationMinutes),
@@ -920,34 +845,47 @@ export async function calculateExactRoadDistance(
       source: 'ola_maps_exact',
       provider: 'verified_highway_network',
       validated: true,
+      requiresManualQuote: false,
       routeSummary: primaryAlt.summary,
       originCoords: pCoords || undefined,
       destCoords: dCoords || undefined,
       geometry,
-      alternatives: [primaryAlt, secondaryAlt]
+      alternatives: [primaryAlt]
     };
     clientRouteCache.set(cacheKey, result);
     return result;
   }
 
   if (pCoords && dCoords) {
-    const terrainRoadKm = calculateTerrainHaversineKm(
-      pCoords.lat,
-      pCoords.lng,
-      dCoords.lat,
-      dCoords.lng,
-      pickupLocation,
-      dropLocation
-    );
-    const durationMinutes = computeRealisticTravelMinutes(terrainRoadKm, pickupLocation, dropLocation);
+    const legPoints: Coordinates[] = [pCoords];
+    for (const stopName of cleanStops) {
+      const sCoords = resolveLocalCoordsSync(stopName);
+      if (sCoords) legPoints.push(sCoords);
+    }
+    legPoints.push(dCoords);
+
+    let totalRoadKm = 0;
+    for (let i = 0; i < legPoints.length - 1; i++) {
+      totalRoadKm += calculateTerrainHaversineKm(
+        legPoints[i].lat,
+        legPoints[i].lng,
+        legPoints[i + 1].lat,
+        legPoints[i + 1].lng,
+        i === 0 ? pickupLocation : cleanStops[i - 1],
+        i === legPoints.length - 2 ? dropLocation : cleanStops[i]
+      );
+    }
+
+    const durationMinutes = computeRealisticTravelMinutes(totalRoadKm, pickupLocation, dropLocation);
     const geometry = buildCuratedCurveGeometry(pCoords, dCoords);
     const result: OlaDistanceResult = {
-      distanceKm: terrainRoadKm,
+      distanceKm: totalRoadKm,
       durationText: formatMinutes(durationMinutes),
       durationMinutes,
       source: 'ola_maps_exact',
       provider: 'verified_highway_network',
       validated: true,
+      requiresManualQuote: false,
       routeSummary: `National Highway Corridor: ${pickupLocation} → ${dropLocation}`,
       originCoords: pCoords,
       destCoords: dCoords,
@@ -958,19 +896,9 @@ export async function calculateExactRoadDistance(
           provider: 'verified_highway_network',
           isAlternative: false,
           summary: `National Highway Corridor: ${pickupLocation} → ${dropLocation}`,
-          distanceKm: terrainRoadKm,
+          distanceKm: totalRoadKm,
           durationMinutes,
           durationText: formatMinutes(durationMinutes),
-          geometry
-        },
-        {
-          routeId: 'nh_alt',
-          provider: 'verified_highway_network',
-          isAlternative: true,
-          summary: `Alternative State Highway Route`,
-          distanceKm: Math.round(terrainRoadKm * 1.08),
-          durationMinutes: Math.round(durationMinutes * 1.12),
-          durationText: formatMinutes(Math.round(durationMinutes * 1.12)),
           geometry
         }
       ]
@@ -979,17 +907,16 @@ export async function calculateExactRoadDistance(
     return result;
   }
 
-  const fallbackKm = estimateDistanceKm(pickupLocation, dropLocation);
-  const fallbackMinutes = computeRealisticTravelMinutes(fallbackKm, pickupLocation, dropLocation);
-
+  // Unverifiable route -> Never fabricate fake distance! Request Manual Quote.
   return {
-    distanceKm: fallbackKm,
-    durationText: formatMinutes(fallbackMinutes),
-    durationMinutes: fallbackMinutes,
+    distanceKm: 0,
+    durationText: 'Manual Quote Required',
+    durationMinutes: 0,
     source: 'road_matrix',
     provider: 'verified_highway_network',
-    validated: true,
-    routeSummary: `National Highway Route: ${pickupLocation} → ${dropLocation}`
+    validated: false,
+    requiresManualQuote: true,
+    errorMessage: 'Route coordinates could not be verified automatically. Please submit a Manual Quotation Request.'
   };
 }
 

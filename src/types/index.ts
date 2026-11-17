@@ -1,6 +1,17 @@
-export type TripType = 'oneway' | 'roundtrip' | 'local' | 'airport';
+export type TripType = 'oneway' | 'roundtrip' | 'multiday' | 'local' | 'airport' | 'custom';
 
-export type CabCategoryId = 'hatchback' | 'sedan' | 'exec_sedan' | 'suv' | 'innova' | 'tempo';
+export type CabCategoryId =
+  | 'hatchback'
+  | 'sedan'
+  | 'dzire'
+  | 'exec_sedan'
+  | 'ertiga'
+  | 'suv'
+  | 'innova'
+  | 'innova_crysta'
+  | 'premium_suv'
+  | 'tempo'
+  | (string & {});
 
 export interface CabVehicle {
   id: CabCategoryId;
@@ -10,14 +21,21 @@ export interface CabVehicle {
   ratePerKm: number;
   roundTripRatePerKm?: number;
   extraKmRate?: number;
+  minKm?: number;
+  minFare?: number;
   driverAllowancePerDay?: number;
+  waitingChargePerHour?: number;
+  nightAllowance?: number;
   statePermitTax?: number;
   hillStationCharge?: number;
+  difficultMountainCharge?: number;
   local8Hr80KmFare?: number;
   capacityPassengers: number;
   capacityLuggage: number;
   features: string[];
   popular?: boolean;
+  enabled?: boolean;
+  isCustom?: boolean;
   image: string;
   description: string;
 }
@@ -31,6 +49,8 @@ export interface BookingRecord {
   tripType: TripType;
   pickupCity: string;
   dropCity: string;
+  stops?: string[];
+  waitingMinutes?: number;
   pickupAddress: string;
   dropAddress?: string;
   landmark?: string;
@@ -90,6 +110,10 @@ export interface BookingRecord {
   routeSummary?: string;
   routeDurationText?: string;
   routeGeometry?: Array<[number, number]>;
+  pricingVersion?: number;
+  locationCategories?: Record<string, any>;
+  competitorBenchmark?: Record<string, any>;
+  requiresManualQuote?: boolean;
   fareSnapshot?: {
     capturedAt: string;
     provider: string;
@@ -103,9 +127,12 @@ export interface BookingRecord {
     highwayToll: number;
     statePermitTax: number;
     hillStationCharge: number;
+    waitingCharge?: number;
+    extraStopsCharge?: number;
     gstAmount: number;
     discountAmount: number;
     totalFare: number;
+    pricingVersion?: number;
   };
 }
 

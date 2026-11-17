@@ -54,6 +54,10 @@ interface BookingModalProps {
   tripType: TripType;
   pickupCity: string;
   dropCity: string;
+  stops?: string[];
+  waitingMinutes?: number;
+  tripDays?: number;
+  routeVerified?: boolean;
   pickupDate: string;
   pickupTime: string;
   returnDate: string;
@@ -102,6 +106,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   tripType,
   pickupCity,
   dropCity,
+  stops = [],
+  waitingMinutes = 0,
+  tripDays = 1,
+  routeVerified = true,
   pickupDate,
   pickupTime,
   returnDate,
@@ -283,7 +291,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [isOpen, errorMessage, pendingVerification]);
 
-  // Live CabBazar fare calculation synchronized with server
+  // Live fare calculation synchronized with server
   const activeFare = computeTripFare({
     tripType,
     cabId: cab.id,
@@ -291,10 +299,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     extraKm: extraKmState,
     pickupCity,
     dropCity,
+    stops,
+    waitingMinutes,
+    days: tripDays,
     pickupDate,
     pickupTime,
-    returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
-    returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
+    returnDate: tripType === 'roundtrip' || tripType === 'multiday' ? returnDateState : undefined,
+    returnTime: tripType === 'roundtrip' || tripType === 'multiday' ? returnTimeState : undefined,
     localPackageId,
     includeTolls: includeTollsState,
     addonCarrier,
@@ -303,7 +314,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     promoCode: promoApplied ? 'FIRST300' : '',
     promoDiscount: promoApplied ? PROMO_DISCOUNT_AMOUNT : 0,
     customerName,
-    routeGeometry
+    routeGeometry,
+    routeVerified
   });
 
   const payableNowAmount = paymentMode === 'advance_20' ? activeFare.advanceFare : activeFare.totalFare;
@@ -327,28 +339,34 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       const methodObj = PAYMENT_GATEWAY_METHODS.find((m) => m.id === activeMethod);
       const methodLabel = methodObj ? methodObj.label : 'UPI / QR';
       const boundedGeometry = Array.isArray(routeGeometry) ? routeGeometry.slice(0, 40) : undefined;
-      const fareSnapshot = buildBookingFareSnapshot(activeFare, routeProvider || 'ola_maps');
+      const fareSnapshot = buildBookingFareSnapshot(activeFare, routeProvider || 'google_maps');
 
       return {
         id: resolvedBookingId,
         tripType,
         pickupCity,
         dropCity,
+        stops: stops.map((s) => s.trim()).filter(Boolean),
+        waitingMinutes,
         pickupCoords: pickupCoords || undefined,
         dropCoords: dropCoords || undefined,
-        routeProvider: routeProvider || 'ola_maps',
+        routeProvider: routeProvider || 'google_maps',
         routeSummary: routeSummary || `${pickupCity} → ${dropCity} Highway`,
         routeDurationText: routeDurationText || undefined,
         routeGeometry: boundedGeometry,
+        pricingVersion: activeFare.pricingVersion || 1,
+        locationCategories: activeFare.locationCategories,
+        competitorBenchmark: activeFare.competitorBenchmark,
+        requiresManualQuote: Boolean(activeFare.requiresManualQuote),
         fareSnapshot,
         pickupAddress: pickupAddress.trim() || pickupCity,
         landmark: landmark.trim() || undefined,
         dropAddress: dropAddress.trim() || undefined,
         pickupDate,
         pickupTime,
-        returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
-        returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
-        tripDays: activeFare.daysCount || 1,
+        returnDate: tripType === 'roundtrip' || tripType === 'multiday' ? returnDateState : undefined,
+        returnTime: tripType === 'roundtrip' || tripType === 'multiday' ? returnTimeState : undefined,
+        tripDays: activeFare.daysCount || tripDays || 1,
         localPackage: tripType === 'local' ? localPackageId : undefined,
         airportMode: tripType === 'airport' ? airportMode : undefined,
         airportTerminal: airportTerminal.trim() || undefined,
@@ -403,6 +421,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       tripType,
       pickupCity,
       dropCity,
+      stops,
+      waitingMinutes,
+      tripDays,
       pickupCoords,
       dropCoords,
       routeSummary,
@@ -634,13 +655,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         cabId: cab.id,
         distanceKm: fareDetails.distanceKm,
         extraKm: extraKmState,
+        stops,
+        waitingMinutes,
+        tripDays: activeFare.daysCount || tripDays || 1,
+        routeVerified,
         pickupCity,
         dropCity,
         pickupAddress: pickupAddress.trim(),
         pickupDate,
         pickupTime,
-        returnDate: tripType === 'roundtrip' ? returnDateState : undefined,
-        returnTime: tripType === 'roundtrip' ? returnTimeState : undefined,
+        returnDate: tripType === 'roundtrip' || tripType === 'multiday' ? returnDateState : undefined,
+        returnTime: tripType === 'roundtrip' || tripType === 'multiday' ? returnTimeState : undefined,
         routeGeometry,
         localPackageId,
         includeTolls: includeTollsState,
@@ -765,14 +790,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       cabId: cab.id,
       distanceKm: fareDetails.distanceKm,
       extraKm: extraKmState,
+      stops,
+      waitingMinutes,
+      tripDays: activeFare.daysCount || tripDays || 1,
+      routeVerified,
       pickupCity,
       dropCity,
       pickupAddress: pickupAddress.trim(),
       pickupDate: `${pickupDate} at ${pickupTime}`,
       pickupDateRaw: pickupDate,
       pickupTimeRaw: pickupTime,
-      returnDateRaw: tripType === 'roundtrip' ? returnDateState : undefined,
-      returnTimeRaw: tripType === 'roundtrip' ? returnTimeState : undefined,
+      returnDateRaw: tripType === 'roundtrip' || tripType === 'multiday' ? returnDateState : undefined,
+      returnTimeRaw: tripType === 'roundtrip' || tripType === 'multiday' ? returnTimeState : undefined,
       routeGeometry,
       localPackageId,
       includeTolls: includeTollsState,
@@ -888,7 +917,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <span className="text-[10px] text-slate-500 uppercase font-bold block">Pickup Date &amp; Time</span>
               <span className="text-slate-900 font-bold">{pickupDate} · {pickupTime}</span>
             </div>
-            {tripType === 'roundtrip' ? (
+            {tripType === 'roundtrip' || tripType === 'multiday' ? (
               <div>
                 <div className="flex items-center justify-between gap-1">
                   <span className="text-[10px] text-amber-800 uppercase font-bold block">
@@ -983,9 +1012,33 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </div>
               {activeFare.hillStationCharge > 0 && (
                 <div className="flex justify-between text-slate-600">
-                  <span>Hill Station Climb Charge:</span>
+                  <span>{activeFare.isDifficultMountainRoute ? 'Mountain Drive Charge:' : 'Hill Station Climb Charge:'}</span>
                   <span className="font-mono font-bold text-slate-900">
                     {formatINR(activeFare.hillStationCharge)} (Included)
+                  </span>
+                </div>
+              )}
+              {(activeFare.extraStopsCharge || 0) > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Multi-City Stops ({activeFare.validStopsCount || 1}):</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(activeFare.extraStopsCharge || 0)} (Included)
+                  </span>
+                </div>
+              )}
+              {(activeFare.waitingCharge || 0) > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Waiting Beyond 45m Grace ({activeFare.billableWaitMinutes}m):</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(activeFare.waitingCharge || 0)}
+                  </span>
+                </div>
+              )}
+              {(activeFare.positioningCharge || 0) > 0 && (
+                <div className="flex justify-between text-slate-600">
+                  <span>Fleet Positioning ({activeFare.positioningDistanceKm} KM):</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {formatINR(activeFare.positioningCharge || 0)}
                   </span>
                 </div>
               )}
@@ -998,7 +1051,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-600">
-                    <span>State Tax:</span>
+                    <span>
+                      State Tax{(activeFare.stateTaxDays || 1) > 1 ? ` (${activeFare.stateTaxDays} Days)` : ''}
+                      {(activeFare.delhiMcdToll || 0) > 0 ? ' + Delhi MCD' : ''}:
+                    </span>
                     <span className={`font-mono font-bold ${activeFare.statePermitTax > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>
                       {activeFare.statePermitTax > 0
                         ? `${formatINR(activeFare.statePermitTax)} (Included)`
@@ -1017,6 +1073,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <span className="font-mono font-bold text-slate-900">{formatINR(activeFare.addonsTotal)}</span>
                 </div>
               )}
+            </div>
+            <div className="pt-1 border-t border-slate-100 text-[10px] font-semibold text-emerald-700">
+              {activeFare.cancellationPolicy || 'Free cancellation up to 6 hours before pickup'}
             </div>
           </div>
 

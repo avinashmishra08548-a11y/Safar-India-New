@@ -10,10 +10,13 @@ import {
   Sparkles,
   AlertCircle
 } from 'lucide-react';
-import { CABS_FLEET } from '../data/cabsFleet';
+import { buildDynamicFleetList } from '../data/cabsFleet';
+import { getAdminPricingConfigSync, submitManualQuoteRequest } from '../utils/olaMapsService';
+import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 import { CabVehicle, CustomerUser, TripType } from '../types';
 import {
   calculateTripFare,
+  computeTripFare,
   FareBreakdown,
   PROMO_DISCOUNT_AMOUNT,
   PROMO_SUCCESS_MESSAGE,
@@ -26,6 +29,10 @@ interface CabSelectorProps {
   setTripType?: (t: TripType) => void;
   pickupCity: string;
   dropCity: string;
+  stops?: string[];
+  waitingMinutes?: number;
+  requiresManualQuote?: boolean;
+  routeErrorMessage?: string;
   distanceKm: number;
   extraKm?: number;
   setExtraKm?: (km: number) => void;
@@ -61,6 +68,10 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
   tripType,
   pickupCity,
   dropCity,
+  stops = [],
+  waitingMinutes = 0,
+  requiresManualQuote = false,
+  routeErrorMessage = '',
   distanceKm,
   days,
   pickupDate,
@@ -84,6 +95,14 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
   onSelectCab
 }) => {
   const todayStr = new Date().toISOString().split('T')[0];
+  const [manualPhone, setManualPhone] = useState(currentUser?.phone || '');
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualResult, setManualResult] = useState('');
+
+  const dynamicFleet = useMemo(
+    () => buildDynamicFleetList(getAdminPricingConfigSync()),
+    []
+  );
 
   // Pre-filled by default (non-toggleable): TOLL TAX, STATE TAX & PARKING EXTRA (AS PER ACTUALS)
   useEffect(() => {
@@ -146,74 +165,25 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
 
   const sampleFare = useMemo(
     () =>
-      calculateTripFare(
-        'sedan',
+      computeTripFare({
         tripType,
+        cabId: 'sedan',
         distanceKm,
-        days,
-        localPackageId,
+        extraKm: 0,
         pickupCity,
         dropCity,
-        includeTolls,
+        stops,
+        waitingMinutes,
+        days,
         pickupDate,
         pickupTime,
-        0,
-        promoDiscountValue,
+        returnDate,
+        returnTime,
+        localPackageId,
+        includeTolls,
+        promoDiscount: promoDiscountValue,
         routeGeometry,
-        returnTime
-      ),
-    [
-      tripType,
-      distanceKm,
-      days,
-      localPackageId,
-      pickupCity,
-      dropCity,
-      includeTolls,
-      pickupDate,
-      pickupTime,
-      returnTime,
-      promoDiscountValue,
-      routeGeometry
-    ]
-  );
-
-  const computedFleetFares = useMemo(
-    () =>
-      CABS_FLEET.map((cab) => {
-        const fareWithToll = calculateTripFare(
-          cab.id,
-          tripType,
-          distanceKm,
-          days,
-          localPackageId,
-          pickupCity,
-          dropCity,
-          true,
-          pickupDate,
-          pickupTime,
-          0,
-          promoDiscountValue,
-          routeGeometry,
-          returnTime
-        );
-        const fareWithoutToll = calculateTripFare(
-          cab.id,
-          tripType,
-          distanceKm,
-          days,
-          localPackageId,
-          pickupCity,
-          dropCity,
-          false,
-          pickupDate,
-          pickupTime,
-          0,
-          promoDiscountValue,
-          routeGeometry,
-          returnTime
-        );
-        return { cab, fareWithToll, fareWithoutToll };
+        routeVerified: !requiresManualQuote
       }),
     [
       tripType,
@@ -222,13 +192,66 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
       localPackageId,
       pickupCity,
       dropCity,
+      stops,
+      waitingMinutes,
+      includeTolls,
       pickupDate,
       pickupTime,
+      returnDate,
       returnTime,
       promoDiscountValue,
-      routeGeometry
+      routeGeometry,
+      requiresManualQuote
     ]
   );
+
+  const computedFleetFares = useMemo(
+    () =>
+      dynamicFleet.map((cab) => {
+        const fareWithoutToll = computeTripFare({
+          tripType,
+          cabId: cab.id,
+          distanceKm,
+          extraKm: 0,
+          pickupCity,
+          dropCity,
+          stops,
+          waitingMinutes,
+          days,
+          pickupDate,
+          pickupTime,
+          returnDate,
+          returnTime,
+          localPackageId,
+          includeTolls: false,
+          promoDiscount: promoDiscountValue,
+          routeGeometry,
+          routeVerified: !requiresManualQuote
+        });
+        return { cab, fareWithoutToll };
+      }),
+    [
+      dynamicFleet,
+      tripType,
+      distanceKm,
+      days,
+      localPackageId,
+      pickupCity,
+      dropCity,
+      stops,
+      waitingMinutes,
+      pickupDate,
+      pickupTime,
+      returnDate,
+      returnTime,
+      promoDiscountValue,
+      routeGeometry,
+      requiresManualQuote
+    ]
+  );
+
+  const isManualQuoteRequired =
+    tripType !== 'local' && (requiresManualQuote || sampleFare.requiresManualQuote || distanceKm <= 0);
 
   return (
     <section id="available-cabs-section" className="py-8">
@@ -274,31 +297,39 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                 {sampleFare.isHillAreaRoute ? ` (${sampleFare.hillTierLabel || 'Hill Rate'})` : sampleFare.isOuterRoute ? ` (${sampleFare.routeTierLabel})` : ''}
               </span>
             </span>
-            {tripType === 'roundtrip' && (
-              <>
-                <span className="text-slate-300" aria-hidden="true">·</span>
-                <span className="font-semibold text-slate-700">
-                  {days} Day{days > 1 ? 's' : ''} Round Trip
-                </span>
-              </>
-            )}
-            {sampleFare.isRegionalPricingActive && (
-              <>
-                <span className="text-slate-300" aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-950 text-xs font-extrabold">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                  <span>
-                    {sampleFare.regionalEngineName || 'Bihar & Jharkhand Fixed Route Special'}
+              {tripType === 'roundtrip' || tripType === 'multiday' ? (
+                <>
+                  <span className="text-slate-300" aria-hidden="true">·</span>
+                  <span className="font-semibold text-slate-700">
+                    {days} Day{days > 1 ? 's' : ''} {tripType === 'multiday' ? 'Tour' : 'Round Trip'}
                   </span>
-                </span>
-              </>
-            )}
+                </>
+              ) : null}
+              {sampleFare.locationCategories && (
+                <>
+                  <span className="text-slate-300" aria-hidden="true">·</span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-bold">
+                    {sampleFare.locationCategories.pickupCategoryLabel} → {sampleFare.locationCategories.dropCategoryLabel}
+                  </span>
+                </>
+              )}
+              {sampleFare.isRegionalPricingActive && (
+                <>
+                  <span className="text-slate-300" aria-hidden="true">·</span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-950 text-xs font-extrabold">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                    <span>
+                      {sampleFare.regionalEngineName || 'Bihar & Jharkhand Fixed Route Special'}
+                    </span>
+                  </span>
+                </>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Clean Controls: Return Date (if Round Trip) + Toll Toggle */}
-        <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
-          {tripType === 'roundtrip' && setReturnDate && (
+          {/* Clean Controls: Return Date (if Round Trip / Multi-Day) + Toll Toggle */}
+          <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+            {(tripType === 'roundtrip' || tripType === 'multiday') && setReturnDate && (
             <div className="bg-white border border-slate-200 rounded-2xl px-3.5 py-2 flex flex-wrap items-center gap-2 shadow-2xs">
               <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
               <span className="text-xs font-bold text-slate-600 whitespace-nowrap">Return:</span>
@@ -421,8 +452,80 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
         </div>
       </div>
 
-      {/* Spacious Cab Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+      {/* Manual Quote Gate (Prevents misleading ₹0 or fabricated fares) */}
+      {isManualQuoteRequired ? (
+        <div className="rounded-3xl bg-amber-50 border-2 border-amber-300 p-6 space-y-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-6 h-6 text-amber-700 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="text-lg font-black text-amber-950">
+                Custom Route Verification Required — Request Instant Manual Quote
+              </h3>
+              <p className="text-xs sm:text-sm text-amber-900">
+                {routeErrorMessage ||
+                  sampleFare.errorMessage ||
+                  `Road distance for "${pickupCity} → ${dropCity}" requires dispatch verification to ensure honest pricing without inflated estimates.`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <input
+              type="tel"
+              maxLength={10}
+              value={manualPhone}
+              onChange={(e) => setManualPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              placeholder="10-digit WhatsApp number"
+              className="bg-white border border-amber-300 rounded-xl px-4 py-3 text-sm font-mono font-bold text-slate-900 sm:w-56"
+            />
+            <button
+              type="button"
+              disabled={manualSubmitting}
+              onClick={async () => {
+                if (manualPhone.length !== 10) {
+                  setManualResult('Please enter a valid 10-digit mobile number.');
+                  return;
+                }
+                setManualSubmitting(true);
+                const r = await submitManualQuoteRequest({
+                  pickupCity,
+                  dropCity,
+                  tripType,
+                  pickupDate,
+                  pickupTime,
+                  customerName: currentUser?.name,
+                  customerPhone: manualPhone,
+                  stops,
+                  reason: routeErrorMessage || sampleFare.errorMessage
+                });
+                setManualSubmitting(false);
+                setManualResult(
+                  r.message || (r.success ? `Ticket ${r.ticketId || ''} created!` : 'Please tap WhatsApp Desk.')
+                );
+              }}
+              className="px-5 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs transition cursor-pointer"
+            >
+              {manualSubmitting ? 'Sending...' : 'Submit Instant Quote Request'}
+            </button>
+            <a
+              href={buildWhatsAppSchemeUrl(`Hi SafarIndiaCabs, please quote ${pickupCity} to ${dropCity} (${tripType}).`)}
+              onClick={(e) =>
+                triggerWhatsAppDeepLink(e, `Hi SafarIndiaCabs, please quote ${pickupCity} to ${dropCity}.`)
+              }
+              className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs text-center transition"
+            >
+              WhatsApp +91 9570571516
+            </a>
+          </div>
+          {manualResult && (
+            <div className="text-xs font-bold text-emerald-900 bg-white border border-emerald-300 rounded-xl px-3.5 py-2">
+              {manualResult}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Spacious Cab Cards Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {computedFleetFares.map(({ cab, fareWithoutToll }) => {
           const activeFare = fareWithoutToll;
 
@@ -522,9 +625,33 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </div>
                   {activeFare.hillStationCharge > 0 && (
                     <div className="flex justify-between text-slate-600">
-                      <span>Hill Station Drive Charge:</span>
+                      <span>{activeFare.isDifficultMountainRoute ? 'Mountain Drive Charge:' : 'Hill Station Drive Charge:'}</span>
                       <span className="font-mono font-bold text-slate-900">
                         ₹{activeFare.hillStationCharge.toLocaleString('en-IN')} (Included)
+                      </span>
+                    </div>
+                  )}
+                  {(activeFare.extraStopsCharge || 0) > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Multi-City Stops ({activeFare.validStopsCount || 1}):</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        ₹{(activeFare.extraStopsCharge || 0).toLocaleString('en-IN')} (Included)
+                      </span>
+                    </div>
+                  )}
+                  {(activeFare.waitingCharge || 0) > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Waiting Beyond 45m Grace ({activeFare.billableWaitMinutes}m):</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        ₹{(activeFare.waitingCharge || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  )}
+                  {(activeFare.positioningCharge || 0) > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Fleet Dispatch Positioning ({activeFare.positioningDistanceKm} KM):</span>
+                      <span className="font-mono font-bold text-slate-900">
+                        ₹{(activeFare.positioningCharge || 0).toLocaleString('en-IN')}
                       </span>
                     </div>
                   )}
@@ -537,7 +664,10 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-600">
-                        <span>State Tax:</span>
+                        <span>
+                          State Tax{(activeFare.stateTaxDays || 1) > 1 ? ` (${activeFare.stateTaxDays} Days)` : ''}
+                          {(activeFare.delhiMcdToll || 0) > 0 ? ' + Delhi MCD' : ''}:
+                        </span>
                         <span className={`font-mono font-bold ${activeFare.statePermitTax > 0 ? 'text-emerald-700' : 'text-slate-700'}`}>
                           {activeFare.statePermitTax > 0
                             ? `₹${activeFare.statePermitTax.toLocaleString('en-IN')} (Included)`
@@ -554,13 +684,15 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </div>
                   <div className="pt-1 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
                     <span>
-                      {activeFare.isRegionalPricingActive
+                      {activeFare.competitorBenchmark?.competitorName
+                        ? `${activeFare.competitorBenchmark.competitorName} Rate:`
+                        : activeFare.isRegionalPricingActive
                         ? 'PatnaGo / RP Shakti Rate:'
                         : 'Market Average Rate:'}
                     </span>
                     <span className="font-mono font-bold text-slate-700">
                       <span className="line-through text-slate-400">
-                        ₹{activeFare.competitorRates.marketAverageFare.toLocaleString('en-IN')}
+                        ₹{(activeFare.competitorBenchmark?.competitorFare || activeFare.competitorRates.marketAverageFare).toLocaleString('en-IN')}
                       </span>
                       {' · '}
                       <span className="text-emerald-700">
@@ -576,6 +708,10 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       </span>
                     </div>
                   )}
+                  <div className="pt-1 text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 shrink-0" />
+                    <span>{activeFare.cancellationPolicy || 'Free cancellation up to 6 hours before pickup'}</span>
+                  </div>
                 </div>
 
                 {/* Clean Fare Selector with Parking Extra If Applicable (Default Selected) */}
@@ -643,7 +779,8 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </section>
   );
 };
