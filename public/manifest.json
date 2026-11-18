@@ -1,10 +1,10 @@
 {
-  "id": "/",
+  "id": "https://safarindiacabs.com/",
   "name": "Safarindiacabs",
   "short_name": "Safarindiacabs",
   "description": "Book affordable outstation cabs, one-way taxi with zero return fare, round trips, local hourly rentals, and airport transfers across India.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "https://safarindiacabs.com/",
+  "scope": "https://safarindiacabs.com/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#090D16",
@@ -12,19 +12,19 @@
   "categories": ["travel", "navigation", "transportation"],
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "https://safarindiacabs.com/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "https://safarindiacabs.com/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512-maskable.png",
+      "src": "https://safarindiacabs.com/icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -35,22 +35,22 @@
       "name": "Book a Cab",
       "short_name": "Book Cab",
       "description": "Calculate instant fare and reserve an outstation cab",
-      "url": "/?tab=booking",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "url": "https://safarindiacabs.com/?tab=booking",
+      "icons": [{ "src": "https://safarindiacabs.com/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "My Bookings",
       "short_name": "My Trips",
       "description": "View active cab rides and download invoice vouchers",
-      "url": "/?tab=rides",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "url": "https://safarindiacabs.com/?tab=rides",
+      "icons": [{ "src": "https://safarindiacabs.com/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "24/7 Helpline",
       "short_name": "Helpline",
       "description": "Call Safar India 24/7 customer support",
       "url": "tel:+919570571516",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "https://safarindiacabs.com/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

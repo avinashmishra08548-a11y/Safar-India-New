@@ -10,11 +10,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '.env.local') });
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   return {
+    base: command === 'build' ? 'https://safarindiacabs.com/' : '/',
     plugins: [
       react(), 
       tailwindcss(),
+      {
+        name: 'webview-stylesheet-compatibility',
+        transformIndexHtml(html) {
+          if (command !== 'build') return html;
+          return html.replace(/<link rel="stylesheet" crossorigin /g, '<link rel="stylesheet" ');
+        },
+      },
       {
         name: 'api-serverless-middleware',
         configureServer(server) {

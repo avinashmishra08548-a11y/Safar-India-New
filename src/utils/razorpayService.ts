@@ -1040,7 +1040,7 @@ export async function launchRazorpayStandardCheckout(
         checkoutParams.paymentMode === 'full'
           ? `Full Cab Booking Payment (${resolvedBookingId})`
           : `20% Advance Cab Booking (${resolvedBookingId})`,
-      image: '/logo.png',
+      image: 'https://safarindiacabs.com/logo.png',
       // Always keep core methods enabled so Razorpay Checkout never throws "No appropriate payment method found"
       method: {
         upi: true,

@@ -2,24 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
     
     <!-- Google Search Console Verification -->
     <meta name="google-site-verification" content="A9A1QLzfGL__HhuoC02Kj2WNh6DBBaCWV17f5L94pNU" />
 
-    <!-- Preload App Launch Splash Screen & LCP Hero Banner Image -->
+    <!-- Preload App Launch Splash Screen & LCP Hero Banner Image (Absolute URLs for Android WebView) -->
     <link
       rel="preload"
       as="image"
-      href="/assets/aistudio/logo-96.webp"
+      href="https://safarindiacabs.com/assets/aistudio/logo-96.webp"
       type="image/webp"
       fetchpriority="high"
     />
     <link
       rel="preload"
       as="image"
-      href="/assets/aistudio/hero-banner-480.webp"
-      imagesrcset="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
+      href="https://safarindiacabs.com/assets/aistudio/hero-banner-480.webp"
+      imagesrcset="https://safarindiacabs.com/assets/aistudio/hero-banner-480.webp 480w, https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp 800w"
       imagesizes="(max-width: 768px) 92vw, 440px"
       type="image/webp"
       fetchpriority="high"
@@ -31,10 +31,10 @@
     <meta name="keywords" content="outstation cabs, one way taxi, intercity cab booking, airport taxi service, local car rental, outstation taxi India, Safar India Cabs" />
     <meta name="author" content="Safar India Cabs" />
     <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
-    <link rel="canonical" href="https://www.safarindiacabs.com/" />
+    <link rel="canonical" href="https://safarindiacabs.com/" />
     
     <!-- Web App Manifest & PWA Configuration -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="https://safarindiacabs.com/manifest.json" />
     <meta name="theme-color" content="#F59E0B" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -43,17 +43,17 @@
     <meta name="application-name" content="Safarindiacabs" />
 
     <!-- Favicon & PWA App Icons (PNG, Apple Touch) -->
-    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="https://safarindiacabs.com/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="https://safarindiacabs.com/icon-512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="https://safarindiacabs.com/apple-touch-icon.png" />
 
     <!-- Open Graph Social Share Cards -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Safar India Cabs" />
     <meta property="og:title" content="Safar India Cabs - Outstation & Intercity Taxi Service" />
     <meta property="og:description" content="Book verified commercial outstation cabs with zero return fare on one-way trips, 20% advance booking deposit, and 24/7 chauffeur dispatch." />
-    <meta property="og:url" content="https://www.safarindiacabs.com/" />
-    <meta property="og:image" content="https://www.safarindiacabs.com/assets/images/hero_cabs_intercity_1792165620723.jpg" />
+    <meta property="og:url" content="https://safarindiacabs.com/" />
+    <meta property="og:image" content="https://safarindiacabs.com/assets/images/hero_cabs_intercity_1792165620723.jpg" />
     <meta property="og:locale" content="en_IN" />
 
     <!-- Twitter / X Cards -->
@@ -61,22 +61,17 @@
     <meta name="twitter:site" content="@safarindiacabs01" />
     <meta name="twitter:title" content="Safar India Cabs - Outstation & Intercity Taxi Service" />
     <meta name="twitter:description" content="Book verified commercial outstation cabs with zero return fare on one-way trips, 20% advance booking deposit, and 24/7 chauffeur dispatch." />
-    <meta name="twitter:image" content="https://www.safarindiacabs.com/assets/images/hero_cabs_intercity_1792165620723.jpg" />
+    <meta name="twitter:image" content="https://safarindiacabs.com/assets/images/hero_cabs_intercity_1792165620723.jpg" />
 
-    <!-- Optimized Font & Payment Gateway Preconnect (Eliminates Render & Checkout Blocking) -->
+    <!-- Optimized Font & Payment Gateway Preconnect -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="dns-prefetch" href="https://checkout.razorpay.com">
     <link rel="preconnect" href="https://checkout.razorpay.com" crossorigin>
-    <link 
-      rel="stylesheet" 
+    <link
+      rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap"
-      media="print" 
-      onload="this.media='all'"
-    >
-    <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap">
-    </noscript>
+    />
 
     <!-- Android 11+ WebView UPI Intent Enabler (Runs before Razorpay checkout.js initializes) -->
     <script>
@@ -112,10 +107,10 @@
       "@type": "TaxiService",
       "name": "Safar India Cabs",
       "legalName": "Safar India Cabs",
-      "url": "https://www.safarindiacabs.com/",
-      "logo": "https://www.safarindiacabs.com/favicon.svg",
+      "url": "https://safarindiacabs.com/",
+      "logo": "https://safarindiacabs.com/favicon.svg",
       "description": "India's premier outstation and intercity taxi network offering one-way cabs with zero return fare, round trips, local hourly rentals, and airport transfers.",
-      "telephone": "+91-77100-80992",
+      "telephone": "+91-95705-71516",
       "email": "safarindiacabs01@gmail.com",
       "priceRange": "₹₹",
       "currenciesAccepted": "INR",
@@ -135,7 +130,7 @@
       "provider": {
         "@type": "Organization",
         "name": "Safar India Cabs",
-        "url": "https://www.safarindiacabs.com/",
+        "url": "https://safarindiacabs.com/",
         "address": {
           "@type": "PostalAddress",
           "streetAddress": "H NO 143 STREET NO 4 JHARODA MAJRA NORTH DELHI BURARI 110084",
@@ -146,7 +141,7 @@
         },
         "contactPoint": {
           "@type": "ContactPoint",
-          "telephone": "+91-77100-80992",
+          "telephone": "+91-95705-71516",
           "email": "safarindiacabs01@gmail.com",
           "contactType": "customer service",
           "availableLanguage": ["English", "Hindi"],

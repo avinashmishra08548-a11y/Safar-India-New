@@ -1119,9 +1119,17 @@ export default function App() {
           <div className="relative z-10 w-full max-w-md my-auto py-3">
             <div className="relative rounded-3xl overflow-hidden border-2 border-amber-400/60 shadow-[0_20px_60px_rgba(0,0,0,0.65)] bg-[#0A1E3F]">
               <img
-                src="/assets/aistudio/hero-banner-800.webp"
-                srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
+                src="https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp"
+                srcSet="https://safarindiacabs.com/assets/aistudio/hero-banner-480.webp 480w, https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp 800w"
                 sizes="(max-width: 768px) 92vw, 440px"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (!img.dataset.fallbackApplied) {
+                    img.dataset.fallbackApplied = '1';
+                    img.srcset = '';
+                    img.src = '/assets/aistudio/hero-banner-800.webp';
+                  }
+                }}
                 alt="SafarIndiaCabs Outstation & Intercity Taxi Poster"
                 fetchPriority="high"
                 decoding="sync"
@@ -1365,14 +1373,22 @@ export default function App() {
             {/* 2. Immediately Below Booking Form: SafarIndiaCabs Brand Image Banner */}
             <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm bg-[#081C44]">
               <img
-                src="/assets/aistudio/hero-banner-800.webp"
-                srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
+                src="https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp"
+                srcSet="https://safarindiacabs.com/assets/aistudio/hero-banner-480.webp 480w, https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp 800w"
                 sizes="(max-width: 768px) 94vw, 860px"
                 width={800}
                 height={450}
                 fetchPriority="high"
                 loading="eager"
                 decoding="async"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (!img.dataset.fallbackApplied) {
+                    img.dataset.fallbackApplied = '1';
+                    img.srcset = '';
+                    img.src = '/assets/aistudio/hero-banner-800.webp';
+                  }
+                }}
                 alt="Safar India Cabs — Your Journey, Our Priority"
                 className="w-full h-auto aspect-[16/9] object-cover block"
               />

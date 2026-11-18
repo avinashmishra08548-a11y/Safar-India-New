@@ -176,7 +176,14 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2.5 text-left transition-transform active:scale-98 whitespace-nowrap shrink-0 cursor-pointer py-1"
               >
                 <img
-                  src="/assets/aistudio/logo-96.webp"
+                  src="https://safarindiacabs.com/assets/aistudio/logo-96.webp"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.dataset.fallbackApplied) {
+                      img.dataset.fallbackApplied = '1';
+                      img.src = '/assets/aistudio/logo-96.webp';
+                    }
+                  }}
                   alt="Safarindiacabs Logo"
                   width={40}
                   height={40}
@@ -328,7 +335,14 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="shrink-0 px-4 pt-4 pb-3 border-b border-slate-800 bg-[#080C14] flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <img
-                  src="/assets/aistudio/logo-96.webp"
+                  src="https://safarindiacabs.com/assets/aistudio/logo-96.webp"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.dataset.fallbackApplied) {
+                      img.dataset.fallbackApplied = '1';
+                      img.src = '/assets/aistudio/logo-96.webp';
+                    }
+                  }}
                   alt="Safarindiacabs Logo"
                   width={36}
                   height={36}
