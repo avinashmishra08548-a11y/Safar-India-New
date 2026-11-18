@@ -402,7 +402,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         notes:
           [
             specialNotes.trim(),
-            'TOLL EXTRA AS PER ACTUALS',
+            'TOLL & PARKING EXTRA AS PER ACTUALS',
             activeFare.promoDiscount > 0 ? `Promo Applied: FIRST300 (-₹${activeFare.promoDiscount})` : '',
             extraKmState > 0 ? `Extra Slider KM Included: +${extraKmState} KM` : '',
             addonCarrier ? 'Add-on: Roof Carrier' : '',
@@ -1051,6 +1051,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-600">
+                    <span>Parking Charges:</span>
+                    <span className="font-mono font-bold text-amber-800">
+                      Extra (As per actuals)
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
                     <span>
                       State Tax{(activeFare.stateTaxDays || 1) > 1 ? ` (${activeFare.stateTaxDays} Days)` : ''}
                       {(activeFare.delhiMcdToll || 0) > 0 ? ' + Delhi MCD' : ''}:
@@ -1152,7 +1158,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <div className="w-full px-3.5 py-2 rounded-xl text-[11px] font-extrabold bg-emerald-50 text-emerald-950 border border-emerald-200 flex items-center justify-between gap-2 select-none">
                 <span className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>TOLL EXTRA</span>
+                  <span>TOLL &amp; PARKING EXTRA</span>
                 </span>
                 <span className="text-emerald-800 font-bold whitespace-nowrap">As Per Actuals</span>
               </div>
@@ -1341,7 +1347,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <span className="flex items-center gap-2">
                     <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span className="font-extrabold text-emerald-950">
-                      TOLL EXTRA
+                      TOLL &amp; PARKING EXTRA
                     </span>
                   </span>
                   <span className="font-bold text-[11px] text-emerald-700 whitespace-nowrap">As Per Actuals</span>

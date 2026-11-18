@@ -1411,7 +1411,7 @@ export function calculateRoundTripFare(totalKm, numberOfDays, vehicleType, night
     driverAllowance: totalDriverAllowance,
     nightAllowance: totalNightAllowance,
     totalFare: totalFare,
-    note: 'Highway Toll Extra as per actuals.'
+    note: 'Highway Toll & Parking Extra as per actuals.'
   };
 }
 
@@ -1585,7 +1585,7 @@ export function computeServerTripFare({
         ? `${fixedRegionalRoute.corridorName} (2-Way Return)`
         : fixedRegionalRoute.corridorName;
     regionalTollPolicyNote = fixedRegionalRoute.tollPolicyNote;
-    regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
+    regionalCompetitorLabel = 'Local Market Aggregator Avg';
 
     const gstPct = tripType === 'roundtrip' ? 0 : 5;
     const preTaxTarget = gstPct > 0 ? Math.round(targetTotal / (1 + gstPct / 100)) : targetTotal;
@@ -1791,7 +1791,7 @@ let storedBookings = [
     customerEmail: '',
     status: 'confirmed',
     createdAt: '2026-11-07T05:08:00.000Z',
-    notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip (Toll Extra as per actuals).'
+    notes: '20% advance Rs. 414 received via Razorpay. Balance Rs. 1,655 payable to driver during trip (Toll & Parking Extra as per actuals).'
   },
   {
     id: 'SIC2603',
@@ -1825,7 +1825,7 @@ let storedBookings = [
     customerEmail: 'passenger@safarindiacabs.in',
     status: 'confirmed',
     createdAt: '2026-10-17T08:30:00.000Z',
-    notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination (Toll Extra as per actuals).'
+    notes: '20% advance received via Razorpay. Balance Rs. 1,454 payable to driver at destination (Toll & Parking Extra as per actuals).'
   }
 ];
 
@@ -2670,14 +2670,10 @@ function buildServerBookingInvoicePdfBuffer(booking) {
       label: '4. State Tax & Entry Charges',
       value: statePermitTax > 0 ? `INR ${statePermitTax.toLocaleString('en-IN')}.00 (Included)` : 'INR 0.00'
     },
-    ...(parkingCharge > 0
-      ? [
-          {
-            label: '5. Parking & Airport/Station Entry Charges',
-            value: `INR ${parkingCharge.toLocaleString('en-IN')}.00`
-          }
-        ]
-      : []),
+    {
+      label: '5. Parking & Airport/Station Entry Charges',
+      value: parkingCharge > 0 ? `INR ${parkingCharge.toLocaleString('en-IN')}.00` : 'Extra (As Per Actuals)'
+    },
     ...(hillStationCharge > 0
       ? [
           {
@@ -2813,7 +2809,7 @@ function buildServerBookingInvoicePdfBuffer(booking) {
   doc.setFontSize(6.8);
   doc.setTextColor(71, 85, 105);
   doc.text('1. Certified that particulars given above are true & correct.', margin + 3.5, y + 11);
-  doc.text('2. Highway Toll is extra as per actuals.', margin + 3.5, y + 15.2);
+  doc.text('2. Highway Toll & Parking charges are extra as per actuals.', margin + 3.5, y + 15.2);
   doc.text('3. Subject to North Delhi Jurisdiction only.', margin + 3.5, y + 19.4);
   doc.text('4. 24x7 Helpline: +91 9570571516 | Safarindiacabs01@gmail.com', margin + 3.5, y + 23.6);
   doc.setFont('helvetica', 'bold');

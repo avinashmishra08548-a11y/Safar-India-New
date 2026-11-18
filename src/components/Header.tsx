@@ -190,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="text-white">cabs</span>
                   </span>
                   <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase block mt-0.5">
-                    A1 Cab Services • N. India
+                    A1 Cab Services • NORTH INDIA
                   </span>
                 </div>
               </button>

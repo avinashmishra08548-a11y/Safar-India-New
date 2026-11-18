@@ -308,9 +308,9 @@ export const AboutSectionView: React.FC<AboutSectionViewProps> = ({
             </p>
           </div>
           <div className="rounded-2xl bg-blue-50/60 border border-blue-200/80 p-3.5 space-y-1">
-            <div className="text-xs font-black text-slate-900">3. Highway Toll &amp; State Tax</div>
+            <div className="text-xs font-black text-slate-900">3. Highway Toll, Parking &amp; State Tax</div>
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Applicable State Entry Taxes (crossed/drop states, per calendar day) &amp; Delhi MCD entry toll are calculated upfront; Highway FASTag tolls are extra as per actuals.
+              Applicable State Entry Taxes (crossed/drop states, per calendar day) &amp; Delhi MCD entry toll are calculated upfront; Highway FASTag tolls &amp; parking charges are extra as per actuals.
             </p>
           </div>
         </div>

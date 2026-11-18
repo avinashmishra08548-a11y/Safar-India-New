@@ -294,7 +294,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
               {sampleFare.isHillAreaRoute && <Mountain className="w-3.5 h-3.5 text-amber-600" />}
               <span>
                 Extra KM: <strong className="font-mono text-slate-950">₹{sampleFare.extraKmRate}/km</strong>
-                {sampleFare.isHillAreaRoute ? ` (${sampleFare.hillTierLabel || 'Hill Rate'})` : sampleFare.isOuterRoute ? ` (${sampleFare.routeTierLabel})` : ''}
+                {sampleFare.isHillAreaRoute ? ` (${sampleFare.hillTierLabel || 'Hill Rate'})` : ''}
               </span>
             </span>
               {tripType === 'roundtrip' || tripType === 'multiday' ? (
@@ -305,14 +305,6 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </span>
                 </>
               ) : null}
-              {sampleFare.locationCategories && (
-                <>
-                  <span className="text-slate-300" aria-hidden="true">·</span>
-                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-bold">
-                    {sampleFare.locationCategories.pickupCategoryLabel} → {sampleFare.locationCategories.dropCategoryLabel}
-                  </span>
-                </>
-              )}
               {sampleFare.isRegionalPricingActive && (
                 <>
                   <span className="text-slate-300" aria-hidden="true">·</span>
@@ -389,7 +381,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 flex items-center gap-2 shadow-2xs select-none">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span className="text-xs font-extrabold text-emerald-950 tracking-wide">
-                TOLL EXTRA (AS PER ACTUALS)
+                TOLL &amp; PARKING EXTRA (AS PER ACTUALS)
               </span>
             </div>
           )}
@@ -544,7 +536,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   <span>{cab.category}</span>
                   <span className="text-emerald-700 font-extrabold">
                     Save ₹{activeFare.savingsAmount} vs{' '}
-                    {activeFare.isRegionalPricingActive ? 'PatnaGo / Local Market' : 'Market Average'}
+                    {activeFare.isRegionalPricingActive ? 'Local Market Avg' : 'Market Aggregator Avg'}
                   </span>
                 </div>
 
@@ -664,6 +656,12 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                         </span>
                       </div>
                       <div className="flex justify-between text-slate-600">
+                        <span>Parking Charges:</span>
+                        <span className="font-mono font-bold text-amber-800">
+                          Extra (As per actuals)
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-slate-600">
                         <span>
                           State Tax{(activeFare.stateTaxDays || 1) > 1 ? ` (${activeFare.stateTaxDays} Days)` : ''}
                           {(activeFare.delhiMcdToll || 0) > 0 ? ' + Delhi MCD' : ''}:
@@ -684,11 +682,9 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   </div>
                   <div className="pt-1 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
                     <span>
-                      {activeFare.competitorBenchmark?.competitorName
-                        ? `${activeFare.competitorBenchmark.competitorName} Rate:`
-                        : activeFare.isRegionalPricingActive
-                        ? 'PatnaGo / RP Shakti Rate:'
-                        : 'Market Average Rate:'}
+                      {activeFare.isRegionalPricingActive
+                        ? 'Local Market Avg Rate:'
+                        : 'Market Aggregator Avg Rate:'}
                     </span>
                     <span className="font-mono font-bold text-slate-700">
                       <span className="line-through text-slate-400">
@@ -719,7 +715,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                   <div className="w-full px-3.5 py-2.5 rounded-xl border bg-emerald-50/90 border-emerald-200 text-emerald-950 flex items-center justify-between gap-2 select-none">
                     <span className="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wide">
                       <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-                      <span>TOLL EXTRA</span>
+                      <span>TOLL &amp; PARKING EXTRA</span>
                     </span>
                     <span className="text-[10px] font-bold text-emerald-800 whitespace-nowrap">
                       As Per Actuals
@@ -748,7 +744,7 @@ export const CabSelector: React.FC<CabSelectorProps> = ({
                       </span>
                       <span className="text-[11px] font-extrabold text-emerald-700">
                         Save ₹{activeFare.discountAmount.toLocaleString('en-IN')} vs{' '}
-                        {activeFare.isRegionalPricingActive ? 'Local Market' : 'Market Average'}
+                        {activeFare.isRegionalPricingActive ? 'Local Market Avg' : 'Market Aggregator Avg'}
                       </span>
                     </div>
                     <div className="text-2xl font-black text-slate-900 font-mono tabular-nums tracking-tight">

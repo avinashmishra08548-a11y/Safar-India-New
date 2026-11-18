@@ -188,7 +188,7 @@ export function formatWhatsAppBookingConfirmationMessage(params: {
     `💵 FARE & PAYMENT BREAKUP`,
     `• Total Fare: ₹${totalStr}/-`,
     `• Advance Paid: ₹${advanceStr}/-`,
-    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll Extra)`,
+    `• Balance Payable: ₹${balanceStr}/- (Payable to driver · Toll & Parking Extra)`,
     ``,
     `📞 CUSTOMER SUPPORT`,
     `• Helpline: +91-9570571516`,
@@ -404,7 +404,7 @@ export class WhatsAppService {
         formattedCab,
         `${formatWhatsAppAmount(fare)}/-`,
         `${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
-        `${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll Extra)`
+        `${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll & Parking Extra)`
       ],
       backups: [
         {
@@ -421,7 +421,7 @@ export class WhatsAppService {
           params: [
             customerName,
             cleanId,
-            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll Extra)`
+            `Pickup: ${pickup} to ${drop} (${formattedDate}) | Cab: ${formattedCab} | Total: ₹${formatWhatsAppAmount(fare)}/- | Advance: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/- | Balance: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll & Parking Extra)`
           ]
         }
       ]
@@ -464,7 +464,7 @@ export class WhatsAppService {
       `💵 FARE & PAYMENT BREAKUP`,
       `• Total Fare: ₹${formatWhatsAppAmount(details?.totalFare ?? 0)}/-`,
       `• Advance Paid: ₹${formatWhatsAppAmount(details?.paidAmount ?? 0)}/-`,
-      `• Balance Payable: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll Extra)`,
+      `• Balance Payable: ₹${formatWhatsAppAmount(details?.balanceAmount ?? 0)}/- (Toll & Parking Extra)`,
       ``,
       `⚡ Please assign a driver from the Owner Panel.`
     ].join('\n');

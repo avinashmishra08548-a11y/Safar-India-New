@@ -13,7 +13,6 @@ import {
   Phone, 
   MessageSquare, 
   CheckCircle2, 
-  Sparkles,
   ArrowRight,
   Shield,
   User,
@@ -1097,7 +1096,6 @@ export default function App() {
           {/* Top Official Crest & Ribbon */}
           <div className="relative z-10 flex flex-col items-center text-center mt-2 sm:mt-4">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-400/15 border border-amber-400/40 text-amber-300 text-[11px] font-extrabold uppercase tracking-widest mb-3 shadow-sm">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               A1 Cab Services • All India Permit
             </div>
             <div className="flex items-center gap-3">

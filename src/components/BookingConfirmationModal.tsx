@@ -462,14 +462,13 @@ export function buildBookingInvoicePdfDocument(booking: BookingRecord): {
           ? `INR ${breakup.statePermitTax.toLocaleString('en-IN')}.00 (Included)`
           : 'INR 0.00'
     },
-    ...(breakup.parkingCharge > 0
-      ? [
-          {
-            label: '5. Parking & Airport/Station Entry Charges',
-            value: `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
-          }
-        ]
-      : []),
+    {
+      label: '5. Parking & Airport/Station Entry Charges',
+      value:
+        breakup.parkingCharge > 0
+          ? `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
+          : 'Extra (As Per Actuals)'
+    },
     ...(breakup.hillStationCharge > 0
       ? [
           {
@@ -1006,15 +1005,14 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
           : 'INR 0.00',
       bold: false
     },
-    ...(breakup.parkingCharge > 0
-      ? [
-          {
-            label: '5. Parking & Airport/Station Entry Charges',
-            value: `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`,
-            bold: false
-          }
-        ]
-      : []),
+    {
+      label: '5. Parking & Airport/Station Entry Charges',
+      value:
+        breakup.parkingCharge > 0
+          ? `INR ${breakup.parkingCharge.toLocaleString('en-IN')}.00`
+          : 'Extra (As Per Actuals)',
+      bold: false
+    },
     ...(breakup.hillStationCharge > 0
       ? [
           {
@@ -1155,7 +1153,7 @@ export function renderA4GstInvoicePreviewDataUrl(booking: BookingRecord): string
   ctx.fillStyle = '#475569';
   ctx.font = '13px Arial, sans-serif';
   ctx.fillText('1. Certified that particulars given above are true & correct.', margin + 16, y + 55);
-  ctx.fillText('2. Highway Toll is extra as per actuals.', margin + 16, y + 78);
+  ctx.fillText('2. Highway Toll & Parking charges are extra as per actuals.', margin + 16, y + 78);
   ctx.fillText('3. Subject to North Delhi Jurisdiction only.', margin + 16, y + 101);
   ctx.fillText('4. 24x7 Helpline: +91 9570571516 | Safarindiacabs01@gmail.com', margin + 16, y + 124);
   ctx.fillStyle = '#0F172A';
@@ -1713,7 +1711,7 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                 </div>
 
                 <div className="text-[11px] text-slate-600 font-semibold pt-1 flex items-center justify-between">
-                  <span>✓ Toll:</span>
+                  <span>✓ Toll &amp; Parking:</span>
                   <span className="font-bold text-slate-800">Extra (As Per Actuals)</span>
                 </div>
               </div>
@@ -2069,14 +2067,14 @@ export const BookingConfirmationModal: React.FC<BookingConfirmationModalProps> =
                   </span>
                 </div>
 
-                {itemizedBreakup.parkingCharge > 0 && (
-                  <div className="flex justify-between items-center text-slate-700">
-                    <span>5. Parking Charges:</span>
-                    <span className="font-mono font-bold text-slate-900">
-                      {formatINR(itemizedBreakup.parkingCharge)}
-                    </span>
-                  </div>
-                )}
+                <div className="flex justify-between items-center text-slate-700">
+                  <span>5. Parking Charges:</span>
+                  <span className="font-mono font-bold text-amber-800">
+                    {itemizedBreakup.parkingCharge > 0
+                      ? formatINR(itemizedBreakup.parkingCharge)
+                      : 'Extra (As Per Actuals)'}
+                  </span>
+                </div>
 
                 {itemizedBreakup.hillStationCharge > 0 && (
                   <div className="flex justify-between items-center text-slate-700">

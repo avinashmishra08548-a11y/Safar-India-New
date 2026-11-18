@@ -36,7 +36,7 @@ runScenario(1, 'Delhi -> Chandigarh One-Way (Per-KM + Toll Extra Policy)', () =>
   assert.equal(res.requiresManualQuote, false);
   assert.equal(res.billedDistanceKm, 255);
   assert.equal(res.tollsExtraActuals, true);
-  assert.match(res.tollPolicyText, /TOLL EXTRA/i);
+  assert.match(res.tollPolicyText, /TOLL.*PARKING.*EXTRA/i);
   assert.ok(res.totalFare > 2500);
   assert.equal(res.internalCostAndProfit.isProfitProtected, true);
 });

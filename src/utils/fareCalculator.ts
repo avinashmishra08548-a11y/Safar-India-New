@@ -2980,7 +2980,7 @@ export function calculateRoundTripFare(
     driverAllowance: totalDriverAllowance,
     nightAllowance: totalNightAllowance,
     totalFare,
-    note: 'Highway Toll Extra as per actuals.'
+    note: 'Highway Toll & Parking Extra as per actuals.'
   };
 }
 
@@ -3187,7 +3187,7 @@ export function computeTripFare(params: {
       errorMessage: intel.errorMessage,
       pricingVersion: intel.pricingVersion,
       tollsExtraActuals: true,
-      tollPolicyText: 'TOLL EXTRA (As Per Actuals)'
+      tollPolicyText: 'TOLL & PARKING EXTRA (As Per Actuals)'
     };
     return sanitizePublicFareBreakdown(manualQuotePayload as FareCalculationResult & { internalCostAndProfit?: unknown }) as FareCalculationResult;
   }
@@ -3253,7 +3253,7 @@ export function computeTripFare(params: {
         ? `${fixedRegionalRoute.corridorName} (2-Way Return)`
         : fixedRegionalRoute.corridorName;
     regionalTollPolicyNote = fixedRegionalRoute.tollPolicyNote;
-    regionalCompetitorLabel = 'PatnaGo / RP Shakti Local Market';
+    regionalCompetitorLabel = 'Local Market Aggregator Avg';
 
     const gstPct = tripType === 'roundtrip' ? 0 : Number(adminCfg.gstRatePct ?? 5);
     const preTaxTarget = gstPct > 0 ? Math.round(targetTotal / (1 + gstPct / 100)) : targetTotal;
@@ -3326,8 +3326,8 @@ export function computeTripFare(params: {
     marketAverageFare: originalMarketFare,
     safarSavingsVsMarket: savingsAmount,
     bestPriceBadgeText: isRegionalTrip
-      ? `Save ₹${savingsAmount} vs PatnaGo / Local Market`
-      : `Save ₹${savingsAmount} vs Aggregator Avg`
+      ? `Save ₹${savingsAmount} vs Local Market Avg`
+      : `Save ₹${savingsAmount} vs Market Aggregator Avg`
   };
 
   const advanceFare = Math.round(totalFare * 0.2);
@@ -3392,9 +3392,7 @@ export function computeTripFare(params: {
     pickupIsOuter: intel.locationCategories?.pickupCategory === 'outer_city',
     dropIsOuter: intel.locationCategories?.dropCategory === 'outer_city',
     routeTierMultiplier: intel.dynamicDemand?.multiplier || 1.0,
-    routeTierLabel:
-      regionalEngineName ||
-      `${intel.locationCategories?.pickupCategoryLabel || 'City'} → ${intel.locationCategories?.dropCategoryLabel || 'City'}`,
+    routeTierLabel: regionalEngineName || 'Highway Corridor',
     isHillAreaRoute: Boolean(intel.isHillAreaRoute || isHillRoute),
     effectiveRatePerKm: ratePerKm,
     isDropHillArea: dropIsHill,
@@ -3441,7 +3439,7 @@ export function computeTripFare(params: {
     pricingVersionLabel: intel.pricingVersionLabel || 'v1.0-intelligent-engine',
     cancellationPolicy: intel.cancellationPolicy || 'Free cancellation up to 6 hours before pickup',
     tollsExtraActuals: true,
-    tollPolicyText: 'TOLL EXTRA (As Per Actuals)'
+    tollPolicyText: 'TOLL & PARKING EXTRA (As Per Actuals)'
   };
   return sanitizePublicFareBreakdown(publicFarePayload as FareCalculationResult & { internalCostAndProfit?: unknown }) as FareCalculationResult;
 }
