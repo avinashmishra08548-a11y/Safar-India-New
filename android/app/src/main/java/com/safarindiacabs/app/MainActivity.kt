@@ -3,12 +3,16 @@ package com.safarindiacabs.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Message
+import android.view.ViewGroup
+import android.view.WindowInsets
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.WebChromeClient
@@ -16,16 +20,24 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import java.util.Locale
 
 /**
- * Kotlin reference implementation of MainActivity hardened against Cross-App Scripting.
+ * Kotlin reference implementation of MainActivity (v1.1.0 / versionCode 10),
+ * synced with MainActivity.java:
+ * - Android 15/16 edge-to-edge WindowInsets padding
+ * - One-time cache clear per app version upgrade
+ * - Hardened against Cross-App Scripting (Google Play compliant)
  */
 class MainActivityKt : Activity() {
 
     companion object {
         private const val APP_URL = "https://safarindiacabs.com/"
         private const val LOCATION_PERMISSION_REQUEST_CODE = 4201
+        private const val PREFS_NAME = "safar_cabs_app_prefs"
+        private const val KEY_LAST_CACHE_CLEARED_VERSION = "last_cache_cleared_version"
+        private const val CURRENT_APP_VERSION_CODE = 10
 
         private val TRUSTED_HOSTS = setOf(
             "safarindiacabs.com",
@@ -62,11 +74,47 @@ class MainActivityKt : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        window?.statusBarColor = Color.parseColor("#0B0F19")
+        window?.navigationBarColor = Color.parseColor("#070A12")
+
         upiPaymentHelper = UpiPaymentHelper(this)
-        webView = WebView(this)
-        setContentView(webView)
+
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#0B0F19"))
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            setOnApplyWindowInsetsListener { v, insets ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.ime())
+                    v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                } else {
+                    @Suppress("DEPRECATION")
+                    v.setPadding(
+                        insets.systemWindowInsetLeft,
+                        insets.systemWindowInsetTop,
+                        insets.systemWindowInsetRight,
+                        insets.systemWindowInsetBottom
+                    )
+                }
+                insets
+            }
+        }
+
+        webView = WebView(this).apply {
+            setBackgroundColor(Color.parseColor("#0B0F19"))
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        root.addView(webView)
+        setContentView(root)
 
         configureSecureWebSettings(webView.settings)
+        clearStaleCacheOncePerUpgrade()
+        webView.addJavascriptInterface(upiPaymentHelper, "SafarUpiBridge")
 
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
@@ -149,13 +197,31 @@ class MainActivityKt : Activity() {
         webView.loadUrl(APP_URL)
     }
 
+    private fun clearStaleCacheOncePerUpgrade() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (prefs.getInt(KEY_LAST_CACHE_CLEARED_VERSION, 0) < CURRENT_APP_VERSION_CODE) {
+                webView.clearCache(true)
+                prefs.edit().putInt(KEY_LAST_CACHE_CLEARED_VERSION, CURRENT_APP_VERSION_CODE).apply()
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureSecureWebSettings(settings: WebSettings) {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
+        settings.databaseEnabled = true
         settings.setGeolocationEnabled(true)
+        settings.loadsImagesAutomatically = true
         settings.loadWithOverviewMode = true
         settings.useWideViewPort = true
+        settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.setSupportZoom(false)
+        settings.builtInZoomControls = false
+        settings.displayZoomControls = false
 
         // Disable all file & content access to prevent Cross-App Scripting
         settings.allowFileAccess = false

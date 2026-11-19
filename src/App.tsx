@@ -43,6 +43,14 @@ import { Header, NavTabId } from './components/Header';
 import { BookingEngine } from './components/BookingEngine';
 import { CabSelector } from './components/CabSelector';
 import { Footer } from './components/Footer';
+import {
+  ActiveRideDutyBanner,
+  HomeFleetPreviewStrip,
+  HomeRoutesAndPartnerHub,
+  HomeTopContextBar,
+  QuickServiceGrid,
+  QuickWhatsAppConciergeCard
+} from './components/MobileHomeSections';
 
 const PopularRoutesSection = lazy(() =>
   import('./components/PopularRoutesSection').then((m) => ({ default: m.PopularRoutesSection }))
@@ -891,6 +899,16 @@ export default function App() {
     return allBookings.filter(b => sanitize10DigitPhone(b.customerPhone) === cleanUserPhone);
   }, [allBookings, currentUser]);
 
+  const activeUserBookings = useMemo(
+    () =>
+      currentUserBookings.filter(
+        (b) => b.status !== 'cancelled' && b.status !== 'completed'
+      ),
+    [currentUserBookings]
+  );
+
+  const primaryActiveBooking = activeUserBookings[0] || null;
+
   // Active voucher modal
   const [activeVoucherBooking, setActiveVoucherBooking] = useState<BookingRecord | null>(null);
 
@@ -1078,7 +1096,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#F8FAFC] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
+    <div className="min-h-[100dvh] bg-[#F4F6FA] text-slate-900 flex flex-col selection:bg-amber-400 selection:text-slate-950">
       {/* Full-Screen Customer App Launch Poster / Splash Screen */}
       {isSplashVisible && (
         <div
@@ -1119,15 +1137,16 @@ export default function App() {
           <div className="relative z-10 w-full max-w-md my-auto py-3">
             <div className="relative rounded-3xl overflow-hidden border-2 border-amber-400/60 shadow-[0_20px_60px_rgba(0,0,0,0.65)] bg-[#0A1E3F]">
               <img
-                src="https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp"
-                srcSet="https://safarindiacabs.com/assets/aistudio/hero-banner-480.webp 480w, https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp 800w"
+                src="/assets/aistudio/hero-banner-800.webp"
+                srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
                 sizes="(max-width: 768px) 92vw, 440px"
+                referrerPolicy="no-referrer"
                 onError={(e) => {
                   const img = e.currentTarget;
                   if (!img.dataset.fallbackApplied) {
                     img.dataset.fallbackApplied = '1';
                     img.srcset = '';
-                    img.src = '/assets/aistudio/hero-banner-800.webp';
+                    img.src = 'https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp';
                   }
                 }}
                 alt="SafarIndiaCabs Outstation & Intercity Taxi Poster"
@@ -1309,75 +1328,147 @@ export default function App() {
             />
           </div>
         ) : (
-          /* DEDICATED VIEW 5: BOOK CAB (Minimal, Spacious Booking Card + Brand Banner + 3 Trust Badges Only) */
+          /* DEDICATED VIEW 5: MOBILE-FIRST HOME & CAB BOOKING DASHBOARD */
           <div
             id="booking-section-top"
-            className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6 animate-in fade-in outline-hidden"
+            className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 animate-in fade-in outline-hidden"
           >
-            {/* 1. Clean, Spacious Top Booking Form Card */}
-            <BookingEngine
-              tripType={tripType}
-              setTripType={setTripType}
-              pickupCity={pickupCity}
-              setPickupCity={setPickupCity}
-              dropCity={dropCity}
-              setDropCity={setDropCity}
-              roundTripStops={roundTripStops}
-              setRoundTripStops={setRoundTripStops}
-              pickupCoords={pickupCoords}
-              setPickupCoords={setPickupCoords}
-              dropCoords={dropCoords}
-              setDropCoords={setDropCoords}
-              pickupDate={pickupDate}
-              setPickupDate={setPickupDate}
-              pickupTime={pickupTime}
-              setPickupTime={setPickupTime}
-              returnDate={returnDate}
-              setReturnDate={setReturnDate}
-              returnTime={returnTime}
-              setReturnTime={setReturnTime}
-              localPackageId={localPackageId}
-              setLocalPackageId={setLocalPackageId}
-              airportMode={airportMode}
-              setAirportMode={setAirportMode}
-              airportTerminal={airportTerminal}
-              setAirportTerminal={setAirportTerminal}
-              calculatedDistance={distanceKm}
-              roundTripLegs={roundTripLegs}
-              tripDays={roundTripDays}
-              waitingMinutes={waitingMinutes}
-              setWaitingMinutes={setWaitingMinutes}
-              routeRequiresManualQuote={routeRequiresManualQuote}
-              routeErrorMessage={routeErrorMessage}
-              travelDuration={travelDuration}
-              isExactOlaDistance={isExactOlaDistance}
-              customerMobile={customerMobile}
-              setCustomerMobile={setCustomerMobile}
+            {/* 1. User / Quick Account & Partner Strip */}
+            <HomeTopContextBar
               currentUser={currentUser}
-              onLoginSuccess={handleLoginSuccess}
-              onExploreCabs={handleOpenAvailableCabs}
-              onOpenRouteMap={(mode) =>
-                setMapModalState({
-                  isOpen: true,
-                  mode,
-                  trackingBooking: null
-                })
-              }
-              routeAlternatives={routeAlternatives}
-              selectedRouteId={selectedRouteId}
-              onSelectAlternativeRoute={handleSelectAlternativeRoute}
-              routeSummary={routeSummary}
-              routeProvider={routeProvider}
+              activeTripsCount={activeUserBookings.length}
+              onOpenLogin={() => {
+                setAuthPrompt('Login with your 10-digit mobile number for instant booking, saved rides & GST invoices.');
+                setIsAuthModalOpen(true);
+              }}
+              onOpenProfile={() => setIsCustomerProfileOpen(true)}
+              onOpenRides={() => handleSwitchTab('rides', 'rides-section-top')}
+              onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
             />
 
-            {/* 2. Immediately Below Booking Form: SafarIndiaCabs Brand Image Banner */}
-            <div className="relative rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm bg-[#081C44]">
+            {/* 2. Live Active Ride / Duty Banner (shown when logged-in user has an upcoming/confirmed ride) */}
+            {primaryActiveBooking && (
+              <ActiveRideDutyBanner
+                booking={primaryActiveBooking}
+                onTrackLive={(booking) =>
+                  setMapModalState({
+                    isOpen: true,
+                    mode: 'live_tracking',
+                    trackingBooking: booking
+                  })
+                }
+                onViewReceipt={(booking) => setActiveVoucherBooking(booking)}
+                onViewAllRides={() => handleSwitchTab('rides', 'rides-section-top')}
+              />
+            )}
+
+            {/* 3. Quick Service Mode Grid (One-Way, Round Trip, Local Rental, Airport) */}
+            <QuickServiceGrid
+              tripType={tripType}
+              onSelectMode={(mode) => {
+                setTripType(mode);
+                if (mode === 'roundtrip' && !returnDate && pickupDate) {
+                  setReturnDate(pickupDate);
+                }
+                document.getElementById('safar-booking-card-anchor')?.scrollIntoView({
+                  behavior: 'smooth',
+                  block: 'nearest'
+                });
+              }}
+            />
+
+            {/* 4. Main Interactive Cab Booking Card */}
+            <div id="safar-booking-card-anchor">
+              <BookingEngine
+                tripType={tripType}
+                setTripType={setTripType}
+                pickupCity={pickupCity}
+                setPickupCity={setPickupCity}
+                dropCity={dropCity}
+                setDropCity={setDropCity}
+                roundTripStops={roundTripStops}
+                setRoundTripStops={setRoundTripStops}
+                pickupCoords={pickupCoords}
+                setPickupCoords={setPickupCoords}
+                dropCoords={dropCoords}
+                setDropCoords={setDropCoords}
+                pickupDate={pickupDate}
+                setPickupDate={setPickupDate}
+                pickupTime={pickupTime}
+                setPickupTime={setPickupTime}
+                returnDate={returnDate}
+                setReturnDate={setReturnDate}
+                returnTime={returnTime}
+                setReturnTime={setReturnTime}
+                localPackageId={localPackageId}
+                setLocalPackageId={setLocalPackageId}
+                airportMode={airportMode}
+                setAirportMode={setAirportMode}
+                airportTerminal={airportTerminal}
+                setAirportTerminal={setAirportTerminal}
+                calculatedDistance={distanceKm}
+                roundTripLegs={roundTripLegs}
+                tripDays={roundTripDays}
+                waitingMinutes={waitingMinutes}
+                setWaitingMinutes={setWaitingMinutes}
+                routeRequiresManualQuote={routeRequiresManualQuote}
+                routeErrorMessage={routeErrorMessage}
+                travelDuration={travelDuration}
+                isExactOlaDistance={isExactOlaDistance}
+                customerMobile={customerMobile}
+                setCustomerMobile={setCustomerMobile}
+                currentUser={currentUser}
+                onLoginSuccess={handleLoginSuccess}
+                onExploreCabs={handleOpenAvailableCabs}
+                onOpenRouteMap={(mode) =>
+                  setMapModalState({
+                    isOpen: true,
+                    mode,
+                    trackingBooking: null
+                  })
+                }
+                routeAlternatives={routeAlternatives}
+                selectedRouteId={selectedRouteId}
+                onSelectAlternativeRoute={handleSelectAlternativeRoute}
+                routeSummary={routeSummary}
+                routeProvider={routeProvider}
+              />
+            </div>
+
+            {/* 5. Instant Live Fleet Fares Strip (Horizontal swipe on mobile, 4-col on desktop) */}
+            <HomeFleetPreviewStrip
+              tripType={tripType}
+              pickupCity={pickupCity}
+              dropCity={effectiveDropCity}
+              distanceKm={distanceKm}
+              tripDays={roundTripDays}
+              pickupDate={pickupDate}
+              pickupTime={pickupTime}
+              returnDate={returnDate}
+              localPackageId={localPackageId}
+              routeRequiresManualQuote={routeRequiresManualQuote}
+              onSelectCab={handleSelectCab}
+              onExploreAllCabs={handleOpenAvailableCabs}
+            />
+
+            {/* 6. 1-Tap Quick WhatsApp Booking & 24x7 Call Desk */}
+            <QuickWhatsAppConciergeCard
+              tripType={tripType}
+              pickupCity={pickupCity}
+              dropCity={effectiveDropCity}
+              pickupDate={pickupDate}
+              pickupTime={pickupTime}
+            />
+
+            {/* 7. SafarIndiaCabs Brand Visual Banner */}
+            <div className="relative rounded-3xl overflow-hidden border border-slate-200/85 shadow-2xs bg-[#081C44]">
               <img
-                src="https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp"
-                srcSet="https://safarindiacabs.com/assets/aistudio/hero-banner-480.webp 480w, https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp 800w"
+                src="/assets/aistudio/hero-banner-800.webp"
+                srcSet="/assets/aistudio/hero-banner-480.webp 480w, /assets/aistudio/hero-banner-800.webp 800w"
                 sizes="(max-width: 768px) 94vw, 860px"
                 width={800}
                 height={450}
+                referrerPolicy="no-referrer"
                 fetchPriority="high"
                 loading="eager"
                 decoding="async"
@@ -1386,7 +1477,7 @@ export default function App() {
                   if (!img.dataset.fallbackApplied) {
                     img.dataset.fallbackApplied = '1';
                     img.srcset = '';
-                    img.src = '/assets/aistudio/hero-banner-800.webp';
+                    img.src = 'https://safarindiacabs.com/assets/aistudio/hero-banner-800.webp';
                   }
                 }}
                 alt="Safar India Cabs — Your Journey, Our Priority"
@@ -1394,33 +1485,14 @@ export default function App() {
               />
             </div>
 
-            {/* 3. Directly Below Banner: 3-Column Trust Badges Row */}
-            <div className="bg-white border border-slate-200/90 rounded-3xl py-5 px-4 sm:px-6 shadow-xs grid grid-cols-3 gap-2 sm:gap-4 text-center divide-x divide-slate-100">
-              <div className="px-1.5 sm:px-3">
-                <div className="text-sm sm:text-base font-black text-slate-950 tracking-tight">
-                  One-Way
-                </div>
-                <div className="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5">
-                  Zero Return Fare
-                </div>
-              </div>
-              <div className="px-1.5 sm:px-3">
-                <div className="text-sm sm:text-base font-black text-amber-700 tracking-tight">
-                  20% Advance
-                </div>
-                <div className="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5">
-                  Instant Booking
-                </div>
-              </div>
-              <div className="px-1.5 sm:px-3">
-                <div className="text-sm sm:text-base font-black text-slate-950 tracking-tight">
-                  Free Cancel
-                </div>
-                <div className="text-[11px] sm:text-xs text-slate-600 font-medium mt-0.5">
-                  Up to 6 Hrs Prior
-                </div>
-              </div>
-            </div>
+            {/* 8. Popular Fixed-Fare Corridors, Assurance Strip & Driver/Vendor Partner Hub */}
+            <HomeRoutesAndPartnerHub
+              onSelectRoute={handlePopularRouteClick}
+              onViewAllRoutes={() => handleSwitchTab('routes', 'routes-section-top')}
+              onOpenDriverPartner={() => setIsDriverPartnerOpen(true)}
+              onOpenRides={() => handleSwitchTab('rides', 'rides-section-top')}
+              onOpenHelp={() => handleSwitchTab('help', 'customer-support-top')}
+            />
           </div>
         )}
       </main>
@@ -1430,7 +1502,7 @@ export default function App() {
         <a
           href={buildWhatsAppSchemeUrl()}
           onClick={(e) => triggerWhatsAppDeepLink(e)}
-          className="bg-[#10B981] hover:bg-emerald-500 text-white font-black min-w-[48px] min-h-[48px] w-12 h-12 sm:w-auto sm:h-auto sm:px-4 sm:py-3 rounded-full shadow-2xl flex items-center justify-center gap-2 hover:scale-105 transition-all group cursor-pointer"
+          className="bg-[#10B981] hover:bg-emerald-500 text-white font-bold min-w-[48px] min-h-[48px] w-12 h-12 sm:w-auto sm:h-auto sm:px-4 sm:py-3 rounded-full shadow-xl flex items-center justify-center gap-2 hover:scale-105 transition-all group cursor-pointer"
           title="Chat on WhatsApp (+91 9570571516)"
           aria-label="Chat on WhatsApp"
         >
@@ -1439,16 +1511,16 @@ export default function App() {
         </a>
       </div>
 
-      {/* Sticky Bottom Navigation Bar with Smooth Active State Highlighting */}
+      {/* Native-Style Sticky Bottom Tab Bar */}
       <nav
         aria-label="Bottom tab navigation"
-        className="sticky bottom-0 shrink-0 w-full bg-[#0B0F19] border-t border-slate-800 z-[1000] px-2 py-1.5 pb-[max(6px,env(safe-area-inset-bottom,6px))] shadow-[0_-6px_24px_rgba(0,0,0,0.18)]"
+        className="sticky bottom-0 shrink-0 w-full bg-[#0B0F19]/98 backdrop-blur-md border-t border-slate-800/90 z-[1000] px-2 pt-1 pb-[max(6px,env(safe-area-inset-bottom,6px))] shadow-[0_-6px_24px_rgba(0,0,0,0.2)]"
       >
-        <div className="max-w-lg mx-auto grid grid-cols-5 text-center items-center gap-1.5">
+        <div className="max-w-lg mx-auto grid grid-cols-5 text-center items-center gap-1">
           {[
-            { id: 'booking' as NavTabId, label: 'Book Cab', icon: Car },
+            { id: 'booking' as NavTabId, label: 'Book', icon: Car },
             { id: 'routes' as NavTabId, label: 'Routes', icon: MapPin },
-            { id: 'rides' as NavTabId, label: 'My Rides', icon: Clock },
+            { id: 'rides' as NavTabId, label: 'My Rides', icon: Clock, badge: activeUserBookings.length },
             { id: 'about' as NavTabId, label: 'About', icon: Info },
             { id: 'help' as NavTabId, label: 'Help', icon: HelpCircle }
           ].map((tabItem) => {
@@ -1460,20 +1532,27 @@ export default function App() {
                 type="button"
                 onClick={() => handleSwitchTab(tabItem.id)}
                 aria-current={isActive ? 'page' : undefined}
-                className={`relative min-h-[50px] flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl text-[11px] leading-tight transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
+                className={`relative min-h-[54px] flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl text-[11px] leading-tight transition-all duration-150 active:scale-95 whitespace-nowrap cursor-pointer ${
                   isActive
-                    ? 'bg-amber-400 text-slate-950 font-black shadow-md scale-[1.03]'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60 font-semibold'
+                    ? 'text-amber-400 font-extrabold bg-white/[0.06]'
+                    : 'text-slate-400 hover:text-slate-200 font-semibold'
                 }`}
               >
                 {isActive && (
-                  <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-7 h-1 rounded-full bg-amber-300 shadow-xs" />
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] rounded-b-full bg-amber-400" />
                 )}
-                <IconComp
-                  className={`w-5 h-5 mb-0.5 shrink-0 transition-transform duration-200 ${
-                    isActive ? 'text-slate-950 scale-110 stroke-[2.5]' : 'text-slate-400'
-                  }`}
-                />
+                <div className="relative">
+                  <IconComp
+                    className={`w-5 h-5 mb-0.5 shrink-0 transition-transform duration-150 ${
+                      isActive ? 'text-amber-400 stroke-[2.4]' : 'text-slate-400 stroke-[2]'
+                    }`}
+                  />
+                  {tabItem.badge ? (
+                    <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-amber-400 text-slate-950 font-extrabold text-[10px] flex items-center justify-center leading-none">
+                      {tabItem.badge > 9 ? '9+' : tabItem.badge}
+                    </span>
+                  ) : null}
+                </div>
                 <span>{tabItem.label}</span>
               </button>
             );

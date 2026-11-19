@@ -1,12 +1,10 @@
 /**
- * Safar India Cabs - Progressive Web App Service Worker
- * Cache Name: safar-cabs-v1
+ * Safar India Cabs - Progressive Web App Service Worker (v4)
+ * Prevents stale HTML / broken CSS hash mismatches inside Android WebView & Mobile Browsers.
  */
 
-const CACHE_NAME = 'safar-cabs-v1';
+const CACHE_NAME = 'safar-cabs-v4';
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/favicon.svg',
   '/apple-touch-icon.png',
@@ -15,33 +13,38 @@ const PRECACHE_ASSETS = [
   '/icon-512-maskable.png'
 ];
 
-// Install: Pre-cache static shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => self.skipWaiting())
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .catch(() => {})
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activate: Clean up older cache versions
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    }).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((name) => name !== CACHE_NAME)
+            .map((name) => caches.delete(name))
+        )
+      )
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch: Network-first strategy with cache fallback for HTML/assets; bypass /api/
+function isAssetRequest(pathname) {
+  return /\.(css|js|mjs|woff2?|png|jpe?g|webp|svg|ico|json)$/i.test(pathname);
+}
+
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip cross-origin, POST/PUT methods, and serverless /api/ routes
   if (
     event.request.method !== 'GET' ||
     url.pathname.startsWith('/api/') ||
@@ -50,31 +53,52 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Always network-first for HTML navigations so fresh CSS/JS bundle hashes are always fetched
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-cache' })
+        .then((networkResponse) => {
+          const ct = networkResponse.headers.get('content-type') || '';
+          if (networkResponse.ok && ct.includes('text/html')) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/', clone));
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match('/');
+          return (
+            cached ||
+            new Response('Offline - Please check your internet connection.', {
+              status: 503,
+              headers: { 'Content-Type': 'text/plain' }
+            })
+          );
+        })
+    );
+    return;
+  }
+
+  // For static CSS/JS/images: network-first, strictly verify MIME type (never cache HTML for CSS/JS)
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Cache successful responses for GET requests
-        if (networkResponse && networkResponse.status === 200) {
+        const ct = (networkResponse.headers.get('content-type') || '').toLowerCase();
+        const isHtmlFallbackForAsset = isAssetRequest(url.pathname) && ct.includes('text/html');
+        if (networkResponse && networkResponse.status === 200 && !isHtmlFallbackForAsset) {
           const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
         }
         return networkResponse;
       })
       .catch(async () => {
-        // Fallback to cache when offline
         const cachedResponse = await caches.match(event.request);
         if (cachedResponse) {
           return cachedResponse;
         }
-        // If navigating to a page offline, return cached index.html
-        if (event.request.mode === 'navigate') {
-          return caches.match('/');
-        }
-        return new Response('Network error occurred while offline', {
+        return new Response('Offline asset unavailable', {
           status: 503,
-          headers: { 'Content-Type': 'text/plain' },
+          headers: { 'Content-Type': 'text/plain' }
         });
       })
   );

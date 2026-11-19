@@ -12,7 +12,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 export default defineConfig(({ command }) => {
   return {
-    base: command === 'build' ? 'https://safarindiacabs.com/' : '/',
+    base: '/',
     plugins: [
       react(), 
       tailwindcss(),
@@ -151,6 +151,7 @@ export default defineConfig(({ command }) => {
     },
     build: {
       target: 'es2020',
+      cssTarget: 'chrome80',
       sourcemap: false,
       chunkSizeWarningLimit: 600,
       rollupOptions: {

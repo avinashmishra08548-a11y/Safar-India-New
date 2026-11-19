@@ -21,6 +21,7 @@ import {
 import { CustomerUser } from '../types';
 import { buildWhatsAppSchemeUrl, triggerWhatsAppDeepLink } from '../utils/whatsapp';
 import { SAFAR_CONTACT_INFO } from './AboutAndHelpViews';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export type NavTabId = 'booking' | 'routes' | 'rides' | 'about' | 'help';
 
@@ -176,18 +177,19 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2.5 text-left transition-transform active:scale-98 whitespace-nowrap shrink-0 cursor-pointer py-1"
               >
                 <img
-                  src="https://safarindiacabs.com/assets/aistudio/logo-96.webp"
+                  src="/assets/aistudio/logo-96.webp"
                   onError={(e) => {
                     const img = e.currentTarget;
                     if (!img.dataset.fallbackApplied) {
                       img.dataset.fallbackApplied = '1';
-                      img.src = '/assets/aistudio/logo-96.webp';
+                      img.src = 'https://safarindiacabs.com/assets/aistudio/logo-96.webp';
                     }
                   }}
                   alt="Safarindiacabs Logo"
                   width={40}
                   height={40}
                   decoding="async"
+                  referrerPolicy="no-referrer"
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white p-0.5 shrink-0"
                 />
                 <div>
@@ -239,11 +241,12 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
               <a
                 href={SAFAR_CONTACT_INFO.telHref}
-                className="hidden sm:inline-flex items-center gap-2 min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-white transition"
-                title="Call 24/7 Helpline"
+                aria-label="Call 24/7 Helpline"
+                className="inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] px-2.5 sm:px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-white transition"
+                title="Call 24/7 Helpline (+91 9570571516)"
               >
-                <Phone className="w-3.5 h-3.5 text-amber-400" />
-                <span className="font-mono">95705 71516</span>
+                <Phone className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
+                <span className="hidden sm:inline font-mono tabular-nums">95705 71516</span>
               </a>
 
               {currentUser ? (
@@ -255,12 +258,12 @@ export const Header: React.FC<HeaderProps> = ({
                     title={`Logged in as ${currentUser.name} (+91 ${currentUser.phone})`}
                   >
                     <User className="w-4 h-4 text-slate-950 shrink-0" />
-                    <span className="max-w-[84px] truncate">{currentUser.name.split(' ')[0]}</span>
+                    <span className="max-w-[78px] truncate">{currentUser.name.split(' ')[0]}</span>
                   </button>
                   <button
                     type="button"
                     onClick={onLogout}
-                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-xl bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-500/40 text-slate-300 hover:text-rose-300 p-2.5 transition active:scale-95 cursor-pointer"
+                    className="hidden sm:inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl bg-slate-800 hover:bg-rose-950/80 border border-slate-700 hover:border-rose-500/40 text-slate-300 hover:text-rose-300 p-2.5 transition active:scale-95 cursor-pointer"
                     aria-label="Logout"
                     title="Logout"
                   >
@@ -271,7 +274,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onOpenLogin}
-                  className="min-h-[44px] inline-flex items-center justify-center gap-2 text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 px-4 py-2.5 rounded-xl transition active:scale-95 whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
+                  className="min-h-[44px] inline-flex items-center justify-center gap-1.5 text-xs font-black text-slate-950 bg-amber-400 hover:bg-amber-300 px-3.5 sm:px-4 py-2.5 rounded-xl transition active:scale-95 whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
                 >
                   <User className="w-4 h-4 text-slate-950 shrink-0" />
                   <span>Login</span>
@@ -281,33 +284,28 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Fixed Main Tab Title Line Strip (Remains Sticky at Top while Inner Content Scrolls) */}
-        <div className="bg-gradient-to-r from-[#0F172A] via-[#131C31] to-[#0F172A] border-t border-slate-800/90 px-3.5 sm:px-6 lg:px-8 py-2.5">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-amber-400 truncate">
-                  {currentTabMeta.badge}
-                </span>
-              </div>
-              <h1 className="text-sm sm:text-base lg:text-lg font-black text-white tracking-tight truncate mt-0.5">
+        {/* Desktop Contextual Title Strip (Hidden on mobile to keep sticky chrome compact <=15%) */}
+        <div className="hidden lg:block bg-gradient-to-r from-[#0F172A] via-[#131C31] to-[#0F172A] border-t border-slate-800/90 px-6 lg:px-8 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="min-w-0 flex items-center gap-3">
+              <span className="text-xs font-bold text-amber-400 whitespace-nowrap">
+                {currentTabMeta.badge}
+              </span>
+              <span aria-hidden="true" className="text-slate-600">·</span>
+              <h1 className="text-sm font-bold text-white tracking-tight truncate">
                 {currentTabMeta.title}
               </h1>
             </div>
 
-            <div className="hidden md:flex items-center gap-2 shrink-0">
-              <span className="text-xs text-slate-300 font-medium">
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-slate-300 font-medium hidden xl:inline">
                 {currentTabMeta.subtitle}
               </span>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
               {activeNavTab !== 'booking' && (
                 <button
                   type="button"
                   onClick={() => handleNavClick('booking')}
-                  className="min-h-[38px] px-3 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/30 font-extrabold text-xs transition shrink-0 cursor-pointer"
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/30 font-extrabold text-xs transition shrink-0 cursor-pointer"
                 >
                   Book Cab →
                 </button>
@@ -335,17 +333,18 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="shrink-0 px-4 pt-4 pb-3 border-b border-slate-800 bg-[#080C14] flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <img
-                  src="https://safarindiacabs.com/assets/aistudio/logo-96.webp"
+                  src="/assets/aistudio/logo-96.webp"
                   onError={(e) => {
                     const img = e.currentTarget;
                     if (!img.dataset.fallbackApplied) {
                       img.dataset.fallbackApplied = '1';
-                      img.src = '/assets/aistudio/logo-96.webp';
+                      img.src = 'https://safarindiacabs.com/assets/aistudio/logo-96.webp';
                     }
                   }}
                   alt="Safarindiacabs Logo"
                   width={36}
                   height={36}
+                  referrerPolicy="no-referrer"
                   className="w-9 h-9 rounded-xl object-contain bg-white p-0.5 shrink-0"
                 />
                 <div>
@@ -602,7 +601,12 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
 
-                {/* Bottom Centered Logout Action Row */}
+              {/* Optional Browser Install Prompt (Auto-hides inside Android App / Standalone PWA) */}
+              <div className="flex justify-center">
+                <PWAInstallButton className="w-full py-2.5" />
+              </div>
+
+              {/* Bottom Centered Logout Action Row */}
               <div className="pt-3 border-t border-slate-800 flex items-center justify-center">
                 <button
                   type="button"
@@ -620,7 +624,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* 3. Anchored Drawer Bottom Footer (Prevents Infinite Scroll Past Last Option) */}
             <div className="shrink-0 px-4 py-3 border-t border-slate-800 bg-[#070A12] flex items-center justify-between text-[11px] text-slate-400">
-              <span className="font-bold text-slate-300">Safarindiacabs v1.0.6 (7)</span>
+              <span className="font-bold text-slate-300">Safarindiacabs v1.1.0 (10)</span>
               <span className="font-mono text-amber-400">+91-9570571516</span>
             </div>
           </aside>
