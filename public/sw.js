@@ -3,7 +3,7 @@
  * Prevents stale HTML / broken CSS hash mismatches inside Android WebView & Mobile Browsers.
  */
 
-const CACHE_NAME = 'safar-cabs-v4';
+const CACHE_NAME = 'safar-cabs-v5';
 const PRECACHE_ASSETS = [
   '/manifest.json',
   '/favicon.svg',
@@ -48,6 +48,7 @@ self.addEventListener('fetch', (event) => {
   if (
     event.request.method !== 'GET' ||
     url.pathname.startsWith('/api/') ||
+    /\.(aab|apk|keystore)$/i.test(url.pathname) ||
     url.origin !== self.location.origin
   ) {
     return;

@@ -22,7 +22,7 @@ body {
   max-width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
-  overflow-x: hidden;
+  overflow-x: clip;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
   touch-action: manipulation;
@@ -49,21 +49,48 @@ body {
   scrollbar-width: none;
 }
 
-/* 1. Dark Prominent Sticky Top Header with Safe-Area Top Breathing Space */
+/* 1. Permanently Fixed Dark Top Header (Never scrolls away on mobile or Android WebView) */
 header.safar-dark-header {
-  position: sticky;
-  top: 0;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100%;
   z-index: 1000;
   background-color: #0b0f19;
   padding-top: env(safe-area-inset-top, 0px);
-  flex-shrink: 0;
 }
 
-/* 2. Smooth Main Content Container */
+/* 2. Permanently Fixed Bottom Tab Navigation Bar (Always visible from first load, no scrolling needed) */
+nav.safar-bottom-nav {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100%;
+  z-index: 1000;
+}
+
+/* 3. Smooth Main Content Container with exact offsets for Fixed Header & Fixed Bottom Nav */
 main.safar-main-scroll {
   flex: 1 1 auto;
-  overflow-x: hidden;
+  width: 100%;
+  overflow-x: clip;
   -webkit-overflow-scrolling: touch;
+  padding-top: calc(64px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 640px) {
+  main.safar-main-scroll {
+    padding-top: calc(68px + env(safe-area-inset-top, 0px));
+  }
+}
+
+@media (min-width: 1024px) {
+  main.safar-main-scroll {
+    padding-top: calc(106px + env(safe-area-inset-top, 0px));
+  }
 }
 
 /* Optimize touch targets when customer enables "Desktop site" mode on a mobile phone */
@@ -75,13 +102,13 @@ main.safar-main-scroll {
   }
 }
 
-/* 3. Booking / Checkout Modal Bottom Padding so yellow 'Pay & Confirm' button stays safely above bottom bar */
+/* 4. Booking / Checkout Modal Bottom Padding so yellow 'Pay & Confirm' button stays safely above bottom bar */
 .booking-modal-container {
   padding-bottom: 96px !important;
   -webkit-overflow-scrolling: touch;
 }
 
-/* 4. Razorpay Modal / Iframe Overlap Fix */
+/* 5. Razorpay Modal / Iframe Overlap Fix */
 .razorpay-container {
   z-index: 2147483647 !important;
   padding-bottom: 60px !important;
@@ -99,11 +126,11 @@ main.safar-main-scroll {
   margin-bottom: 55px !important;
 }
 
-/* 5. Floating WhatsApp Chat Button Position (Well above Bottom Nav) */
+/* 6. Floating WhatsApp Chat Button Position (Well above Fixed Bottom Nav) */
 .whatsapp-float {
   position: fixed !important;
-  bottom: 84px !important;
-  right: 16px !important;
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important;
+  right: 14px !important;
   z-index: 900 !important;
 }
 

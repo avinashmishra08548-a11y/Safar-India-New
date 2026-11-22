@@ -30,18 +30,24 @@ import android.webkit.GeolocationPermissions;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,10 +55,12 @@ import java.util.Set;
  * Version 1.1.0 (versionCode 10)
  *
  * Key upgrades:
- * - Android 15/16 (targetSdk 36) edge-to-edge WindowInsets padding (status bar, navigation bar & IME)
- * - Automatic one-time WebView cache clear on app version upgrade (prevents stale/unstyled CSS cache)
- * - Native dark-navy launch overlay, amber top loading bar, and offline/retry fallback with 1-tap Call/WhatsApp
- * - Full CSS/JS/DOM/viewport rendering settings for modern Tailwind web UI inside Android WebView
+ * - Native branded splash overlay with bundled SafarIndiaCabs crest & intercity poster
+ * - Bundled static asset acceleration (assets/webapp/) via safe shouldInterceptRequest()
+ *   so CSS, JS, icons & brand images load at 0ms while keeping live HTML & pricing fresh
+ * - Android 15/16 (targetSdk 36) edge-to-edge WindowInsets padding (status bar, nav bar & IME)
+ * - Automatic one-time WebView cache clear on app version upgrade
+ * - Native offline/retry screen with 1-tap Retry, WhatsApp Booking & 24x7 Call Helpline
  *
  * Hardened against Cross-App Scripting (Google Play Device & Network Abuse remediation):
  * 1. Disables all WebView local file & content access:
@@ -62,7 +70,7 @@ import java.util.Set;
  *    - setAllowUniversalAccessFromFileURLs(false)
  *    - setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW)
  * 2. Always loads canonical HTTPS APP_URL (never passes untrusted Intent URLs to loadUrl).
- * 3. Restricts WebView navigation and JavaScript bridge exposure strictly to trusted HTTPS origins.
+ * 3. Restricts WebView navigation, bundled asset serving, and JS bridge strictly to trusted HTTPS origins.
  */
 public class MainActivity extends Activity {
 
@@ -92,6 +100,15 @@ public class MainActivity extends Activity {
             "www.safarindiacabs.com",
             "api.razorpay.com",
             "checkout.razorpay.com"
+    ));
+
+    private static final Set<String> BUNDLED_ROOT_ASSETS = new HashSet<>(Arrays.asList(
+            "/icon-192.png",
+            "/icon-512.png",
+            "/icon-512-maskable.png",
+            "/apple-touch-icon.png",
+            "/favicon.svg",
+            "/logo.png"
     ));
 
     private FrameLayout rootContainer;
@@ -196,6 +213,15 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                WebResourceResponse localAsset = tryServeBundledWebAsset(request);
+                if (localAsset != null) {
+                    return localAsset;
+                }
+                return super.shouldInterceptRequest(view, request);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (request != null && request.getUrl() != null) {
@@ -347,6 +373,57 @@ public class MainActivity extends Activity {
         webView.loadUrl(APP_URL);
     }
 
+    /**
+     * Serves matching static production assets (/assets/* and app icons) at 0ms from APK assets
+     * strictly for trusted safarindiacabs.com HTTPS GET requests. Falls back to live HTTPS automatically
+     * whenever a newer deployed bundle hash is requested.
+     */
+    private WebResourceResponse tryServeBundledWebAsset(WebResourceRequest request) {
+        if (request == null || request.getUrl() == null) {
+            return null;
+        }
+        String method = request.getMethod();
+        if (method != null && !"GET".equalsIgnoreCase(method)) {
+            return null;
+        }
+        Uri uri = request.getUrl();
+        if (!isTrustedAppUrl(uri.toString())) {
+            return null;
+        }
+        String path = uri.getPath();
+        if (path == null || path.isEmpty() || path.contains("..") || path.contains("\\") || path.indexOf('\0') >= 0) {
+            return null;
+        }
+        boolean isAllowedStatic = path.startsWith("/assets/") || BUNDLED_ROOT_ASSETS.contains(path);
+        if (!isAllowedStatic) {
+            return null;
+        }
+        String assetPath = "webapp" + path;
+        try {
+            InputStream stream = getAssets().open(assetPath);
+            String mimeType = guessMimeType(path);
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Access-Control-Allow-Origin", "*");
+            headers.put("Cache-Control", "public, max-age=31536000");
+            return new WebResourceResponse(mimeType, "UTF-8", 200, "OK", headers, stream);
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private static String guessMimeType(String path) {
+        String lower = path.toLowerCase(Locale.US);
+        if (lower.endsWith(".css")) return "text/css";
+        if (lower.endsWith(".js") || lower.endsWith(".mjs")) return "application/javascript";
+        if (lower.endsWith(".webp")) return "image/webp";
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".svg")) return "image/svg+xml";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".woff2")) return "font/woff2";
+        return "application/octet-stream";
+    }
+
     private void configureSystemBars() {
         Window window = getWindow();
         if (window != null) {
@@ -401,11 +478,19 @@ public class MainActivity extends Activity {
         overlay.setOrientation(LinearLayout.VERTICAL);
         overlay.setGravity(Gravity.CENTER);
         overlay.setBackgroundColor(COLOR_NAVY_BG);
-        overlay.setPadding(dp(28), dp(28), dp(28), dp(28));
+        overlay.setPadding(dp(24), dp(28), dp(24), dp(28));
         overlay.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
+
+        ImageView crestView = new ImageView(this);
+        crestView.setImageResource(R.drawable.safar_app_crest);
+        crestView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams crestParams = new LinearLayout.LayoutParams(dp(76), dp(76));
+        crestParams.bottomMargin = dp(14);
+        crestView.setLayoutParams(crestParams);
+        overlay.addView(crestView);
 
         TextView title = new TextView(this);
         title.setText("SAFAR INDIA CABS");
@@ -425,13 +510,43 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         subParams.topMargin = dp(6);
-        subParams.bottomMargin = dp(24);
+        subParams.bottomMargin = dp(20);
         subtitle.setLayoutParams(subParams);
         overlay.addView(subtitle);
+
+        ImageView posterView = new ImageView(this);
+        posterView.setImageResource(R.drawable.safar_hero_poster);
+        posterView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        GradientDrawable posterBorder = new GradientDrawable();
+        posterBorder.setColor(COLOR_NAVY_CARD);
+        posterBorder.setCornerRadius(dp(18));
+        posterBorder.setStroke(dp(1), COLOR_AMBER);
+        posterView.setBackground(posterBorder);
+        posterView.setPadding(dp(2), dp(2), dp(2), dp(2));
+        LinearLayout.LayoutParams posterParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(190)
+        );
+        posterParams.bottomMargin = dp(22);
+        posterView.setLayoutParams(posterParams);
+        overlay.addView(posterView);
 
         ProgressBar spinner = new ProgressBar(this);
         spinner.setIndeterminate(true);
         overlay.addView(spinner);
+
+        TextView helpline = new TextView(this);
+        helpline.setText("24×7 Helpline: +91 9570571516");
+        helpline.setTextColor(COLOR_TEXT_MUTED);
+        helpline.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        helpline.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams helpParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        helpParams.topMargin = dp(16);
+        helpline.setLayoutParams(helpParams);
+        overlay.addView(helpline);
 
         return overlay;
     }
@@ -450,7 +565,7 @@ public class MainActivity extends Activity {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_HORIZONTAL);
-        card.setPadding(dp(24), dp(28), dp(24), dp(28));
+        card.setPadding(dp(24), dp(26), dp(24), dp(26));
         GradientDrawable cardBg = new GradientDrawable();
         cardBg.setColor(COLOR_NAVY_CARD);
         cardBg.setCornerRadius(dp(20));
@@ -460,6 +575,14 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
+
+        ImageView logoView = new ImageView(this);
+        logoView.setImageResource(R.drawable.safar_app_crest);
+        logoView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(56), dp(56));
+        logoParams.bottomMargin = dp(12);
+        logoView.setLayoutParams(logoParams);
+        card.addView(logoView);
 
         TextView heading = new TextView(this);
         heading.setText("Unable to Connect");

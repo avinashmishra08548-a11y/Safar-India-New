@@ -51,6 +51,7 @@ import {
   QuickServiceGrid,
   QuickWhatsAppConciergeCard
 } from './components/MobileHomeSections';
+import { TempAabDownloadBanner } from './components/TempAabDownloadBanner';
 
 const PopularRoutesSection = lazy(() =>
   import('./components/PopularRoutesSection').then((m) => ({ default: m.PopularRoutesSection }))
@@ -1191,7 +1192,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Sticky Top Header + Active Tab Title Strip */}
+      {/* Permanently Fixed Top Header */}
       <Header
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthModalOpen(true)}
@@ -1203,12 +1204,14 @@ export default function App() {
         onOpenLegalPolicy={(tab) => setLegalPolicyModalTab(tab)}
       />
 
-      {/* Smooth Main Content Area (Works seamlessly on Mobile, Desktop, and Desktop-Site-on-Mobile) */}
+      {/* Smooth Main Content Area (Automatically offset below Fixed Header & above Fixed Bottom Nav) */}
       <main
         ref={mainScrollRef}
         id="app-content"
-        className="safar-main-scroll flex-1 pb-24 sm:pb-16"
+        className="safar-main-scroll flex-1"
       >
+        {/* Temporary Direct Play Store .AAB Download Bar */}
+        <TempAabDownloadBanner />
         {activeTab === 'rides' ? (
           /* DEDICATED VIEW 1: MY RIDES & GST INVOICES */
           <div
@@ -1511,10 +1514,10 @@ export default function App() {
         </a>
       </div>
 
-      {/* Native-Style Sticky Bottom Tab Bar */}
+      {/* Permanently Fixed Native-Style Bottom Tab Bar */}
       <nav
         aria-label="Bottom tab navigation"
-        className="sticky bottom-0 shrink-0 w-full bg-[#0B0F19]/98 backdrop-blur-md border-t border-slate-800/90 z-[1000] px-2 pt-1 pb-[max(6px,env(safe-area-inset-bottom,6px))] shadow-[0_-6px_24px_rgba(0,0,0,0.2)]"
+        className="safar-bottom-nav fixed bottom-0 inset-x-0 w-full bg-[#0B0F19]/98 backdrop-blur-md border-t border-slate-800/90 z-[1000] px-2 pt-1 pb-[max(6px,env(safe-area-inset-bottom,6px))] shadow-[0_-6px_24px_rgba(0,0,0,0.2)]"
       >
         <div className="max-w-lg mx-auto grid grid-cols-5 text-center items-center gap-1">
           {[

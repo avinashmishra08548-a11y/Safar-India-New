@@ -150,10 +150,10 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="safar-dark-header shrink-0 z-[1000] bg-[#0B0F19] text-white border-b border-slate-800 shadow-md">
+      <header className="safar-dark-header fixed top-0 inset-x-0 w-full z-[1000] bg-[#0B0F19] text-white border-b border-slate-800 shadow-md">
         {/* Top Row: Hamburger Menu + Brand Logo + Desktop Nav + Login / User Action */}
         <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-3 min-h-[60px] sm:min-h-[66px] py-1.5">
+          <div className="flex items-center justify-between gap-3 h-[64px] sm:h-[68px]">
             {/* Zone 1: 3-Line Menu Button + Brand Lockup */}
             <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
               <button
@@ -284,8 +284,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Desktop Contextual Title Strip (Hidden on mobile to keep sticky chrome compact <=15%) */}
-        <div className="hidden lg:block bg-gradient-to-r from-[#0F172A] via-[#131C31] to-[#0F172A] border-t border-slate-800/90 px-6 lg:px-8 py-2">
+        {/* Desktop Contextual Title Strip (Hidden on mobile to keep fixed chrome compact) */}
+        <div className="hidden lg:flex items-center h-[38px] bg-gradient-to-r from-[#0F172A] via-[#131C31] to-[#0F172A] border-t border-slate-800/90 px-6 lg:px-8">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             <div className="min-w-0 flex items-center gap-3">
               <span className="text-xs font-bold text-amber-400 whitespace-nowrap">
