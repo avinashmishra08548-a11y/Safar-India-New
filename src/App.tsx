@@ -51,7 +51,6 @@ import {
   QuickServiceGrid,
   QuickWhatsAppConciergeCard
 } from './components/MobileHomeSections';
-import { TempAabDownloadBanner } from './components/TempAabDownloadBanner';
 
 const PopularRoutesSection = lazy(() =>
   import('./components/PopularRoutesSection').then((m) => ({ default: m.PopularRoutesSection }))
@@ -1210,8 +1209,6 @@ export default function App() {
         id="app-content"
         className="safar-main-scroll flex-1"
       >
-        {/* Temporary Direct Play Store .AAB Download Bar */}
-        <TempAabDownloadBanner />
         {activeTab === 'rides' ? (
           /* DEDICATED VIEW 1: MY RIDES & GST INVOICES */
           <div
